@@ -32,6 +32,7 @@ Oyuncular arası takas vardır ve takasla gelen eşya deftere işlenir.
 
 - Toz **craft'ın yakıtıdır**: her recipe malzemelerin yanında bir miktar toz ister (craft maliyeti).
 - Toz yalnızca eşya parçalayarak elde edilir, Tier yükseldikçe daha çok toz verir.
+- Toz ile **defter kozmetikleri** (Collection Book temaları, çerçeveler) de alınabilir. Bu, craft dışındaki toz fazlasını yakar. Parayla satılan defter kozmetiklerinden ayrı, sadece tozla açılan bir seridir.
 - Toz **takas edilemez** ve dış sitelerde satılamaz, bu yüzden bot çiftliklerine değer üretmez.
 - Kopya eşyada oyuncunun kararı: "Satıp Coin mi alayım, parçalayıp craft için toz mu biriktireyim?"
 
@@ -49,6 +50,6 @@ Oyuncular arası takas vardır ve takasla gelen eşya deftere işlenir.
 - **Recipe gerekmez.** "Recipe yoksa craft yok" kuralı yeni eşya üretmek içindir; birleştirme yeni eşya üretmez, aynı eşyanın daha temizini kovalar.
 - Float şansı craft tablosuna göre girdilerin ortalamasıyla kayar (bkz. 11.2). İyi girdiler daha iyi Float şansını artırır.
 - Sonuç, girdilerin **en kötüsünden** daha kötü çıkmaz.
-- Toz maliyeti Tier'a göre artar.
+- Toz maliyeti Tier'a göre artar. Ayrıca **Coin ücreti alınmaz**.
 - **(Öneri)** Haritada bir NPC'de (ör. meydandaki zanaatkar) yapılır.
 - Ekonomi: her birleştirme 2 eşyayı oyundan siler, güçlü bir sink'tir.

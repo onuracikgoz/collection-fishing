@@ -11,3 +11,4 @@
 5. Recipe'ler de Collection Book'ta yer alsın mı?
 6. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
 7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut ve banka uzaklığı onay bekliyor (Faz 1 çekirdek kararı alındı).
+8. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
