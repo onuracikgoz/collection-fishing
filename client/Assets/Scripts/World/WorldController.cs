@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
 using UnityEngine;
@@ -11,6 +12,7 @@ namespace CollectionGame.World
     /// The map while connected to one server (world match): reads match messages,
     /// keeps our predicted character and everyone else in view, follows us with
     /// the camera and handles chat (Enter to type, Enter to send, Esc to cancel).
+    /// Fishing lives in <see cref="FishingController"/>.
     /// </summary>
     public class WorldController : MonoBehaviour
     {
@@ -26,6 +28,7 @@ namespace CollectionGame.World
         LocalMover mover;
         readonly Dictionary<string, (CharacterView view, RemoteMover mover)> others = new Dictionary<string, (CharacterView, RemoteMover)>();
 
+        FishingController fishing;
         bool chatOpen;
         bool focusChat;
         string chatText = "";
@@ -37,8 +40,27 @@ namespace CollectionGame.World
             world.net = net;
             world.serverName = serverName;
             world.onDisconnected = onDisconnected;
+            world.fishing = new FishingController(net, go.transform, world.PositionOf);
             go.AddComponent<MapView>();
             return world;
+        }
+
+        // ---- used by the autopilot (Dev/Autopilot.cs) ----
+        public bool Ready => mover != null;
+        public Vector2 MyPosition => mover?.Position ?? Vector2.zero;
+        public string MyFacing => mover?.Facing ?? Dir.Down;
+        public bool Walking => mover != null && (mover.Target.HasValue || mover.Moving);
+        public int OthersInView => others.Count;
+        public FishingController Fishing => fishing;
+        public void WalkTo(Vector2 target) => mover?.SetTarget(target);
+        public void Say(string text) => net.Send(OpCode.Say, new SayMsg { text = text });
+        public int Corrections { get; private set; }
+        public int BubblesHeard { get; private set; }
+
+        Vector2? PositionOf(string id)
+        {
+            if (id == net.UserId) return mover?.Position;
+            return others.TryGetValue(id, out var o) ? o.mover.Position : (Vector2?)null;
         }
 
         void Start()
@@ -63,10 +85,13 @@ namespace CollectionGame.World
             var now = Time.time;
             if (mover != null)
             {
-                ReadMouse();
-                var move = mover.Tick(chatOpen ? Vector2.zero : ReadKeys(), Time.deltaTime, now);
+                var frozen = fishing.BlocksMovement;
+                if (frozen) mover.ClearTarget();
+                else ReadMouse();
+                var move = mover.Tick(chatOpen || frozen ? Vector2.zero : ReadKeys(), Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
+                fishing.Update(mover.Position, mover.Facing, chatOpen, cam);
             }
 
             foreach (var (view, remote) in others.Values)
@@ -102,6 +127,7 @@ namespace CollectionGame.World
                     serverName = w.serverName;
                     var start = new Vector2(w.you.x, w.you.y);
                     mover = new LocalMover(start);
+                    fishing.OnWelcome(w);
                     if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username);
                     me.SetState(start, mover.Facing, false);
                     break;
@@ -119,6 +145,7 @@ namespace CollectionGame.World
                     var remote = new RemoteMover(e, now);
                     view.SetState(remote.Position, remote.Facing, remote.Moving);
                     others[e.id] = (view, remote);
+                    fishing.OnPlayerEnter(e);
                     break;
                 }
                 case OpCode.PlayerLeave:
@@ -129,6 +156,7 @@ namespace CollectionGame.World
                         Destroy(gone.view.gameObject);
                         others.Remove(l.id);
                     }
+                    fishing.RemoveBobber(l.id);
                     break;
                 }
                 case OpCode.Snapshot:
@@ -143,12 +171,29 @@ namespace CollectionGame.World
                 {
                     var c = JsonUtility.FromJson<CorrectionMsg>(m.Json);
                     if (mover != null && mover.ApplyCorrection(c))
+                    {
+                        Corrections++;
                         Debug.Log($"[World] CORRECTION seq {c.seq} → ({c.x:0.##}, {c.y:0.##})");
+                    }
+                    break;
+                }
+                case OpCode.Bobber:
+                    fishing.OnBobber(JsonUtility.FromJson<BobberMsg>(m.Json), net.UserId);
+                    break;
+                case OpCode.ReelStart:
+                    fishing.OnReelStart(JsonUtility.FromJson<ReelStartMsg>(m.Json));
+                    break;
+                case OpCode.FishEnd:
+                {
+                    var f = JsonUtility.FromJson<FishEndMsg>(m.Json);
+                    others.TryGetValue(f.id ?? "", out var who);
+                    fishing.OnFishEnd(f, net.UserId, who.view);
                     break;
                 }
                 case OpCode.Bubble:
                 {
                     var b = JsonUtility.FromJson<BubbleMsg>(m.Json);
+                    BubblesHeard++;
                     if (b.id == net.UserId) me?.Say(b.text, BubbleSeconds);
                     else if (others.TryGetValue(b.id, out var o)) o.view.Say(b.text, BubbleSeconds);
                     break;
@@ -216,6 +261,7 @@ namespace CollectionGame.World
             var info = mover == null ? "Bağlanıyor…" : $"{serverName} · {others.Count + 1} kişi görüşte";
             GUI.Label(new Rect(10, 8, 400, 24), info, Gui.Hud);
             if (!chatOpen) GUI.Label(new Rect(10, Gui.Height - 30, 600, 24), "WASD / tıkla: yürü · Enter: konuş", Gui.Hud);
+            if (mover != null) fishing.DrawGui(mover.Position);
         }
 
         void DrawChat()

@@ -57,6 +57,12 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<ListServersResponse>(rpc.Payload)?.servers ?? Array.Empty<ServerInfo>();
         }
 
+        public async Task<InventoryResponse> GetInventoryAsync()
+        {
+            var rpc = await client.RpcAsync(Session, "get_inventory", "{}");
+            return JsonUtility.FromJson<InventoryResponse>(rpc.Payload);
+        }
+
         public async Task JoinAsync(string matchId, string characterId = "default")
         {
             await CloseAsync();

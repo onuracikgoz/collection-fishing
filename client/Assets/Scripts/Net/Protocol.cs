@@ -19,6 +19,14 @@ namespace CollectionGame.Net
         public const long Bubble = 6;
         public const long Correction = 7;
         public const long Welcome = 8;
+        // Faz 2: fishing
+        public const long Cast = 9;
+        public const long Bobber = 10;
+        public const long Hook = 11;
+        public const long ReelStart = 12;
+        public const long ReelDone = 13;
+        public const long FishEnd = 14;
+        public const long Cancel = 15;
     }
 
     public static class ErrorCode
@@ -97,6 +105,8 @@ namespace CollectionGame.Net
     {
         public string name;
         public string characterId;
+        /// <summary>Set if the player is fishing. JsonUtility fills absent objects with defaults: check band.</summary>
+        public BobberPos bobber;
     }
 
     /// <summary>S → C, op 4.</summary>
@@ -144,5 +154,138 @@ namespace CollectionGame.Net
     {
         public WelcomeYou you;
         public string serverName;
+        public int energy;
+        public int energyMax;
+    }
+
+    // --- Faz 2: fishing (docs/protokol.md, Balık tutma) ---
+
+    public static class Band
+    {
+        public const string Shore = "shore";
+        public const string Mid = "mid";
+        public const string Deep = "deep";
+    }
+
+    public static class BobberState
+    {
+        public const string Cast = "cast";
+        public const string Twitch = "twitch";
+        public const string Bite = "bite";
+    }
+
+    public static class FishOutcome
+    {
+        public const string Caught = "caught";
+        public const string Escaped = "escaped";
+        public const string Missed = "missed";
+        public const string Cancelled = "cancelled";
+        public const string Rejected = "rejected";
+    }
+
+    [Serializable]
+    public class BobberPos
+    {
+        public float x;
+        public float y;
+        public string band;
+    }
+
+    /// <summary>C → S, op 9: where the bobber should land (tiles).</summary>
+    [Serializable]
+    public class CastMsg
+    {
+        public float x;
+        public float y;
+    }
+
+    /// <summary>S → C, op 10.</summary>
+    [Serializable]
+    public class BobberMsg
+    {
+        public string id;
+        public float x;
+        public float y;
+        public string band;
+        public string state;
+    }
+
+    /// <summary>C → S, op 11 and 15 (HOOK, CANCEL) have an empty body.</summary>
+    [Serializable]
+    public class EmptyMsg
+    {
+    }
+
+    [Serializable]
+    public class ReelParams
+    {
+        public int barSize;
+        public int lift;
+        public int gravity;
+        public int maxVel;
+        public int fishSpeed;
+        public int retargetSteps;
+        public int gain;
+        public int loss;
+        public int maxSteps;
+        public int maxMs;
+    }
+
+    /// <summary>S → C, op 12.</summary>
+    [Serializable]
+    public class ReelStartMsg
+    {
+        public long seed; // unsigned 32-bit
+        public ReelParams @params;
+    }
+
+    /// <summary>C → S, op 13: press / release toggle times in ms, first one is a press.</summary>
+    [Serializable]
+    public class ReelDoneMsg
+    {
+        public int[] inputs;
+    }
+
+    [Serializable]
+    public class ItemInstance
+    {
+        public string instanceId;
+        public string defId;
+        public string tier;
+        public float @float;
+        public string source;
+        public long obtainedAt;
+    }
+
+    [Serializable]
+    public class ItemStack
+    {
+        public string defId;
+        public int count;
+    }
+
+    /// <summary>S → C, op 14. reason, item, stack and energy only reach the fisher.</summary>
+    [Serializable]
+    public class FishEndMsg
+    {
+        public string id;
+        public string outcome;
+        public string defId;
+        public string reason;
+        public ItemInstance item;
+        public ItemStack stack;
+        public int energy;
+    }
+
+    /// <summary>get_inventory RPC.</summary>
+    [Serializable]
+    public class InventoryResponse
+    {
+        public int energy;
+        public int energyMax;
+        public int slotsUsed;
+        public int slotsMax;
+        public ItemInstance[] items;
+        public ItemStack[] stacks;
     }
 }
