@@ -34,7 +34,7 @@
 |---|---|---|
 | Olta tamiri | ~200 avda bir | Düzenli, kaçınılmaz |
 | Özel yem | İsteğe bağlı, her atışta 1 | Düzenli, isteğe bağlı |
-| Pazar ücreti (%5) | Her pazar satışında | Ticaretle büyür |
+| Pazar ücreti (%5) | Her pazar satışında, ilan açmak ücretsiz | Ticaretle büyür |
 | Depo genişletme | Tek seferlik, kademeli | Büyük birikim hedefi |
 | NPC alışverişi (ileride) | Kozmetik olmayan oyun içi ürünler | Sonra |
 
@@ -114,7 +114,7 @@ Recipe gerekmez, sadece toz harcanır. Maliyet, aynı Tier'dan 2 eşyanın parç
 | Legendary | 1.200 |
 | Mythic | 5.000 |
 
-Recipe ve malzemeler ayrıca harcanır. Asıl darboğaz recipe'dir (günde ~0.45 recipe).
+Recipe ve malzemeler ayrıca harcanır. Craft ve birleştirmede Coin ücreti yoktur. Asıl darboğaz recipe'dir (günde ~0.45 recipe).
 
 ### 4.5. Depo genişletme
 
@@ -189,7 +189,7 @@ Destekçi paketi ekstra depo verir (kolaylık), bu kademelerin yerine geçmez.
 
 - İlk depo kademesi (2.000) ~9 günlük net birikim, ikincisi (5.000) bunun üstüne ~3 hafta, beşincisi aylar.
 - Düzenli sink girişin yaklaşık yarısını yakar, kalan yarıyı depo ve pazar ücreti zamanla emer. Hedef: uzun vadede yakılan Coin üretilenin %70–90'ı.
-- Toz: günde ~220 toz, ~0.45 recipe. Bir Rare craft 80 toz istediği için toz recipe'den çok daha hızlı birikir. Toz takas edilemediği için enflasyon yaratmaz ama birleştirme dışında harcanacak yeri azdır (bkz. açık sorular).
+- Toz: günde ~220 toz, ~0.45 recipe. Bir Rare craft 80 toz istediği için toz recipe'den çok daha hızlı birikir. Toz takas edilemediği için enflasyon yaratmaz. Fazlası **defter kozmetiklerine** (tozla açılan tema ve çerçeveler) harcanır; fiyatları kozmetik listesi çıkınca belirlenecek.
 
 ## 6. Riskler ve izlenecekler
 

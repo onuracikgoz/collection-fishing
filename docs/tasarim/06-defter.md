@@ -34,6 +34,8 @@ Defter sayfalardan (setlerden) oluşur. Faz 1 için örnek:
 - Hazineler
 - Zanaat (craft eşyaları)
 
+Recipe'ler defterde **yer almaz**; recipe tek kullanımlık bir craft eşyasıdır, koleksiyon kaydı değildir.
+
 ### 8.3. Collection Bonusu: Şans
 
 - Defterde kayıtlı (silik dahil) eşyalar oyuncunun **şansını** artırır.
