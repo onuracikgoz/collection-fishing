@@ -25,7 +25,7 @@ CollectionGame/              (repo kökü)
 ├── docker-compose.yml       yerel Nakama + Postgres
 ├── client/                  Unity 6 projesi (C#, 2D URP)
 ├── server/                  Nakama modülleri (TypeScript)
-├── tools/item-art-studio/   eşya görseli ve varyant aracı (React + Vite)
+├── tools/item-art-studio/   AI görselini oyun ikonuna çeviren araç (React + Vite)
 ├── tools/admin/             admin paneli (Faz 6)
 ├── content/                 palette.hex (ortak palet), sets/: set.json, prompts.md, PNG'ler
 └── docs/                    tasarım, mimari, protokol, fazlar
