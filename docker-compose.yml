@@ -1,6 +1,16 @@
 # Yerel geliştirme: Nakama + Postgres.
 # Başlat: docker compose up -d   Konsol: http://localhost:7351 (admin / password)
+# Sunucu kodu değişince: docker compose up -d --force-recreate server-build nakama
 services:
+  # server/ kodunu derler (Mac'te Node gerekmez), build/index.js üretip çıkar.
+  server-build:
+    image: node:22-alpine
+    working_dir: /app
+    command: sh -c "npm install --no-audit --no-fund && npm run build"
+    volumes:
+      - ./server:/app
+      - server_node_modules:/app/node_modules
+
   postgres:
     image: postgres:16-alpine
     environment:
@@ -21,6 +31,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      server-build:
+        condition: service_completed_successfully
     entrypoint:
       - "/bin/sh"
       - "-ecx"
@@ -38,3 +50,4 @@ services:
 
 volumes:
   pgdata:
+  server_node_modules:

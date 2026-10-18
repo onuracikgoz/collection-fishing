@@ -36,9 +36,7 @@ Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `d
 ## Komutlar
 
 ```bash
-docker compose up -d          # yerel Nakama + Postgres (konsol: http://localhost:7351)
-cd server && npm install
-npm run build                 # build/index.js üretir, Nakama bunu yükler
-npm test                      # kural testleri
-docker compose restart nakama # yeni build'i yükle
+docker compose up -d          # sunucuyu derler, Nakama + Postgres'i açar (konsol: http://localhost:7351)
+docker compose up -d --force-recreate server-build nakama   # sunucu kodu değişince
+cd server && npm install && npm test                        # kural testleri
 ```
