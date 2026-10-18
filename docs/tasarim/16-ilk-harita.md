@@ -73,6 +73,8 @@ Karar (18.10.2026): Faz 1'de yalnızca **çekirdek** yapılır, harita sistemler
 
 Pano ve zanaatkarın yeri baştan ayrılır, sistemleri gelene kadar boş durur.
 
+Sunucu çarpışmayı kendi verisinden kontrol eder: `server/src/data/lake-map.ts` (harita boyutu, meydan doğuş noktası, yürünemez dikdörtgenler). Şimdilik bu taslağa göre elle yazıldı (çeşme ve Büyük Göl'ün batı yarısı, iskele açık). Unity'de harita çizilince bu dosya tilemap'ten üretilmeli; iki taraf aynı çarpışmayı görmezse oyuncu düzeltme yer.
+
 ## Faz 1 için görseller
 
 LPC Revised paketinden `client/Assets/Art/LPC/` altına eklendi (lisans: `content/CREDITS.md`):

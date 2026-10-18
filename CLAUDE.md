@@ -39,4 +39,5 @@ Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `d
 docker compose up -d          # sunucuyu derler, Nakama + Postgres'i açar (konsol: http://localhost:7351)
 docker compose up -d --force-recreate server-build nakama   # sunucu kodu değişince
 cd server && npm install && npm test                        # kural testleri
+cd server && npm run smoke                                  # çalışan Nakama'ya iki sahte oyuncuyla uçtan uca test
 ```
