@@ -24,3 +24,60 @@ export interface HealthcheckResponse {
   serverTime: number;
   protocolVersion: number;
 }
+
+export type Dir = 'up' | 'down' | 'left' | 'right';
+
+export interface ServerInfo {
+  matchId: string;
+  name: string;
+  language: string;
+  players: number;
+  capacity: number;
+}
+
+export interface ListServersResponse {
+  servers: ServerInfo[];
+}
+
+export interface PlayerView {
+  id: string;
+  x: number;
+  y: number;
+  dir: Dir;
+  moving: boolean;
+}
+
+export interface SnapshotMsg {
+  t: number;
+  players: PlayerView[];
+}
+
+export interface PlayerEnterMsg extends PlayerView {
+  name: string;
+  characterId: string;
+}
+
+export interface PlayerLeaveMsg {
+  id: string;
+}
+
+export interface BubbleMsg {
+  id: string;
+  text: string;
+}
+
+export interface CorrectionMsg {
+  seq: number;
+  x: number;
+  y: number;
+}
+
+export interface WelcomeMsg {
+  you: { id: string; x: number; y: number };
+  serverName: string;
+}
+
+/** Body of an error thrown from an RPC or hook (docs/protokol.md, Hata kodları). */
+export function errorMessage(code: string, message: string): string {
+  return JSON.stringify({ code, message });
+}

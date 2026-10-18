@@ -7,9 +7,11 @@
   "scripts": {
     "build": "rollup -c",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "smoke": "node scripts/smoke-test.mjs"
   },
   "devDependencies": {
+    "@heroiclabs/nakama-js": "2.8.0",
     "@rollup/plugin-typescript": "12.3.0",
     "nakama-runtime": "github:heroiclabs/nakama-common#v1.48.0",
     "rollup": "4.64.9",

@@ -32,12 +32,12 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 
 ## Faz 1: bitti sayılma şartları
 
-- [ ] Cihaz kimliğiyle giriş (Steam girişi Faz 7'de)
-- [ ] Sunucu listesi: isim, dil, kişi sayısı (`docs/protokol.md`)
-- [ ] Küçük bir test haritası, çarpışmalar
+- [ ] Cihaz kimliğiyle giriş (Steam girişi Faz 7'de). Sunucu tarafı hazır: kullanıcı adı kuralı
+- [ ] Sunucu listesi: isim, dil, kişi sayısı (`docs/protokol.md`). Sunucu tarafı hazır: `list_servers`
+- [ ] Küçük bir test haritası, çarpışmalar. Sunucuda geçici çarpışma verisi var (`server/src/data/lake-map.ts`), Unity haritası çizilince ondan üretilmeli
 - [ ] Fare tıklaması ve WASD ile yürüme, 4 yön LPC animasyonu
-- [ ] 2+ oyuncu birbirini akıcı görüyor, sunucu hız sınırını uyguluyor
-- [ ] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı
+- [ ] 2+ oyuncu birbirini akıcı görüyor, sunucu hız sınırını uyguluyor. Sunucu tarafı hazır: `world` match, hız / sınır / çarpışma kontrolü, yakınlık
+- [ ] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı. Sunucu tarafı hazır
 - [ ] Web build arkadaşlara linkle açılıyor (test sunucusu)
 
 ## Agent rolleri
