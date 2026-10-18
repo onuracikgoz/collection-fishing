@@ -9,6 +9,7 @@
 - Coin balık tutarak kazanılır: avı / kopyaları NPC'ye satarak, çöpten ve sandıklardan.
 - Coin harcanır: yem, olta tamiri, pazar ücreti, NPC alışverişi. Bu harcamalar enflasyonu kontrol eder.
 - Coin gerçek parayla satılmaz.
+- Fiyatlar ve günlük Coin akışı: `16-ekonomi-tablosu.md` **(Öneri)**.
 
 ### 12.2. Gerçek Para Değeri
 
