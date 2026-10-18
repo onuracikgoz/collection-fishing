@@ -8,4 +8,7 @@
 2. Seri kaçırılınca: sıfırlansın mı, 3 gün geri mi düşsün? (öneri: geri düşsün)
 3. Şans bonusu sayfa başına ve +%25 sınırlı mı olsun? (öneri: evet)
 4. Takas kısıtı: tekrar takas yok mu, yoksa 7 gün bekleme mi? (ertelendi)
-5. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
+5. Recipe'ler de Collection Book'ta yer alsın mı?
+6. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
+7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut ve banka uzaklığı onay bekliyor (Faz 1 çekirdek kararı alındı).
+8. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
