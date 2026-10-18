@@ -28,7 +28,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] `client/` altında Unity 6 2D URP projesi
 - [ ] Unity'den yerel Nakama'ya bağlanıp `healthcheck` çağrılıyor
 - [ ] LPC karakter seti seçildi, lisans notu `content/` altında
-- [ ] Ekonomi simülasyon tablosunun ilk hali (`docs/tasarim/14-parametreler.md` bölüm 23)
+- [x] Ekonomi simülasyon tablosunun ilk hali (`docs/tasarim/16-ekonomi-tablosu.md`, bölüm 23 için)
 
 ## Faz 1: bitti sayılma şartları
 
