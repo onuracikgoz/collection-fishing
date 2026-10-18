@@ -27,6 +27,15 @@ namespace CollectionGame.Art
         static Dictionary<string, Texture2D> byPath;
         static readonly Dictionary<(Texture2D, RectInt, float, float), Sprite> sprites = new Dictionary<(Texture2D, RectInt, float, float), Sprite>();
 
+        // Enter Play Mode Options skip the domain reload, so statics survive between
+        // Play sessions while the sprites they point to are destroyed. Start clean.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics()
+        {
+            byPath = null;
+            sprites.Clear();
+        }
+
         public static Texture2D Texture(string path)
         {
             if (byPath == null)
@@ -60,7 +69,7 @@ namespace CollectionGame.Art
             var tex = Texture(path);
             if (tex == null) return null;
             var key = (tex, rect, pivotX, pivotY);
-            if (sprites.TryGetValue(key, out var sprite)) return sprite;
+            if (sprites.TryGetValue(key, out var sprite) && sprite != null) return sprite;
             var unityRect = new Rect(rect.x, tex.height - rect.y - rect.height, rect.width, rect.height);
             sprite = UnityEngine.Sprite.Create(tex, unityRect, new Vector2(pivotX, pivotY), PixelsPerUnit, 0, SpriteMeshType.FullRect);
             sprite.name = $"{path}@{rect.x},{rect.y}";

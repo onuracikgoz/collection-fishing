@@ -16,6 +16,10 @@ namespace CollectionGame.UI
 
         public static GUIStyle Name, NameMe, Shadow, Bubble, Hud, Input, Title, Error, Button;
 
+        // Styles hold a runtime texture; without a domain reload it is gone next Play.
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => Name = null;
+
         /// <summary>Call first in every OnGUI.</summary>
         public static void Begin()
         {
