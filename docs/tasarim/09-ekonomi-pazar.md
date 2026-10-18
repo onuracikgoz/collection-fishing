@@ -9,6 +9,7 @@
 - Coin balık tutarak kazanılır: avı / kopyaları NPC'ye satarak, çöpten ve sandıklardan.
 - Coin harcanır: yem, olta tamiri, pazar ücreti, NPC alışverişi. Bu harcamalar enflasyonu kontrol eder.
 - Coin gerçek parayla satılmaz.
+- Fiyatlar ve günlük Coin akışı: `16-ekonomi-tablosu.md` **(Öneri)**.
 
 ### 12.2. Gerçek Para Değeri
 
@@ -32,7 +33,7 @@
 - **Arama:** eşya adı, set, Tier, Float aralığı; en ucuz ilan üstte.
 - **Alım ilanı:** "Mavi Kristal arıyorum, 500 Coin'e kadar". Satıcı panoda görür, tek tıkla satar. Currently Hunting ile bağlanabilir.
 - İlan sahibine panodan **whisper** atılabilir (bkz. 13.1.2).
-- **(Öneri)** Pazar ücreti satıştan %5.
+- **(Öneri)** Pazar ücreti satıştan %5. **İlan açma ücreti yoktur**; ücret yalnızca satış olunca alınır.
 - **(Öneri)** Oyuncu başına en fazla 10 aktif ilan, ilanlar 7 gün sonra kalkar.
 - Level 10 ve kısıtlı olmayan Steam hesabı şartı geçerlidir.
 - Dış sitelerde gerçek parayla satılan eşyalar panodan değil **takas penceresinden** teslim edilir. Pano yalnızca Coin ile çalışır.

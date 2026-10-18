@@ -24,6 +24,8 @@ Rakamları playtest ve ekonomi simülasyonundan sonra belirlenecek:
 
 ## 23. Bir Sonraki Aşama: Ekonomi Simülasyonu
 
+> İlk tablo: `16-ekonomi-tablosu.md` (fiyatlar, toz, tek oyuncunun günlük Coin akışı). N oyuncu ve 30 / 90 / 180 günlük simülasyon henüz yok.
+
 Geliştirmeye başlamadan önce basit bir tablo / simülasyon ile şunlar hesaplanmalı:
 
 - N oyuncunun günde ürettiği av sayısı
