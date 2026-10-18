@@ -165,7 +165,7 @@ c.clear();
 c.send(OP.CAST, { x: 88.5, y: 47.5 });
 await sleep(300);
 const cast = c.take(OP.BOBBER)[0];
-check(!!cast && cast.state === 'cast' && cast.band, 'cast shows a bobber with a water band');
+check(!!cast && cast.state === 'cast' && cast.band && cast.energy === wc.energy - 1, 'cast shows a bobber with a water band and new energy');
 await walkTo(c, { x: 85.0, y: 47.5 });
 check((await lastEnd(c, 100))?.outcome === 'cancelled', 'moving cancels fishing');
 

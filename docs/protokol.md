@@ -73,7 +73,7 @@ Kurallar: `docs/tasarim/03-balik-tutma.md`. Bu bölümdeki her sonuç sunucuda h
 | Op | Yön | Ad | Gövde |
 |---|---|---|---|
 | 9 | C → S | `CAST` | `{ x, y }` (şamandıranın düşeceği nokta, tile) |
-| 10 | S → C | `BOBBER` | `{ id, x, y, band, state }` (oyuncunun kendisi ve onu görenler) |
+| 10 | S → C | `BOBBER` | `{ id, x, y, band, state, energy? }` (oyuncunun kendisi ve onu görenler; `energy` sadece oyuncunun kendi `cast` mesajında, atıştan sonraki enerji) |
 | 11 | C → S | `HOOK` | `{}` (oyuncu çekti) |
 | 12 | S → C | `REEL_START` | `{ seed, params }` (sadece oyuncunun kendisi) |
 | 13 | C → S | `REEL_DONE` | `{ inputs: [ms, ...] }` |

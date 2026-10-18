@@ -101,6 +101,8 @@ export interface BobberMsg {
   y: number;
   band: Band;
   state: BobberState;
+  /** Only in the fisher's own `cast` message: energy after the cast. */
+  energy?: number;
 }
 
 export interface ReelStartMsg {
