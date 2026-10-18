@@ -44,10 +44,10 @@ Steam Market, oyun içi gerçek para ödemesi, Auto-Farm, boosterlar, sezonlar, 
 ## 19. Eşya Görseli Üretim Hattı
 
 ```
-AI (ör. Perchance) → Item Art Studio (renk varyantları) → PNG + JSON → Unity Addressables
+AI (ör. Perchance) → Item Art Studio (arka plan, 128×128, ortak palet, renk / malzeme varyantları) → PNG + JSON → Unity Addressables
 ```
 
 - Her eşya için tek, ortalanmış, önden görünüm, 128×128, şeffaf arka planlı PNG.
-- Renk varyantları web aracından ayrı PNG olarak çıkar.
+- Renk ve malzeme varyantları (Matte, Glossy, Metal, Gold, Silver, Dark, desen) web aracından ayrı PNG olarak çıkar.
 - Float (kir / parlaklık) görselde değil, Unity'deki shader ile oyun anında uygulanır.
 - Detaylar: `docs/araclar/item-art-studio.md`.

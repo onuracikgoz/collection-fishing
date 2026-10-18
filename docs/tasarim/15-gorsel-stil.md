@@ -12,11 +12,11 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 
 - Harita ve karakterler: LPC (ör. github.com/ElizaWy/LPC). Lisans CC-BY-SA / GPL: isim verilir, değiştirilen çizimler aynı lisansla paylaşılır. Kredi listesi `content/CREDITS.md`'de tutulacak.
 - LPC'de olta animasyonu yok: ayrıca çizdirilecek.
-- Eşyalar: AI (Perchance) → Item Art Studio → ortak palet.
+- Eşyalar: AI (Perchance) → Item Art Studio (arka plan silme, 128×128, palete çekme, varyantlar) → ortak palet.
 
 ## Tutarlılık kuralları
 
-- **Tek renk paleti** (Öneri: 32–64 renk). Eşya ikonları bu palete çekilir.
+- **Tek renk paleti:** Resurrect 64 (karar 18.10.2026), dosyası `content/palette.hex`. Eşya ikonları Item Art Studio'da bu palete çekilir.
 - Arayüz pixel-art, ahşap ve kağıt teması (defter hissi).
 - Efektler oyunu canlı gösterir: su parıltısı, balık sıçraması, Pristine parlaması, "Yeni keşif!" kartı.
 

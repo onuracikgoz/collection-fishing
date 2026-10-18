@@ -1,97 +1,59 @@
+import { hexToRgb, rgbToHex } from './pixels'
+
+export const DEFAULT_TOLERANCE = 32
 
 export interface PaletteColor {
+  // Renk grubunun anahtarı. Renk değişiklikleri bu anahtarla saklanır.
+  key: string
+  // Gruptaki piksellerin ortalama rengi.
   hex: string
   count: number
 }
 
-// Her renk kanalını 32 seviyeli aralıklara ayırır.
-
+// RGB kanallarını `tolerance` genişliğinde kutulara böler. Aynı kutudaki
+// renkler aynı gruptur. tolerance 1 ise her renk kendi grubudur.
 export function getColorGroupKey(
   r: number,
   g: number,
   b: number,
-  tolerance = 32,
+  tolerance = DEFAULT_TOLERANCE,
 ): string {
-  const step = Math.max(1, Math.min(64, tolerance))
-
-  return [
-    Math.floor(r / step),
-    Math.floor(g / step),
-    Math.floor(b / step),
-  ].join('-')
+  const step = Math.max(1, Math.min(64, Math.round(tolerance)))
+  return `${Math.floor(r / step)}-${Math.floor(g / step)}-${Math.floor(b / step)}`
 }
 
-
-export function hexToColorGroupKey(
-  hex: string,
-  tolerance = 32,
-): string {
-  const values = hex.match(/[0-9A-F]{2}/gi)
-
-  if (!values || values.length !== 3) {
-    return ''
-  }
-
-  return getColorGroupKey(
-    parseInt(values[0], 16),
-    parseInt(values[1], 16),
-    parseInt(values[2], 16),
-    tolerance,
-  )
+export function hexToColorGroupKey(hex: string, tolerance = DEFAULT_TOLERANCE): string {
+  const rgb = hexToRgb(hex)
+  return rgb ? getColorGroupKey(rgb[0], rgb[1], rgb[2], tolerance) : ''
 }
 
+// Opak piksellerin renk gruplarını, çoktan aza sıralı döndürür.
 export function extractColorPalette(
   data: Uint8ClampedArray,
+  tolerance = DEFAULT_TOLERANCE,
 ): PaletteColor[] {
-  const groups = new Map<
-    string,
-    { r: number; g: number; b: number; count: number }
-  >()
+  const groups = new Map<string, { r: number; g: number; b: number; count: number }>()
 
   for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3]
-
-    if (alpha === 0) continue
-
+    if (data[i + 3] === 0) continue
     const r = data[i]
     const g = data[i + 1]
     const b = data[i + 2]
-    const key = getColorGroupKey(r, g, b)
-
+    const key = getColorGroupKey(r, g, b, tolerance)
     const group = groups.get(key)
-
     if (group) {
       group.r += r
       group.g += g
       group.b += b
       group.count++
     } else {
-      groups.set(key, {
-        r,
-        g,
-        b,
-        count: 1,
-      })
+      groups.set(key, { r, g, b, count: 1 })
     }
   }
 
-  return Array.from(groups.values())
-    .map((group) => {
-      const r = Math.round(group.r / group.count)
-      const g = Math.round(group.g / group.count)
-      const b = Math.round(group.b / group.count)
-
-      const hex =
-        '#' +
-        [r, g, b]
-          .map((value) => value.toString(16).padStart(2, '0'))
-          .join('')
-          .toUpperCase()
-
-      return {
-        hex,
-        count: group.count,
-      }
-    })
-    .sort((a, b) => b.count - a.count)
+  return Array.from(groups, ([key, group]) => ({
+    key,
+    hex: rgbToHex(group.r / group.count, group.g / group.count, group.b / group.count),
+    count: group.count,
+  })).sort((a, b) => b.count - a.count)
 }

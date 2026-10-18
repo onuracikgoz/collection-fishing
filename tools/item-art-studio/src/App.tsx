@@ -1,605 +1,613 @@
-
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import './App.css'
-import { analyzeImage, type PngAnalysis } from './engine/pngProcessor'
-import { createRegionMask } from './engine/maskEditor'
-import { getColorGroupKey, hexToColorGroupKey } from './engine/colorMapping'
+import paletteFileText from '../../../content/palette.hex?raw'
+import { PixelCanvas } from './components/PixelCanvas'
+import { PrepareInspector } from './components/PrepareInspector'
+import { VariantInspector } from './components/VariantInspector'
+import { extractColorPalette, getColorGroupKey } from './engine/colorMapping'
+import type { PrepareSettings } from './engine/pipeline'
+import { hexToRgb, rgbToHex } from './engine/pixels'
+import { createPaletteMatcher, paletteToHex, parseHexPalette } from './engine/quantize'
+import { highlightGroup } from './engine/recolor'
+import {
+  createVariant,
+  generateRandomVariants,
+  resetVariant,
+  uniqueId,
+  type VariantSpec,
+  type VariantStatus,
+} from './engine/variant'
+import { useRenderCache } from './hooks/renderCache'
+import { itemFileName, parseCollectionSet } from './models/collectionSet'
+import {
+  createBase,
+  setItemFor,
+  syncSetVariants,
+  toSnakeId,
+  type BaseEntry,
+  type GamePalette,
+  type ProjectState,
+} from './models/project'
+import { parseStudioFile, toStudioFile } from './models/studioFile'
+import { blobFile, downloadSingle, downloadZip, jsonFile, type ExportFile } from './services/exporter'
+import { bufferToPngBlob, loadPngFile } from './services/imageIO'
+import { loadProject, saveProject } from './services/projectStorage'
 
-
+const DEFAULT_PALETTE: GamePalette = { name: 'Resurrect 64 (content/palette.hex)', colors: parseHexPalette(paletteFileText) }
+const EMPTY_PROJECT: ProjectState = { bases: [], set: null, palette: DEFAULT_PALETTE }
+const GAME_SIZES = [32, 48, 96]
+type Step = 'prepare' | 'variants'
+type Filter = 'all' | VariantStatus
 
 function App() {
-  const [imageUrl, setImageUrl] = useState<string | null>(null)
-  const [imageName, setImageName] = useState('')
-  const [imageSize, setImageSize] = useState('')
-  const [brightness, setBrightness] = useState(100)
-  const [saturation, setSaturation] = useState(100)
-  const [analysis, setAnalysis] = useState<PngAnalysis | null>(null)
-  const [selectedColor, setSelectedColor] = useState<string | null>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const [replacementColor, setReplacementColor] = useState('#40A0FF')
-  const [replaceMode, setReplaceMode] = useState(false)
-  const [colorTolerance, setColorTolerance] = useState(32)
+  const [project, setProject] = useState<ProjectState>(EMPTY_PROJECT)
+  const [loaded, setLoaded] = useState(false)
+  const [activeKey, setActiveKey] = useState<string | null>(null)
+  const [activeVariantId, setActiveVariantId] = useState<string | null>(null)
+  const [step, setStep] = useState<Step>('prepare')
+  const [filter, setFilter] = useState<Filter>('all')
+  const [randomCount, setRandomCount] = useState(6)
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
+  const [erasing, setErasing] = useState(false)
+  const [message, setMessage] = useState<{ kind: 'error' | 'info'; text: string } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const fileInput = useRef<HTMLInputElement>(null)
+  const cache = useRenderCache()
 
-  const [regions, setRegions] = useState<
-    ReturnType<typeof createRegionMask>['regions']
-  >([])
+  const { bases, set, palette } = project
+  const base = bases.find((b) => b.key === activeKey) ?? bases[0] ?? null
+  const variant = base?.variants.find((v) => v.id === activeVariantId) ?? base?.variants[0] ?? null
+  const paletteHex = useMemo(() => paletteToHex(palette.colors), [palette])
+  const matcher = useMemo(() => createPaletteMatcher(palette.colors), [palette])
+  const usePalette = !!base?.prepare.quantize && palette.colors.length > 0
 
+  // --- Otomatik kayıt -------------------------------------------------------
 
-  const [colorReplacements, setColorReplacements] = useState<
-    Record<string, string>
-  >({})
+  useEffect(() => {
+    loadProject()
+      .then((saved) => {
+        if (saved && Array.isArray(saved.bases)) {
+          setProject({ ...EMPTY_PROJECT, ...saved, palette: saved.palette?.colors?.length ? saved.palette : DEFAULT_PALETTE })
+          setActiveKey(saved.bases[0]?.key ?? null)
+          if (saved.bases.length) setStep('variants')
+        }
+      })
+      .catch(() => setMessage({ kind: 'info', text: 'Önceki çalışma yüklenemedi; yeni başlıyoruz.' }))
+      .finally(() => setLoaded(true))
+  }, [])
 
+  useEffect(() => {
+    if (!loaded) return
+    const timer = window.setTimeout(() => {
+      saveProject(project).catch(() => setMessage({ kind: 'error', text: 'Otomatik kayıt başarısız (tarayıcı depolaması dolu olabilir).' }))
+    }, 400)
+    return () => window.clearTimeout(timer)
+  }, [project, loaded])
 
+  // --- Durum yardımcıları ---------------------------------------------------
 
-  function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const updateBase = useCallback((key: string, change: (b: BaseEntry) => BaseEntry) => {
+    setProject((p) => ({ ...p, bases: p.bases.map((b) => (b.key === key ? change(b) : b)) }))
+  }, [])
 
-    if (file.type !== 'image/png') {
-      alert('Lütfen PNG formatında bir görsel seç.')
-      event.target.value = ''
+  const updateVariant = useCallback((id: string, change: Partial<VariantSpec>) => {
+    if (!base) return
+    updateBase(base.key, (b) => ({ ...b, variants: b.variants.map((v) => (v.id === id ? { ...v, ...change } : v)) }))
+    if (change.id && change.id !== id) setActiveVariantId(change.id)
+  }, [base, updateBase])
+
+  function snapHex(hex: string | null): string | null {
+    if (!hex || !usePalette) return hex
+    const rgb = hexToRgb(hex)
+    return rgb ? rgbToHex(...matcher.nearest(rgb)) : hex
+  }
+
+  function changeVariant(change: Partial<VariantSpec>) {
+    if (!variant) return
+    const snapped: Partial<VariantSpec> = { ...change }
+    if (change.tint !== undefined) snapped.tint = snapHex(change.tint)
+    if (change.patternColor !== undefined) snapped.patternColor = snapHex(change.patternColor)
+    if (change.outlineColor !== undefined) snapped.outlineColor = snapHex(change.outlineColor)
+    if (change.id !== undefined && base && base.variants.some((v) => v.id === change.id && v !== variant)) {
+      setMessage({ kind: 'error', text: `${change.id} zaten var.` })
       return
     }
-
-    const url = URL.createObjectURL(file)
-    const image = new Image()
-
-    image.onload = () => {
-      setImageUrl((previousUrl) => {
-        if (previousUrl) URL.revokeObjectURL(previousUrl)
-        return url
-      })
-
-      setImageName(file.name)
-      setImageSize(`${image.width} × ${image.height} px`)
-      setAnalysis(analyzeImage(image))
-
-      const canvas = document.createElement('canvas')
-      canvas.width = image.naturalWidth
-      canvas.height = image.naturalHeight
-
-      const context = canvas.getContext('2d', {
-        willReadFrequently: true,
-      })
-
-      if (context) {
-        context.drawImage(image, 0, 0)
-
-        const imageData = context.getImageData(
-          0,
-          0,
-          canvas.width,
-          canvas.height,
-        )
-
-        const mask = createRegionMask(imageData)
-
-        setRegions(mask.regions)
-      }
-
-      setBrightness(100)
-      setSaturation(100)
-    }
-
-    image.onerror = () => {
-      URL.revokeObjectURL(url)
-      alert('Görsel yüklenemedi. Başka bir PNG dosyası dene.')
-    }
-
-    image.src = url
-    event.target.value = ''
+    updateVariant(variant.id, snapped)
   }
 
-  function resetAdjustments() {
-    setBrightness(100)
-    setSaturation(100)
+  function changePrepare(change: Partial<PrepareSettings>) {
+    if (!base) return
+    updateBase(base.key, (b) => ({ ...b, prepare: { ...b.prepare, ...change } }))
   }
 
+  // --- Dosya alma (toplu) ---------------------------------------------------
 
+  async function importFiles(files: File[]) {
+    setMessage(null)
+    const pngs = files.filter((f) => f.type === 'image/png' || f.name.toLowerCase().endsWith('.png'))
+    const jsons = files.filter((f) => f.name.toLowerCase().endsWith('.json'))
+    const hexes = files.filter((f) => f.name.toLowerCase().endsWith('.hex'))
+    const errors: string[] = []
 
-  
-useEffect(() => {
-  const canvas = canvasRef.current
-  if (!canvas || !imageUrl) return
+    let nextSet = project.set
+    let nextPalette = project.palette
+    for (const file of hexes) {
+      const colors = parseHexPalette(await file.text())
+      if (colors.length) nextPalette = { name: file.name, colors }
+      else errors.push(`${file.name}: renk bulunamadı.`)
+    }
 
-  const context = canvas.getContext('2d', {
-    willReadFrequently: true,
-  })
-
-  if (!context) return
-
-  const image = new Image()
-
-  image.onload = () => {
-    canvas.width = image.naturalWidth
-    canvas.height = image.naturalHeight
-
-    context.clearRect(0, 0, canvas.width, canvas.height)
-    context.drawImage(image, 0, 0)
-
-    const imageData = context.getImageData(
-      0,
-      0,
-      canvas.width,
-      canvas.height,
-    )
-
-    const pixels = imageData.data
-
-    // Önce kaydedilmiş bütün renk değişikliklerini uygula.
-    for (let i = 0; i < pixels.length; i += 4) {
-      if (pixels[i + 3] === 0) continue
-
-      const groupKey = getColorGroupKey(
-        pixels[i],
-        pixels[i + 1],
-        pixels[i + 2],
-        colorTolerance,
-      )
-
-      const replacement = colorReplacements[groupKey]
-
-      if (replacement) {
-        const hex = replacement.replace('#', '')
-
-        pixels[i] = parseInt(hex.slice(0, 2), 16)
-        pixels[i + 1] = parseInt(hex.slice(2, 4), 16)
-        pixels[i + 2] = parseInt(hex.slice(4, 6), 16)
+    const studios = []
+    for (const file of jsons) {
+      const text = await file.text()
+      try {
+        if (text.includes('"item-art-studio/')) studios.push(parseStudioFile(text))
+        else nextSet = parseCollectionSet(text)
+      } catch (err) {
+        errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
-    // Ardından seçili, henüz değiştirilmemiş grubu vurgula.
-    if (selectedColor && !replaceMode) {
-      const selectedGroup = hexToColorGroupKey(
-        selectedColor,
-        colorTolerance,
-      )
-
-      if (selectedGroup && !colorReplacements[selectedGroup]) {
-        for (let i = 0; i < pixels.length; i += 4) {
-          if (pixels[i + 3] === 0) continue
-
-          const pixelGroup = getColorGroupKey(
-            pixels[i],
-            pixels[i + 1],
-            pixels[i + 2],
-            colorTolerance,
-          )
-
-          if (pixelGroup === selectedGroup) {
-            pixels[i] = 255
-            pixels[i + 1] = 40
-            pixels[i + 2] = 220
-          }
-        }
+    const newBases: BaseEntry[] = []
+    const taken = new Set(project.bases.map((b) => b.baseId))
+    for (const file of pngs) {
+      try {
+        const buffer = await loadPngFile(file)
+        const entry = createBase(file.name, buffer)
+        entry.baseId = uniqueId(entry.baseId, taken)
+        taken.add(entry.baseId)
+        newBases.push(entry)
+      } catch (err) {
+        errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
-    context.putImageData(imageData, 0, 0)
+    let allBases = [...project.bases, ...newBases]
+    for (const studio of studios) {
+      const target = allBases.find((b) => b.baseId === studio.base_id || b.fileName === studio.source_image)
+      if (!target) {
+        errors.push(`${studio.base_id}.studio.json: önce ${studio.source_image || studio.base_id + '.png'} görselini ekle.`)
+        continue
+      }
+      allBases = allBases.map((b) => b === target
+        ? { ...b, baseId: studio.base_id, prepare: studio.prepare, tolerance: studio.tolerance, variants: studio.variants }
+        : b)
+    }
+    // Set renklerini palete oturt ki seçili renk paletteki karşılığıyla eşleşsin.
+    const setMatcher = createPaletteMatcher(nextPalette.colors)
+    const snapSet = (hex: string | null) => {
+      const rgb = hex ? hexToRgb(hex) : null
+      return rgb && nextPalette.colors.length ? rgbToHex(...setMatcher.nearest(rgb)) : hex
+    }
+    allBases = allBases.map((b) => {
+      const synced = syncSetVariants(b, nextSet)
+      if (synced === b) return b
+      const before = new Set(b.variants.map((v) => v.id))
+      return {
+        ...synced,
+        variants: synced.variants.map((v) => (before.has(v.id) || v.origin !== 'set' ? v : { ...v, tint: snapSet(v.tint) })),
+      }
+    })
+
+    setProject({ bases: allBases, set: nextSet, palette: nextPalette })
+    if (newBases.length) {
+      setActiveKey(newBases[0].key)
+      setActiveVariantId(null)
+      setStep('prepare')
+    }
+
+    const unmatched = nextSet ? newBases.filter((b) => !nextSet!.items.some((i) => i.base_id === b.baseId)) : []
+    if (errors.length) setMessage({ kind: 'error', text: errors.join(' · ') })
+    else if (unmatched.length) {
+      setMessage({ kind: 'info', text: `Sette karşılığı olmayan görseller: ${unmatched.map((b) => b.fileName).join(', ')}. Dosya adı base_id ile aynı olmalı.` })
+    } else if (newBases.length || nextSet !== project.set) {
+      setMessage({ kind: 'info', text: `${newBases.length} görsel eklendi${nextSet ? `, set: ${nextSet.name}` : ''}.` })
+    }
   }
 
-  image.src = imageUrl
-}, [
-  imageUrl,
-  selectedColor,
-  replacementColor,
-  replaceMode,
-  colorTolerance,
-  colorReplacements,
-])
+  function onDrop(event: DragEvent) {
+    event.preventDefault()
+    setDragging(false)
+    void importFiles(Array.from(event.dataTransfer.files))
+  }
 
+  function removeBase(key: string) {
+    setProject((p) => ({ ...p, bases: p.bases.filter((b) => b.key !== key) }))
+    if (activeKey === key) setActiveKey(null)
+  }
 
-  function handleCanvasClick(
-    event: React.MouseEvent<HTMLCanvasElement>,
-  ) {
-    const canvas = canvasRef.current
-    if (!canvas) return
+  function renameBase(value: string) {
+    if (!base) return
+    const baseId = toSnakeId(value)
+    updateBase(base.key, (b) => syncSetVariants({ ...b, baseId }, set))
+  }
 
-    const rect = canvas.getBoundingClientRect()
+  function clearProject() {
+    if (!window.confirm('Bütün görseller ve varyantlar silinsin mi? (Set ve palet kalır.)')) return
+    setProject((p) => ({ ...p, bases: [] }))
+    setActiveKey(null)
+  }
 
-    const x = Math.floor(
-      ((event.clientX - rect.left) / rect.width) * canvas.width,
-    )
+  // --- Varyantlar -----------------------------------------------------------
 
-    const y = Math.floor(
-      ((event.clientY - rect.top) / rect.height) * canvas.height,
-    )
+  function generateRandom() {
+    if (!base) return
+    const created = generateRandomVariants(randomCount, base.baseId, palette.colors, base.variants)
+    updateBase(base.key, (b) => ({ ...b, variants: [...b.variants, ...created] }))
+    setActiveVariantId(created[0]?.id ?? null)
+    setFilter('all')
+  }
 
-    if (
-      x < 0 ||
-      y < 0 ||
-      x >= canvas.width ||
-      y >= canvas.height
-    ) {
+  function addBlank() {
+    if (!base) return
+    const id = uniqueId(`${base.baseId}_variant`, new Set(base.variants.map((v) => v.id)))
+    updateBase(base.key, (b) => ({ ...b, variants: [...b.variants, createVariant(id, id, 'manual')] }))
+    setActiveVariantId(id)
+  }
+
+  function duplicateVariant() {
+    if (!base || !variant) return
+    const id = uniqueId(`${variant.id}_copy`, new Set(base.variants.map((v) => v.id)))
+    const copy: VariantSpec = { ...variant, id, name: `${variant.name} copy`, origin: 'manual', status: 'pending' }
+    updateBase(base.key, (b) => ({ ...b, variants: [...b.variants, copy] }))
+    setActiveVariantId(id)
+  }
+
+  function deleteVariant(id: string) {
+    if (!base) return
+    updateBase(base.key, (b) => ({ ...b, variants: b.variants.filter((v) => v.id !== id) }))
+    setActiveVariantId(null)
+  }
+
+  function deleteRejected() {
+    if (!base) return
+    updateBase(base.key, (b) => ({ ...b, variants: b.variants.filter((v) => v.status !== 'rejected' || v.origin === 'set') }))
+  }
+
+  function changeTolerance(tolerance: number) {
+    if (!base) return
+    // Grup anahtarları toleransa bağlı; eski ince ayarlar artık geçersiz.
+    updateBase(base.key, (b) => ({
+      ...b,
+      tolerance,
+      variants: b.variants.map((v) => ({ ...v, replacements: {}, tintGroups: [] })),
+    }))
+    setSelectedGroup(null)
+  }
+
+  const visibleVariants = useMemo(
+    () => (base ? base.variants.filter((v) => filter === 'all' || v.status === filter) : []),
+    [base, filter],
+  )
+
+  // Klavye: A onayla, X reddet, ←/→ gez, E silgi.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
+      if (step === 'prepare' && event.key.toLowerCase() === 'e') {
+        setErasing((e) => !e)
+        return
+      }
+      if (step !== 'variants' || !variant) return
+      const list = visibleVariants
+      const index = list.findIndex((v) => v.id === variant.id)
+      const key = event.key.toLowerCase()
+      if (key === 'a' || key === 'x') {
+        const status: VariantStatus = key === 'a' ? 'approved' : 'rejected'
+        updateVariant(variant.id, { status: variant.status === status ? 'pending' : status })
+        const next = list[index + 1]
+        if (next && variant.status !== status) setActiveVariantId(next.id)
+      } else if (event.key === 'ArrowRight' && list[index + 1]) {
+        setActiveVariantId(list[index + 1].id)
+      } else if (event.key === 'ArrowLeft' && index > 0) {
+        setActiveVariantId(list[index - 1].id)
+      } else {
+        return
+      }
+      event.preventDefault()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [step, variant, visibleVariants, updateVariant])
+
+  // --- Türetilen görseller --------------------------------------------------
+
+  const prepared = base ? cache.getPrepared(base, palette.colors) : null
+  const rendered = base && variant ? cache.getRendered(base, variant, palette.colors) : null
+  const groups = useMemo(
+    () => (prepared && base ? extractColorPalette(prepared.buffer.data, base.tolerance) : []),
+    [prepared, base],
+  )
+  const preview = rendered && prepared && base && selectedGroup && step === 'variants'
+    ? highlightGroup(rendered, prepared.buffer, selectedGroup, base.tolerance)
+    : rendered
+
+  function handlePreparedClick(x: number, y: number) {
+    if (!base || !prepared) return
+    if (step === 'prepare') {
+      if (!erasing) return
+      const point = prepared.toSource(x, y)
+      if (point) changePrepare({ erasePoints: [...base.prepare.erasePoints, point] })
       return
     }
-
-    const context = canvas.getContext('2d')
-    if (!context) return
-
-    const pixel = context.getImageData(x, y, 1, 1).data
-
-    // Şeffaf piksele tıklanırsa seçim yapma.
-    if (pixel[3] === 0) return
-
-    const hex =
-      '#' +
-      [pixel[0], pixel[1], pixel[2]]
-        .map((value) => value.toString(16).padStart(2, '0'))
-        .join('')
-        .toUpperCase()
-
-    const clickedGroup = hexToColorGroupKey(hex)
-
-    const matchingColor = analysis?.palette.find(
-      (color) => hexToColorGroupKey(color.hex) === clickedGroup,
-    )
-
-    setSelectedColor(matchingColor?.hex ?? hex)
-
-    setReplaceMode(false)
+    const data = prepared.buffer.data
+    const i = (y * prepared.buffer.width + x) * 4
+    if (data[i + 3] === 0) {
+      setSelectedGroup(null)
+      return
+    }
+    const key = getColorGroupKey(data[i], data[i + 1], data[i + 2], base.tolerance)
+    setSelectedGroup(selectedGroup === key ? null : key)
   }
 
+  function handleSourceClick(x: number, y: number) {
+    if (!base || !erasing) return
+    changePrepare({ erasePoints: [...base.prepare.erasePoints, { x, y }] })
+  }
 
+  // --- Dışa aktarma ---------------------------------------------------------
 
+  function fileNameFor(spec: VariantSpec): string {
+    const item = setItemFor(set, spec.id)
+    return item ? itemFileName(item) : `${spec.id}.png`
+  }
 
+  const approvedCount = bases.reduce((n, b) => n + b.variants.filter((v) => v.status === 'approved').length, 0)
 
-  function exportPng() {
-    if (!imageUrl) return
-
-    const image = new Image()
-
-    image.onload = () => {
-      const sourceCanvas = document.createElement('canvas')
-      sourceCanvas.width = image.naturalWidth
-      sourceCanvas.height = image.naturalHeight
-
-      const sourceContext = sourceCanvas.getContext('2d', {
-        willReadFrequently: true,
-      })
-
-      if (!sourceContext) return
-
-      sourceContext.drawImage(image, 0, 0)
-
-      // Seçilen renk grubunu değiştir.
-      if (selectedColor && replaceMode) {
-        const imageData = sourceContext.getImageData(
-          0,
-          0,
-          sourceCanvas.width,
-          sourceCanvas.height,
-        )
-
-        const selectedGroup = hexToColorGroupKey(
-          selectedColor,
-          colorTolerance,
-        )
-
-        const replacement = replacementColor.match(/[0-9A-F]{2}/gi)
-
-        if (selectedGroup && replacement?.length === 3) {
-          const pixels = imageData.data
-
-          const newR = parseInt(replacement[0], 16)
-          const newG = parseInt(replacement[1], 16)
-          const newB = parseInt(replacement[2], 16)
-
-          for (let i = 0; i < pixels.length; i += 4) {
-            if (pixels[i + 3] === 0) continue
-
-            const pixelGroup = getColorGroupKey(
-              pixels[i],
-              pixels[i + 1],
-              pixels[i + 2],
-              colorTolerance,
-            )
-
-            if (pixelGroup === selectedGroup) {
-              pixels[i] = newR
-              pixels[i + 1] = newG
-              pixels[i + 2] = newB
-            }
-          }
-
-          sourceContext.putImageData(imageData, 0, 0)
+  async function exportZip() {
+    try {
+      const files: ExportFile[] = []
+      const manifest: Array<Record<string, unknown> & { id: string }> = []
+      for (const b of bases) {
+        const approved = b.variants.filter((v) => v.status === 'approved')
+        for (const spec of approved) {
+          const name = fileNameFor(spec)
+          files.push(await blobFile(`png/${name}`, await bufferToPngBlob(cache.getRendered(b, spec, palette.colors))))
+          manifest.push({
+            id: spec.id,
+            name: spec.name,
+            base_id: b.baseId,
+            image: name,
+            in_set: !!setItemFor(set, spec.id),
+            tint: spec.tint,
+            material: spec.material,
+            pattern: spec.pattern,
+          })
         }
+        if (b.variants.length) files.push(jsonFile(`studio/${b.baseId}.studio.json`, toStudioFile(b, set?.set_id ?? null, palette.name)))
       }
-
-      // Parlaklık ve doygunluk ayarlarını uygula.
-      const exportCanvas = document.createElement('canvas')
-      exportCanvas.width = sourceCanvas.width
-      exportCanvas.height = sourceCanvas.height
-
-      const exportContext = exportCanvas.getContext('2d')
-      if (!exportContext) return
-
-      exportContext.filter =
-        `brightness(${brightness}%) saturate(${saturation}%)`
-
-      exportContext.drawImage(sourceCanvas, 0, 0)
-      exportContext.filter = 'none'
-
-      // PNG olarak indir.
-      exportCanvas.toBlob((blob) => {
-        if (!blob) {
-          alert('PNG dışa aktarılamadı.')
-          return
-        }
-
-        const downloadUrl = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-
-        link.href = downloadUrl
-        link.download = `${imageName.replace(/\.png$/i, '')}-edited.png`
-
-        document.body.appendChild(link)
-        link.click()
-        link.remove()
-
-        window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000)
-      }, 'image/png')
+      files.push(jsonFile('variants.json', { set_id: set?.set_id ?? null, palette: palette.name, items: manifest }))
+      downloadZip(files, `${set?.set_id ?? 'items'}-art.zip`)
+      const missing = set ? set.items.filter((i) => !manifest.some((m) => m.id === i.id)).length : 0
+      setMessage({ kind: 'info', text: `${manifest.length} PNG dışa aktarıldı.${missing ? ` Sette henüz onaylanmamış ${missing} eşya var.` : ''}` })
+    } catch (err) {
+      setMessage({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
     }
-
-    image.onerror = () => {
-      alert('Görsel dışa aktarım için yüklenemedi.')
-    }
-
-    image.src = imageUrl
   }
+
+  async function exportOne() {
+    if (!variant || !rendered) return
+    downloadSingle(await blobFile(fileNameFor(variant), await bufferToPngBlob(rendered)), 'image/png')
+  }
+
+  // --- Arayüz ---------------------------------------------------------------
+
+  const setCount = set ? set.items.length : 0
+  const setItem = variant ? setItemFor(set, variant.id) : null
 
   return (
-    <main className="app">
-      <header className="app-header">
-        <div>
+    <div
+      className={`app ${dragging ? 'dragging' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={(e) => { if (e.currentTarget === e.target) setDragging(false) }}
+      onDrop={onDrop}
+    >
+      <header className="topbar">
+        <div className="brand">
           <h1>Item Art Studio</h1>
-          <p>Pixel art item editor & variant generator</p>
+          <span>AI ikonu → oyun paleti → varyantlar</span>
         </div>
-
-        <button
-          className="export-button"
-          disabled={!imageUrl}
-          onClick={exportPng}
-        >
-          Export PNG
-        </button>
+        <div className="topbar-actions">
+          <button type="button" className="btn" onClick={() => fileInput.current?.click()}>Add files</button>
+          <input ref={fileInput} type="file" multiple hidden accept="image/png,.json,.hex"
+            onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void importFiles(files) }} />
+          <button type="button" className="btn btn-primary" disabled={approvedCount === 0} onClick={() => void exportZip()}>
+            Export ZIP ({approvedCount})
+          </button>
+        </div>
       </header>
 
-      <section className="workspace">
-        <aside className="panel">
-          <h2>Source Item</h2>
-          <p>Upload a PNG to get started.</p>
+      {message && (
+        <div className={`banner banner-${message.kind}`} role={message.kind === 'error' ? 'alert' : 'status'}>
+          <span>{message.text}</span>
+          <button type="button" className="link" onClick={() => setMessage(null)}>✕</button>
+        </div>
+      )}
 
-          <label className="upload-button">
-            Choose PNG
-            <input
-              type="file"
-              accept="image/png"
-              hidden
-              onChange={handleImageUpload}
-            />
-          </label>
-
-          {imageName && (
-            <div className="image-info">
-              <p>{imageName}</p>
-              <p>{imageSize}</p>
+      {bases.length === 0 ? (
+        <section className="empty">
+          <div className="empty-card">
+            <h2>Başlamak için dosyaları buraya bırak</h2>
+            <ol>
+              <li><b>PNG'ler</b>: Perchance çıktıları, istediğin kadar. Dosya adı = <code>base_id</code> (ör. <code>crystal_shard.png</code>).</li>
+              <li><b>set.json</b> (isteğe bağlı): setin eşyaları varyant olarak hazır gelir.</li>
+              <li><b>.studio.json</b> (isteğe bağlı): önceki çalışmanı geri yükler.</li>
+            </ol>
+            <button type="button" className="btn btn-primary" onClick={() => fileInput.current?.click()}>Choose files</button>
+            <p className="hint">Palet: {palette.name}, {palette.colors.length} renk. Çalışman bu tarayıcıda otomatik saklanır.</p>
+          </div>
+        </section>
+      ) : (
+        <main className="layout">
+          <aside className="library">
+            <div className="library-head">
+              <h2>Images</h2>
+              <button type="button" className="link" onClick={clearProject}>clear</button>
             </div>
-          )}
-          {analysis && (
-            <div className="analysis-info">
-              <h3>Image Analysis</h3>
-              <p>Dimensions: {analysis.width} × {analysis.height}</p>
-              <p>Colors: {analysis.uniqueColors.toLocaleString()}</p>
-              <p>Transparent: {analysis.transparencyPercent.toFixed(1)}%</p>
-              <p>
-                Alpha channel:{' '}
-                {analysis.hasTransparency ? 'Present' : 'No transparent pixels'}
-              </p>
-              <p>
-                Partial transparency:{' '}
-                {analysis.hasPartialTransparency ? 'Yes' : 'No'}
-              </p>
-            </div>
-          )}
+            {set && <p className="hint">Set: <b>{set.name}</b> · {setCount} items</p>}
+            <ul>
+              {bases.map((b) => {
+                const approved = b.variants.filter((v) => v.status === 'approved').length
+                const matched = !set || set.items.some((i) => i.base_id === b.baseId)
+                return (
+                  <li key={b.key} className={b.key === base?.key ? 'active' : ''}>
+                    <button type="button" className="library-item" onClick={() => { setActiveKey(b.key); setActiveVariantId(null); setSelectedGroup(null) }}>
+                      <PixelCanvas buffer={cache.getPrepared(b, palette.colors).buffer} displaySize={40} className="pixel thumb" />
+                      <span className="library-text">
+                        <b>{b.baseId}</b>
+                        <small>
+                          {approved}/{b.variants.length} approved{!matched && ' · not in set'}
+                        </small>
+                      </span>
+                    </button>
+                    <button type="button" className="link" title="Remove" onClick={() => removeBase(b.key)}>✕</button>
+                  </li>
+                )
+              })}
+            </ul>
+            <button type="button" className="btn btn-wide" onClick={() => fileInput.current?.click()}>+ Add PNGs</button>
+          </aside>
 
-
-          {analysis && (
-            <div className="palette-section">
-              <h3>Color Palette</h3>
-              {selectedColor && (
-                <p>
-                  Selected: <strong>{selectedColor}</strong>
-                  <button type="button" onClick={() => setSelectedColor(null)}>
-                    Clear selection
+          {base && prepared && (
+            <section className="stage">
+              <div className="stage-head">
+                <input className="base-name" value={base.baseId} onChange={(e) => renameBase(e.target.value)} title="base_id" />
+                <nav className="steps">
+                  <button type="button" className={step === 'prepare' ? 'on' : ''} onClick={() => setStep('prepare')}>1 · Prepare</button>
+                  <button type="button" className={step === 'variants' ? 'on' : ''} onClick={() => { setStep('variants'); setErasing(false) }}>
+                    2 · Variants ({base.variants.length})
                   </button>
-                </p>
-              )}
-              <div className="palette-grid">
-
-                {selectedColor && (
-                  <div className="recolor-controls">
-                    <p>Selected color: {selectedColor}</p>
-
-                    <label>
-                      Replacement color
-                      <input
-                        type="color"
-                        value={replacementColor}
-                        onChange={(event) => setReplacementColor(event.target.value.toUpperCase())}
-                      />
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => setReplaceMode(true)}
-                    >
-                      Preview replacement
-                    </button>
-
-                    <button
-                      type="button"
-
-                      onClick={() => {
-                        if (!selectedColor) return
-
-                        const groupKey = hexToColorGroupKey(
-                          selectedColor,
-                          colorTolerance,
-                        )
-
-                        setColorReplacements((previous) => ({
-                          ...previous,
-                          [groupKey]: replacementColor,
-                        }))
-
-                        setReplaceMode(true)
-                      }}
-
-                    >
-                      Highlight selected color
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setReplaceMode(false)
-                        setSelectedColor(null)
-                        setReplacementColor('#40A0FF')
-                        setBrightness(100)
-                        setSaturation(100)
-                      }}
-                    >
-                      Reset all adjustments
-                    </button>
-                  </div>
-                )}
-
-
-
-                {analysis.palette.slice(0, 24).map((color) => (
-                  <button
-                    className={`palette-color ${selectedColor === color.hex ? 'selected' : ''}`}
-                    key={color.hex}
-                    title={`Select ${color.hex}`}
-                    onClick={() =>
-                      setSelectedColor((current) => current === color.hex ? null : color.hex)
-                    }
-                    type="button"
-                  >                    <span
-                      className="palette-swatch"
-                      style={{ backgroundColor: color.hex }}
-                    />
-                    <span className="palette-hex">{color.hex}</span>
-                    <span className="palette-count">
-                      {color.count.toLocaleString()} px
-                    </span>
-                  </button>))}
+                </nav>
               </div>
 
-              <p>
-                Showing {Math.min(analysis.palette.length, 24)} of{' '}
-                {analysis.palette.length} colors
-              </p>
-            </div>
+              {step === 'prepare' ? (
+                <div className="compare">
+                  <figure>
+                    <div className={`canvas-box ${erasing ? 'erasing' : ''}`}>
+                      <PixelCanvas buffer={base.source} className="fit" onPixelClick={handleSourceClick} />
+                    </div>
+                    <figcaption>Original · {base.source.width}×{base.source.height}</figcaption>
+                  </figure>
+                  <figure>
+                    <div className={`canvas-box ${erasing ? 'erasing' : ''}`}>
+                      <PixelCanvas buffer={prepared.buffer} className="fit" onPixelClick={handlePreparedClick} />
+                    </div>
+                    <figcaption>
+                      Game icon · {prepared.buffer.width}×{prepared.buffer.height} · {extractColorPalette(prepared.buffer.data, 1).length} colors
+                    </figcaption>
+                  </figure>
+                  <div className="next">
+                    <button type="button" className="btn btn-primary" onClick={() => { setStep('variants'); setErasing(false) }}>
+                      Next: variants →
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="variants">
+                  <div className="hero">
+                    <div className="canvas-box">
+                      {preview && <PixelCanvas buffer={preview} className="fit" onPixelClick={handlePreparedClick} />}
+                    </div>
+                    {rendered && (
+                      <div className="sizes">
+                        {GAME_SIZES.map((size) => (
+                          <figure key={size}>
+                            <PixelCanvas buffer={rendered} displaySize={size} className="pixel" />
+                            <figcaption>{size}px</figcaption>
+                          </figure>
+                        ))}
+                        <p className="hint">Oyunda görüneceği boyutlar. A onayla · X reddet · ←/→ gez</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="toolbar">
+                    <div className="filters">
+                      {(['all', 'pending', 'approved', 'rejected'] as Filter[]).map((f) => (
+                        <button type="button" key={f} className={`chip ${filter === f ? 'chip-on' : ''}`} onClick={() => setFilter(f)}>
+                          {f} ({f === 'all' ? base.variants.length : base.variants.filter((v) => v.status === f).length})
+                        </button>
+                      ))}
+                    </div>
+                    <div className="row">
+                      <select value={randomCount} onChange={(e) => setRandomCount(Number(e.target.value))} aria-label="How many">
+                        {[3, 6, 9, 12].map((n) => <option key={n} value={n}>{n}</option>)}
+                      </select>
+                      <button type="button" className="btn btn-primary" onClick={generateRandom}>🎲 Random</button>
+                      <button type="button" className="btn" onClick={addBlank}>+ Blank</button>
+                      <button type="button" className="btn" disabled={!base.variants.some((v) => v.status === 'rejected' && v.origin !== 'set')} onClick={deleteRejected}>
+                        Delete rejected
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid">
+                    {visibleVariants.map((spec) => (
+                      <button
+                        type="button"
+                        key={spec.id}
+                        className={`card status-${spec.status} ${spec.id === variant?.id ? 'active' : ''}`}
+                        onClick={() => setActiveVariantId(spec.id)}
+                      >
+                        <PixelCanvas buffer={cache.getRendered(base, spec, palette.colors)} displaySize={72} className="pixel" />
+                        <span className="card-name">{spec.name}</span>
+                        <span className="card-meta">
+                          {spec.origin === 'set' ? 'set' : spec.origin}
+                          {spec.material !== 'none' && ` · ${spec.material}`}
+                        </span>
+                        {spec.status !== 'pending' && <span className="card-badge">{spec.status === 'approved' ? '✓' : '✕'}</span>}
+                      </button>
+                    ))}
+                    {visibleVariants.length === 0 && <p className="hint">Bu filtrede varyant yok.</p>}
+                  </div>
+                </div>
+              )}
+            </section>
           )}
 
-        </aside>
-
-        <section className="preview-panel">
-          <h2>Preview</h2>
-
-          <div className="preview-canvas">
-            {imageUrl ? (
-              <canvas
-                ref={canvasRef}
-                className="item-image"
-                onClick={handleCanvasClick}
-                style={{
-                  filter: `brightness(${brightness}%) saturate(${saturation}%)`,
-                }}
-                aria-label="Uploaded item preview"
+          <aside className="side">
+            {base && step === 'prepare' && (
+              <PrepareInspector
+                prepare={base.prepare}
+                paletteName={palette.name}
+                paletteSize={palette.colors.length}
+                erasing={erasing}
+                onChange={changePrepare}
+                onToggleEraser={() => setErasing((e) => !e)}
+                onPaletteFile={(file) => void importFiles([file])}
+                baseCount={bases.length}
+                onApplyToAll={() => setProject((p) => ({
+                  ...p,
+                  bases: p.bases.map((b) => ({ ...b, prepare: { ...base.prepare, erasePoints: b.key === base.key ? base.prepare.erasePoints : b.prepare.erasePoints } })),
+                }))}
               />
-            ) : (
-              <span>128 × 128</span>
             )}
-          </div>
+            {base && step === 'variants' && variant && (
+              <VariantInspector
+                spec={variant}
+                idLocked={variant.origin === 'set'}
+                targetColor={snapHex(setItem?.variant_color ?? null)}
+                paletteHex={usePalette ? paletteHex : paletteHex.slice(0, 0)}
+                usePalette={usePalette}
+                groups={groups}
+                selectedGroup={selectedGroup}
+                tolerance={base.tolerance}
+                onChange={changeVariant}
+                onSelectGroup={setSelectedGroup}
+                onTolerance={changeTolerance}
+                onReset={() => updateVariant(variant.id, { ...resetVariant(variant), tint: variant.origin === 'set' ? snapHex(setItem?.variant_color ?? null) : null })}
+                onDuplicate={duplicateVariant}
+                onDelete={() => deleteVariant(variant.id)}
+                onExportOne={() => void exportOne()}
+              />
+            )}
+          </aside>
+        </main>
+      )}
 
-          <p className="muted">
-            {imageUrl ? 'Live preview' : 'Your item will appear here.'}
-          </p>
-        </section>
-
-        <aside className="panel">
-          <h2>Appearance</h2>
-
-          <label>
-            Material
-            <select defaultValue="plastic">
-              <option value="plastic">Plastic</option>
-              <option value="metal">Metal</option>
-              <option value="gold">Gold</option>
-              <option value="carbon">Carbon Fiber</option>
-            </select>
-          </label>
-
-          <label>
-            Brightness: {brightness}%
-            <input
-              type="range"
-              min="0"
-              max="200"
-              value={brightness}
-              onChange={(event) => setBrightness(Number(event.target.value))}
-            />
-          </label>
-
-          <label>
-            Saturation: {saturation}%
-            <input
-              type="range"
-              min="0"
-              max="200"
-              value={saturation}
-              onChange={(event) => setSaturation(Number(event.target.value))}
-            />
-          </label>
-
-          <div className="control-group">
-            <label htmlFor="color-tolerance">
-              Color Grouping: {colorTolerance}
-            </label>
-
-            <input
-              id="color-tolerance"
-              type="range"
-              min="8"
-              max="64"
-              step="4"
-              value={colorTolerance}
-              onChange={(event) => setColorTolerance(Number(event.target.value))}
-            />
-
-            <p className="control-hint">
-              Higher values group more color shades together.
-            </p>
-          </div>
-
-
-          <button
-            className="reset-button"
-            type="button"
-            onClick={resetAdjustments}
-          >
-            Reset adjustments
-          </button>
-        </aside>
-      </section>
-
-      <section className="variants-panel">
-        <h2>Variants</h2>
-        <p>Generated item variants will appear here.</p>
-      </section>
-    </main>
+      {dragging && <div className="drop-overlay">Drop PNG / set.json / .studio.json / .hex</div>}
+    </div>
   )
 }
 
