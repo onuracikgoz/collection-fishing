@@ -14,52 +14,45 @@ namespace CollectionGame.EditorTools
     /// </summary>
     public static class HealthcheckRunner
     {
-        const double TimeoutSeconds = 30;
-
-        static Task<string> pending;
-        static double deadline;
+        static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
 
         public static void Run()
         {
-            // Default HttpClient adapter: works off the main thread, so no Play mode needed.
-            var client = new Client("http", "127.0.0.1", 7350, "defaultkey");
-            pending = CallAsync(client);
-            deadline = EditorApplication.timeSinceStartup + TimeoutSeconds;
-            EditorApplication.update += Poll;
-        }
-
-        static async Task<string> CallAsync(IClient client)
-        {
-            var session = await client.AuthenticateDeviceAsync("healthcheck-runner-" + SystemInfo.deviceUniqueIdentifier, create: true);
-            var rpc = await client.RpcAsync(session, "healthcheck", "{}");
-            return rpc.Payload;
-        }
-
-        static void Poll()
-        {
-            if (!pending.IsCompleted)
+            int code;
+            string message;
+            try
             {
-                if (EditorApplication.timeSinceStartup < deadline) return;
-                Finish(1, $"[Healthcheck] Timed out after {TimeoutSeconds}s");
-                return;
+                // Task.Run drops Unity's SynchronizationContext, so blocking here can't deadlock the main thread.
+                var call = Task.Run(CallAsync);
+                if (!call.Wait(Timeout))
+                {
+                    code = 1;
+                    message = $"[Healthcheck] Timed out after {Timeout.TotalSeconds}s";
+                }
+                else
+                {
+                    var payload = call.Result;
+                    code = payload != null && payload.Replace(" ", "").Contains("\"ok\":true") ? 0 : 1;
+                    message = $"[Healthcheck] payload: {payload}";
+                }
+            }
+            catch (Exception e)
+            {
+                code = 1;
+                message = $"[Healthcheck] Failed: {e.GetBaseException().Message}";
             }
 
-            if (pending.IsFaulted)
-            {
-                Finish(1, $"[Healthcheck] Failed: {pending.Exception?.GetBaseException().Message}");
-                return;
-            }
-
-            var payload = pending.Result;
-            var ok = payload != null && payload.Replace(" ", "").Contains("\"ok\":true");
-            Finish(ok ? 0 : 1, $"[Healthcheck] payload: {payload}");
-        }
-
-        static void Finish(int code, string message)
-        {
-            EditorApplication.update -= Poll;
             if (code == 0) Debug.Log(message); else Debug.LogError(message);
             EditorApplication.Exit(code);
+        }
+
+        static async Task<string> CallAsync()
+        {
+            // Default HttpClient adapter: works without Play mode.
+            var client = new Client("http", "127.0.0.1", 7350, "defaultkey");
+            var session = await client.AuthenticateDeviceAsync("healthcheck-runner-" + Environment.MachineName, create: true);
+            var rpc = await client.RpcAsync(session, "healthcheck", "{}");
+            return rpc.Payload;
         }
     }
 }
