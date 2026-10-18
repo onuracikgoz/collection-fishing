@@ -1,0 +1,40 @@
+# Yerel geliştirme: Nakama + Postgres.
+# Başlat: docker compose up -d   Konsol: http://localhost:7351 (admin / password)
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nakama
+      POSTGRES_PASSWORD: localdev
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres", "-d", "nakama"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+
+  nakama:
+    image: heroiclabs/nakama:3.41.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint:
+      - "/bin/sh"
+      - "-ecx"
+      - >
+        /nakama/nakama migrate up --database.address postgres:localdev@postgres:5432/nakama &&
+        exec /nakama/nakama --config /nakama/data/local.yml
+        --database.address postgres:localdev@postgres:5432/nakama
+    volumes:
+      - ./server/build:/nakama/data/modules
+      - ./server/local.yml:/nakama/data/local.yml:ro
+    ports:
+      - "7349:7349"   # gRPC
+      - "7350:7350"   # client API + WebSocket
+      - "7351:7351"   # konsol
+
+volumes:
+  pgdata:
