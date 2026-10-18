@@ -22,7 +22,8 @@
 
 - Haritanın her yerinde: meydan yanındaki kalabalık iskeleden ormanın arkasındaki küçük gölete kadar.
 - **(Öneri)** İzbe ve uzak noktalarda bazı nadir balıklar çıkar, oraya gitmek için sebep olur.
-- Faz 1'de tek balık havuzu (Göl) farklı noktalara dağıtılır.
+- Faz 1'de tek bölge (Göl) vardır; her noktanın havuzu Göl havuzunun bir alt kümesidir.
+- İlk haritanın yerleşimi ve noktaların listesi: `16-ilk-harita.md`.
 
 ### 4.0.3. Yakınlık
 
