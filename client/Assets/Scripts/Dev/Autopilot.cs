@@ -91,6 +91,17 @@ namespace CollectionGame.Dev
                     Log("bite, hooking");
                     fishing.Hook();
                 }
+                // A picture of the reel game halfway through, next to the final -cgShot.
+                var shot = Arg("-cgShot");
+                if (!string.IsNullOrEmpty(shot))
+                {
+                    while (fishing.State == FishingController.Phase.Hooked && Time.time < until) yield return null;
+                    if (fishing.State == FishingController.Phase.Reeling)
+                    {
+                        yield return new WaitForSeconds(1f);
+                        ScreenCapture.CaptureScreenshot(shot.Replace(".png", "-reel.png"));
+                    }
+                }
                 while (fishing.State != FishingController.Phase.Idle && Time.time < until) yield return null;
                 var end = fishing.LastEnd;
                 Log($"attempt {attempt}: {fishing.LastOutcome} {end?.reason} {end?.defId}");
