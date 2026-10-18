@@ -30,3 +30,78 @@ export const USERNAME = {
   minLength: 3, // (Öneri)
   maxLength: 16, // (Öneri)
 };
+
+// --- Faz 2: fishing (docs/protokol.md, Balık tutma; docs/tasarim/03-balik-tutma.md) ---
+
+export const WATER = {
+  shoreMax: 2, // water up to 2 tiles from land is shore (Öneri)
+  midMax: 5, // then mid up to 5, deep beyond (Öneri)
+};
+
+export const FISHING = {
+  nearWater: 1.5, // tiles (Öneri)
+  maxCast: 8, // tiles; one rod for now (Öneri)
+  waitMinMs: 5000,
+  waitMaxMs: 20000,
+  maxTwitches: 3, // (Öneri)
+  hookWindowMs: { common: 600, rare: 525, epic: 450, legendary: 400, mythic: 350 },
+  hookGraceMs: 300, // network delay allowance (Öneri)
+  reelEarlyToleranceMs: 500,
+  reelTimeoutGraceMs: 5000,
+};
+
+// Integer weights, 10000 = %100 (03-balik-tutma.md 5.0.1).
+// Recipes come with craft in Faz 4, so their weight is 0 for now.
+export const CATCH_TABLE = {
+  junk: 2500,
+  common: 5000,
+  material: 1200,
+  rare: 900,
+  epic: 300,
+  recipe: 0,
+  legendary: 50,
+  mythic: 5,
+};
+
+// 05-esya-float.md 7.2
+export const FLOAT_TABLE = [
+  { condition: 'pristine' as const, min: 0.0, max: 0.05, weight: 2 },
+  { condition: 'excellent' as const, min: 0.05, max: 0.2, weight: 13 },
+  { condition: 'normal' as const, min: 0.2, max: 0.5, weight: 45 },
+  { condition: 'worn' as const, min: 0.5, max: 0.8, weight: 30 },
+  { condition: 'damaged' as const, min: 0.8, max: 1.0, weight: 10 },
+];
+
+// Reel mini game per tier (Öneri, playtest will tune). Tested with a simulated
+// player in test/reel.test.ts: a quick player catches every tier, Common takes
+// ~2 s and Mythic ~8-10 s for them; a slower player starts missing at Epic.
+const reel = (barSize: number, fishSpeed: number, retargetSteps: number, gain: number, loss: number) => ({
+  barSize,
+  lift: 3,
+  gravity: 2,
+  maxVel: 18,
+  fishSpeed,
+  retargetSteps,
+  gain,
+  loss,
+  maxSteps: 1500, // 30 s
+  maxMs: 30000,
+});
+export const REEL_PARAMS = {
+  common: reel(300, 3, 60, 7, 3),
+  rare: reel(270, 5, 45, 5, 3),
+  epic: reel(240, 6, 35, 4, 3),
+  legendary: reel(230, 6, 28, 3, 2),
+  mythic: reel(230, 6, 22, 2, 1),
+};
+
+export const ENERGY = {
+  max: 100,
+  castCost: 1,
+  offlineFullMs: 8 * 60 * 60 * 1000, // full in ~8 h offline (Öneri)
+};
+
+export const BAG = {
+  slots: 40, // (Öneri)
+  stackSize: 99,
+};

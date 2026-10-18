@@ -2,7 +2,10 @@
 // Two fake players log in, walk, cheat, chat and leave. Run: npm run smoke
 import { Client } from '@heroiclabs/nakama-js';
 
-const OP = { MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8 };
+const OP = {
+  MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8,
+  CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15,
+};
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
 let failed = 0;
@@ -117,6 +120,132 @@ await sleep(400);
 const w3 = a3.take(OP.WELCOME)[0];
 check(!!w3 && Math.abs(w3.you.x - x) < 1e-6, 'rejoin starts at saved position');
 
-for (const p of [a, a2, a3, b]) p.socket.disconnect(false);
+
+// Fishing (Faz 2): walk to the pier, get refused a few times, then catch something.
+const c = await player('cem');
+await c.join(target.matchId);
+await sleep(400);
+const wc = c.take(OP.WELCOME)[0];
+check(!!wc && wc.energy >= 1 && wc.energyMax === 100, 'WELCOME carries energy');
+const pos = { x: wc.you.x, y: wc.you.y };
+async function walkTo(p, to) {
+  while (Math.abs(pos.x - to.x) > 1e-6 || Math.abs(pos.y - to.y) > 1e-6) {
+    const dx = Math.max(-0.35, Math.min(0.35, to.x - pos.x));
+    const dy = Math.max(-0.35, Math.min(0.35, to.y - pos.y));
+    pos.x += dx;
+    pos.y += dy;
+    p.send(OP.MOVE, { seq: ++p.seq, x: pos.x, y: pos.y, dir: dx > 0 ? 'right' : 'up', moving: true });
+    await sleep(100);
+  }
+  await sleep(300);
+}
+const lastEnd = async (p, ms = 400) => {
+  await sleep(ms);
+  const ends = p.take(OP.FISH_END);
+  return ends[ends.length - 1];
+};
+
+c.clear();
+c.send(OP.CAST, { x: 88.5, y: 47.5 });
+check((await lastEnd(c))?.reason === 'NOT_NEAR_WATER', 'cast far from water is refused (NOT_NEAR_WATER)');
+
+await walkTo(c, { x: 74.5, y: 50.5 });
+await walkTo(c, { x: 74.5, y: 47.5 });
+await walkTo(c, { x: 85.4, y: 47.5 });
+check(c.take(OP.CORRECTION).length === 0, 'walk to the pier end gets no CORRECTION');
+
+c.clear();
+c.send(OP.CAST, { x: 80.5, y: 47.5 });
+check((await lastEnd(c))?.reason === 'NOT_WATER', 'cast onto the pier is refused (NOT_WATER)');
+c.send(OP.CAST, { x: 100.5, y: 47.5 });
+check((await lastEnd(c))?.reason === 'TOO_FAR', 'cast too far is refused (TOO_FAR)');
+
+// Cast, then step away: fishing is cancelled
+c.clear();
+c.send(OP.CAST, { x: 88.5, y: 47.5 });
+await sleep(300);
+const cast = c.take(OP.BOBBER)[0];
+check(!!cast && cast.state === 'cast' && cast.band, 'cast shows a bobber with a water band');
+await walkTo(c, { x: 85.0, y: 47.5 });
+check((await lastEnd(c, 100))?.outcome === 'cancelled', 'moving cancels fishing');
+
+// Cast and wait for the bite
+c.clear();
+c.send(OP.CAST, { x: 88.5, y: 47.5 });
+let reel;
+for (let t = 0; t < 250 && !reel; t++) {
+  await sleep(100);
+  if (c.inbox.some((m) => m.op === OP.BOBBER && m.body.state === 'bite') && !c.hooked) {
+    c.hooked = true;
+    c.send(OP.HOOK, {});
+  }
+  reel = c.take(OP.REEL_START)[0];
+}
+check(c.take(OP.BOBBER).some((m) => m.state === 'twitch' || m.state === 'bite'), 'bobber twitches or bites');
+check(!!reel && reel.seed >= 0 && reel.params?.barSize > 0, 'HOOK on the bite starts the reel game');
+if (reel) {
+  const inputs = bot(reel.seed, reel.params);
+  const steps = simulate(reel.seed, reel.params, inputs);
+  await sleep(steps * 20);
+  c.send(OP.REEL_DONE, { inputs });
+  const done = await lastEnd(c, 600);
+  check(done?.outcome === 'caught' && done.defId && (done.item || done.stack), 'good reel catches something');
+  const inv = (await client.rpc(c.session, 'get_inventory', {})).payload;
+  const has = inv.items.some((i) => i.defId === done?.defId) || inv.stacks.some((s) => s.defId === done?.defId);
+  check(has && inv.energy === wc.energy - 2 && inv.slotsMax === 40, 'get_inventory shows the catch and spent energy');
+  if (done?.item) check(done.item.float >= 0 && done.item.float <= 1 && done.item.tier, 'item has Tier and Float');
+}
+
+// Fake REEL_DONE without a reel game is ignored
+c.clear();
+c.send(OP.REEL_DONE, { inputs: [20, 40] });
+check((await lastEnd(c)) === undefined, 'REEL_DONE without a reel is ignored');
+
+for (const p of [a, a2, a3, b, c]) p.socket.disconnect(false);
 console.log(failed === 0 ? 'all good' : `${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
+
+// The reel model from docs/protokol.md, for the test bot only (server/src/rules/reel.ts is the rule).
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return (t ^ (t >>> 14)) >>> 0;
+  };
+}
+function reelRun(seed, p, decide) {
+  const rng = mulberry32(seed);
+  let bar = Math.floor((1000 - p.barSize) / 2), vel = 0, fish = 500, target = 500, left = 0, progress = 300, pressed = false;
+  for (let k = 1; k <= p.maxSteps; k++) {
+    pressed = decide(k, pressed, bar, vel, fish);
+    vel = Math.max(-p.maxVel, Math.min(p.maxVel, vel + (pressed ? p.lift : -p.gravity)));
+    bar += vel;
+    if (bar < 0) [bar, vel] = [0, 0];
+    if (bar > 1000 - p.barSize) [bar, vel] = [1000 - p.barSize, 0];
+    if (left === 0) [target, left] = [rng() % 1001, p.retargetSteps];
+    else left--;
+    fish = fish < target ? Math.min(target, fish + p.fishSpeed) : Math.max(target, fish - p.fishSpeed);
+    progress += fish >= bar && fish <= bar + p.barSize ? p.gain : -p.loss;
+    if (progress >= 1000 || progress <= 0) return k;
+  }
+  return p.maxSteps;
+}
+function bot(seed, p) {
+  const inputs = [];
+  reelRun(seed, p, (k, pressed, bar, vel, fish) => {
+    const want = bar + p.barSize / 2 + vel * 8 < fish;
+    if (want !== pressed) inputs.push(k * 20);
+    return want;
+  });
+  return inputs;
+}
+function simulate(seed, p, inputs) {
+  let next = 0;
+  return reelRun(seed, p, (k, pressed) => {
+    while (next < inputs.length && inputs[next] <= k * 20) [pressed, next] = [!pressed, next + 1];
+    return pressed;
+  });
+}
