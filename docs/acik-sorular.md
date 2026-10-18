@@ -10,4 +10,4 @@
 4. Takas kısıtı: tekrar takas yok mu, yoksa 7 gün bekleme mi? (ertelendi)
 5. Recipe'ler de Collection Book'ta yer alsın mı?
 6. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
-7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut, banka uzaklığı ve haritanın fazlara göre büyümesi onay bekliyor.
+7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut ve banka uzaklığı onay bekliyor (Faz 1 çekirdek kararı alındı).
