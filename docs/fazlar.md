@@ -27,7 +27,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] GitHub repo (`onuracikgoz/collection-fishing`). PNG'ler LFS dışında, ses / büyük çizim LFS'te
 - [x] `client/` altında Unity 6 2D URP projesi
 - [ ] Unity'den yerel Nakama'ya bağlanıp `healthcheck` çağrılıyor
-- [ ] LPC karakter seti seçildi, lisans notu `content/` altında
+- [x] LPC karakter seti seçildi, lisans notu `content/` altında (deneme: LPC Revised karakterleri, `client/Assets/Art/LPC/Characters/`)
 - [x] Ekonomi simülasyon tablosunun ilk hali (`docs/tasarim/16-ekonomi-tablosu.md`, bölüm 23 için)
 
 ## Faz 1: bitti sayılma şartları
