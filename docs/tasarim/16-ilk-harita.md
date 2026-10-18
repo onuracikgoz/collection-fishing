@@ -60,9 +60,9 @@ Yeni setler haritaya dağılır: bir set tek noktaya bağlanmaz, ama her setin "
 
 Meydandan dört yol çıkar: kuzeye orman ve mağaraya, doğuya iskele ve göle (kuzey kıyıdan sazlığa devam eder), güneye kafe ve plaja, güneybatıya köy ve bankaya. İzbe köşelere yol yarım gider, son kısmı patikadır.
 
-## Faz sırası (Öneri)
+## Faz sırası
 
-Harita bir kerede yapılmaz, sistemler geldikçe büyür:
+Karar (18.10.2026): Faz 1'de yalnızca **çekirdek** yapılır, harita sistemler geldikçe büyür. Sonraki fazların satırları (Öneri):
 
 | Faz | Haritaya eklenen |
 |---|---|
@@ -72,3 +72,20 @@ Harita bir kerede yapılmaz, sistemler geldikçe büyür:
 | 5 | Pazar Panosu |
 
 Pano ve zanaatkarın yeri baştan ayrılır, sistemleri gelene kadar boş durur.
+
+## Faz 1 için görseller
+
+LPC Revised paketinden `client/Assets/Art/LPC/` altına eklendi (lisans: `content/CREDITS.md`):
+
+| İhtiyaç | Dosya |
+|---|---|
+| Çim, toprak yol, kum, su kıyısı, kıyı/orta/derin su | `Terrain/terrain_summer.png` |
+| Ağaçlar, çalılar, çiçekler, kayalar | `Terrain/trees_summer.png`, `plants_summer.png`, `flowers.png`, `wildflowers_summer.png`, `Rocks, Grasslands.png` |
+| İskele | `Structure/Bridges/Wood Bridge A*.png` |
+| Çeşme | `Structure/Misc/Fountain A.png` |
+| Kafe (ve ileride banka) | `Structure/Structures/Paneled House A.png`, `Brick House A.png` |
+| Çit, tabela | `Structure/Fences/Plain Fence A.png`, `Structure/Signs/Sign Backgrounds A.png` |
+| Sonraki fazlar için hazır | `Terrain/cliff_summer.png` (mağara, kayalık), `FX/WaterRipple.png`, `FX/Splash.png` |
+
+Pakette dış mekan bankı yok: Faz 1'de dinlenme yeri olarak kafe yeter, bank sonra bulunacak veya çizdirilecek. Meydan zemini için şimdilik toprak / kum kullanılır, taş döşeme ayrıca aranacak.
+
