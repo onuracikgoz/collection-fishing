@@ -1,6 +1,6 @@
 # Item Art Studio
 
-AI eşya görsellerini oyunun paletine çeken ve renk / malzeme varyantları üreten yerel web aracı.
+AI eşya görsellerini oyun ikonuna çeviren (arka plan, 128×128, ortak palet), onaylatan ve toplu dışa aktaran yerel web aracı.
 
 ```bash
 npm install

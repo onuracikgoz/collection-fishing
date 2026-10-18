@@ -1,21 +1,11 @@
 import type { Rgb } from './pixels'
 
-// OKLab / OKLCh dönüşümleri. Algıya yakın parlaklık ve renk tonu için.
+// OKLab: algıya yakın renk uzaklığı için (palete çekmede kullanılır).
 export type Lab = [number, number, number]
-export interface Lch {
-  l: number
-  c: number
-  h: number
-}
 
 function srgbToLinear(v: number): number {
   const c = v / 255
   return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
-}
-
-function linearToSrgb(v: number): number {
-  const c = v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055
-  return Math.max(0, Math.min(255, Math.round(c * 255)))
 }
 
 export function rgbToOklab([r8, g8, b8]: Rgb): Lab {
@@ -32,52 +22,12 @@ export function rgbToOklab([r8, g8, b8]: Rgb): Lab {
   ]
 }
 
-export function oklabToRgb([L, a, b]: Lab): Rgb {
-  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
-  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
-  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
-  return [
-    linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
-    linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
-    linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
-  ]
-}
-
-export function rgbToLch(rgb: Rgb): Lch {
-  const [l, a, b] = rgbToOklab(rgb)
-  const c = Math.sqrt(a * a + b * b)
-  let h = (Math.atan2(b, a) * 180) / Math.PI
-  if (h < 0) h += 360
-  return { l, c, h }
-}
-
-export function lchToRgb({ l, c, h }: Lch): Rgb {
-  const rad = (h * Math.PI) / 180
-  return oklabToRgb([Math.max(0, Math.min(1, l)), c * Math.cos(rad), c * Math.sin(rad)])
-}
-
-export function luminance(rgb: Rgb): number {
-  return rgbToOklab(rgb)[0]
-}
-
-// Dosya adlarında kullanılacak kaba renk adı.
-export function colorName(rgb: Rgb): string {
-  const { l, c, h } = rgbToLch(rgb)
-  if (c < 0.04) {
-    if (l > 0.85) return 'white'
-    if (l < 0.3) return 'black'
-    return 'gray'
+// Opak piksellerdeki farklı renk sayısı.
+export function countColors(data: Uint8ClampedArray): number {
+  const colors = new Set<number>()
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue
+    colors.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2])
   }
-  if (h >= 20 && h < 75 && l < 0.55) return 'brown'
-  if (h < 20 || h >= 350) return l > 0.75 ? 'pink' : 'red'
-  if (h < 55) return 'orange'
-  if (h < 75) return l > 0.7 ? 'gold' : 'orange'
-  if (h < 110) return 'yellow'
-  if (h < 135) return 'lime'
-  if (h < 165) return 'green'
-  if (h < 200) return 'teal'
-  if (h < 230) return 'cyan'
-  if (h < 275) return 'blue'
-  if (h < 310) return 'purple'
-  return 'pink'
+  return colors.size
 }

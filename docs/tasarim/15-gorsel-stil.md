@@ -12,7 +12,7 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 
 - Harita ve karakterler: LPC (ör. github.com/ElizaWy/LPC). Lisans CC-BY-SA / GPL: isim verilir, değiştirilen çizimler aynı lisansla paylaşılır. Kredi listesi `content/CREDITS.md`'de tutulacak.
 - LPC'de olta animasyonu yok: ayrıca çizdirilecek.
-- Eşyalar: AI (Perchance) → Item Art Studio (arka plan silme, 128×128, palete çekme, varyantlar) → ortak palet.
+- Eşyalar: AI (Perchance), her eşya ayrı görsel → Item Art Studio (arka plan silme, 128×128, palete çekme) → ortak palet.
 
 ## Tutarlılık kuralları
 

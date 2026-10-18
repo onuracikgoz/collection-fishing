@@ -1,58 +1,69 @@
 import { describe, expect, it } from 'vitest'
-import { createVariant } from '../src/engine/variant'
 import { itemFileName, parseCollectionSet } from '../src/models/collectionSet'
-import { createBase, syncSetVariants, toSnakeId } from '../src/models/project'
+import { approveImage, createImage, groupByItem, toSnakeId } from '../src/models/project'
 import { parseStudioFile, toStudioFile } from '../src/models/studioFile'
 import { solid } from './helpers'
 
 const SET = JSON.stringify({
-  set_id: 'crystal',
-  name: 'Kristal Seti',
-  base_designs: [{ base_id: 'crystal_shard' }],
+  set_id: 'lake',
+  name: 'Göl',
   items: [
-    { id: 'crystal_shard_gray', name: 'Gri', tier: 'Common', base_id: 'crystal_shard', variant_color: '#8A8F99', image: 'crystal_shard_gray.png' },
-    { id: 'crystal_shard_gold', name: 'Altın', tier: 'Legendary', base_id: 'crystal_shard', variant_color: '#F9C22B', image: null },
-    { id: 'crystal_crown', name: 'Taç', tier: 'Mythic', base_id: 'crystal_crown', variant_color: null, image: null },
+    { id: 'bottle_green', name: 'Yeşil Şişe', tier: 'Common', image: 'bottle_green.png' },
+    { id: 'bottle_blue', name: 'Mavi Şişe', tier: 'Rare', image: null },
   ],
 })
 
+const img = (name: string) => createImage(name, solid(2, 2, [1, 2, 3]))
+
 describe('collection set', () => {
-  it('parses set.json and adds base designs only referenced by items', () => {
+  it('parses set.json and names files', () => {
     const set = parseCollectionSet(SET)
-    expect(set.base_designs.map((d) => d.base_id)).toEqual(['crystal_shard', 'crystal_crown'])
-    expect(itemFileName(set.items[0])).toBe('crystal_shard_gray.png')
-    expect(itemFileName(set.items[1])).toBe('crystal_shard_gold.png')
+    expect(set.items.map((i) => i.id)).toEqual(['bottle_green', 'bottle_blue'])
+    expect(itemFileName(set.items[0], 'bottle_green')).toBe('bottle_green.png')
+    expect(itemFileName(set.items[1], 'bottle_blue')).toBe('bottle_blue.png')
+    expect(itemFileName(null, 'boot')).toBe('boot.png')
   })
 
   it('rejects broken files with a readable error', () => {
     expect(() => parseCollectionSet('{')).toThrow(/JSON/)
-    expect(() => parseCollectionSet('{"set_id":"x","items":[{"id":"a"}]}')).toThrow(/base_id/)
+    expect(() => parseCollectionSet('{"set_id":"x","items":[{}]}')).toThrow(/id/)
+  })
+})
+
+describe('project', () => {
+  it('derives item ids from file names, including downloaded copies', () => {
+    expect(toSnakeId('Bottle Blue.png')).toBe('bottle_blue')
+    expect(toSnakeId('bottle_blue (2).png')).toBe('bottle_blue')
+    expect(toSnakeId('glassBottle.PNG')).toBe('glass_bottle')
   })
 
-  it('matches PNG file names to base_id and creates set variants once', () => {
+  it('groups candidates by item, lists missing set items, and keeps one approval per item', () => {
     const set = parseCollectionSet(SET)
-    expect(toSnakeId('Crystal Shard.png')).toBe('crystal_shard')
-    const base = syncSetVariants(createBase('crystal_shard.png', solid(2, 2, [1, 2, 3])), set)
-    expect(base.variants.map((v) => [v.id, v.tint, v.origin])).toEqual([
-      ['crystal_shard_gray', '#8A8F99', 'set'],
-      ['crystal_shard_gold', '#F9C22B', 'set'],
+    const a = img('bottle_green.png')
+    const b = img('bottle_green (1).png')
+    const c = img('boot.png')
+    let images = [a, b, c]
+    const groups = groupByItem(images, set)
+    expect(groups.map((g) => [g.itemId, g.images.length, g.inSet])).toEqual([
+      ['bottle_green', 2, true],
+      ['bottle_blue', 0, true],
+      ['boot', 1, false],
     ])
-    expect(syncSetVariants(base, set)).toBe(base)
-    const loose = syncSetVariants(createBase('boot.png', solid(2, 2, [1, 2, 3])), set)
-    expect(loose.variants.map((v) => v.id)).toEqual(['boot'])
+    images = approveImage(images, a.key)
+    images = approveImage(images, b.key)
+    expect(images.map((i) => i.status)).toEqual(['pending', 'approved', 'pending'])
+    expect(groupByItem(images, set)[0].approved?.key).toBe(b.key)
   })
 })
 
 describe('studio file', () => {
-  it('round-trips prepare settings and variants', () => {
-    const base = createBase('shell.png', solid(2, 2, [1, 2, 3]))
-    base.variants = [{ ...createVariant('shell_blue', 'Blue', 'random', '#4D9BE6'), material: 'glossy', status: 'approved' }]
-    base.prepare.erasePoints = [{ x: 3, y: 4 }]
-    const text = JSON.stringify(toStudioFile(base, 'sea', 'Resurrect 64'))
-    const parsed = parseStudioFile(text)
-    expect(parsed.base_id).toBe('shell')
-    expect(parsed.prepare.erasePoints).toEqual([{ x: 3, y: 4 }])
-    expect(parsed.variants[0]).toEqual(base.variants[0])
+  it('round-trips prepare settings', () => {
+    const image = img('shell_pink.png')
+    image.prepare = { ...image.prepare, erasePoints: [{ x: 3, y: 4 }], padding: 2 }
+    const parsed = parseStudioFile(JSON.stringify(toStudioFile(image, 'sea', 'Resurrect 64')))
+    expect(parsed.item_id).toBe('shell_pink')
+    expect(parsed.source_image).toBe('shell_pink.png')
+    expect(parsed.prepare).toEqual(image.prepare)
   })
 
   it('rejects other JSON files', () => {

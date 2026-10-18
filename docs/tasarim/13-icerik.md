@@ -14,7 +14,7 @@ Tek bölge (Göl), yaklaşık **60 defter kaydı**:
 | Recipe'ler | 8 | "şişedeki recipe", nadir |
 | Craft eşyaları | 8 | Yalnızca recipe ile. 2-3'ü üst recipe |
 
-Bu yaklaşık **35 temel AI görseli** demektir, geri kalanı renk varyantlarıyla dolar.
+Her defter kaydı kendi AI görseliyle üretilir, renk varyantları dahil (karar 18.10.2026: araçta renk değiştirerek üretilen varyantlar AI görselinin ışık-gölgesiyle uyuşmadı). Faz 1 için yaklaşık **60 AI görseli**.
 
 ### 17.1. Faz 1 Sistemleri
 
@@ -44,10 +44,10 @@ Steam Market, oyun içi gerçek para ödemesi, Auto-Farm, boosterlar, sezonlar, 
 ## 19. Eşya Görseli Üretim Hattı
 
 ```
-AI (ör. Perchance) → Item Art Studio (arka plan, 128×128, ortak palet, renk / malzeme varyantları) → PNG + JSON → Unity Addressables
+AI (ör. Perchance), eşya başına bir görsel → Item Art Studio (arka plan, 128×128, ortak palet, onay) → PNG + JSON → Unity Addressables
 ```
 
 - Her eşya için tek, ortalanmış, önden görünüm, 128×128, şeffaf arka planlı PNG.
-- Renk ve malzeme varyantları (Matte, Glossy, Metal, Gold, Silver, Dark, desen) web aracından ayrı PNG olarak çıkar.
+- Renk varyantları da AI'a ayrı ayrı ürettirilir. Aynı nesnenin varyantları için prompt aynı tutulur, yalnızca renk / malzeme kelimeleri değişir; Perchance şekli birebir korumaz.
 - Float (kir / parlaklık) görselde değil, Unity'deki shader ile oyun anında uygulanır.
 - Detaylar: `docs/araclar/item-art-studio.md`.

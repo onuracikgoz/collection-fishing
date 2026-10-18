@@ -1,75 +1,57 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type DragEvent } from 'react'
 import './App.css'
 import paletteFileText from '../../../content/palette.hex?raw'
 import { PixelCanvas } from './components/PixelCanvas'
 import { PrepareInspector } from './components/PrepareInspector'
-import { VariantInspector } from './components/VariantInspector'
-import { extractColorPalette, getColorGroupKey } from './engine/colorMapping'
+import { countColors } from './engine/color'
 import type { PrepareSettings } from './engine/pipeline'
-import { hexToRgb, rgbToHex } from './engine/pixels'
-import { createPaletteMatcher, paletteToHex, parseHexPalette } from './engine/quantize'
-import { highlightGroup } from './engine/recolor'
+import { parseHexPalette } from './engine/quantize'
+import { usePreparedCache } from './hooks/preparedCache'
+import { itemFileName, parseCollectionSet, type CollectionSet } from './models/collectionSet'
 import {
-  createVariant,
-  generateRandomVariants,
-  resetVariant,
-  uniqueId,
-  type VariantSpec,
-  type VariantStatus,
-} from './engine/variant'
-import { useRenderCache } from './hooks/renderCache'
-import { itemFileName, parseCollectionSet } from './models/collectionSet'
-import {
-  createBase,
-  setItemFor,
-  syncSetVariants,
+  approveImage,
+  createImage,
+  groupByItem,
   toSnakeId,
-  type BaseEntry,
   type GamePalette,
+  type ImageEntry,
+  type ImageStatus,
   type ProjectState,
 } from './models/project'
-import { parseStudioFile, toStudioFile } from './models/studioFile'
+import { isStudioText, parseStudioFile, toStudioFile, type StudioFile } from './models/studioFile'
 import { blobFile, downloadSingle, downloadZip, jsonFile, type ExportFile } from './services/exporter'
 import { bufferToPngBlob, loadPngFile } from './services/imageIO'
 import { loadProject, saveProject } from './services/projectStorage'
 
 const DEFAULT_PALETTE: GamePalette = { name: 'Resurrect 64 (content/palette.hex)', colors: parseHexPalette(paletteFileText) }
-const EMPTY_PROJECT: ProjectState = { bases: [], set: null, palette: DEFAULT_PALETTE }
+const EMPTY_PROJECT: ProjectState = { images: [], set: null, palette: DEFAULT_PALETTE }
 const GAME_SIZES = [32, 48, 96]
-type Step = 'prepare' | 'variants'
-type Filter = 'all' | VariantStatus
 
 function App() {
   const [project, setProject] = useState<ProjectState>(EMPTY_PROJECT)
   const [loaded, setLoaded] = useState(false)
   const [activeKey, setActiveKey] = useState<string | null>(null)
-  const [activeVariantId, setActiveVariantId] = useState<string | null>(null)
-  const [step, setStep] = useState<Step>('prepare')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [randomCount, setRandomCount] = useState(6)
-  const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
   const [erasing, setErasing] = useState(false)
   const [message, setMessage] = useState<{ kind: 'error' | 'info'; text: string } | null>(null)
   const [dragging, setDragging] = useState(false)
   const fileInput = useRef<HTMLInputElement>(null)
-  const cache = useRenderCache()
+  const getPrepared = usePreparedCache()
 
-  const { bases, set, palette } = project
-  const base = bases.find((b) => b.key === activeKey) ?? bases[0] ?? null
-  const variant = base?.variants.find((v) => v.id === activeVariantId) ?? base?.variants[0] ?? null
-  const paletteHex = useMemo(() => paletteToHex(palette.colors), [palette])
-  const matcher = useMemo(() => createPaletteMatcher(palette.colors), [palette])
-  const usePalette = !!base?.prepare.quantize && palette.colors.length > 0
+  const { images, set, palette } = project
+  const groups = useMemo(() => groupByItem(images, set), [images, set])
+  // Klavyeyle gezinme sırası: listede görünen sıra.
+  const ordered = useMemo(() => groups.flatMap((g) => g.images), [groups])
+  const active = images.find((i) => i.key === activeKey) ?? ordered[0] ?? null
+  const activeGroup = active ? groups.find((g) => g.itemId === active.itemId) ?? null : null
+  const setItem = active ? set?.items.find((i) => i.id === active.itemId) ?? null : null
 
   // --- Otomatik kayıt -------------------------------------------------------
 
   useEffect(() => {
     loadProject()
       .then((saved) => {
-        if (saved && Array.isArray(saved.bases)) {
+        if (saved && Array.isArray(saved.images)) {
           setProject({ ...EMPTY_PROJECT, ...saved, palette: saved.palette?.colors?.length ? saved.palette : DEFAULT_PALETTE })
-          setActiveKey(saved.bases[0]?.key ?? null)
-          if (saved.bases.length) setStep('variants')
         }
       })
       .catch(() => setMessage({ kind: 'info', text: 'Önceki çalışma yüklenemedi; yeni başlıyoruz.' }))
@@ -86,122 +68,83 @@ function App() {
 
   // --- Durum yardımcıları ---------------------------------------------------
 
-  const updateBase = useCallback((key: string, change: (b: BaseEntry) => BaseEntry) => {
-    setProject((p) => ({ ...p, bases: p.bases.map((b) => (b.key === key ? change(b) : b)) }))
-  }, [])
-
-  const updateVariant = useCallback((id: string, change: Partial<VariantSpec>) => {
-    if (!base) return
-    updateBase(base.key, (b) => ({ ...b, variants: b.variants.map((v) => (v.id === id ? { ...v, ...change } : v)) }))
-    if (change.id && change.id !== id) setActiveVariantId(change.id)
-  }, [base, updateBase])
-
-  function snapHex(hex: string | null): string | null {
-    if (!hex || !usePalette) return hex
-    const rgb = hexToRgb(hex)
-    return rgb ? rgbToHex(...matcher.nearest(rgb)) : hex
-  }
-
-  function changeVariant(change: Partial<VariantSpec>) {
-    if (!variant) return
-    const snapped: Partial<VariantSpec> = { ...change }
-    if (change.tint !== undefined) snapped.tint = snapHex(change.tint)
-    if (change.patternColor !== undefined) snapped.patternColor = snapHex(change.patternColor)
-    if (change.outlineColor !== undefined) snapped.outlineColor = snapHex(change.outlineColor)
-    if (change.id !== undefined && base && base.variants.some((v) => v.id === change.id && v !== variant)) {
-      setMessage({ kind: 'error', text: `${change.id} zaten var.` })
-      return
-    }
-    updateVariant(variant.id, snapped)
+  function updateImage(key: string, change: Partial<ImageEntry>) {
+    setProject((p) => ({ ...p, images: p.images.map((i) => (i.key === key ? { ...i, ...change } : i)) }))
   }
 
   function changePrepare(change: Partial<PrepareSettings>) {
-    if (!base) return
-    updateBase(base.key, (b) => ({ ...b, prepare: { ...b.prepare, ...change } }))
+    if (!active) return
+    updateImage(active.key, { prepare: { ...active.prepare, ...change } })
+  }
+
+  function setStatus(image: ImageEntry, status: ImageStatus) {
+    if (status === 'approved') setProject((p) => ({ ...p, images: approveImage(p.images, image.key) }))
+    else updateImage(image.key, { status })
+  }
+
+  function step(delta: number) {
+    if (!active) return
+    const index = ordered.findIndex((i) => i.key === active.key)
+    const next = ordered[index + delta]
+    if (next) setActiveKey(next.key)
   }
 
   // --- Dosya alma (toplu) ---------------------------------------------------
 
   async function importFiles(files: File[]) {
     setMessage(null)
-    const pngs = files.filter((f) => f.type === 'image/png' || f.name.toLowerCase().endsWith('.png'))
-    const jsons = files.filter((f) => f.name.toLowerCase().endsWith('.json'))
-    const hexes = files.filter((f) => f.name.toLowerCase().endsWith('.hex'))
     const errors: string[] = []
-
-    let nextSet = project.set
+    let nextSet: CollectionSet | null = project.set
     let nextPalette = project.palette
-    for (const file of hexes) {
-      const colors = parseHexPalette(await file.text())
-      if (colors.length) nextPalette = { name: file.name, colors }
-      else errors.push(`${file.name}: renk bulunamadı.`)
-    }
+    const studios: StudioFile[] = []
+    const added: ImageEntry[] = []
 
-    const studios = []
-    for (const file of jsons) {
-      const text = await file.text()
+    for (const file of files) {
+      const name = file.name.toLowerCase()
       try {
-        if (text.includes('"item-art-studio/')) studios.push(parseStudioFile(text))
-        else nextSet = parseCollectionSet(text)
+        if (name.endsWith('.png') || file.type === 'image/png') {
+          added.push(createImage(file.name, await loadPngFile(file)))
+        } else if (name.endsWith('.hex')) {
+          const colors = parseHexPalette(await file.text())
+          if (!colors.length) throw new Error('renk bulunamadı.')
+          nextPalette = { name: file.name, colors }
+        } else if (name.endsWith('.json')) {
+          const text = await file.text()
+          if (isStudioText(text)) studios.push(parseStudioFile(text))
+          else nextSet = parseCollectionSet(text)
+        } else {
+          throw new Error('desteklenmeyen dosya (PNG, set.json, .studio.json veya .hex bekleniyor).')
+        }
       } catch (err) {
         errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
       }
     }
 
-    const newBases: BaseEntry[] = []
-    const taken = new Set(project.bases.map((b) => b.baseId))
-    for (const file of pngs) {
-      try {
-        const buffer = await loadPngFile(file)
-        const entry = createBase(file.name, buffer)
-        entry.baseId = uniqueId(entry.baseId, taken)
-        taken.add(entry.baseId)
-        newBases.push(entry)
-      } catch (err) {
-        errors.push(`${file.name}: ${err instanceof Error ? err.message : String(err)}`)
-      }
-    }
-
-    let allBases = [...project.bases, ...newBases]
+    let allImages = [...project.images, ...added]
     for (const studio of studios) {
-      const target = allBases.find((b) => b.baseId === studio.base_id || b.fileName === studio.source_image)
+      const target = allImages.find((i) => i.fileName === studio.source_image) ?? allImages.find((i) => i.itemId === studio.item_id)
       if (!target) {
-        errors.push(`${studio.base_id}.studio.json: önce ${studio.source_image || studio.base_id + '.png'} görselini ekle.`)
+        errors.push(`${studio.item_id}.studio.json: önce ${studio.source_image || 'kaynak PNG'} görselini ekle.`)
         continue
       }
-      allBases = allBases.map((b) => b === target
-        ? { ...b, baseId: studio.base_id, prepare: studio.prepare, tolerance: studio.tolerance, variants: studio.variants }
-        : b)
-    }
-    // Set renklerini palete oturt ki seçili renk paletteki karşılığıyla eşleşsin.
-    const setMatcher = createPaletteMatcher(nextPalette.colors)
-    const snapSet = (hex: string | null) => {
-      const rgb = hex ? hexToRgb(hex) : null
-      return rgb && nextPalette.colors.length ? rgbToHex(...setMatcher.nearest(rgb)) : hex
-    }
-    allBases = allBases.map((b) => {
-      const synced = syncSetVariants(b, nextSet)
-      if (synced === b) return b
-      const before = new Set(b.variants.map((v) => v.id))
-      return {
-        ...synced,
-        variants: synced.variants.map((v) => (before.has(v.id) || v.origin !== 'set' ? v : { ...v, tint: snapSet(v.tint) })),
-      }
-    })
-
-    setProject({ bases: allBases, set: nextSet, palette: nextPalette })
-    if (newBases.length) {
-      setActiveKey(newBases[0].key)
-      setActiveVariantId(null)
-      setStep('prepare')
+      allImages = allImages.map((i) => (i === target ? { ...i, itemId: studio.item_id, prepare: studio.prepare } : i))
     }
 
-    const unmatched = nextSet ? newBases.filter((b) => !nextSet!.items.some((i) => i.base_id === b.baseId)) : []
+    setProject({ images: allImages, set: nextSet, palette: nextPalette })
+    if (added.length) {
+      setActiveKey(added[0].key)
+      setErasing(false)
+    }
+
+    const unmatched = nextSet ? added.filter((i) => !nextSet!.items.some((item) => item.id === i.itemId)) : []
     if (errors.length) setMessage({ kind: 'error', text: errors.join(' · ') })
     else if (unmatched.length) {
-      setMessage({ kind: 'info', text: `Sette karşılığı olmayan görseller: ${unmatched.map((b) => b.fileName).join(', ')}. Dosya adı base_id ile aynı olmalı.` })
-    } else if (newBases.length || nextSet !== project.set) {
-      setMessage({ kind: 'info', text: `${newBases.length} görsel eklendi${nextSet ? `, set: ${nextSet.name}` : ''}.` })
+      setMessage({
+        kind: 'info',
+        text: `Sette karşılığı olmayan görseller: ${unmatched.map((i) => i.fileName).join(', ')}. Dosya adı eşya id'si olmalı; ortadaki alandan düzeltebilirsin.`,
+      })
+    } else if (added.length || nextSet !== project.set) {
+      setMessage({ kind: 'info', text: `${added.length} görsel eklendi${nextSet ? `, set: ${nextSet.name}` : ''}.` })
     }
   }
 
@@ -211,190 +154,95 @@ function App() {
     void importFiles(Array.from(event.dataTransfer.files))
   }
 
-  function removeBase(key: string) {
-    setProject((p) => ({ ...p, bases: p.bases.filter((b) => b.key !== key) }))
+  function removeImage(key: string) {
+    setProject((p) => ({ ...p, images: p.images.filter((i) => i.key !== key) }))
     if (activeKey === key) setActiveKey(null)
   }
 
-  function renameBase(value: string) {
-    if (!base) return
-    const baseId = toSnakeId(value)
-    updateBase(base.key, (b) => syncSetVariants({ ...b, baseId }, set))
-  }
-
   function clearProject() {
-    if (!window.confirm('Bütün görseller ve varyantlar silinsin mi? (Set ve palet kalır.)')) return
-    setProject((p) => ({ ...p, bases: [] }))
+    if (!window.confirm('Bütün görseller silinsin mi? (Set ve palet kalır.)')) return
+    setProject((p) => ({ ...p, images: [] }))
     setActiveKey(null)
   }
-
-  // --- Varyantlar -----------------------------------------------------------
-
-  function generateRandom() {
-    if (!base) return
-    const created = generateRandomVariants(randomCount, base.baseId, palette.colors, base.variants)
-    updateBase(base.key, (b) => ({ ...b, variants: [...b.variants, ...created] }))
-    setActiveVariantId(created[0]?.id ?? null)
-    setFilter('all')
-  }
-
-  function addBlank() {
-    if (!base) return
-    const id = uniqueId(`${base.baseId}_variant`, new Set(base.variants.map((v) => v.id)))
-    updateBase(base.key, (b) => ({ ...b, variants: [...b.variants, createVariant(id, id, 'manual')] }))
-    setActiveVariantId(id)
-  }
-
-  function duplicateVariant() {
-    if (!base || !variant) return
-    const id = uniqueId(`${variant.id}_copy`, new Set(base.variants.map((v) => v.id)))
-    const copy: VariantSpec = { ...variant, id, name: `${variant.name} copy`, origin: 'manual', status: 'pending' }
-    updateBase(base.key, (b) => ({ ...b, variants: [...b.variants, copy] }))
-    setActiveVariantId(id)
-  }
-
-  function deleteVariant(id: string) {
-    if (!base) return
-    updateBase(base.key, (b) => ({ ...b, variants: b.variants.filter((v) => v.id !== id) }))
-    setActiveVariantId(null)
-  }
-
-  function deleteRejected() {
-    if (!base) return
-    updateBase(base.key, (b) => ({ ...b, variants: b.variants.filter((v) => v.status !== 'rejected' || v.origin === 'set') }))
-  }
-
-  function changeTolerance(tolerance: number) {
-    if (!base) return
-    // Grup anahtarları toleransa bağlı; eski ince ayarlar artık geçersiz.
-    updateBase(base.key, (b) => ({
-      ...b,
-      tolerance,
-      variants: b.variants.map((v) => ({ ...v, replacements: {}, tintGroups: [] })),
-    }))
-    setSelectedGroup(null)
-  }
-
-  const visibleVariants = useMemo(
-    () => (base ? base.variants.filter((v) => filter === 'all' || v.status === filter) : []),
-    [base, filter],
-  )
 
   // Klavye: A onayla, X reddet, ←/→ gez, E silgi.
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'TEXTAREA') return
-      if (step === 'prepare' && event.key.toLowerCase() === 'e') {
-        setErasing((e) => !e)
-        return
-      }
-      if (step !== 'variants' || !variant) return
-      const list = visibleVariants
-      const index = list.findIndex((v) => v.id === variant.id)
+      if (!active) return
       const key = event.key.toLowerCase()
-      if (key === 'a' || key === 'x') {
-        const status: VariantStatus = key === 'a' ? 'approved' : 'rejected'
-        updateVariant(variant.id, { status: variant.status === status ? 'pending' : status })
-        const next = list[index + 1]
-        if (next && variant.status !== status) setActiveVariantId(next.id)
-      } else if (event.key === 'ArrowRight' && list[index + 1]) {
-        setActiveVariantId(list[index + 1].id)
-      } else if (event.key === 'ArrowLeft' && index > 0) {
-        setActiveVariantId(list[index - 1].id)
-      } else {
-        return
-      }
+      if (key === 'e') setErasing((e) => !e)
+      else if (key === 'a') {
+        setStatus(active, active.status === 'approved' ? 'pending' : 'approved')
+        if (active.status !== 'approved') step(1)
+      } else if (key === 'x') {
+        setStatus(active, active.status === 'rejected' ? 'pending' : 'rejected')
+        if (active.status !== 'rejected') step(1)
+      } else if (event.key === 'ArrowRight' || event.key === 'ArrowDown') step(1)
+      else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') step(-1)
+      else return
       event.preventDefault()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [step, variant, visibleVariants, updateVariant])
+  })
 
-  // --- Türetilen görseller --------------------------------------------------
+  // --- Önizleme -------------------------------------------------------------
 
-  const prepared = base ? cache.getPrepared(base, palette.colors) : null
-  const rendered = base && variant ? cache.getRendered(base, variant, palette.colors) : null
-  const groups = useMemo(
-    () => (prepared && base ? extractColorPalette(prepared.buffer.data, base.tolerance) : []),
-    [prepared, base],
-  )
-  const preview = rendered && prepared && base && selectedGroup && step === 'variants'
-    ? highlightGroup(rendered, prepared.buffer, selectedGroup, base.tolerance)
-    : rendered
+  const prepared = active ? getPrepared(active, palette.colors) : null
 
   function handlePreparedClick(x: number, y: number) {
-    if (!base || !prepared) return
-    if (step === 'prepare') {
-      if (!erasing) return
-      const point = prepared.toSource(x, y)
-      if (point) changePrepare({ erasePoints: [...base.prepare.erasePoints, point] })
-      return
-    }
-    const data = prepared.buffer.data
-    const i = (y * prepared.buffer.width + x) * 4
-    if (data[i + 3] === 0) {
-      setSelectedGroup(null)
-      return
-    }
-    const key = getColorGroupKey(data[i], data[i + 1], data[i + 2], base.tolerance)
-    setSelectedGroup(selectedGroup === key ? null : key)
+    if (!active || !prepared || !erasing) return
+    const point = prepared.toSource(x, y)
+    if (point) changePrepare({ erasePoints: [...active.prepare.erasePoints, point] })
   }
 
   function handleSourceClick(x: number, y: number) {
-    if (!base || !erasing) return
-    changePrepare({ erasePoints: [...base.prepare.erasePoints, { x, y }] })
+    if (!active || !erasing) return
+    changePrepare({ erasePoints: [...active.prepare.erasePoints, { x, y }] })
   }
 
   // --- Dışa aktarma ---------------------------------------------------------
 
-  function fileNameFor(spec: VariantSpec): string {
-    const item = setItemFor(set, spec.id)
-    return item ? itemFileName(item) : `${spec.id}.png`
-  }
-
-  const approvedCount = bases.reduce((n, b) => n + b.variants.filter((v) => v.status === 'approved').length, 0)
+  const approvedGroups = groups.filter((g) => g.approved)
+  const setGroups = groups.filter((g) => g.inSet)
+  const missing = setGroups.filter((g) => !g.approved)
 
   async function exportZip() {
     try {
       const files: ExportFile[] = []
-      const manifest: Array<Record<string, unknown> & { id: string }> = []
-      for (const b of bases) {
-        const approved = b.variants.filter((v) => v.status === 'approved')
-        for (const spec of approved) {
-          const name = fileNameFor(spec)
-          files.push(await blobFile(`png/${name}`, await bufferToPngBlob(cache.getRendered(b, spec, palette.colors))))
-          manifest.push({
-            id: spec.id,
-            name: spec.name,
-            base_id: b.baseId,
-            image: name,
-            in_set: !!setItemFor(set, spec.id),
-            tint: spec.tint,
-            material: spec.material,
-            pattern: spec.pattern,
-          })
-        }
-        if (b.variants.length) files.push(jsonFile(`studio/${b.baseId}.studio.json`, toStudioFile(b, set?.set_id ?? null, palette.name)))
+      const exported = []
+      for (const group of approvedGroups) {
+        const image = group.approved!
+        const item = set?.items.find((i) => i.id === group.itemId) ?? null
+        const name = itemFileName(item, group.itemId)
+        files.push(await blobFile(`png/${name}`, await bufferToPngBlob(getPrepared(image, palette.colors).buffer)))
+        files.push(jsonFile(`studio/${group.itemId}.studio.json`, toStudioFile(image, set?.set_id ?? null, palette.name)))
+        exported.push({ id: group.itemId, image: name, source_image: image.fileName, in_set: group.inSet })
       }
-      files.push(jsonFile('variants.json', { set_id: set?.set_id ?? null, palette: palette.name, items: manifest }))
+      files.push(jsonFile('items.json', {
+        set_id: set?.set_id ?? null,
+        palette: palette.name,
+        items: exported,
+        missing: missing.map((g) => g.itemId),
+      }))
       downloadZip(files, `${set?.set_id ?? 'items'}-art.zip`)
-      const missing = set ? set.items.filter((i) => !manifest.some((m) => m.id === i.id)).length : 0
-      setMessage({ kind: 'info', text: `${manifest.length} PNG dışa aktarıldı.${missing ? ` Sette henüz onaylanmamış ${missing} eşya var.` : ''}` })
+      setMessage({
+        kind: 'info',
+        text: `${exported.length} PNG dışa aktarıldı.${missing.length ? ` Sette görseli onaylanmamış ${missing.length} eşya var.` : ''}`,
+      })
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
     }
   }
 
   async function exportOne() {
-    if (!variant || !rendered) return
-    downloadSingle(await blobFile(fileNameFor(variant), await bufferToPngBlob(rendered)), 'image/png')
+    if (!active || !prepared) return
+    downloadSingle(await blobFile(itemFileName(setItem, active.itemId), await bufferToPngBlob(prepared.buffer)), 'image/png')
   }
 
   // --- Arayüz ---------------------------------------------------------------
-
-  const setCount = set ? set.items.length : 0
-  const setItem = variant ? setItemFor(set, variant.id) : null
 
   return (
     <div
@@ -406,14 +254,19 @@ function App() {
       <header className="topbar">
         <div className="brand">
           <h1>Item Art Studio</h1>
-          <span>AI ikonu → oyun paleti → varyantlar</span>
+          <span>AI görseli → oyun ikonu</span>
         </div>
         <div className="topbar-actions">
+          {set && (
+            <span className="progress" title="Onaylı görseli olan set eşyaları">
+              {set.name}: <b>{setGroups.length - missing.length}/{setGroups.length}</b> ready
+            </span>
+          )}
           <button type="button" className="btn" onClick={() => fileInput.current?.click()}>Add files</button>
           <input ref={fileInput} type="file" multiple hidden accept="image/png,.json,.hex"
             onChange={(e) => { const files = Array.from(e.target.files ?? []); e.target.value = ''; void importFiles(files) }} />
-          <button type="button" className="btn btn-primary" disabled={approvedCount === 0} onClick={() => void exportZip()}>
-            Export ZIP ({approvedCount})
+          <button type="button" className="btn btn-primary" disabled={approvedGroups.length === 0} onClick={() => void exportZip()}>
+            Export ZIP ({approvedGroups.length})
           </button>
         </div>
       </header>
@@ -425,14 +278,14 @@ function App() {
         </div>
       )}
 
-      {bases.length === 0 ? (
+      {images.length === 0 && !set ? (
         <section className="empty">
           <div className="empty-card">
             <h2>Başlamak için dosyaları buraya bırak</h2>
             <ol>
-              <li><b>PNG'ler</b>: Perchance çıktıları, istediğin kadar. Dosya adı = <code>base_id</code> (ör. <code>crystal_shard.png</code>).</li>
-              <li><b>set.json</b> (isteğe bağlı): setin eşyaları varyant olarak hazır gelir.</li>
-              <li><b>.studio.json</b> (isteğe bağlı): önceki çalışmanı geri yükler.</li>
+              <li><b>PNG'ler</b>: Perchance çıktıları, istediğin kadar. Dosya adı = eşya id'si (ör. <code>glass_bottle_blue.png</code>). Aynı eşya için birden fazla aday olabilir.</li>
+              <li><b>set.json</b> (isteğe bağlı): hangi eşyanın görseli eksik, listede görünür.</li>
+              <li><b>.studio.json</b> (isteğe bağlı): önceki ayarları geri yükler.</li>
             </ol>
             <button type="button" className="btn btn-primary" onClick={() => fileInput.current?.click()}>Choose files</button>
             <p className="hint">Palet: {palette.name}, {palette.colors.length} renk. Çalışman bu tarayıcıda otomatik saklanır.</p>
@@ -442,164 +295,123 @@ function App() {
         <main className="layout">
           <aside className="library">
             <div className="library-head">
-              <h2>Images</h2>
+              <h2>Items</h2>
               <button type="button" className="link" onClick={clearProject}>clear</button>
             </div>
-            {set && <p className="hint">Set: <b>{set.name}</b> · {setCount} items</p>}
             <ul>
-              {bases.map((b) => {
-                const approved = b.variants.filter((v) => v.status === 'approved').length
-                const matched = !set || set.items.some((i) => i.base_id === b.baseId)
-                return (
-                  <li key={b.key} className={b.key === base?.key ? 'active' : ''}>
-                    <button type="button" className="library-item" onClick={() => { setActiveKey(b.key); setActiveVariantId(null); setSelectedGroup(null) }}>
-                      <PixelCanvas buffer={cache.getPrepared(b, palette.colors).buffer} displaySize={40} className="pixel thumb" />
-                      <span className="library-text">
-                        <b>{b.baseId}</b>
-                        <small>
-                          {approved}/{b.variants.length} approved{!matched && ' · not in set'}
-                        </small>
-                      </span>
-                    </button>
-                    <button type="button" className="link" title="Remove" onClick={() => removeBase(b.key)}>✕</button>
-                  </li>
-                )
-              })}
+              {groups.map((group) => (
+                <li key={group.itemId} className={`item-group ${group.itemId === active?.itemId ? 'active' : ''}`}>
+                  <div className="item-head">
+                    <span className={`dot ${group.approved ? 'dot-ok' : group.images.length ? 'dot-wait' : 'dot-missing'}`} />
+                    <span className="item-title">
+                      <b>{group.name}</b>
+                      <small>{group.itemId}{group.tier && ` · ${group.tier}`}{!group.inSet && set && ' · not in set'}</small>
+                    </span>
+                  </div>
+                  {group.images.length === 0 ? (
+                    <p className="missing">Görsel yok</p>
+                  ) : (
+                    <div className="candidates">
+                      {group.images.map((image) => (
+                        <button
+                          type="button"
+                          key={image.key}
+                          title={image.fileName}
+                          className={`candidate status-${image.status} ${image.key === active?.key ? 'selected' : ''}`}
+                          onClick={() => { setActiveKey(image.key); setErasing(false) }}
+                        >
+                          <PixelCanvas buffer={getPrepared(image, palette.colors).buffer} displaySize={40} className="pixel" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </li>
+              ))}
             </ul>
             <button type="button" className="btn btn-wide" onClick={() => fileInput.current?.click()}>+ Add PNGs</button>
           </aside>
 
-          {base && prepared && (
+          {active && prepared ? (
             <section className="stage">
               <div className="stage-head">
-                <input className="base-name" value={base.baseId} onChange={(e) => renameBase(e.target.value)} title="base_id" />
-                <nav className="steps">
-                  <button type="button" className={step === 'prepare' ? 'on' : ''} onClick={() => setStep('prepare')}>1 · Prepare</button>
-                  <button type="button" className={step === 'variants' ? 'on' : ''} onClick={() => { setStep('variants'); setErasing(false) }}>
-                    2 · Variants ({base.variants.length})
+                <label className="item-id">
+                  <span>Item id</span>
+                  <input
+                    list="set-item-ids"
+                    value={active.itemId}
+                    onChange={(e) => updateImage(active.key, { itemId: toSnakeId(e.target.value) || active.itemId })}
+                  />
+                  <datalist id="set-item-ids">
+                    {set?.items.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                  </datalist>
+                </label>
+                <span className="hint">
+                  {setItem ? `${setItem.name}${setItem.tier ? ` · ${setItem.tier}` : ''} → ${itemFileName(setItem, active.itemId)}` : set ? 'Sette yok' : active.fileName}
+                  {activeGroup && activeGroup.images.length > 1 && ` · ${activeGroup.images.length} aday`}
+                </span>
+                <div className="row status-row">
+                  <button type="button" className={`btn ${active.status === 'approved' ? 'btn-approve' : ''}`}
+                    onClick={() => setStatus(active, active.status === 'approved' ? 'pending' : 'approved')}>
+                    ✓ Approve (A)
                   </button>
-                </nav>
+                  <button type="button" className={`btn ${active.status === 'rejected' ? 'btn-reject' : ''}`}
+                    onClick={() => setStatus(active, active.status === 'rejected' ? 'pending' : 'rejected')}>
+                    ✕ Reject (X)
+                  </button>
+                  <button type="button" className="btn" onClick={() => void exportOne()}>PNG</button>
+                  <button type="button" className="btn btn-danger" onClick={() => removeImage(active.key)}>Remove</button>
+                </div>
               </div>
 
-              {step === 'prepare' ? (
-                <div className="compare">
-                  <figure>
-                    <div className={`canvas-box ${erasing ? 'erasing' : ''}`}>
-                      <PixelCanvas buffer={base.source} className="fit" onPixelClick={handleSourceClick} />
-                    </div>
-                    <figcaption>Original · {base.source.width}×{base.source.height}</figcaption>
-                  </figure>
-                  <figure>
-                    <div className={`canvas-box ${erasing ? 'erasing' : ''}`}>
-                      <PixelCanvas buffer={prepared.buffer} className="fit" onPixelClick={handlePreparedClick} />
-                    </div>
-                    <figcaption>
-                      Game icon · {prepared.buffer.width}×{prepared.buffer.height} · {extractColorPalette(prepared.buffer.data, 1).length} colors
-                    </figcaption>
-                  </figure>
-                  <div className="next">
-                    <button type="button" className="btn btn-primary" onClick={() => { setStep('variants'); setErasing(false) }}>
-                      Next: variants →
-                    </button>
+              <div className="compare">
+                <figure>
+                  <div className={`canvas-box ${erasing ? 'erasing' : ''}`}>
+                    <PixelCanvas buffer={active.source} className="fit" onPixelClick={handleSourceClick} />
                   </div>
-                </div>
-              ) : (
-                <div className="variants">
-                  <div className="hero">
-                    <div className="canvas-box">
-                      {preview && <PixelCanvas buffer={preview} className="fit" onPixelClick={handlePreparedClick} />}
-                    </div>
-                    {rendered && (
-                      <div className="sizes">
-                        {GAME_SIZES.map((size) => (
-                          <figure key={size}>
-                            <PixelCanvas buffer={rendered} displaySize={size} className="pixel" />
-                            <figcaption>{size}px</figcaption>
-                          </figure>
-                        ))}
-                        <p className="hint">Oyunda görüneceği boyutlar. A onayla · X reddet · ←/→ gez</p>
-                      </div>
-                    )}
+                  <figcaption>Original · {active.source.width}×{active.source.height}</figcaption>
+                </figure>
+                <figure>
+                  <div className={`canvas-box ${erasing ? 'erasing' : ''}`}>
+                    <PixelCanvas buffer={prepared.buffer} className="fit" onPixelClick={handlePreparedClick} />
                   </div>
+                  <figcaption>
+                    Game icon · {prepared.buffer.width}×{prepared.buffer.height} · {countColors(prepared.buffer.data)} colors
+                  </figcaption>
+                </figure>
+              </div>
 
-                  <div className="toolbar">
-                    <div className="filters">
-                      {(['all', 'pending', 'approved', 'rejected'] as Filter[]).map((f) => (
-                        <button type="button" key={f} className={`chip ${filter === f ? 'chip-on' : ''}`} onClick={() => setFilter(f)}>
-                          {f} ({f === 'all' ? base.variants.length : base.variants.filter((v) => v.status === f).length})
-                        </button>
-                      ))}
-                    </div>
-                    <div className="row">
-                      <select value={randomCount} onChange={(e) => setRandomCount(Number(e.target.value))} aria-label="How many">
-                        {[3, 6, 9, 12].map((n) => <option key={n} value={n}>{n}</option>)}
-                      </select>
-                      <button type="button" className="btn btn-primary" onClick={generateRandom}>🎲 Random</button>
-                      <button type="button" className="btn" onClick={addBlank}>+ Blank</button>
-                      <button type="button" className="btn" disabled={!base.variants.some((v) => v.status === 'rejected' && v.origin !== 'set')} onClick={deleteRejected}>
-                        Delete rejected
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="grid">
-                    {visibleVariants.map((spec) => (
-                      <button
-                        type="button"
-                        key={spec.id}
-                        className={`card status-${spec.status} ${spec.id === variant?.id ? 'active' : ''}`}
-                        onClick={() => setActiveVariantId(spec.id)}
-                      >
-                        <PixelCanvas buffer={cache.getRendered(base, spec, palette.colors)} displaySize={72} className="pixel" />
-                        <span className="card-name">{spec.name}</span>
-                        <span className="card-meta">
-                          {spec.origin === 'set' ? 'set' : spec.origin}
-                          {spec.material !== 'none' && ` · ${spec.material}`}
-                        </span>
-                        {spec.status !== 'pending' && <span className="card-badge">{spec.status === 'approved' ? '✓' : '✕'}</span>}
-                      </button>
-                    ))}
-                    {visibleVariants.length === 0 && <p className="hint">Bu filtrede varyant yok.</p>}
-                  </div>
-                </div>
-              )}
+              <div className="sizes">
+                {GAME_SIZES.map((size) => (
+                  <figure key={size}>
+                    <PixelCanvas buffer={prepared.buffer} displaySize={size} className="pixel" />
+                    <figcaption>{size}px</figcaption>
+                  </figure>
+                ))}
+                <p className="hint">Oyunda görüneceği boyutlar. A onayla · X reddet · ←/→ gez · E silgi</p>
+              </div>
+            </section>
+          ) : (
+            <section className="stage">
+              <p className="hint">Listeden bir görsel seç ya da PNG ekle.</p>
             </section>
           )}
 
           <aside className="side">
-            {base && step === 'prepare' && (
+            {active && (
               <PrepareInspector
-                prepare={base.prepare}
+                prepare={active.prepare}
                 paletteName={palette.name}
                 paletteSize={palette.colors.length}
                 erasing={erasing}
                 onChange={changePrepare}
                 onToggleEraser={() => setErasing((e) => !e)}
                 onPaletteFile={(file) => void importFiles([file])}
-                baseCount={bases.length}
+                imageCount={images.length}
                 onApplyToAll={() => setProject((p) => ({
                   ...p,
-                  bases: p.bases.map((b) => ({ ...b, prepare: { ...base.prepare, erasePoints: b.key === base.key ? base.prepare.erasePoints : b.prepare.erasePoints } })),
+                  // Silgi noktaları görsele özel, onlar korunur.
+                  images: p.images.map((i) => ({ ...i, prepare: { ...active.prepare, erasePoints: i.prepare.erasePoints } })),
                 }))}
-              />
-            )}
-            {base && step === 'variants' && variant && (
-              <VariantInspector
-                spec={variant}
-                idLocked={variant.origin === 'set'}
-                targetColor={snapHex(setItem?.variant_color ?? null)}
-                paletteHex={usePalette ? paletteHex : paletteHex.slice(0, 0)}
-                usePalette={usePalette}
-                groups={groups}
-                selectedGroup={selectedGroup}
-                tolerance={base.tolerance}
-                onChange={changeVariant}
-                onSelectGroup={setSelectedGroup}
-                onTolerance={changeTolerance}
-                onReset={() => updateVariant(variant.id, { ...resetVariant(variant), tint: variant.origin === 'set' ? snapHex(setItem?.variant_color ?? null) : null })}
-                onDuplicate={duplicateVariant}
-                onDelete={() => deleteVariant(variant.id)}
-                onExportOne={() => void exportOne()}
               />
             )}
           </aside>

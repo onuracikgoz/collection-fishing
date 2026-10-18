@@ -9,11 +9,11 @@ interface Props {
   onToggleEraser: () => void
   onPaletteFile: (file: File) => void
   onApplyToAll: () => void
-  baseCount: number
+  imageCount: number
 }
 
 export function PrepareInspector({
-  prepare, paletteName, paletteSize, erasing, onChange, onToggleEraser, onPaletteFile, onApplyToAll, baseCount,
+  prepare, paletteName, paletteSize, erasing, onChange, onToggleEraser, onPaletteFile, onApplyToAll, imageCount,
 }: Props) {
   return (
     <div className="inspector">
@@ -82,9 +82,9 @@ export function PrepareInspector({
         </label>
       </section>
 
-      {baseCount > 1 && (
+      {imageCount > 1 && (
         <button type="button" className="btn btn-wide" onClick={onApplyToAll}>
-          Use these settings for all {baseCount} images
+          Use these settings for all {imageCount} images
         </button>
       )}
     </div>
