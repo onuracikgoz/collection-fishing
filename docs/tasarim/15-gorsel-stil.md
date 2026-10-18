@@ -7,6 +7,7 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 - Tile: **32×32 px**. Karakter kare boyutu: **64×64** (LPC).
 - Eşya ikonu: 128×128 üretilir, oyunda 32 / 48 / 96 px gösterilir (en yakın komşu ölçekleme).
 - Kamera: Stardew gibi hafif üstten. Unity'de Pixel Perfect Camera, tam sayı katları.
+- `client/Assets/Art/` altındaki her görsel otomatik olarak 32 PPU, point filtre, sıkıştırmasız içe aktarılır (`client/Assets/Editor/PixelArtImporter.cs`).
 
 ## Kaynaklar
 
