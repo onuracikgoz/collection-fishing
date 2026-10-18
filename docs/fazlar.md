@@ -32,12 +32,12 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 
 ## Faz 1: bitti sayılma şartları
 
-- [ ] Cihaz kimliğiyle giriş (Steam girişi Faz 7'de). Sunucu tarafı hazır: kullanıcı adı kuralı
-- [ ] Sunucu listesi: isim, dil, kişi sayısı (`docs/protokol.md`). Sunucu tarafı hazır: `list_servers`
-- [ ] Küçük bir test haritası, çarpışmalar. Sunucuda geçici çarpışma verisi var (`server/src/data/lake-map.ts`), Unity haritası çizilince ondan üretilmeli
-- [ ] Fare tıklaması ve WASD ile yürüme, 4 yön LPC animasyonu
-- [ ] 2+ oyuncu birbirini akıcı görüyor, sunucu hız sınırını uyguluyor. Sunucu tarafı hazır: `world` match, hız / sınır / çarpışma kontrolü, yakınlık
-- [ ] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı. Sunucu tarafı hazır
+- [ ] Cihaz kimliğiyle giriş (Steam girişi Faz 7'de). Sunucu tarafı hazır: kullanıcı adı kuralı. Client yazıldı (giriş ekranı), Unity'de deneniyor
+- [ ] Sunucu listesi: isim, dil, kişi sayısı (`docs/protokol.md`). Sunucu tarafı hazır: `list_servers`. Client yazıldı
+- [ ] Küçük bir test haritası, çarpışmalar. Sunucuda geçici çarpışma verisi var (`server/src/data/lake-map.ts`), Unity haritası çizilince ondan üretilmeli. Client şimdilik aynı veriden kodla çiziyor (`MapView.cs`, `LakeMap.cs`)
+- [ ] Fare tıklaması ve WASD ile yürüme, 4 yön LPC animasyonu. Client yazıldı (tahmin + düzeltme)
+- [ ] 2+ oyuncu birbirini akıcı görüyor, sunucu hız sınırını uyguluyor. Sunucu tarafı hazır: `world` match, hız / sınır / çarpışma kontrolü, yakınlık. Client yazıldı (diğer oyuncular 150 ms gecikmeli interpolasyon)
+- [ ] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı. Sunucu tarafı hazır. Client yazıldı (Enter ile chat)
 - [ ] Web build arkadaşlara linkle açılıyor (test sunucusu)
 
 ## Agent rolleri
