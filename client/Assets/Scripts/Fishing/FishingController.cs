@@ -32,6 +32,7 @@ namespace CollectionGame.Fishing
         readonly Connection net;
         readonly Transform root;
         readonly Func<string, Vector2?> playerPos;
+        readonly Func<bool> movementSynced;
         readonly Dictionary<string, BobberView> bobbers = new Dictionary<string, BobberView>();
         readonly List<int> reelInputs = new List<int>();
 
@@ -50,17 +51,19 @@ namespace CollectionGame.Fishing
         public bool BlocksMovement => State != Phase.Idle && State != Phase.Waiting;
 
         float charge;
+        Vector2? pendingCast;
         float stateSince;
         float reelStartedAt;
         bool reelPressed;
         string toast;
         float toastUntil;
 
-        public FishingController(Connection net, Transform root, Func<string, Vector2?> playerPos)
+        public FishingController(Connection net, Transform root, Func<string, Vector2?> playerPos, Func<bool> movementSynced)
         {
             this.net = net;
             this.root = root;
             this.playerPos = playerPos;
+            this.movementSynced = movementSynced;
         }
 
         public void OnWelcome(WelcomeMsg w)
@@ -108,6 +111,17 @@ namespace CollectionGame.Fishing
                     break;
 
                 case Phase.Casting:
+                    // A MOVE still on its way would count as walking and cancel the cast,
+                    // so the CAST waits until the server has our final position.
+                    if (pendingCast.HasValue && movementSynced())
+                    {
+                        net.Send(OpCode.Cast, new CastMsg { x = pendingCast.Value.x, y = pendingCast.Value.y });
+                        pendingCast = null;
+                        stateSince = now;
+                    }
+                    else if (now - stateSince > ReplyTimeout) Reset("Sunucudan cevap gelmedi");
+                    break;
+
                 case Phase.Hooked:
                 case Phase.Judging:
                     // Waiting for the server; give up if nothing comes back.
@@ -135,7 +149,7 @@ namespace CollectionGame.Fishing
         public void Cast(Vector2 target)
         {
             if (State != Phase.Idle && State != Phase.Charging) return;
-            net.Send(OpCode.Cast, new CastMsg { x = target.x, y = target.y });
+            pendingCast = target;
             SetState(Phase.Casting);
         }
 

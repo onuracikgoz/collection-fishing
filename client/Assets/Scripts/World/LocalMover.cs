@@ -22,6 +22,8 @@ namespace CollectionGame.World
         public string Facing { get; private set; } = Dir.Down;
         public bool Moving { get; private set; }
         public Vector2? Target { get; private set; }
+        /// <summary>Standing still and the server has our last position (nothing left to send).</summary>
+        public bool Synced => !Moving && !Target.HasValue && Position == sentPos && Moving == sentMoving;
 
         int seq;
         float lastSendAt = float.NegativeInfinity;

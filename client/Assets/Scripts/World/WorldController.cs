@@ -40,7 +40,7 @@ namespace CollectionGame.World
             world.net = net;
             world.serverName = serverName;
             world.onDisconnected = onDisconnected;
-            world.fishing = new FishingController(net, go.transform, world.PositionOf);
+            world.fishing = new FishingController(net, go.transform, world.PositionOf, () => world.mover != null && world.mover.Synced);
             go.AddComponent<MapView>();
             return world;
         }
@@ -244,15 +244,16 @@ namespace CollectionGame.World
             var feet = view.transform.position;
             var namePos = Gui.ToGui(cam.WorldToScreenPoint(feet + new Vector3(0f, 1.75f, 0f)));
             var nameStyle = isMe ? Gui.NameMe : Gui.Name;
-            var nameSize = nameStyle.CalcSize(new GUIContent(view.DisplayName));
+            var nameSize = nameStyle.CalcSize(new GUIContent(view.DisplayName)) + new Vector2(6f, 4f);
             var nameRect = new Rect(namePos.x - nameSize.x / 2f, namePos.y - nameSize.y, nameSize.x, nameSize.y);
             GUI.Label(new Rect(nameRect.x + 1, nameRect.y + 1, nameRect.width, nameRect.height), view.DisplayName, Gui.Shadow);
             GUI.Label(nameRect, view.DisplayName, nameStyle);
 
             if (view.Bubble == null || Time.time > view.BubbleUntil) return;
             var content = new GUIContent(view.Bubble);
-            var width = Mathf.Min(240f, Gui.Bubble.CalcSize(content).x);
-            var height = Gui.Bubble.CalcHeight(content, width);
+            // A few pixels of slack: the scaled GUI matrix rounds text wider than CalcSize says.
+            var width = Mathf.Min(240f, Gui.Bubble.CalcSize(content).x + 8f);
+            var height = Gui.Bubble.CalcHeight(content, width) + 2f;
             GUI.Box(new Rect(namePos.x - width / 2f, namePos.y - nameSize.y - height - 4f, width, height), content, Gui.Bubble);
         }
 
