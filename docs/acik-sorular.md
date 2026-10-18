@@ -12,3 +12,4 @@
 6. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
 7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut ve banka uzaklığı onay bekliyor (Faz 1 çekirdek kararı alındı).
 8. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
+9. Collection setlerinin malzemeleri defterde yer alsın mı, 66 eşyalık set kaç sayfaya bölünsün? (bkz. `tasarim/17-collection-setleri.md`)

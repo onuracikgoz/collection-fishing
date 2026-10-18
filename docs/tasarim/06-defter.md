@@ -36,6 +36,8 @@ Defter sayfalardan (setlerden) oluşur. Faz 1 için örnek:
 
 Recipe'ler defterde **yer almaz**; recipe tek kullanımlık bir craft eşyasıdır, koleksiyon kaydı değildir.
 
+Tematik collection setleri recipe ile yapılan eşyalardan oluşur (66 eşya + malzemeler). Bkz. `17-collection-setleri.md`.
+
 ### 8.3. Collection Bonusu: Şans
 
 - Defterde kayıtlı (silik dahil) eşyalar oyuncunun **şansını** artırır.
