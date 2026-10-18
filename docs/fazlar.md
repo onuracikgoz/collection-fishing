@@ -22,10 +22,10 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 ## Faz 0: bitti sayılma şartları
 
 - [x] Repo klasör yapısı, `CLAUDE.md`, dokümanlar bölündü
-- [x] `docker-compose.yml` ile yerel Nakama + Postgres
+- [x] `docker-compose.yml` ile yerel Nakama + Postgres (Mac'te Docker Desktop gerekir)
 - [x] `server/` TypeScript iskeleti: build, test, `healthcheck` RPC
-- [ ] GitHub repo + Git LFS (Onur repo açar)
-- [ ] `client/` altında Unity 6 2D URP projesi (Onur Unity Hub'dan oluşturur)
+- [x] GitHub repo (`onuracikgoz/collection-fishing`). PNG'ler LFS dışında, ses / büyük çizim LFS'te
+- [x] `client/` altında Unity 6 2D URP projesi
 - [ ] Unity'den yerel Nakama'ya bağlanıp `healthcheck` çağrılıyor
 - [ ] LPC karakter seti seçildi, lisans notu `content/` altında
 - [ ] Ekonomi simülasyon tablosunun ilk hali (`docs/tasarim/14-parametreler.md` bölüm 23)
