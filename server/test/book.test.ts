@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BOOK_LUCK, CATCH_TABLE, SCORE } from '../src/config';
 import { LAKE_POOL } from '../src/data/lake-pool';
 import { BOOK_PAGES } from '../src/data/book-pages';
+import { RECIPES } from '../src/data/recipes';
 import { BookEntries, BookPage, SlotRef, applyLuck, discover, luckOf, onCatch, place, scoreOf, stateOf } from '../src/rules/book';
 import { tierOf } from '../src/rules/catch';
 
@@ -102,10 +103,11 @@ describe('luck and score', () => {
 });
 
 describe('book data', () => {
-  it('lists every Tier item of the lake once and nothing else', () => {
+  it('lists every Tier item of the lake and every crafted item once, and nothing else', () => {
     const all = BOOK_PAGES.flatMap((p) => p.items);
     expect(new Set(all).size).toBe(all.length);
-    const tiered = LAKE_POOL.filter((d) => tierOf(d.category)).map((d) => d.id).sort();
+    const crafted = RECIPES.map((r) => r.output.defId).filter((id, i, a) => a.indexOf(id) === i);
+    const tiered = LAKE_POOL.filter((d) => tierOf(d.category)).map((d) => d.id).concat(crafted).sort();
     expect([...all].sort()).toEqual(tiered);
   });
 });

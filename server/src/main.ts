@@ -1,4 +1,4 @@
-import { beforeAuthenticateDevice } from './hooks/auth';
+import { afterAuthenticateDevice, beforeAuthenticateDevice } from './hooks/auth';
 import { ensureServers } from './match/servers';
 import {
   worldInit,
@@ -32,6 +32,7 @@ function InitModule(
   initializer.registerRpc('set_profile', rpcSetProfile);
   initializer.registerRpc('friends_status', rpcFriendsStatus);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
+  initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
   initializer.registerMatch('world', {
     matchInit: worldInit,
     matchJoinAttempt: worldJoinAttempt,

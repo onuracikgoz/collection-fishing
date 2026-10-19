@@ -1,17 +1,18 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
-import { BAG, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, SCORE } from '../config';
+import { BAG, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
-import { BookEntries, applyLuck, discover, luckOf, onCatch, scoreOf } from '../rules/book';
+import { BookEntries, applyLuck, luckOf } from '../rules/book';
 import { rollCatch, rollFloat } from '../rules/catch';
 import { spendCast } from '../rules/energy';
 import { FishState, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelTimedOut } from '../rules/fishing';
 import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
-import { StoredItem, bookWrite, energyWrite, itemWrite, stacksWrite } from './playerData';
+import { placeNewItem } from './items';
+import { energyWrite, stacksWrite } from './playerData';
 
 /** The part of a match player that fishing needs. */
 export interface Fisher {
@@ -139,23 +140,10 @@ function give(ctx: FishingContext, f: Fisher): void {
       source: 'fishing',
       obtainedAt: Date.now(),
     };
-    const where = onCatch(f.book, BOOK_PAGES, item.defId, item.float);
-    if (where.kind === 'discovered') {
-      // First copy goes straight to its slot: recorded and not in the bag.
-      book = discover(f.book, item.defId, { instanceId: item.instanceId, tier: item.tier, float: item.float }, item.obtainedAt);
-      const stored: StoredItem = { ...item, inBook: true };
-      writes.push(itemWrite(userId, stored), bookWrite(userId, book));
-      extra.book = {
-        page: where.page,
-        kind: 'discovered',
-        pageComplete: where.pageComplete,
-        luck: luckOf(book, BOOK_PAGES, BOOK_LUCK),
-        score: scoreOf(book, BOOK_PAGES, SCORE),
-      };
-    } else {
-      writes.push(itemWrite(userId, item));
-      if (where.kind === 'copy') extra.book = { page: where.page, kind: 'copy', better: where.better };
-    }
+    const placed = placeNewItem(userId, f.book, item);
+    writes.push(...placed.writes);
+    book = placed.book;
+    if (placed.msg) extra.book = placed.msg;
     extra.item = item;
   } else {
     const stacks = { ...f.bag.stacks };

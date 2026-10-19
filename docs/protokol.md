@@ -26,7 +26,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }] }` (defter yuvasındaki eşyalar hariç) | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust }` (defter yuvasındaki eşyalar hariç; `coin`, `dust` Faz 4) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
 | `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
@@ -151,6 +151,43 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 - **friends_status:** her arkadaş için çevrimiçi mi, hangi sunucuda (`serverName`, `matchId`) ve haritada nerede (`x, y`).
 - **Yanına git:** arkadaş aynı sunucudaysa `GOTO_FRIEND`; sunucu arkadaşın yanındaki boş bir tile'a koyar, balık tutuyorsa olta toplanır (`FISH_END cancelled`), client karakteri `TELEPORT` konumuna atar. Arkadaş başka sunucudaysa client o sunucunun maçına katılım metadata'sında `near: userId` ile girer, `WELCOME` arkadaşın yanındaki yeri verir. `reason`: `NOT_FRIEND`, `NOT_HERE` (arkadaş bu sunucuda değil), `NO_SPOT`, `RATE_LIMITED` (3 sn'de bir, Öneri).
 - **Emote:** `wave`, `clap`, `dance`, `sit`, `laugh`, `show_fish`. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
+
+## Ekonomi: Coin, NPC satış, toz (Faz 4)
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md` 3 (hepsi Öneri, `server/src/config.ts` `ECONOMY`).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 22 | C → S | `SELL` | `{ items?: [instanceId], stacks?: [{ defId, count }] }` (NPC'ye sat → Coin) |
+| 23 | C → S | `SALVAGE` | `SELL` ile aynı (parçala → toz) |
+| 24 | S → C | `ECONOMY_RESULT` | `{ action: "sell" \| "salvage", ok, reason?, coin, dust, gained?, items?, stacks? }` (sadece oyuncunun kendisi) |
+
+- **Coin ve toz** Nakama cüzdanında durur (`{ coin, dust }`), sadece sunucu değiştirir. Client bakiyeyi `get_inventory` ve `ECONOMY_RESULT`'tan alır. Toz takas edilemez.
+- Bir istekte birden çok eşya ve yığın olabilir, toplam en fazla 40 satır. İstek ya tamamen olur ya hiç olmaz: eşyalar, yığınlar ve cüzdan tek işlemde değişir.
+- **NPC fiyatı:** Tier'lı eşyada Tier fiyatı × kondisyon çarpanı (Pristine ×3, Excellent ×1.5, Normal ×1, Worn ×0.7, Damaged ×0.5), yuvarlanır, en az 1. Yığınlarda (çöp, malzeme) adet başı sabit fiyat.
+- **Toz:** Float'tan etkilenmez. Recipe parçalanamaz.
+- Sadece çantadaki eşyalar satılır veya parçalanır. Defter yuvasındaki eşya önce yuvadan çıkarılmalıdır (yuvadan çıkarma henüz yok).
+- Şimdilik her yerden yapılır; haritaya NPC konunca mesafe kontrolü eklenecek.
+- `ECONOMY_RESULT`: başarıda `gained` kazanılan Coin veya toz, `items` ve `stacks` çantadan çıkanlar; `coin` ve `dust` işlemden sonraki bakiye. `reason`: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya çantada değil veya yığın yok), `NOT_ENOUGH` (yığında o kadar yok), `CANNOT_SALVAGE`. Oyuncu başına tick'te en fazla bir defter veya ekonomi işlemi işlenir.
+
+## Birleştirme ve craft (Faz 4)
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.4, `08-recipe-craft.md` 10–11, toz maliyetleri `16-ekonomi-tablosu.md` 4.3–4.4 (hepsi Öneri, `server/src/config.ts` `CRAFT`).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 25 | C → S | `MERGE` | `{ items: [instanceId, instanceId, instanceId] }` (aynı eşyadan 3 kopya → 1 kopya) |
+| 26 | C → S | `CRAFT` | `{ recipeId, items?: [instanceId] }` (`items`: recipe'nin istediği Float'lı eşyalar, oyuncu seçer) |
+| 27 | S → C | `CRAFT_RESULT` | `{ action: "merge" \| "craft", ok, reason?, dust, item?, book?, items?, stacks? }` (sadece oyuncunun kendisi) |
+
+- **Recipe** çantada yığın olarak durur (`recipe.*`), craft'ta 1 tane harcanır. Tarifsiz craft yoktur. Recipe balıktan "şişedeki recipe" olarak düşer (%0.4, Öneri) ve NPC'ye kademesine göre satılır (Normal 50, İyi 250, Usta 1.000); parçalanamaz. Yeni hesap 2 başlangıç recipe'si alır (`recipe.scale_charm`, `recipe.moss_wreath`). Recipe'ler ve çıkan eşyalar şimdilik yer tutucu (`server/src/data/recipes.ts`).
+- **Birleştirme:** aynı eşyadan 3 çanta kopyası + Tier'a göre toz (Common 10, Rare 50, Epic 200, Legendary 800, Mythic 4.000). Sonuç aynı eşya, yeni Float; Tier değişmez, sonuç girdilerin en kötüsünden kötü çıkmaz. Recipe ve Coin istemez.
+- **Craft:** recipe + yığın malzemeler (otomatik düşülür) + seçilen Float'lı eşyalar + çıkan eşyanın Tier'ına göre toz (Common 20, Rare 80, Epic 300, Legendary 1.200, Mythic 5.000).
+- **Float:** girdilerin Float ortalaması Pristine ve Excellent şansını kaydırır (ortalama < 0.05: %6 / %25, < 0.20: %4 / %20, < 0.50: %2 / %13, üstü: %1 / %8). Float'lı girdi yoksa %2 / %13. Recipe kademesi üst sınır koyar: Normal 1.00, İyi 0.50 (Worn / Damaged çıkmaz), Usta 0.20 (en az Excellent). Client "Kalite şansı" çubuğunu bu ortalama aralıklarından gösterebilir (Düşük / Normal / Yüksek / Çok Yüksek); kesin oran gösterilmez.
+- Çıkan eşya defter kuralına uyar: ilk kopya doğrudan yuvaya girer (`book.kind = "discovered"`, `FISH_END.book` ile aynı şekil), sonrakiler çantaya. Zanaat eşyaları defterde `crafts` sayfasındadır.
+- Sadece çantadaki eşyalar kullanılır. Girdiler, yeni eşya, defter ve toz tek işlemde değişir. Şimdilik her yerden yapılır; zanaatkar NPC konunca mesafe şartı eklenecek.
+- `CRAFT_RESULT`: başarıda `item` yeni eşya, `items` ve `stacks` harcananlar, `dust` kalan toz. `reason`: `BAD_REQUEST`, `NOT_OWNED`, `NOT_SAME_ITEM` (birleştirmede farklı eşyalar), `NO_RECIPE`, `MISSING_INPUTS`, `NOT_ENOUGH_DUST`, `BAG_FULL`. Oyuncu başına tick'te en fazla bir defter, ekonomi veya craft işlemi işlenir.
+- Pristine sonuç duyurusu (yakındakilere, Mythic Pristine tüm sunucuya) henüz yok.
 
 ## Hata kodları
 

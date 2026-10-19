@@ -4,6 +4,7 @@
 //   bag/stacks  { stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
 //   profile/card  ProfileDoc               (public: showcase and "Arıyorum")
+// Coin and dust live in the Nakama wallet: { coin, dust }.
 import { BAG, ENERGY } from '../config';
 import { InventoryResponse, ItemInstance } from '../protocol';
 import { BookEntries } from '../rules/book';
@@ -117,6 +118,12 @@ export function readBookItems(nk: nkruntime.Nakama, userId: string, entries: Boo
   return out;
 }
 
+/** Coin and dust from the Nakama wallet (server-only writes). */
+export function readWallet(nk: nkruntime.Nakama, userId: string): { coin: number; dust: number } {
+  const w = nk.accountGetId(userId).wallet || {};
+  return { coin: w.coin || 0, dust: w.dust || 0 };
+}
+
 export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryResponse {
   const items = listItems(nk, userId).filter((i) => !i.inBook).map(publicItem);
   const stacks = readStacks(nk, userId);
@@ -127,6 +134,7 @@ export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryRe
     slotsMax: BAG.slots,
     items,
     stacks: Object.keys(stacks).map((defId) => ({ defId, count: stacks[defId] })),
+    ...readWallet(nk, userId),
   };
 }
 

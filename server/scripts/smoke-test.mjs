@@ -5,7 +5,7 @@ import { Client } from '@heroiclabs/nakama-js';
 const OP = {
   MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8,
   CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15, BOOK_PLACE: 16, BOOK_RESULT: 17,
-  GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21,
+  GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21, SELL: 22, SALVAGE: 23, ECONOMY_RESULT: 24, MERGE: 25, CRAFT: 26, CRAFT_RESULT: 27,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -239,11 +239,89 @@ c.send(OP.BOOK_PLACE, { instanceId: 'not-an-item' });
 await sleep(300);
 check(c.take(OP.BOOK_RESULT)[0]?.reason === 'NOT_OWNED', 'BOOK_PLACE with an unknown item is refused');
 
+// Economy (Faz 4): sell and salvage what is in the bag; book items cannot be sold.
+const isRecipe = (defId) => defId.startsWith('recipe.');
+let bag = (await client.rpc(c.session, 'get_inventory', {})).payload;
+check(['recipe.scale_charm', 'recipe.moss_wreath'].every((id) => bag.stacks.some((s) => s.defId === id && s.count >= 1)), 'a new account gets the starter recipes');
+for (let i = 0; i < 8 && bag.items.length + bag.stacks.filter((s) => !isRecipe(s.defId)).length < 2; i++) {
+  await catchOne(c);
+  bag = (await client.rpc(c.session, 'get_inventory', {})).payload;
+}
+check(bag.coin === 0 && bag.dust === 0, 'a new player starts with 0 Coin and 0 dust');
+const lines = [...bag.items.map((i) => ({ items: [i.instanceId] })), ...bag.stacks.filter((s) => !isRecipe(s.defId)).map((s) => ({ stacks: [{ defId: s.defId, count: s.count }] }))];
+async function economy(op, body) {
+  c.clear();
+  c.send(op, body);
+  await sleep(300);
+  return c.take(OP.ECONOMY_RESULT)[0];
+}
+const salvaged = await economy(OP.SALVAGE, lines[0]);
+check(salvaged?.ok && salvaged.dust === salvaged.gained && salvaged.gained > 0 && salvaged.coin === 0, 'SALVAGE turns a bag line into dust');
+const rest = lines.slice(1);
+const sold = rest.length === 0 ? null : await economy(OP.SELL, {
+  items: rest.flatMap((l) => l.items || []),
+  stacks: rest.flatMap((l) => l.stacks || []),
+});
+check(!sold || (sold.ok && sold.coin === sold.gained && sold.gained > 0 && sold.dust === salvaged.dust), 'SELL turns the rest into Coin');
+const emptied = (await client.rpc(c.session, 'get_inventory', {})).payload;
+check(emptied.items.length === 0 && emptied.stacks.every((x) => isRecipe(x.defId)) && emptied.coin === (sold ? sold.coin : 0) && emptied.dust === salvaged?.dust,
+  'get_inventory shows an empty bag and the new balances');
+check((await economy(OP.SELL, { items: lines[0].items || ['gone'] }))?.reason === 'NOT_OWNED', 'selling the same thing twice is refused');
+if (first) check((await economy(OP.SELL, { items: [first.item.instanceId] }))?.reason === 'NOT_OWNED', 'a book slot item cannot be sold');
+check((await economy(OP.SALVAGE, { stacks: [{ defId: 'lake.junk.boot', count: 0 }] }))?.reason === 'BAD_REQUEST', 'a bad request is refused');
+
 // Fake REEL_DONE without a reel game is ignored
 c.clear();
 c.send(OP.REEL_DONE, { inputs: [20, 40] });
 check((await lastEnd(c)) === undefined, 'REEL_DONE without a reel is ignored');
 
+
+// Merge and craft (Faz 4). A fresh player gets its inputs through the Nakama
+// console API before joining, since the match caches the bag on join.
+async function consoleApi(path, method, body, token) {
+  const res = await fetch(`http://${process.env.NAKAMA_HOST || '127.0.0.1'}:7351${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`${path} ${res.status} ${await res.text()}`);
+  return res.json();
+}
+const admin = (await consoleApi('/v2/console/authenticate', 'POST', { username: 'admin', password: 'password' })).token;
+const d = await player('deniz');
+const uid = d.session.user_id;
+const seedWrite = (collection, key, value) =>
+  consoleApi(`/v2/console/storage/${collection}/${key}/${uid}`, 'PUT', { value: JSON.stringify(value), version: '', permission_read: 1, permission_write: 0 }, admin);
+const carp = (n, float) => ({ instanceId: `smoke-carp-${n}-${run}`, defId: 'lake.fish.carp', tier: 'common', float, source: 'fishing', obtainedAt: Date.now() });
+await seedWrite('bag', 'stacks', { stacks: { 'recipe.scale_charm': 1, 'recipe.moss_wreath': 1, 'lake.mat.scale': 5, 'lake.mat.moss': 1 } });
+for (const [n, fl] of [[1, 0.3], [2, 0.6], [3, 0.45], [4, 0.9]]) await seedWrite('items', carp(n, fl).instanceId, carp(n, fl));
+await consoleApi(`/v2/console/account/${uid}`, 'POST', { wallet: JSON.stringify({ dust: 25 }) }, admin);
+await d.join(target.matchId);
+await sleep(400);
+async function craftOp(op, body) {
+  d.clear();
+  d.send(op, body);
+  await sleep(300);
+  return d.take(OP.CRAFT_RESULT)[0];
+}
+const ids = [1, 2, 3].map((n) => carp(n, 0).instanceId);
+check((await craftOp(OP.MERGE, { items: [ids[0], ids[1], 'nope'] }))?.reason === 'NOT_OWNED', 'MERGE with an item not owned is refused');
+const merged = await craftOp(OP.MERGE, { items: ids });
+check(merged?.ok && merged.item.defId === 'lake.fish.carp' && merged.item.source === 'merge' && merged.item.float <= 0.6 && merged.dust === 15 && merged.items.length === 3,
+  'MERGE turns three carps and 10 dust into one carp no worse than the worst');
+check((await craftOp(OP.CRAFT, { recipeId: 'recipe.moss_wreath' }))?.reason === 'MISSING_INPUTS', 'CRAFT without the materials is refused');
+check((await craftOp(OP.CRAFT, { recipeId: 'recipe.pike_trophy' }))?.reason === 'NO_RECIPE', 'CRAFT without the recipe is refused');
+check((await craftOp(OP.CRAFT, { recipeId: 'recipe.scale_charm' }))?.reason === 'NOT_ENOUGH_DUST', 'CRAFT without enough dust is refused');
+await consoleApi(`/v2/console/account/${uid}`, 'POST', { wallet: JSON.stringify({ dust: 40 }) }, admin);
+const crafted = await craftOp(OP.CRAFT, { recipeId: 'recipe.scale_charm' });
+check(crafted?.ok && crafted.item.defId === 'craft.scale_charm' && crafted.item.source === 'craft' && crafted.dust === 20 && crafted.book?.kind === 'discovered' && crafted.book.page === 'crafts',
+  'CRAFT spends recipe, materials and dust, and the first crafted item goes to its book slot');
+const dInv = (await client.rpc(d.session, 'get_inventory', {})).payload;
+const st = Object.fromEntries(dInv.stacks.map((x) => [x.defId, x.count]));
+check(!st['recipe.scale_charm'] && st['lake.mat.scale'] === 2 && !st['lake.mat.moss'] && dInv.dust === 20 &&
+  dInv.items.some((i) => i.instanceId === carp(4, 0).instanceId) && !dInv.items.some((i) => ids.includes(i.instanceId)),
+  'get_inventory shows what merge and craft used up');
+await d.socket.leaveMatch(target.matchId);
 
 // Friends (Faz 3): Nakama friend requests, friends_status, "Yanına git", emotes.
 await client.addFriends(b.session, [c.session.user_id]);
