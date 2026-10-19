@@ -3,6 +3,7 @@
 // Items, stacks and the wallet change in one storage transaction.
 import { ECONOMY, FLOAT_TABLE } from '../config';
 import { LAKE_POOL } from '../data/lake-pool';
+import { recipeById } from '../data/recipes';
 import { EconomyResultMsg, OpCode } from '../protocol';
 import { Category } from '../rules/catch';
 import { EconomyAction, OwnedItem, parseEconomyRequest, planEconomy } from '../rules/economy';
@@ -12,6 +13,10 @@ import { StoredItem, readWallet, stacksWrite } from './playerData';
 const CATEGORY: { [defId: string]: Category } = {};
 for (const d of LAKE_POOL) CATEGORY[d.id] = d.category;
 const categoryOf = (defId: string): Category | null => CATEGORY[defId] || null;
+const gradeOf = (defId: string) => {
+  const r = recipeById(defId);
+  return r ? r.grade : null;
+};
 
 /** Wallet key per action. Dust is a wallet value only the server changes; it cannot be traded. */
 const CURRENCY: { [a in EconomyAction]: 'coin' | 'dust' } = { sell: 'coin', salvage: 'dust' };
@@ -45,7 +50,7 @@ export function handleEconomy(
     }
   }
 
-  const plan = planEconomy(action, req, owned, f.bag.stacks, categoryOf, FLOAT_TABLE, ECONOMY);
+  const plan = planEconomy(action, req, owned, f.bag.stacks, categoryOf, FLOAT_TABLE, ECONOMY, gradeOf);
   if (!plan.ok) return fail(plan.reason);
 
   const stacks: { [defId: string]: number } = { ...f.bag.stacks };

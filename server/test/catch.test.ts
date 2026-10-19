@@ -17,7 +17,7 @@ describe('rollCatch', () => {
     expect(counts.common / n).toBeCloseTo(0.5, 2);
     expect(counts.rare / n).toBeCloseTo(0.09, 2);
     expect(counts.mythic / n).toBeLessThan(0.002);
-    expect(counts.recipe).toBeUndefined();
+    expect(counts.recipe / n).toBeCloseTo(0.004, 3);
   });
 
   it('gives only junk without energy', () => {

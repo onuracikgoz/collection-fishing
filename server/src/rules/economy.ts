@@ -1,6 +1,7 @@
 // Coin and dust: selling to the NPC and salvaging into dust.
 // Rules: docs/tasarim/07-kopya-envanter.md 9, 16-ekonomi-tablosu.md 3. Pure functions, no Nakama dependency.
 import { Category, Condition, FloatBand, Tier } from './catch';
+import type { RecipeGrade } from './craft';
 
 export interface EconomyConfig {
   /** NPC price by category, before the Float multiplier. */
@@ -11,6 +12,8 @@ export interface EconomyConfig {
   dust: { [c in Category]: number | null };
   /** Most entries (items plus stack lines) in one request. */
   maxEntries: number;
+  /** NPC price of a recipe by grade; replaces sellPrice.recipe. */
+  recipePrice: { [g in RecipeGrade]: number };
 }
 
 export type EconomyAction = 'sell' | 'salvage';
@@ -94,6 +97,7 @@ export function planEconomy(
   categoryOf: (defId: string) => Category | null,
   bands: FloatBand[],
   cfg: EconomyConfig,
+  gradeOf: (defId: string) => RecipeGrade | null = () => null,
 ): EconomyPlan {
   if (req.items.length + req.stacks.length === 0) return { ok: false, reason: 'BAD_REQUEST' };
   if (req.items.length + req.stacks.length > cfg.maxEntries) return { ok: false, reason: 'TOO_MANY' };
@@ -123,7 +127,8 @@ export function planEconomy(
     if (want[defId] > have) return { ok: false, reason: 'NOT_ENOUGH' };
     const category = categoryOf(defId);
     if (!category) return { ok: false, reason: 'NOT_OWNED' };
-    const each = action === 'sell' ? cfg.sellPrice[category] : cfg.dust[category];
+    const grade = category === 'recipe' ? gradeOf(defId) : null;
+    const each = action === 'salvage' ? cfg.dust[category] : grade ? cfg.recipePrice[grade] : cfg.sellPrice[category];
     if (each === null) return { ok: false, reason: 'CANNOT_SALVAGE' };
     gained += each * want[defId];
     stacksAfter[defId] = have - want[defId];

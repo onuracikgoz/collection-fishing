@@ -28,6 +28,7 @@ import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { currentEnergy, energyWrite, loadBag, readBook } from './playerData';
 import { handleBookPlace } from './book';
+import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
@@ -403,6 +404,9 @@ export function worldLoop(
       // Shares the one-storage-action-per-tick limit with the book.
       storageActions[m.sender.userId] = true;
       handleEconomy(nk, logger, dispatcher, p, m.opCode === OpCode.SELL ? 'sell' : 'salvage', body);
+    } else if ((m.opCode === OpCode.MERGE || m.opCode === OpCode.CRAFT) && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleCraft(nk, logger, dispatcher, p, m.opCode === OpCode.MERGE ? 'merge' : 'craft', body);
     } else if (m.opCode === OpCode.GOTO_FRIEND) {
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {

@@ -2,6 +2,7 @@
 // are not final; change them here, not in rules or match code.
 import type { Category } from './rules/catch';
 import type { EconomyConfig } from './rules/economy';
+import type { CraftConfig } from './rules/craft';
 
 export interface ServerDef {
   /** Stable id, used to find the match again after a restart. */
@@ -60,7 +61,7 @@ export const CATCH_TABLE = {
   material: 1200,
   rare: 900,
   epic: 300,
-  recipe: 0,
+  recipe: 40, // ~0.4% (16-ekonomi-tablosu.md V5)
   legendary: 50,
   mythic: 5,
 };
@@ -148,4 +149,23 @@ export const ECONOMY: EconomyConfig = {
   conditionMultiplier: { pristine: 3, excellent: 1.5, normal: 1, worn: 0.7, damaged: 0.5 },
   dust: { junk: 1, material: 2, common: 5, rare: 25, epic: 100, legendary: 400, mythic: 2000, recipe: null },
   maxEntries: 40, // one request can empty a full bag
+  // Recipes sell by grade, not by category (16-ekonomi-tablosu.md 3).
+  recipePrice: { normal: 50, good: 250, master: 1000 },
+};
+
+// Merge and craft (07-kopya-envanter.md 9.4, 08-recipe-craft.md 10.4 and 11.2,
+// 16-ekonomi-tablosu.md 4.3-4.4; all Öneri).
+export const CRAFT: CraftConfig = {
+  mergeCount: 3,
+  mergeDust: { common: 10, rare: 50, epic: 200, legendary: 800, mythic: 4000 },
+  craftDust: { common: 20, rare: 80, epic: 300, legendary: 1200, mythic: 5000 },
+  // Pristine and Excellent chances (%) by the average Float of the inputs.
+  quality: [
+    { below: 0.05, pristine: 6, excellent: 25 },
+    { below: 0.2, pristine: 4, excellent: 20 },
+    { below: 0.5, pristine: 2, excellent: 13 },
+    { below: 1.01, pristine: 1, excellent: 8 },
+  ],
+  qualityWithoutFloat: { below: 1.01, pristine: 2, excellent: 13 },
+  gradeMaxFloat: { normal: 1, good: 0.5, master: 0.2 },
 };
