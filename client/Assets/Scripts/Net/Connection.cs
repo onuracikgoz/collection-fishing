@@ -38,7 +38,17 @@ namespace CollectionGame.Net
 
         public Connection(string host)
         {
-            client = new Client("http", host, Port, ServerKey, UnityWebRequestAdapter.Instance);
+            // A web build served over https may only talk to Nakama over https / wss.
+            var scheme = Application.absoluteURL != null && Application.absoluteURL.StartsWith("https:") ? "https" : "http";
+            client = new Client(scheme, host, Port, ServerKey, UnityWebRequestAdapter.Instance);
+        }
+
+        /// <summary>Server address to suggest: the web page's own host in a web build, else this machine.</summary>
+        public static string DefaultHost()
+        {
+            if (Application.platform == RuntimePlatform.WebGLPlayer && Uri.TryCreate(Application.absoluteURL, UriKind.Absolute, out var page) && !string.IsNullOrEmpty(page.Host))
+                return page.Host;
+            return "127.0.0.1";
         }
 
         /// <summary>Device login with the username (sent every time; ignored by Nakama once the account exists).</summary>
@@ -63,7 +73,85 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<InventoryResponse>(rpc.Payload);
         }
 
-        public async Task JoinAsync(string matchId, string characterId = "default")
+        public async Task<BookResponse> GetBookAsync(string userId = null)
+        {
+            var rpc = await client.RpcAsync(Session, "get_book", UserArg(userId));
+            return JsonUtility.FromJson<BookResponse>(rpc.Payload);
+        }
+
+        public async Task<ProfileResponse> GetProfileAsync(string userId = null)
+        {
+            var rpc = await client.RpcAsync(Session, "get_profile", UserArg(userId));
+            return JsonUtility.FromJson<ProfileResponse>(rpc.Payload);
+        }
+
+        /// <summary>
+        /// set_profile. Fields left null are kept; <paramref name="clearHunting"/> sends
+        /// hunting: null. Written by hand because JsonUtility cannot omit or null a field.
+        /// </summary>
+        public async Task<ProfileResponse> SetProfileAsync(string[] showcase = null, string hunting = null, bool clearHunting = false)
+        {
+            var parts = new List<string>();
+            if (showcase != null)
+            {
+                var ids = new List<string>();
+                foreach (var id in showcase) ids.Add(JsonString(id));
+                parts.Add($"\"showcase\":[{string.Join(",", ids)}]");
+            }
+            if (clearHunting) parts.Add("\"hunting\":null");
+            else if (hunting != null) parts.Add($"\"hunting\":{JsonString(hunting)}");
+            var rpc = await client.RpcAsync(Session, "set_profile", "{" + string.Join(",", parts) + "}");
+            return JsonUtility.FromJson<ProfileResponse>(rpc.Payload);
+        }
+
+        static string UserArg(string userId) => string.IsNullOrEmpty(userId) ? "{}" : "{\"userId\":" + JsonString(userId) + "}";
+
+        static string JsonString(string s)
+        {
+            var sb = new StringBuilder("\"");
+            foreach (var c in s)
+            {
+                if (c == '"' || c == '\\') sb.Append('\\').Append(c);
+                else if (c < ' ') sb.Append($"\\u{(int)c:x4}");
+                else sb.Append(c);
+            }
+            return sb.Append('"').ToString();
+        }
+
+        // ---- friends: Nakama's own friend API (docs/protokol.md, Arkadaşlar) ----
+
+        /// <summary>Nakama friend states.</summary>
+        public const int FriendMutual = 0, FriendInviteSent = 1, FriendInviteReceived = 2, FriendBlocked = 3;
+
+        public readonly struct Friend
+        {
+            public readonly string UserId, Username;
+            public readonly int State;
+            public Friend(string id, string name, int state) { UserId = id; Username = name; State = state; }
+        }
+
+        /// <summary>Sends a request, or accepts one when the other side already asked.</summary>
+        public Task AddFriendAsync(string userId = null, string username = null) =>
+            client.AddFriendsAsync(Session, userId != null ? new[] { userId } : null, username != null ? new[] { username } : null);
+
+        public Task RemoveFriendAsync(string userId) => client.DeleteFriendsAsync(Session, new[] { userId });
+
+        public async Task<List<Friend>> ListFriendsAsync()
+        {
+            var list = await client.ListFriendsAsync(Session, null, 100, null);
+            var result = new List<Friend>();
+            foreach (var f in list.Friends) result.Add(new Friend(f.User.Id, f.User.Username, f.State));
+            return result;
+        }
+
+        public async Task<FriendsStatusResponse> FriendsStatusAsync()
+        {
+            var rpc = await client.RpcAsync(Session, "friends_status", "{}");
+            return JsonUtility.FromJson<FriendsStatusResponse>(rpc.Payload);
+        }
+
+        /// <summary>Joins a world server; <paramref name="near"/> lands beside that friend (cross-server "Yanına git").</summary>
+        public async Task JoinAsync(string matchId, string characterId = "default", string near = null)
         {
             await CloseAsync();
             ClosedReason = null;
@@ -88,6 +176,7 @@ namespace CollectionGame.Net
                 ["protocolVersion"] = Protocol.Version.ToString(),
                 ["characterId"] = characterId,
             };
+            if (!string.IsNullOrEmpty(near)) metadata["near"] = near;
             await s.JoinMatchAsync(matchId, metadata);
             MatchId = matchId;
         }
@@ -137,7 +226,7 @@ namespace CollectionGame.Net
             if (msg.Contains(ErrorCode.ProtocolMismatch)) return "Oyun sürümü sunucuyla uyuşmuyor. Güncel sürümü kullan.";
             if (msg.Contains(ErrorCode.ServerFull)) return "Sunucu dolu, başka bir sunucu seç.";
             if (msg.Contains(ErrorCode.BadRequest) || msg.Contains("invalid username"))
-                return "Kullanıcı adı 3–16 karakter olmalı: harf, rakam ve _ kullanılabilir.";
+                return "Kullanıcı adı 3-16 karakter olmalı: harf, rakam ve _ kullanılabilir.";
             if (msg.Contains("Username is already in use") || msg.Contains("already in use"))
                 return "Bu kullanıcı adı alınmış, başka bir ad dene.";
             if (msg.Contains("Cannot connect") || msg.Contains("Connection refused") || msg.Contains("ConnectionError") || msg.Contains("timed out"))

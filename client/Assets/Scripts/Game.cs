@@ -39,7 +39,7 @@ namespace CollectionGame
         void Awake()
         {
             username = PlayerPrefs.GetString(UsernameKey, "");
-            host = PlayerPrefs.GetString(HostKey, "127.0.0.1");
+            host = Application.platform == RuntimePlatform.WebGLPlayer ? Connection.DefaultHost() : PlayerPrefs.GetString(HostKey, Connection.DefaultHost());
             Application.runInBackground = true; // two windows on one Mac both keep running
         }
 
@@ -63,7 +63,7 @@ namespace CollectionGame
                 PlayerPrefs.Save();
             }
 
-            Busy("Giriş yapılıyor…");
+            Busy("Giriş yapılıyor...");
             try
             {
                 net = new Connection(host);
@@ -78,7 +78,7 @@ namespace CollectionGame
 
         async System.Threading.Tasks.Task RefreshServers()
         {
-            Busy("Sunucular yükleniyor…");
+            Busy("Sunucular yükleniyor...");
             servers = await net.ListServersAsync();
             error = null;
             screen = Page.Servers;
@@ -93,16 +93,19 @@ namespace CollectionGame
                     }
         }
 
-        async void Join(ServerInfo server)
+        /// <param name="near">Friend to land beside ("Yanına git" across servers).</param>
+        async void Join(ServerInfo server, string near = null)
         {
-            Busy($"{server.name} sunucusuna giriliyor…");
+            DestroyWorld();
+            Busy($"{server.name} sunucusuna giriliyor...");
             try
             {
                 // The world exists before joining: WELCOME can arrive before JoinAsync returns.
-                world = WorldController.Create(net, server.name, OnDisconnected);
+                world = WorldController.Create(net, server.name, OnDisconnected,
+                    (matchId, name, friend) => Join(new ServerInfo { matchId = matchId, name = name }, friend));
                 if (Autopilot.Enabled) Autopilot.Attach(world);
                 screen = Page.World;
-                await net.JoinAsync(server.matchId);
+                await net.JoinAsync(server.matchId, near: near);
             }
             catch (Exception e)
             {
@@ -172,7 +175,7 @@ namespace CollectionGame
 
         void DrawLogin()
         {
-            GUILayout.Label("Kullanıcı adı (3–16: harf, rakam, _)", Gui.Hud);
+            GUILayout.Label("Kullanıcı adı (3-16: harf, rakam, _)", Gui.Hud);
             GUI.SetNextControlName("username");
             username = GUILayout.TextField(username, 16, Gui.Input, GUILayout.Height(32));
             GUILayout.Space(8);

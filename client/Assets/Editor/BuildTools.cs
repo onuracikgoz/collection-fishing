@@ -36,6 +36,31 @@ namespace CollectionGame.EditorTools
             if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
         }
 
+        public const string WebBuildPath = "Builds/Web";
+
+        /// <summary>
+        /// WebGL build into Builds/Web. Gzip with the decompression fallback so any
+        /// static file server works (no special Content-Encoding headers needed).
+        /// </summary>
+        [MenuItem("CollectionGame/Build Web")]
+        public static void BuildWeb()
+        {
+            ArtCatalogBuilder.Refresh();
+            PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
+            PlayerSettings.WebGL.decompressionFallback = true;
+            var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
+            var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+            {
+                scenes = scenes,
+                locationPathName = WebBuildPath,
+                target = BuildTarget.WebGL,
+                options = BuildOptions.None,
+            });
+            var ok = report.summary.result == BuildResult.Succeeded;
+            Debug.Log($"[Build] {report.summary.result}: {WebBuildPath}, {report.summary.totalErrors} errors");
+            if (Application.isBatchMode) EditorApplication.Exit(ok ? 0 : 1);
+        }
+
         [System.Serializable]
         class Fixture
         {

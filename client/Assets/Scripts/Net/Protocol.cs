@@ -27,6 +27,14 @@ namespace CollectionGame.Net
         public const long ReelDone = 13;
         public const long FishEnd = 14;
         public const long Cancel = 15;
+        // Faz 3: Collection Book
+        public const long BookPlace = 16;
+        public const long BookResult = 17;
+        // Faz 3: friends, teleport, emotes
+        public const long GotoFriend = 18;
+        public const long Teleport = 19;
+        public const long Emote = 20;
+        public const long EmoteShow = 21;
     }
 
     public static class ErrorCode
@@ -277,6 +285,163 @@ namespace CollectionGame.Net
         public ItemInstance item;
         public ItemStack stack;
         public int energy;
+        /// <summary>Book outcome for a Tier item on a book page; page is empty when absent.</summary>
+        public FishBookMsg book;
+    }
+
+    // --- Faz 3: Collection Book (docs/protokol.md, Collection Book) ---
+
+    public static class BookKind
+    {
+        public const string Discovered = "discovered";
+        public const string Copy = "copy";
+    }
+
+    public static class RecordState
+    {
+        public const string Unknown = "unknown";
+        public const string Found = "found";
+        public const string Filled = "filled";
+    }
+
+    [Serializable]
+    public class FishBookMsg
+    {
+        public string page;
+        /// <summary>discovered: first copy, now in its slot. copy: went to the bag.</summary>
+        public string kind;
+        public bool pageComplete;
+        /// <summary>copy: cleaner than the slot's copy, or the slot is empty.</summary>
+        public bool better;
+        public float luck;
+        public int score;
+    }
+
+    /// <summary>C → S, op 16: put a bag item in its book slot.</summary>
+    [Serializable]
+    public class BookPlaceMsg
+    {
+        public string instanceId;
+    }
+
+    /// <summary>S → C, op 17. slot / previous have an empty instanceId when absent.</summary>
+    [Serializable]
+    public class BookResultMsg
+    {
+        public bool ok;
+        public string reason;
+        public string defId;
+        public string page;
+        public ItemInstance slot;
+        public ItemInstance previous;
+        public int score;
+    }
+
+    [Serializable]
+    public class BookRecord
+    {
+        /// <summary>Empty for unknown records.</summary>
+        public string defId;
+        public string state;
+        public ItemInstance item;
+    }
+
+    [Serializable]
+    public class BookPage
+    {
+        public string id;
+        public int total;
+        public int found;
+        public int filled;
+        public BookRecord[] records;
+    }
+
+    /// <summary>get_book RPC.</summary>
+    [Serializable]
+    public class BookResponse
+    {
+        public string userId;
+        public BookPage[] pages;
+        public float luck;
+        public int score;
+    }
+
+    /// <summary>get_profile / set_profile RPC.</summary>
+    [Serializable]
+    public class ProfileResponse
+    {
+        public string userId;
+        public string username;
+        public int score;
+        public string[] pagesComplete;
+        public ItemInstance[] showcase;
+        public string hunting;
+    }
+
+    // --- Faz 3: friends, teleport, emotes (docs/protokol.md, Arkadaşlar, ışınlanma, emote) ---
+
+    public static class Emotes
+    {
+        public const string Wave = "wave";
+        public const string Clap = "clap";
+        public const string Dance = "dance";
+        public const string Sit = "sit";
+        public const string Laugh = "laugh";
+        public const string ShowFish = "show_fish";
+        /// <summary>Keys 1-6 in this order. The server drops anything else (no flirting emotes, 13+).</summary>
+        public static readonly string[] All = { Wave, Clap, Dance, Sit, Laugh, ShowFish };
+    }
+
+    /// <summary>C → S, op 18: "Yanına git" to a friend on this server.</summary>
+    [Serializable]
+    public class GotoFriendMsg
+    {
+        public string userId;
+    }
+
+    /// <summary>S → C, op 19. reason set = refused (NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED), x/y is where we are.</summary>
+    [Serializable]
+    public class TeleportMsg
+    {
+        public float x;
+        public float y;
+        public string reason;
+    }
+
+    /// <summary>C → S, op 20.</summary>
+    [Serializable]
+    public class EmoteMsg
+    {
+        public string emote;
+    }
+
+    /// <summary>S → C, op 21. defId only for show_fish.</summary>
+    [Serializable]
+    public class EmoteShowMsg
+    {
+        public string id;
+        public string emote;
+        public string defId;
+    }
+
+    [Serializable]
+    public class FriendStatus
+    {
+        public string userId;
+        public string username;
+        public bool online;
+        /// <summary>Empty when not in a world server.</summary>
+        public string serverName;
+        public string matchId;
+        public float x;
+        public float y;
+    }
+
+    /// <summary>friends_status RPC: mutual friends only.</summary>
+    [Serializable]
+    public class FriendsStatusResponse
+    {
+        public FriendStatus[] friends;
     }
 
     /// <summary>get_inventory RPC.</summary>

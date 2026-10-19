@@ -362,7 +362,7 @@ namespace CollectionGame.Fishing
                 case Phase.Idle:
                     return LakeMap.IsNearWater(me, NearWater) ? "F basılı tut, bırak: olta at · sağ tık: suya at · B: çanta" : null;
                 case Phase.Charging: return "Bırakınca atar";
-                case Phase.Waiting: return "Bekle… kıpırdama sahte, şamandıra batınca Space · Esc: topla";
+                case Phase.Waiting: return "Bekle... kıpırdama sahte, şamandıra batınca Space · Esc: topla";
                 case Phase.Bite: return "ÇEK! (Space)";
                 case Phase.Reeling: return "Space basılı tut: yeşil çubuğu balığın üstünde tut";
                 default: return null;
@@ -390,11 +390,13 @@ namespace CollectionGame.Fishing
 
         void DrawBag()
         {
-            var r = new Rect(Gui.Width - 330, 60, 310, 360);
-            GUILayout.BeginArea(r, GUI.skin.box);
+            // Below the profile card so both fit on screen.
+            var r = new Rect(Gui.Width - 340, 310, 320, Mathf.Max(160, Gui.Height - 380));
+            Gui.Block(r);
+            GUILayout.BeginArea(r, Gui.Window);
             if (Bag == null)
             {
-                GUILayout.Label("Çanta yükleniyor…", Gui.Hud);
+                GUILayout.Label("Çanta yükleniyor...", Gui.Hud);
             }
             else
             {
@@ -408,7 +410,7 @@ namespace CollectionGame.Fishing
                     }
                 if (Bag.stacks != null)
                     foreach (var s in Bag.stacks)
-                        GUILayout.Label($"{ItemName(s.defId)} × {s.count}", Gui.Hud);
+                        GUILayout.Label($"{ItemName(s.defId)} x {s.count}", Gui.Hud);
                 if ((Bag.items == null || Bag.items.Length == 0) && (Bag.stacks == null || Bag.stacks.Length == 0))
                     GUILayout.Label("Boş", Gui.Hud);
             }
