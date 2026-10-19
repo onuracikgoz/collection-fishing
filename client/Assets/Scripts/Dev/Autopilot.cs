@@ -73,7 +73,7 @@ namespace CollectionGame.Dev
             Log($"joined at {world.MyPosition}");
 
             var friend = Arg("-cgFriend");
-            if (!string.IsNullOrEmpty(friend)) world.Social.AddFriend(null, friend);
+            if (!string.IsNullOrEmpty(friend)) StartCoroutine(BefriendLoop(friend));
             if (mode == "social")
             {
                 yield return Social(friend);
@@ -101,6 +101,8 @@ namespace CollectionGame.Dev
                 world.Social.SendEmote(Emotes.Wave);
                 yield return new WaitForSeconds(1f);
                 Log($"emotes seen {world.Social.EmotesSeen}");
+                // With a friend coming over, keep greeting so they see it whenever they arrive.
+                if (!string.IsNullOrEmpty(friend)) StartCoroutine(KeepWaving());
             }
             else yield return LookAtOthers();
 
@@ -266,6 +268,40 @@ namespace CollectionGame.Dev
             }
             yield return new WaitForSeconds(0.5f);
             Log($"summary others {world.OthersInView}, corrections {world.Corrections}");
+        }
+
+        /// <summary>
+        /// Keeps asking (or accepting) until the friendship is mutual: the other bot's
+        /// account may not exist yet when this one starts.
+        /// </summary>
+        IEnumerator BefriendLoop(string name)
+        {
+            var until = Time.time + 120f;
+            while (Time.time < until)
+            {
+                var f = world.Social.Friends.FirstOrDefault(x => x.Username == name);
+                if (f.Username == name && f.State == Connection.FriendMutual)
+                {
+                    Log($"friends with {name}");
+                    yield break;
+                }
+                if (f.Username != name || f.State == Connection.FriendInviteReceived) world.Social.AddFriend(null, name);
+                yield return new WaitForSeconds(1f);
+                world.Social.Refresh();
+                yield return new WaitForSeconds(4f);
+            }
+            Log($"no friendship with {name}");
+        }
+
+        IEnumerator KeepWaving()
+        {
+            while (true)
+            {
+                yield return new WaitForSeconds(4f);
+                world.Social.SendEmote(Emotes.Wave);
+                yield return new WaitForSeconds(4f);
+                world.Social.SendEmote(Emotes.ShowFish);
+            }
         }
 
         static IEnumerator WaitFor(Func<bool> done, float seconds)
