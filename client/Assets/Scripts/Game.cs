@@ -1,4 +1,5 @@
 using System;
+using CollectionGame.Dev;
 using CollectionGame.Net;
 using CollectionGame.UI;
 using CollectionGame.World;
@@ -42,13 +43,25 @@ namespace CollectionGame
             Application.runInBackground = true; // two windows on one Mac both keep running
         }
 
+        void Start()
+        {
+            // Command-line test run (Dev/Autopilot.cs): log in without the form.
+            if (!Autopilot.Enabled) return;
+            username = Autopilot.Arg("-cgUser");
+            host = Autopilot.Arg("-cgHost") ?? host;
+            Login();
+        }
+
         async void Login()
         {
             username = username.Trim();
             host = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
-            PlayerPrefs.SetString(UsernameKey, username);
-            PlayerPrefs.SetString(HostKey, host);
-            PlayerPrefs.Save();
+            if (!Autopilot.Enabled)
+            {
+                PlayerPrefs.SetString(UsernameKey, username);
+                PlayerPrefs.SetString(HostKey, host);
+                PlayerPrefs.Save();
+            }
 
             Busy("Giriş yapılıyor…");
             try
@@ -69,6 +82,15 @@ namespace CollectionGame
             servers = await net.ListServersAsync();
             error = null;
             screen = Page.Servers;
+
+            var wanted = Autopilot.Enabled ? Autopilot.Arg("-cgServer") : null;
+            if (wanted != null)
+                foreach (var s in servers)
+                    if (string.Equals(s.name, wanted, StringComparison.OrdinalIgnoreCase))
+                    {
+                        Join(s);
+                        break;
+                    }
         }
 
         async void Join(ServerInfo server)
@@ -78,6 +100,7 @@ namespace CollectionGame
             {
                 // The world exists before joining: WELCOME can arrive before JoinAsync returns.
                 world = WorldController.Create(net, server.name, OnDisconnected);
+                if (Autopilot.Enabled) Autopilot.Attach(world);
                 screen = Page.World;
                 await net.JoinAsync(server.matchId);
             }

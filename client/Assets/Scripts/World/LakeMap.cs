@@ -18,13 +18,15 @@ namespace CollectionGame.World
 
         public static readonly RectInt Fountain = new RectInt(63, 47, 3, 2);
 
-        public static readonly RectInt[] Blocked =
+        /// <summary>Fishable water (server LAKE_WATER); also blocked.</summary>
+        public static readonly RectInt[] Water =
         {
-            Fountain,
             new RectInt(76, 30, 40, 17),
             new RectInt(76, 49, 40, 18),
             new RectInt(86, 47, 30, 2), // water past the pier's end
         };
+
+        public static readonly RectInt[] Blocked = { Fountain, Water[0], Water[1], Water[2] };
 
         // Drawing only (not collision): the lake's water and the walkable pier through it.
         public static readonly RectInt Lake = new RectInt(76, 30, 40, 37);
@@ -53,6 +55,28 @@ namespace CollectionGame.World
         {
             if (!(p.x >= 0 && p.y >= 0 && p.x < Width && p.y < Height)) return false;
             return !Cells[Mathf.FloorToInt(p.y) * Width + Mathf.FloorToInt(p.x)];
+        }
+
+        public static bool IsWater(Vector2 p)
+        {
+            var t = new Vector2Int(Mathf.FloorToInt(p.x), Mathf.FloorToInt(p.y));
+            foreach (var r in Water)
+                if (r.Contains(t)) return true;
+            return false;
+        }
+
+        /// <summary>Same test as the server's isNearWater: some water tile within reach of the point.</summary>
+        public static bool IsNearWater(Vector2 p, float reach)
+        {
+            for (var ty = Mathf.FloorToInt(p.y - reach); ty <= Mathf.FloorToInt(p.y + reach); ty++)
+            for (var tx = Mathf.FloorToInt(p.x - reach); tx <= Mathf.FloorToInt(p.x + reach); tx++)
+            {
+                if (!IsWater(new Vector2(tx + 0.5f, ty + 0.5f))) continue;
+                var dx = Mathf.Max(tx - p.x, 0f, p.x - (tx + 1));
+                var dy = Mathf.Max(ty - p.y, 0f, p.y - (ty + 1));
+                if (dx * dx + dy * dy <= reach * reach) return true;
+            }
+            return false;
         }
 
         const float Step = 0.25f; // same sampling as the server

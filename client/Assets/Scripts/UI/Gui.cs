@@ -14,7 +14,7 @@ namespace CollectionGame.UI
         public static float Width => Screen.width / Scale;
         public static float Height => Screen.height / Scale;
 
-        public static GUIStyle Name, NameMe, Shadow, Bubble, Hud, Input, Title, Error, Button;
+        public static GUIStyle Name, NameMe, Shadow, Bubble, Hud, Input, Title, Error, Button, Alert, Toast, Fill, Water, FishMark;
 
         // Styles hold a runtime texture; without a domain reload it is gone next Play.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -46,10 +46,24 @@ namespace CollectionGame.UI
             Error = new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true, alignment = TextAnchor.UpperCenter };
             Error.normal.textColor = new Color(1f, 0.55f, 0.5f);
             Button = new GUIStyle(GUI.skin.button) { fontSize = 15 };
+
+            Alert = new GUIStyle(Hud) { fontSize = 22, fontStyle = FontStyle.Bold };
+            Alert.normal.textColor = new Color(1f, 0.85f, 0.2f);
+            Toast = new GUIStyle(Bubble) { fontSize = 15, wordWrap = false };
+            Fill = Box(new Color(0.35f, 0.85f, 0.4f, 0.9f));
+            Water = Box(new Color(0.15f, 0.35f, 0.55f, 0.9f));
+            FishMark = Box(new Color(1f, 0.55f, 0.15f, 1f));
         }
 
         /// <summary>Screen pixels (origin bottom-left) → scaled GUI coordinates (origin top-left).</summary>
         public static Vector2 ToGui(Vector3 screen) => new Vector2(screen.x / Scale, (Screen.height - screen.y) / Scale);
+
+        static GUIStyle Box(Color c)
+        {
+            var style = new GUIStyle { border = new RectOffset(0, 0, 0, 0) };
+            style.normal.background = Solid(c);
+            return style;
+        }
 
         static Texture2D Solid(Color c)
         {
