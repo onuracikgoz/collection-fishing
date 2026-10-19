@@ -226,7 +226,7 @@ namespace CollectionGame.Collection
         {
             var r = new Rect((Gui.Width - 340) / 2f, Gui.Height / 2f - 60, 340, 110);
             Gui.Block(r);
-            GUILayout.BeginArea(r, GUI.skin.box);
+            GUILayout.BeginArea(r, Gui.Window);
             var it = SwapOffer.item;
             GUILayout.Label($"Daha temiz bir {FishingController.ItemName(it.defId)} (Float {it.@float:0.0000}). Defterdekiyle değiştir?", Gui.Hud);
             GUILayout.FlexibleSpace();
@@ -241,7 +241,7 @@ namespace CollectionGame.Collection
         {
             var r = new Rect(20, 60, Mathf.Min(560, Gui.Width - 40), Mathf.Min(460, Gui.Height - 120));
             Gui.Block(r);
-            GUILayout.BeginArea(r, GUI.skin.box);
+            GUILayout.BeginArea(r, Gui.Window);
             GUILayout.BeginHorizontal();
             GUILayout.Label(bookIsMine ? "Defterim" : $"{bookOwnerName} defteri", Gui.Header);
             GUILayout.FlexibleSpace();
@@ -275,17 +275,17 @@ namespace CollectionGame.Collection
                 GUILayout.BeginHorizontal(GUI.skin.box);
                 if (rec.state == RecordState.Unknown)
                 {
-                    GUILayout.Label("??", Gui.Faint, GUILayout.Width(200));
+                    GUILayout.Label("??", Gui.Faint, GUILayout.Width(150));
                     GUILayout.Label("henüz bulunmadı", Gui.Faint);
                 }
                 else if (rec.state == RecordState.Found)
                 {
-                    GUILayout.Label(FishingController.ItemName(rec.defId), Gui.Faint, GUILayout.Width(200));
+                    GUILayout.Label(FishingController.ItemName(rec.defId), Gui.Faint, GUILayout.Width(150));
                     GUILayout.Label("bulundu, yuva boş", Gui.Faint);
                 }
                 else
                 {
-                    GUILayout.Label(FishingController.ItemName(rec.defId), Gui.Hud, GUILayout.Width(200));
+                    GUILayout.Label(FishingController.ItemName(rec.defId), Gui.Hud, GUILayout.Width(150));
                     GUILayout.Label(rec.item != null ? $"{rec.item.tier} · Float {rec.item.@float:0.0000}" : "", Gui.Hud);
                 }
                 GUILayout.FlexibleSpace();
@@ -314,9 +314,9 @@ namespace CollectionGame.Collection
 
         void DrawProfile()
         {
-            var r = new Rect(Gui.Width - 340, 60, 320, 300);
+            var r = new Rect(Gui.Width - 340, 60, 320, 240);
             Gui.Block(r);
-            GUILayout.BeginArea(r, GUI.skin.box);
+            GUILayout.BeginArea(r, Gui.Window);
             GUILayout.BeginHorizontal();
             GUILayout.Label(Profile == null ? "Profil" : Profile.username, Gui.Header);
             GUILayout.FlexibleSpace();

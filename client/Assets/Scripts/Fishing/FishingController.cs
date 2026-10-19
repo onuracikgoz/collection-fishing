@@ -390,9 +390,10 @@ namespace CollectionGame.Fishing
 
         void DrawBag()
         {
-            var r = new Rect(Gui.Width - 330, 60, 310, 360);
+            // Below the profile card so both fit on screen.
+            var r = new Rect(Gui.Width - 340, 310, 320, Mathf.Max(160, Gui.Height - 380));
             Gui.Block(r);
-            GUILayout.BeginArea(r, GUI.skin.box);
+            GUILayout.BeginArea(r, Gui.Window);
             if (Bag == null)
             {
                 GUILayout.Label("Çanta yükleniyor...", Gui.Hud);
