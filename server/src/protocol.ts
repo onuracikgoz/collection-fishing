@@ -10,6 +10,13 @@ export const OpCode = {
   BUBBLE: 6,
   CORRECTION: 7,
   WELCOME: 8,
+  CAST: 9,
+  BOBBER: 10,
+  HOOK: 11,
+  REEL_START: 12,
+  REEL_DONE: 13,
+  FISH_END: 14,
+  CANCEL: 15,
 } as const;
 
 export const ErrorCode = {
@@ -55,6 +62,8 @@ export interface SnapshotMsg {
 export interface PlayerEnterMsg extends PlayerView {
   name: string;
   characterId: string;
+  /** Present if the player is fishing right now. */
+  bobber?: { x: number; y: number; band: Band };
 }
 
 export interface PlayerLeaveMsg {
@@ -75,6 +84,71 @@ export interface CorrectionMsg {
 export interface WelcomeMsg {
   you: { id: string; x: number; y: number };
   serverName: string;
+  energy: number;
+  energyMax: number;
+}
+
+// --- Faz 2: fishing ---
+
+export type Band = 'shore' | 'mid' | 'deep';
+export type Tier = 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
+export type BobberState = 'cast' | 'twitch' | 'bite';
+export type FishOutcome = 'caught' | 'escaped' | 'missed' | 'cancelled' | 'rejected';
+
+export interface BobberMsg {
+  id: string;
+  x: number;
+  y: number;
+  band: Band;
+  state: BobberState;
+  /** Only in the fisher's own `cast` message: energy after the cast. */
+  energy?: number;
+}
+
+export interface ReelStartMsg {
+  seed: number;
+  params: {
+    barSize: number;
+    lift: number;
+    gravity: number;
+    maxVel: number;
+    fishSpeed: number;
+    retargetSteps: number;
+    gain: number;
+    loss: number;
+    maxSteps: number;
+    maxMs: number;
+  };
+}
+
+export interface ItemInstance {
+  instanceId: string;
+  defId: string;
+  tier: Tier;
+  float: number;
+  source: 'fishing';
+  obtainedAt: number;
+}
+
+export interface FishEndMsg {
+  id: string;
+  outcome: FishOutcome;
+  /** What was caught, for everyone who sees it. */
+  defId?: string;
+  // The rest only goes to the fisher.
+  reason?: string;
+  item?: ItemInstance;
+  stack?: { defId: string; count: number };
+  energy?: number;
+}
+
+export interface InventoryResponse {
+  energy: number;
+  energyMax: number;
+  slotsUsed: number;
+  slotsMax: number;
+  items: ItemInstance[];
+  stacks: { defId: string; count: number }[];
 }
 
 /** Body of an error thrown from an RPC or hook (docs/protokol.md, Hata kodları). */

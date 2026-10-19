@@ -13,6 +13,8 @@ export interface MapData {
   spawn: { x: number; y: number };
   /** Tiles nobody can stand on (water, buildings, the fountain). */
   blocked: Rect[];
+  /** Fishable water. Should also be listed in `blocked`. */
+  water?: Rect[];
 }
 
 export interface CollisionMap {

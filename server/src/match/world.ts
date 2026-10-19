@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { SERVERS, WORLD } from '../config';
+import { ENERGY, SERVERS, WATER, WORLD } from '../config';
 import { LAKE_MAP } from '../data/lake-map';
 import {
   BubbleMsg,
@@ -18,6 +18,11 @@ import { checkJoin } from '../rules/join';
 import { buildCollisionMap, CollisionMap, isWalkable } from '../rules/map';
 import { applyMove, MoveState, newMoveState, parseMove } from '../rules/movement';
 import { SpatialGrid, updateVisibility } from '../rules/proximity';
+import { buildWaterMap, WaterMap } from '../rules/water';
+import { BagSummary } from '../rules/bag';
+import { FishState } from '../rules/fishing';
+import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
+import { currentEnergy, energyWrite, loadBag } from './playerData';
 import { WorldLabel } from './servers';
 
 export const POSITION_COLLECTION = 'player';
@@ -35,6 +40,9 @@ interface Player {
   visible: { [id: string]: true };
   /** Changed since the last SNAPSHOT. */
   dirty: boolean;
+  energy: number;
+  bag: BagSummary;
+  fish?: FishState;
 }
 
 export interface WorldState {
@@ -42,6 +50,7 @@ export interface WorldState {
   serverName: string;
   /** Kept in state, not a global: Nakama makes globals read-only. */
   map: CollisionMap;
+  water: WaterMap;
   players: { [userId: string]: Player };
   /** Join metadata accepted in matchJoinAttempt, keyed by session. */
   pending: { [sessionId: string]: string };
@@ -67,6 +76,14 @@ function readPositions(nk: nkruntime.Nakama, userIds: string[]): { [userId: stri
     if (typeof v.x === 'number' && typeof v.y === 'number') out[o.userId] = { x: v.x, y: v.y };
   }
   return out;
+}
+
+function saveEnergy(nk: nkruntime.Nakama, logger: nkruntime.Logger, userId: string, value: number, online: boolean): void {
+  try {
+    nk.storageWrite([energyWrite(userId, value, online)]);
+  } catch (e) {
+    logger.error('Saving energy failed: %s', String(e));
+  }
 }
 
 function savePositions(nk: nkruntime.Nakama, logger: nkruntime.Logger, players: Player[]): void {
@@ -97,7 +114,7 @@ export function worldInit(
   const def = SERVERS.filter((s) => s.id === serverId)[0];
   const label: WorldLabel = { kind: 'world', serverId };
   return {
-    state: { serverId, serverName: def ? def.name : serverId, map: buildCollisionMap(LAKE_MAP), players: {}, pending: {} },
+    state: { serverId, serverName: def ? def.name : serverId, map: buildCollisionMap(LAKE_MAP), water: buildWaterMap(LAKE_MAP, WATER), players: {}, pending: {} },
     tickRate: WORLD.tickRate,
     label: JSON.stringify(label),
   };
@@ -123,7 +140,7 @@ export function worldJoinAttempt(
 
 export function worldJoin(
   _ctx: nkruntime.Context,
-  _logger: nkruntime.Logger,
+  logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
   dispatcher: nkruntime.MatchDispatcher,
   tick: number,
@@ -152,6 +169,11 @@ export function worldJoin(
       y = saved[presence.userId].y;
     }
 
+    // A reconnect keeps the live energy and bag; a fresh join loads them.
+    const energy = old ? old.energy : currentEnergy(nk, presence.userId);
+    const bag = old ? old.bag : loadBag(nk, presence.userId);
+    if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
+
     state.players[presence.userId] = {
       presence,
       name: presence.username,
@@ -161,8 +183,10 @@ export function worldJoin(
       move: newMoveState(x, y, now, moveCfg),
       visible: {},
       dirty: true,
+      energy,
+      bag,
     };
-    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName };
+    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max };
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
   }
   return { state };
@@ -185,6 +209,7 @@ export function worldLeave(
     if (!p || p.presence.sessionId !== presence.sessionId) continue;
     gone.push(p);
     delete state.players[presence.userId];
+    saveEnergy(nk, logger, presence.userId, p.energy, false);
     const msg: PlayerLeaveMsg = { id: presence.userId };
     const watchers: nkruntime.Presence[] = [];
     for (const id in state.players) {
@@ -200,20 +225,39 @@ export function worldLeave(
   return { state };
 }
 
-function handleMove(dispatcher: nkruntime.MatchDispatcher, map: CollisionMap, p: Player, body: unknown, now: number): void {
+/** Returns true if the player actually changed position. */
+function handleMove(dispatcher: nkruntime.MatchDispatcher, map: CollisionMap, p: Player, body: unknown, now: number): boolean {
   const intent = parseMove(body);
-  if (!intent) return;
+  if (!intent) return false;
   const res = applyMove(p.move, intent, now, moveCfg, map);
-  if (res.kind === 'ignore') return;
+  if (res.kind === 'ignore') return false;
+  const moved = res.state.x !== p.move.x || res.state.y !== p.move.y;
   p.move = res.state;
   if (res.kind === 'reject') {
     const fix: CorrectionMsg = { seq: intent.seq, x: res.state.x, y: res.state.y };
     send(dispatcher, OpCode.CORRECTION, fix, [p.presence]);
-    return;
+    return false;
   }
   p.dir = intent.dir;
   p.moving = intent.moving;
   p.dirty = true;
+  return moved;
+}
+
+function fishingContext(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): FishingContext {
+  return {
+    nk,
+    logger,
+    dispatcher,
+    water: state.water,
+    audience: (f: Fisher) => {
+      const out = [f.presence];
+      for (const id in state.players) {
+        if (state.players[id].visible[f.presence.userId]) out.push(state.players[id].presence);
+      }
+      return out;
+    },
+  };
 }
 
 function handleSay(
@@ -239,7 +283,7 @@ function buildGrid(state: WorldState): SpatialGrid {
 
 export function worldLoop(
   _ctx: nkruntime.Context,
-  _logger: nkruntime.Logger,
+  logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
   dispatcher: nkruntime.MatchDispatcher,
   tick: number,
@@ -249,6 +293,7 @@ export function worldLoop(
   const now = tick * tickMs;
   const moves: { [userId: string]: number } = {};
   const says: { p: Player; body: unknown }[] = [];
+  const fishing = fishingContext(nk, logger, dispatcher, state);
 
   for (const m of messages) {
     const p = state.players[m.sender.userId];
@@ -261,11 +306,22 @@ export function worldLoop(
     }
     if (m.opCode === OpCode.MOVE) {
       moves[m.sender.userId] = (moves[m.sender.userId] || 0) + 1;
-      if (moves[m.sender.userId] <= WORLD.maxMovesPerTick) handleMove(dispatcher, state.map, p, body, now);
+      if (moves[m.sender.userId] <= WORLD.maxMovesPerTick && handleMove(dispatcher, state.map, p, body, now)) {
+        cancelFishing(fishing, p);
+      }
     } else if (m.opCode === OpCode.SAY) {
       says.push({ p, body });
+    } else if (m.opCode === OpCode.CAST) {
+      handleCast(fishing, p, body, now);
+    } else if (m.opCode === OpCode.HOOK) {
+      handleHook(fishing, p, now);
+    } else if (m.opCode === OpCode.REEL_DONE) {
+      handleReelDone(fishing, p, body, now);
+    } else if (m.opCode === OpCode.CANCEL) {
+      cancelFishing(fishing, p);
     }
   }
+  for (const id in state.players) tickFishing(fishing, state.players[id], now);
 
   // Positions are final for this tick; chat and visibility use them.
   const grid = buildGrid(state);
@@ -278,6 +334,7 @@ export function worldLoop(
     for (const otherId of change.entered) {
       const o = state.players[otherId];
       const enter: PlayerEnterMsg = { ...view(otherId, o), name: o.name, characterId: o.characterId };
+      if (o.fish) enter.bobber = { x: o.fish.x, y: o.fish.y, band: o.fish.band };
       send(dispatcher, OpCode.PLAYER_ENTER, enter, [p.presence]);
     }
     for (const otherId of change.left) {
@@ -309,6 +366,7 @@ export function worldTerminate(
   _graceSeconds: number,
 ): { state: WorldState } | null {
   savePositions(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
+  for (const id in state.players) saveEnergy(nk, logger, id, state.players[id].energy, false);
   return { state };
 }
 
