@@ -1,5 +1,6 @@
 // Tunable numbers for the world (docs/protokol.md). Values marked (Öneri)
 // are not final; change them here, not in rules or match code.
+import type { Category } from './rules/catch';
 
 export interface ServerDef {
   /** Stable id, used to find the match again after a restart. */
@@ -104,4 +105,18 @@ export const ENERGY = {
 export const BAG = {
   slots: 40, // (Öneri)
   stackSize: 99,
+};
+
+// Collection Book luck (docs/tasarim/06-defter.md 8.3, Öneri): per page, not per item.
+export const BOOK_LUCK = {
+  halfPage: 0.02,
+  fullPage: 0.05,
+  cap: 0.25,
+  boosts: ['rare', 'epic', 'legendary', 'mythic'] as Category[],
+};
+
+// Collection Score (06-defter.md 8.4, Öneri until playtest): only filled slots count.
+export const SCORE = {
+  tierPoints: { common: 1, rare: 3, epic: 10, legendary: 30, mythic: 100 },
+  pageFilled: 20,
 };

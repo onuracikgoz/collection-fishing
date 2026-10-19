@@ -1,14 +1,28 @@
 // Persistent player data: energy and bag. Storage layout:
 //   player/energy  { value, at, online }   (at = wall-clock ms of the last save)
-//   items/<instanceId>  ItemInstance        (one record per Float item)
+//   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot)
 //   bag/stacks  { stacks: { defId: count } }
+//   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
 import { BAG, ENERGY } from '../config';
 import { InventoryResponse, ItemInstance } from '../protocol';
+import { BookEntries } from '../rules/book';
 import { BagSummary, slotsUsed } from '../rules/bag';
 import { regenOffline } from '../rules/energy';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
+const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
 const WRITE_SERVER = 0 as nkruntime.WritePermissionValues;
+
+/** An item as stored: book slot items stay in `items` so one write moves them atomically. */
+export interface StoredItem extends ItemInstance {
+  inBook?: boolean;
+}
+
+/** The item without storage-only fields, as sent to clients. */
+export function publicItem(item: StoredItem): ItemInstance {
+  const { inBook: _inBook, ...rest } = item;
+  return rest;
+}
 
 interface EnergyDoc {
   value: number;
@@ -48,12 +62,13 @@ function readStacks(nk: nkruntime.Nakama, userId: string): { [defId: string]: nu
   return v.stacks || {};
 }
 
-function listItems(nk: nkruntime.Nakama, userId: string): ItemInstance[] {
-  const out: ItemInstance[] = [];
+/** Every stored item, bag and book. */
+function listItems(nk: nkruntime.Nakama, userId: string): StoredItem[] {
+  const out: StoredItem[] = [];
   let cursor: string | undefined = undefined;
   for (let page = 0; page < 20; page++) {
     const res: nkruntime.StorageObjectList = nk.storageList(userId, 'items', 100, cursor);
-    for (const o of res.objects || []) out.push(o.value as ItemInstance);
+    for (const o of res.objects || []) out.push(o.value as StoredItem);
     cursor = res.cursor;
     if (!cursor) break;
   }
@@ -61,10 +76,15 @@ function listItems(nk: nkruntime.Nakama, userId: string): ItemInstance[] {
 }
 
 export function loadBag(nk: nkruntime.Nakama, userId: string): BagSummary {
-  return { items: listItems(nk, userId).length, stacks: readStacks(nk, userId) };
+  return { items: listItems(nk, userId).filter((i) => !i.inBook).length, stacks: readStacks(nk, userId) };
 }
 
-export function itemWrite(userId: string, item: ItemInstance): nkruntime.StorageWriteRequest {
+export function readItem(nk: nkruntime.Nakama, userId: string, instanceId: string): StoredItem | null {
+  const objs = nk.storageRead([{ collection: 'items', key: instanceId, userId }]);
+  return objs.length > 0 ? (objs[0].value as StoredItem) : null;
+}
+
+export function itemWrite(userId: string, item: StoredItem): nkruntime.StorageWriteRequest {
   return { collection: 'items', key: item.instanceId, userId, value: item, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
@@ -72,8 +92,31 @@ export function stacksWrite(userId: string, stacks: { [defId: string]: number })
   return { collection: 'bag', key: 'stacks', userId, value: { stacks }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
+export function readBook(nk: nkruntime.Nakama, userId: string): BookEntries {
+  const objs = nk.storageRead([{ collection: 'book', key: 'entries', userId }]);
+  const v = objs.length > 0 ? (objs[0].value as { entries?: BookEntries }) : {};
+  return v.entries || {};
+}
+
+export function bookWrite(userId: string, entries: BookEntries): nkruntime.StorageWriteRequest {
+  return { collection: 'book', key: 'entries', userId, value: { entries }, permissionRead: READ_PUBLIC, permissionWrite: WRITE_SERVER };
+}
+
+/** Items sitting in book slots, by instance id. */
+export function readBookItems(nk: nkruntime.Nakama, userId: string, entries: BookEntries): { [instanceId: string]: ItemInstance } {
+  const keys: nkruntime.StorageReadRequest[] = [];
+  for (const defId in entries) {
+    const slot = entries[defId].slot;
+    if (slot) keys.push({ collection: 'items', key: slot.instanceId, userId });
+  }
+  const out: { [instanceId: string]: ItemInstance } = {};
+  if (keys.length === 0) return out;
+  for (const o of nk.storageRead(keys)) out[o.key] = publicItem(o.value as StoredItem);
+  return out;
+}
+
 export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryResponse {
-  const items = listItems(nk, userId);
+  const items = listItems(nk, userId).filter((i) => !i.inBook).map(publicItem);
   const stacks = readStacks(nk, userId);
   return {
     energy: currentEnergy(nk, userId),

@@ -17,6 +17,8 @@ export const OpCode = {
   REEL_DONE: 13,
   FISH_END: 14,
   CANCEL: 15,
+  BOOK_PLACE: 16,
+  BOOK_RESULT: 17,
 } as const;
 
 export const ErrorCode = {
@@ -140,6 +142,54 @@ export interface FishEndMsg {
   item?: ItemInstance;
   stack?: { defId: string; count: number };
   energy?: number;
+  /** Book outcome for a Tier item on a book page. */
+  book?: FishBookMsg;
+}
+
+export interface FishBookMsg {
+  page: string;
+  /** discovered: first copy, recorded and placed in its slot (not in the bag). copy: went to the bag. */
+  kind: 'discovered' | 'copy';
+  /** discovered: this record completed its page. */
+  pageComplete?: boolean;
+  /** copy: cleaner than the slot's copy, or the slot is empty ("Defterdekiyle değiştir?"). */
+  better?: boolean;
+  /** discovered: new values. */
+  luck?: number;
+  score?: number;
+}
+
+export interface BookPlaceMsg {
+  instanceId: string;
+}
+
+export interface BookResultMsg {
+  ok: boolean;
+  /** NOT_OWNED, NOT_IN_BOOK, NOT_FOUND, BAD_REQUEST */
+  reason?: string;
+  defId?: string;
+  page?: string;
+  /** Now in the slot. */
+  slot?: ItemInstance;
+  /** Was in the slot, now in the bag. */
+  previous?: ItemInstance;
+  score?: number;
+}
+
+export type RecordState = 'unknown' | 'found' | 'filled';
+
+export interface BookRecordMsg {
+  /** Missing for unknown records. */
+  defId?: string;
+  state: RecordState;
+  item?: ItemInstance;
+}
+
+export interface BookResponse {
+  userId: string;
+  pages: { id: string; total: number; found: number; filled: number; records: BookRecordMsg[] }[];
+  luck: number;
+  score: number;
 }
 
 export interface InventoryResponse {
