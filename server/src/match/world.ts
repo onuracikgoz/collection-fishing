@@ -1,21 +1,25 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { ENERGY, SERVERS, WATER, WORLD } from '../config';
+import { EMOTES, ENERGY, FRIENDS, SERVERS, WATER, WORLD } from '../config';
 import { LAKE_MAP } from '../data/lake-map';
 import {
   BubbleMsg,
   CorrectionMsg,
   Dir,
+  EmoteShowMsg,
   OpCode,
   PlayerEnterMsg,
   PlayerLeaveMsg,
   PlayerView,
   SnapshotMsg,
+  TeleportMsg,
   WelcomeMsg,
 } from '../protocol';
 import { canSpeak, sanitizeChat } from '../rules/chat';
 import { checkJoin } from '../rules/join';
-import { buildCollisionMap, CollisionMap, isWalkable } from '../rules/map';
+import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
+import { canEmote, parseEmote } from '../rules/emote';
+import { areFriends } from './friends';
 import { applyMove, MoveState, newMoveState, parseMove } from '../rules/movement';
 import { SpatialGrid, updateVisibility } from '../rules/proximity';
 import { buildWaterMap, WaterMap } from '../rules/water';
@@ -46,6 +50,17 @@ interface Player {
   bag: BagSummary;
   book: BookEntries;
   fish?: FishState;
+  /** Last thing caught, for the show_fish emote. */
+  lastCatch?: string;
+  lastEmoteAt?: number;
+  lastTeleportAt?: number;
+}
+
+/** Join metadata accepted in matchJoinAttempt. */
+interface PendingJoin {
+  characterId: string;
+  /** "Yanına git": land next to this friend if they are here. */
+  near?: string;
 }
 
 export interface WorldState {
@@ -56,7 +71,7 @@ export interface WorldState {
   water: WaterMap;
   players: { [userId: string]: Player };
   /** Join metadata accepted in matchJoinAttempt, keyed by session. */
-  pending: { [sessionId: string]: string };
+  pending: { [sessionId: string]: PendingJoin };
 }
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -137,7 +152,8 @@ export function worldJoinAttempt(
   for (const id in state.players) if (id !== presence.userId) count++;
   const check = checkJoin(metadata, count, WORLD.capacity);
   if (!check.ok) return { state, accept: false, rejectMessage: check.error };
-  state.pending[presence.sessionId] = check.characterId;
+  const near = typeof metadata.near === 'string' && metadata.near.length <= 64 ? metadata.near : undefined;
+  state.pending[presence.sessionId] = { characterId: check.characterId, near };
   return { state, accept: true };
 }
 
@@ -156,7 +172,8 @@ export function worldJoin(
   const saved = readPositions(nk, fresh);
 
   for (const presence of presences) {
-    const characterId = state.pending[presence.sessionId] || 'default';
+    const pending = state.pending[presence.sessionId];
+    const characterId = pending ? pending.characterId : 'default';
     delete state.pending[presence.sessionId];
 
     const old = state.players[presence.userId];
@@ -170,6 +187,15 @@ export function worldJoin(
     } else if (saved[presence.userId] && isWalkable(map, saved[presence.userId].x, saved[presence.userId].y)) {
       x = saved[presence.userId].x;
       y = saved[presence.userId].y;
+    }
+    // "Yanına git" from another server: land beside the friend if they are here.
+    if (pending && pending.near && state.players[pending.near] && areFriends(nk, presence.userId, pending.near)) {
+      const f = state.players[pending.near].move;
+      const spot = spotNear(map, f.x, f.y, FRIENDS.landRadius);
+      if (spot) {
+        x = spot.x;
+        y = spot.y;
+      }
     }
 
     // A reconnect keeps the live energy and bag; a fresh join loads them.
@@ -281,6 +307,49 @@ function handleSay(
   send(dispatcher, OpCode.BUBBLE, msg, to);
 }
 
+/** GOTO_FRIEND inside this server: moves the player next to a friend who is here. */
+function handleGotoFriend(
+  nk: nkruntime.Nakama,
+  dispatcher: nkruntime.MatchDispatcher,
+  fishing: FishingContext,
+  state: WorldState,
+  p: Player,
+  body: unknown,
+  now: number,
+): void {
+  const refuse = (reason: string) => {
+    const msg: TeleportMsg = { x: p.move.x, y: p.move.y, reason };
+    send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+  };
+  const friendId = typeof body === 'object' && body !== null ? (body as { userId?: unknown }).userId : undefined;
+  if (typeof friendId !== 'string' || friendId === p.presence.userId) return refuse('NOT_FRIEND');
+  if (p.lastTeleportAt !== undefined && now - p.lastTeleportAt < FRIENDS.teleportCooldownMs) return refuse('RATE_LIMITED');
+  p.lastTeleportAt = now;
+  const friend = state.players[friendId];
+  if (!friend) return refuse('NOT_HERE');
+  if (!areFriends(nk, p.presence.userId, friendId)) return refuse('NOT_FRIEND');
+  const spot = spotNear(state.map, friend.move.x, friend.move.y, FRIENDS.landRadius);
+  if (!spot) return refuse('NO_SPOT');
+  cancelFishing(fishing, p);
+  p.move = newMoveState(spot.x, spot.y, now, moveCfg);
+  p.moving = false;
+  p.dirty = true;
+  const msg: TeleportMsg = { x: spot.x, y: spot.y };
+  send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+}
+
+function handleEmote(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
+  const emote = parseEmote(body, EMOTES);
+  if (emote === null || !canEmote(p.lastEmoteAt, now, EMOTES)) return;
+  if (emote === 'show_fish' && !p.lastCatch) return;
+  p.lastEmoteAt = now;
+  const msg: EmoteShowMsg = { id: p.presence.userId, emote };
+  if (emote === 'show_fish') msg.defId = p.lastCatch;
+  const to = [p.presence];
+  for (const id in state.players) if (state.players[id].visible[p.presence.userId]) to.push(state.players[id].presence);
+  send(dispatcher, OpCode.EMOTE_SHOW, msg, to);
+}
+
 function buildGrid(state: WorldState): SpatialGrid {
   const points = Object.keys(state.players).map((id) => ({ id, x: state.players[id].move.x, y: state.players[id].move.y }));
   return new SpatialGrid(WORLD.viewLeaveRadius, points);
@@ -329,6 +398,10 @@ export function worldLoop(
       // One book action per player per tick; each one touches storage.
       bookActions[m.sender.userId] = true;
       handleBookPlace(nk, logger, dispatcher, p, body);
+    } else if (m.opCode === OpCode.GOTO_FRIEND) {
+      handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
+    } else if (m.opCode === OpCode.EMOTE) {
+      handleEmote(dispatcher, state, p, body, now);
     }
   }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
@@ -387,7 +460,20 @@ export function worldSignal(
   _dispatcher: nkruntime.MatchDispatcher,
   _tick: number,
   state: WorldState,
-  _data: string,
+  data: string,
 ): { state: WorldState; data?: string } | null {
-  return { state };
+  // "where": positions of the asked players who are in this server (friends list).
+  let req: { type?: unknown; userIds?: unknown };
+  try {
+    req = JSON.parse(data);
+  } catch (_e) {
+    return { state };
+  }
+  if (req.type !== 'where' || !Array.isArray(req.userIds)) return { state };
+  const found: { [userId: string]: { x: number; y: number } } = {};
+  for (const id of req.userIds) {
+    const p = typeof id === 'string' ? state.players[id] : undefined;
+    if (p) found[id as string] = { x: p.move.x, y: p.move.y };
+  }
+  return { state, data: JSON.stringify({ serverName: state.serverName, players: found }) };
 }

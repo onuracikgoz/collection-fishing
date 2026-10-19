@@ -19,6 +19,10 @@ export const OpCode = {
   CANCEL: 15,
   BOOK_PLACE: 16,
   BOOK_RESULT: 17,
+  GOTO_FRIEND: 18,
+  TELEPORT: 19,
+  EMOTE: 20,
+  EMOTE_SHOW: 21,
 } as const;
 
 export const ErrorCode = {
@@ -222,4 +226,38 @@ export interface SetProfileRequest {
   showcase?: string[];
   /** A book record id, or null to clear. Omit to keep. */
   hunting?: string | null;
+}
+
+export interface GotoFriendMsg {
+  userId: string;
+}
+
+/** Sent to the player who was moved; others see the new place in SNAPSHOT / PLAYER_ENTER. */
+export interface TeleportMsg {
+  x: number;
+  y: number;
+  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED. */
+  reason?: string;
+}
+
+export interface EmoteShowMsg {
+  id: string;
+  emote: string;
+  /** show_fish: the last thing this player caught. */
+  defId?: string;
+}
+
+export interface FriendStatus {
+  userId: string;
+  username: string;
+  online: boolean;
+  /** Where they are, when online in a world server. */
+  serverName?: string;
+  matchId?: string;
+  x?: number;
+  y?: number;
+}
+
+export interface FriendsStatusResponse {
+  friends: FriendStatus[];
 }

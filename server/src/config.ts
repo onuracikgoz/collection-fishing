@@ -124,3 +124,16 @@ export const SCORE = {
 export const PROFILE = {
   showcaseMax: 3, // docs/tasarim/10-sosyal.md 13.3
 };
+
+// Emotes (docs/tasarim/10-sosyal.md 13.2.2). show_fish holds up the last catch.
+export const EMOTES = {
+  list: ['wave', 'clap', 'dance', 'sit', 'laugh', 'show_fish'],
+  cooldownMs: 2000, // (Öneri)
+};
+
+// Friends: "Yanına git" (10-sosyal.md 13.2.1).
+export const FRIENDS = {
+  teleportCooldownMs: 3000, // (Öneri)
+  landRadius: 4, // tiles searched around the friend for a free spot
+  maxListed: 300,
+};

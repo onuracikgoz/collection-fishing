@@ -21,6 +21,7 @@ export interface Fisher {
   bag: BagSummary;
   book: BookEntries;
   fish?: FishState;
+  lastCatch?: string;
 }
 
 export interface FishingContext {
@@ -171,6 +172,7 @@ function give(ctx: FishingContext, f: Fisher): void {
   if (book) f.book = book;
   else if (extra.item) f.bag.items++;
   if (extra.stack) f.bag.stacks[extra.stack.defId] = extra.stack.count;
+  f.lastCatch = roll.def.id;
   end(ctx, f, 'caught', extra);
 }
 
