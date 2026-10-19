@@ -26,7 +26,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust }` (defter yuvasındaki eşyalar hariç; `coin`, `dust` Faz 4) | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
 | `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
@@ -51,7 +51,7 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 | 5 | C → S | `SAY` | `{ text }` | 1 |
 | 6 | S → C | `BUBBLE` | `{ id, text }` (konuşanın kendisi de alır) | 1 |
 | 7 | S → C | `CORRECTION` | `{ seq, x, y }` (sunucu konumu düzeltti) | 1 |
-| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax }` (katılım sonrası ilk mesaj) | 1 |
+| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod }` (katılım sonrası ilk mesaj; `rod` Faz 4) | 1 |
 
 ### Hareket kuralları
 
@@ -74,21 +74,21 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 
 Kurallar: `docs/tasarim/03-balik-tutma.md`. Bu bölümdeki her sonuç sunucuda hesaplanır; client yalnızca niyet ve mini oyundaki tuş girdisini gönderir.
 
-Yem: Faz 2'de her atış temel yemle yapılır (bedava, sınırsız, oranları kaydırmaz), bu yüzden `CAST`'ta yem alanı yoktur. Özel yemler Faz 4'te `CAST`'a isteğe bağlı `bait` alanıyla eklenecek.
+Yem: `bait` verilmeyen atış temel yemle yapılır (bedava, sınırsız, oranları kaydırmaz). Özel yemler Faz 4'te geldi, bkz. Olta ve özel yem.
 
 | Op | Yön | Ad | Gövde |
 |---|---|---|---|
-| 9 | C → S | `CAST` | `{ x, y }` (şamandıranın düşeceği nokta, tile) |
-| 10 | S → C | `BOBBER` | `{ id, x, y, band, state, energy? }` (oyuncunun kendisi ve onu görenler; `energy` sadece oyuncunun kendi `cast` mesajında, atıştan sonraki enerji) |
+| 9 | C → S | `CAST` | `{ x, y, bait? }` (şamandıranın düşeceği nokta, tile; `bait` özel yemin `defId`'si, Faz 4) |
+| 10 | S → C | `BOBBER` | `{ id, x, y, band, state, energy?, bait? }` (oyuncunun kendisi ve onu görenler; `energy` ve `bait` sadece oyuncunun kendi `cast` mesajında: atıştan sonraki enerji ve kalan yem) |
 | 11 | C → S | `HOOK` | `{}` (oyuncu çekti) |
 | 12 | S → C | `REEL_START` | `{ seed, params }` (sadece oyuncunun kendisi) |
 | 13 | C → S | `REEL_DONE` | `{ inputs: [ms, ...] }` |
-| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?` |
+| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?` |
 | 15 | C → S | `CANCEL` | `{}` (oltayı topla) |
 
 - `band`: `"shore"`, `"mid"`, `"deep"`. `state`: `"cast"` (şamandıra suda), `"twitch"` (sahte kıpırdama), `"bite"` (gerçek vuruş, şamandıra battı).
 - `outcome`: `"caught"`, `"escaped"` (mini oyunda kaçtı), `"missed"` (erken / geç çekti), `"cancelled"` (oyuncu topladı veya yürüdü), `"rejected"` (atış kabul edilmedi, `reason` ile).
-- `reason` (`rejected` için): `BUSY`, `NOT_NEAR_WATER`, `NOT_WATER`, `TOO_FAR`, `BAG_FULL`.
+- `reason` (`rejected` için): `BUSY`, `NOT_NEAR_WATER`, `NOT_WATER`, `TOO_FAR`, `BAG_FULL`; Faz 4'te `NO_BAIT`, `NO_ENERGY`, `ROD_BROKEN` (yemle atışta).
 - `ItemInstance`: `{ instanceId, defId, tier, float, source, obtainedAt }`. `tier`: `common`, `rare`, `epic`, `legendary`, `mythic`. Yığılan eşyalar (çöp, malzeme) instance değildir, `stack: { defId, count }` olarak gelir.
 
 ### Akış
@@ -166,7 +166,7 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md
 - Bir istekte birden çok eşya ve yığın olabilir, toplam en fazla 40 satır. İstek ya tamamen olur ya hiç olmaz: eşyalar, yığınlar ve cüzdan tek işlemde değişir.
 - **NPC fiyatı:** Tier'lı eşyada Tier fiyatı × kondisyon çarpanı (Pristine ×3, Excellent ×1.5, Normal ×1, Worn ×0.7, Damaged ×0.5), yuvarlanır, en az 1. Yığınlarda (çöp, malzeme) adet başı sabit fiyat.
 - **Toz:** Float'tan etkilenmez. Recipe parçalanamaz.
-- Sadece çantadaki eşyalar satılır veya parçalanır. Defter yuvasındaki eşya önce yuvadan çıkarılmalıdır (yuvadan çıkarma henüz yok).
+- Sadece çantadaki eşyalar satılır veya parçalanır. Defter yuvasındaki eşya önce yuvadan çıkarılmalıdır (yuvadan çıkarma henüz yok), depodaki eşya önce çantaya alınmalıdır.
 - Şimdilik her yerden yapılır; haritaya NPC konunca mesafe kontrolü eklenecek.
 - `ECONOMY_RESULT`: başarıda `gained` kazanılan Coin veya toz, `items` ve `stacks` çantadan çıkanlar; `coin` ve `dust` işlemden sonraki bakiye. `reason`: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya çantada değil veya yığın yok), `NOT_ENOUGH` (yığında o kadar yok), `CANNOT_SALVAGE`. Oyuncu başına tick'te en fazla bir defter veya ekonomi işlemi işlenir.
 
@@ -178,7 +178,7 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.4, `08-recipe-craft.md` 10–11,
 |---|---|---|---|
 | 25 | C → S | `MERGE` | `{ items: [instanceId, instanceId, instanceId] }` (aynı eşyadan 3 kopya → 1 kopya) |
 | 26 | C → S | `CRAFT` | `{ recipeId, items?: [instanceId] }` (`items`: recipe'nin istediği Float'lı eşyalar, oyuncu seçer) |
-| 27 | S → C | `CRAFT_RESULT` | `{ action: "merge" \| "craft", ok, reason?, dust, item?, book?, items?, stacks? }` (sadece oyuncunun kendisi) |
+| 27 | S → C | `CRAFT_RESULT` | `{ action: "merge" \| "craft", ok, reason?, dust, item?, stack?, book?, items?, stacks? }` (sadece oyuncunun kendisi) |
 
 - **Recipe** çantada yığın olarak durur (`recipe.*`), craft'ta 1 tane harcanır. Tarifsiz craft yoktur. Recipe balıktan "şişedeki recipe" olarak düşer (%0.4, Öneri) ve NPC'ye kademesine göre satılır (Normal 50, İyi 250, Usta 1.000); parçalanamaz. Yeni hesap 2 başlangıç recipe'si alır (`recipe.scale_charm`, `recipe.moss_wreath`). Recipe'ler ve çıkan eşyalar şimdilik yer tutucu (`server/src/data/recipes.ts`).
 - **Birleştirme:** aynı eşyadan 3 çanta kopyası + Tier'a göre toz (Common 10, Rare 50, Epic 200, Legendary 800, Mythic 4.000). Sonuç aynı eşya, yeni Float; Tier değişmez, sonuç girdilerin en kötüsünden kötü çıkmaz. Recipe ve Coin istemez.
@@ -188,6 +188,45 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.4, `08-recipe-craft.md` 10–11,
 - Sadece çantadaki eşyalar kullanılır. Girdiler, yeni eşya, defter ve toz tek işlemde değişir. Şimdilik her yerden yapılır; zanaatkar NPC konunca mesafe şartı eklenecek.
 - `CRAFT_RESULT`: başarıda `item` yeni eşya, `items` ve `stacks` harcananlar, `dust` kalan toz. `reason`: `BAD_REQUEST`, `NOT_OWNED`, `NOT_SAME_ITEM` (birleştirmede farklı eşyalar), `NO_RECIPE`, `MISSING_INPUTS`, `NOT_ENOUGH_DUST`, `BAG_FULL`. Oyuncu başına tick'te en fazla bir defter, ekonomi veya craft işlemi işlenir.
 - Pristine sonuç duyurusu (yakındakilere, Mythic Pristine tüm sunucuya) henüz yok.
+- **Yem craft'ı:** bazı recipe'ler Float'lı eşya yerine yığın üretir (ör. `recipe.shiny_bait` → 5 `bait.shiny`). Bu recipe'lerin toz maliyeti recipe'de yazar (Tier'ı yoktur), sonuç defterden geçmez. `CRAFT_RESULT`'ta `item` yerine `stack: { defId, count }` gelir (`count` çantadaki yeni toplam).
+
+## Olta ve özel yem (Faz 4)
+
+Kurallar: `docs/tasarim/03-balik-tutma.md` 5.0.0.1–5.0.0.2, fiyatlar `16-ekonomi-tablosu.md` 4.1–4.2 (hepsi Öneri, `server/src/config.ts` `ROD`, `BAIT`).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 28 | C → S | `REPAIR_ROD` | `{}` (oltayı Coin ile tamir et) |
+| 29 | C → S | `BUY_BAIT` | `{ defId, count }` (özel yem satın al) |
+| 30 | S → C | `SHOP_RESULT` | `{ action: "repair" \| "buy_bait", ok, reason?, coin, spent?, rod?, stack? }` (sadece oyuncunun kendisi) |
+
+- **Olta:** her oyuncunun bir oltası var: `rod: { level, durability, max }`. `WELCOME` ve `get_inventory` bunu taşır. Şimdilik herkesin oltası level 1 (daha iyi oltalar XP ile gelecek, `04-xp-level.md`).
+- **Yıpranma:** enerjili her av (`caught`) dayanıklılığı 1 düşürür; enerjisiz av yıpratmaz. Level 1 olta 200 avda biter (Öneri). Dayanıklılık değişince `FISH_END`'in oyuncuya giden kısmında yeni `rod` gelir.
+- **Kırık olta** (dayanıklılık 0): balık tutulabilir ama enerjisiz gibi: enerji düşmez, sadece çöp çıkar, olta daha fazla yıpranmaz (Öneri; temel kural "oyuncu hiçbir zaman balık tutamıyorum durumuna düşmez").
+- **Tamir:** `REPAIR_ROD` eksik dayanıklılığı Coin karşılığı doldurur. Ücret eksikle orantılı: tam tamir level 1'de 100, level 2'de 150, level 3'te 250 Coin; kısmi tamirde `ceil(eksik × tam ücret / max)`. Coin yetmezse yettiği kadar tamir edilir (en az 1 puan). `SHOP_RESULT`'ta `spent` harcanan Coin, `rod` yeni durum. `reason`: `NOT_NEEDED` (olta zaten dolu), `NOT_ENOUGH_COIN`.
+- **Özel yemler:** `bait.shiny` (Parlak yem, 5 Coin) ve `bait.crystal` (Kristal yem, 20 Coin). Çantada yığın olarak durur (kutu başına 99), NPC'ye satılmaz ve parçalanmaz. `BUY_BAIT`: `count` 1–99; çantada yer ve Coin olmalı. `SHOP_RESULT`'ta `stack` yemin çantadaki yeni toplamı. `reason`: `BAD_REQUEST` (bilinmeyen yem, bozuk adet), `NOT_ENOUGH_COIN`, `BAG_FULL`.
+- **Yemle atış:** `CAST { x, y, bait? }`. `bait` verilirse çantada en az 1 tane olmalı ve atış kabul edilince 1 tane harcanır; sonuç ne olursa olsun geri gelmez (erken çekme, kaçma, toplama dahil). Oyuncunun kendi `BOBBER state:"cast"` mesajı `bait: { defId, count }` ile kalan adedi taşır. Yeni `rejected` nedenleri: `NO_BAIT` (çantada yok veya bilinmeyen yem), `NO_ENERGY` (enerji yok, yem boşa gitmesin diye atış reddedilir), `ROD_BROKEN` (olta kırık, aynı sebeple).
+- **Etki:** yem sadece o noktanın havuzundaki oranları kaydırır, yeni eşya eklemez. Parlak yem her bantta Rare ve Epic ağırlığını ×1.3, Legendary ve Mythic'i ×1.2 yapar. Kristal yem sadece **derin** bantta işe yarar: Epic ×1.5, Legendary ×1.5, Mythic ×2, ve aynı kategorideki kristal eşyaları (`crystal` etiketi) ×4 öne çıkarır. Uygun olmayan bantta yem boşa gider; client bunu oyuncuya söylemez (keşif konusu). Defter şansının üstüne çarpılır (Öneri).
+- Tamir ve yem alımı şimdilik her yerden yapılır; haritaya NPC konunca mesafe şartı eklenecek.
+
+## Depo (Faz 4)
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3, genişletme fiyatları `16-ekonomi-tablosu.md` 4.5 (hepsi Öneri, `server/src/config.ts` `STASH`).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 31 | C → S | `STASH_OPEN` | `{}` (depoyu aç, içeriği iste) |
+| 32 | C → S | `STASH_PUT` | `{ items?: [instanceId], stacks?: [{ defId, count }] }` (çantadan depoya) |
+| 33 | C → S | `STASH_TAKE` | `STASH_PUT` ile aynı (depodan çantaya) |
+| 34 | C → S | `STASH_EXPAND` | `{}` (bir sonraki kademeyi Coin ile al) |
+| 35 | S → C | `STASH_RESULT` | `{ action: "open" \| "put" \| "take" \| "expand", ok, reason?, stash?, coin?, items?, stacks? }` (sadece oyuncunun kendisi) |
+
+- **Sadece Banka'da:** bütün depo mesajları oyuncu Banka noktasına **3 tile** (Öneri) yakınsa işlenir, değilse `reason: "NOT_AT_BANK"`. Banka şimdilik `(30.5, 78.5)` (güneybatı köyü, `server/src/config.ts` `STASH.bank`); client haritaya banka binasını buraya koymalı. Haritada yer kesinleşince bu sayı değişir.
+- `stash`: `{ level, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }] }`. Başarılı her cevapta tam içerik gelir. Depo da çanta gibi sayılır: Float'lı eşya tek kutu, yığınlar kutu başına 99.
+- **Kapasite:** başlangıç 100 kutu. `STASH_EXPAND` kademeleri: 120 kutu 2.000, 140 kutu 5.000, 160 kutu 12.000, 180 kutu 30.000, 200 kutu 75.000 Coin. Cevapta `coin` kalan bakiye. Destekçi paketi deposu sonra.
+- **Taşıma:** `STASH_PUT` ve `STASH_TAKE` en fazla 40 satır, ya tamamen olur ya hiç. `items` ve `stacks` taşınanlardır. Defter yuvasındaki eşya depoya konamaz. Depodaki eşya satılamaz, parçalanamaz, craft'ta kullanılamaz, defter yuvasına konamaz: önce çantaya alınmalıdır.
+- `reason`: `NOT_AT_BANK`, `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya / yığın çıkılan yerde değil), `NOT_ENOUGH`, `STASH_FULL`, `BAG_FULL`, `MAX_LEVEL`, `NOT_ENOUGH_COIN`.
+- Oyuncu başına tick'te en fazla bir defter, ekonomi, craft, dükkan veya depo işlemi işlenir.
 
 ## Hata kodları
 

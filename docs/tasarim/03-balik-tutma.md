@@ -33,11 +33,14 @@ Akış:
 - **Temel yem bedava ve sınırsızdır.** Oyuncu hiçbir zaman "balık tutamıyorum" durumuna düşmez.
 - **Özel yemler** (parlak yem, kristal yem vb.) Coin ile alınır veya craft edilir; oranları yalnızca bunlar kaydırır. Her atışta 1 özel yem harcanır.
 - Sahte kıpırdamada çekilirse: temel yemde sadece zaman kaybı, özel yemde yem gider.
+- **(Öneri)** Özel yem atış anında harcanır; olta toplansa da geri gelmez. Enerji yokken veya olta kırıkken yemle atılamaz (yem boşa gitmesin).
+- **(Öneri)** Parlak yem her yerde Rare ve üstünü hafifçe artırır. Kristal yem sadece derin suda işe yarar: nadirleri ve kristalleri öne çıkarır. Uygun olmayan yerde boşa gider, oyun bunu söylemez.
 
 ### 5.0.0.2. Olta Dayanıklılığı
 
 - Her av oltayı biraz yıpratır, **Coin ile tamir** edilir (Coin harcatan nokta).
 - **(Öneri)** Yavaş yıpranır, örneğin ~200 avda bir tamir.
+- **(Öneri)** Sadece enerjili av yıpratır. Dayanıklılık biterse olta kırılır: balık tutmaya devam edilir ama enerjisiz gibi sadece çöp çıkar ve enerji harcanmaz. Kısmi tamir eksikle orantılı ücretlenir; Coin yetmezse yettiği kadar tamir edilir.
 
 ### 5.0.0.3. Enerji
 

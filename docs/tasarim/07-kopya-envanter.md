@@ -41,7 +41,7 @@ Oyuncular arası takas vardır ve takasla gelen eşya deftere işlenir.
 - **Çanta:** **(Öneri)** 40 kutu. Float'lı eşyalar (balık, kristal, craft eşyası) tek tek kutu kaplar. Malzemeler, çöp ve yem **yığılır** (kutu başına 99). **Craft malzemelerinin Float'ı yoktur.**
 - **Çanta dolunca av olmaz.** Ekranda "çanta dolu" uyarısı çıkar. Yere düşürme yoktur.
 - **Otomatik kurallar:** oyuncu "Worn ve Damaged Common kopyaları otomatik sat / parçala" gibi kurallar ayarlayabilir.
-- **Depo:** **(Öneri)** 100 kutu. **Yalnızca uzaktaki belirli yerlerden** açılır (ör. banka); her yerden açılmaz.
+- **Depo:** **(Öneri)** 100 kutu. **Yalnızca uzaktaki belirli yerlerden** açılır (ör. banka); her yerden açılmaz. Depodaki eşya satılamaz, parçalanamaz, craft'ta kullanılamaz; önce çantaya alınır. Defter yuvasındaki eşya depoya konamaz.
 - **Genişletme:** Coin ile pahalı kademeler (Coin harcatır) ve destekçi paketi ile ekstra depo (kolaylık ürünü).
 
 ### 9.4. Birleştirme (3'ü 1)
