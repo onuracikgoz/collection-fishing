@@ -135,5 +135,6 @@ export const EMOTES = {
 export const FRIENDS = {
   teleportCooldownMs: 3000, // (Öneri)
   landRadius: 4, // tiles searched around the friend for a free spot
+  landMinDistance: 1.25, // tiles; closer and the two sprites overlap
   maxListed: 300,
 };

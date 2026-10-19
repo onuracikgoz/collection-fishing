@@ -191,7 +191,7 @@ export function worldJoin(
     // "Yanına git" from another server: land beside the friend if they are here.
     if (pending && pending.near && state.players[pending.near] && areFriends(nk, presence.userId, pending.near)) {
       const f = state.players[pending.near].move;
-      const spot = spotNear(map, f.x, f.y, FRIENDS.landRadius);
+      const spot = spotNear(map, f.x, f.y, FRIENDS.landRadius, FRIENDS.landMinDistance);
       if (spot) {
         x = spot.x;
         y = spot.y;
@@ -328,7 +328,7 @@ function handleGotoFriend(
   const friend = state.players[friendId];
   if (!friend) return refuse('NOT_HERE');
   if (!areFriends(nk, p.presence.userId, friendId)) return refuse('NOT_FRIEND');
-  const spot = spotNear(state.map, friend.move.x, friend.move.y, FRIENDS.landRadius);
+  const spot = spotNear(state.map, friend.move.x, friend.move.y, FRIENDS.landRadius, FRIENDS.landMinDistance);
   if (!spot) return refuse('NO_SPOT');
   cancelFishing(fishing, p);
   p.move = newMoveState(spot.x, spot.y, now, moveCfg);
