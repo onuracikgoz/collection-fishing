@@ -40,6 +40,15 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı. Sunucu tarafı hazır. Client yazıldı (Enter ile chat)
 - [ ] Web build arkadaşlara linkle açılıyor (test sunucusu)
 
+## Faz 2: bitti sayılma şartları
+
+- [x] Atış / bekleme / sahte kıpırdama / vuruş / çekme mini oyunu. Sunucu: `rules/fishing.ts`, `rules/reel.ts` (#8). Client: `Fishing/` (#9), mini oyun sunucuyla birebir (`reel-reference.json`)
+- [x] Sunucu tarafı drop: göl havuzu, kıyı / orta / derin bant, ağırlıklı av tablosu (`rules/catch.ts`). Eşya havuzu şimdilik yer tutucu (`data/lake-pool.ts`)
+- [x] Item instance + Tier + Float, çanta (40 kutu, yığın 99), `get_inventory`
+- [x] Enerji: atış başına 1, 0'da sadece çöp, çevrimdışı 8 saatte dolum (Öneri). Dinlenme alanları henüz yok
+- [x] Temel yem: bedava ve sınırsız, her atış onunla yapılır. Özel yemler Faz 4'te
+- [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
+
 ## Agent rolleri
 
 | Rol | Sorumluluk | Not |

@@ -70,6 +70,8 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 
 Kurallar: `docs/tasarim/03-balik-tutma.md`. Bu bölümdeki her sonuç sunucuda hesaplanır; client yalnızca niyet ve mini oyundaki tuş girdisini gönderir.
 
+Yem: Faz 2'de her atış temel yemle yapılır (bedava, sınırsız, oranları kaydırmaz), bu yüzden `CAST`'ta yem alanı yoktur. Özel yemler Faz 4'te `CAST`'a isteğe bağlı `bait` alanıyla eklenecek.
+
 | Op | Yön | Ad | Gövde |
 |---|---|---|---|
 | 9 | C → S | `CAST` | `{ x, y }` (şamandıranın düşeceği nokta, tile) |
