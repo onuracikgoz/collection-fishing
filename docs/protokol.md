@@ -26,7 +26,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }] }` (defter yuvasındaki eşyalar hariç) | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust }` (defter yuvasındaki eşyalar hariç; `coin`, `dust` Faz 4) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
 | `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
@@ -151,6 +151,24 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 - **friends_status:** her arkadaş için çevrimiçi mi, hangi sunucuda (`serverName`, `matchId`) ve haritada nerede (`x, y`).
 - **Yanına git:** arkadaş aynı sunucudaysa `GOTO_FRIEND`; sunucu arkadaşın yanındaki boş bir tile'a koyar, balık tutuyorsa olta toplanır (`FISH_END cancelled`), client karakteri `TELEPORT` konumuna atar. Arkadaş başka sunucudaysa client o sunucunun maçına katılım metadata'sında `near: userId` ile girer, `WELCOME` arkadaşın yanındaki yeri verir. `reason`: `NOT_FRIEND`, `NOT_HERE` (arkadaş bu sunucuda değil), `NO_SPOT`, `RATE_LIMITED` (3 sn'de bir, Öneri).
 - **Emote:** `wave`, `clap`, `dance`, `sit`, `laugh`, `show_fish`. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
+
+## Ekonomi: Coin, NPC satış, toz (Faz 4)
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md` 3 (hepsi Öneri, `server/src/config.ts` `ECONOMY`).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 22 | C → S | `SELL` | `{ items?: [instanceId], stacks?: [{ defId, count }] }` (NPC'ye sat → Coin) |
+| 23 | C → S | `SALVAGE` | `SELL` ile aynı (parçala → toz) |
+| 24 | S → C | `ECONOMY_RESULT` | `{ action: "sell" \| "salvage", ok, reason?, coin, dust, gained?, items?, stacks? }` (sadece oyuncunun kendisi) |
+
+- **Coin ve toz** Nakama cüzdanında durur (`{ coin, dust }`), sadece sunucu değiştirir. Client bakiyeyi `get_inventory` ve `ECONOMY_RESULT`'tan alır. Toz takas edilemez.
+- Bir istekte birden çok eşya ve yığın olabilir, toplam en fazla 40 satır. İstek ya tamamen olur ya hiç olmaz: eşyalar, yığınlar ve cüzdan tek işlemde değişir.
+- **NPC fiyatı:** Tier'lı eşyada Tier fiyatı × kondisyon çarpanı (Pristine ×3, Excellent ×1.5, Normal ×1, Worn ×0.7, Damaged ×0.5), yuvarlanır, en az 1. Yığınlarda (çöp, malzeme) adet başı sabit fiyat.
+- **Toz:** Float'tan etkilenmez. Recipe parçalanamaz.
+- Sadece çantadaki eşyalar satılır veya parçalanır. Defter yuvasındaki eşya önce yuvadan çıkarılmalıdır (yuvadan çıkarma henüz yok).
+- Şimdilik her yerden yapılır; haritaya NPC konunca mesafe kontrolü eklenecek.
+- `ECONOMY_RESULT`: başarıda `gained` kazanılan Coin veya toz, `items` ve `stacks` çantadan çıkanlar; `coin` ve `dust` işlemden sonraki bakiye. `reason`: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya çantada değil veya yığın yok), `NOT_ENOUGH` (yığında o kadar yok), `CANNOT_SALVAGE`. Oyuncu başına tick'te en fazla bir defter veya ekonomi işlemi işlenir.
 
 ## Hata kodları
 

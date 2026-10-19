@@ -28,6 +28,7 @@ import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { currentEnergy, energyWrite, loadBag, readBook } from './playerData';
 import { handleBookPlace } from './book';
+import { handleEconomy } from './economy';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 
@@ -366,7 +367,7 @@ export function worldLoop(
 ): { state: WorldState } | null {
   const now = tick * tickMs;
   const moves: { [userId: string]: number } = {};
-  const bookActions: { [userId: string]: true } = {};
+  const storageActions: { [userId: string]: true } = {};
   const says: { p: Player; body: unknown }[] = [];
   const fishing = fishingContext(nk, logger, dispatcher, state);
 
@@ -394,10 +395,14 @@ export function worldLoop(
       handleReelDone(fishing, p, body, now);
     } else if (m.opCode === OpCode.CANCEL) {
       cancelFishing(fishing, p);
-    } else if (m.opCode === OpCode.BOOK_PLACE && !bookActions[m.sender.userId]) {
+    } else if (m.opCode === OpCode.BOOK_PLACE && !storageActions[m.sender.userId]) {
       // One book action per player per tick; each one touches storage.
-      bookActions[m.sender.userId] = true;
+      storageActions[m.sender.userId] = true;
       handleBookPlace(nk, logger, dispatcher, p, body);
+    } else if ((m.opCode === OpCode.SELL || m.opCode === OpCode.SALVAGE) && !storageActions[m.sender.userId]) {
+      // Shares the one-storage-action-per-tick limit with the book.
+      storageActions[m.sender.userId] = true;
+      handleEconomy(nk, logger, dispatcher, p, m.opCode === OpCode.SELL ? 'sell' : 'salvage', body);
     } else if (m.opCode === OpCode.GOTO_FRIEND) {
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {

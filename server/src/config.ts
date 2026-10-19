@@ -1,6 +1,7 @@
 // Tunable numbers for the world (docs/protokol.md). Values marked (Öneri)
 // are not final; change them here, not in rules or match code.
 import type { Category } from './rules/catch';
+import type { EconomyConfig } from './rules/economy';
 
 export interface ServerDef {
   /** Stable id, used to find the match again after a restart. */
@@ -137,4 +138,14 @@ export const FRIENDS = {
   landRadius: 4, // tiles searched around the friend for a free spot
   landMinDistance: 1.25, // tiles; closer and the two sprites overlap
   maxListed: 300,
+};
+
+// Coin and dust (docs/tasarim/16-ekonomi-tablosu.md 3, all Öneri).
+// Junk gives 1 dust whether caught with energy or not: the bag stacks junk
+// without remembering how it was caught (acik-sorular.md 14).
+export const ECONOMY: EconomyConfig = {
+  sellPrice: { junk: 1, material: 3, common: 5, rare: 25, epic: 100, legendary: 500, mythic: 3000, recipe: 50 },
+  conditionMultiplier: { pristine: 3, excellent: 1.5, normal: 1, worn: 0.7, damaged: 0.5 },
+  dust: { junk: 1, material: 2, common: 5, rare: 25, epic: 100, legendary: 400, mythic: 2000, recipe: null },
+  maxEntries: 40, // one request can empty a full bag
 };

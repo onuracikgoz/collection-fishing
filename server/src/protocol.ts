@@ -23,6 +23,9 @@ export const OpCode = {
   TELEPORT: 19,
   EMOTE: 20,
   EMOTE_SHOW: 21,
+  SELL: 22,
+  SALVAGE: 23,
+  ECONOMY_RESULT: 24,
 } as const;
 
 export const ErrorCode = {
@@ -203,6 +206,23 @@ export interface InventoryResponse {
   slotsMax: number;
   items: ItemInstance[];
   stacks: { defId: string; count: number }[];
+  coin: number;
+  dust: number;
+}
+
+/** Reply to SELL and SALVAGE, only to the player. */
+export interface EconomyResultMsg {
+  action: 'sell' | 'salvage';
+  ok: boolean;
+  reason?: string;
+  /** Balances after the action (unchanged on failure). */
+  coin: number;
+  dust: number;
+  /** Coin for sell, dust for salvage. */
+  gained?: number;
+  /** What left the bag. */
+  items?: string[];
+  stacks?: { defId: string; count: number }[];
 }
 
 /** Body of an error thrown from an RPC or hook (docs/protokol.md, Hata kodları). */

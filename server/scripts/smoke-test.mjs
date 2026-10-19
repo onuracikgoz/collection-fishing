@@ -5,7 +5,7 @@ import { Client } from '@heroiclabs/nakama-js';
 const OP = {
   MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8,
   CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15, BOOK_PLACE: 16, BOOK_RESULT: 17,
-  GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21,
+  GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21, SELL: 22, SALVAGE: 23, ECONOMY_RESULT: 24,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -238,6 +238,35 @@ c.clear();
 c.send(OP.BOOK_PLACE, { instanceId: 'not-an-item' });
 await sleep(300);
 check(c.take(OP.BOOK_RESULT)[0]?.reason === 'NOT_OWNED', 'BOOK_PLACE with an unknown item is refused');
+
+// Economy (Faz 4): sell and salvage what is in the bag; book items cannot be sold.
+let bag = (await client.rpc(c.session, 'get_inventory', {})).payload;
+for (let i = 0; i < 8 && bag.items.length + bag.stacks.length < 2; i++) {
+  await catchOne(c);
+  bag = (await client.rpc(c.session, 'get_inventory', {})).payload;
+}
+check(bag.coin === 0 && bag.dust === 0, 'a new player starts with 0 Coin and 0 dust');
+const lines = [...bag.items.map((i) => ({ items: [i.instanceId] })), ...bag.stacks.map((s) => ({ stacks: [{ defId: s.defId, count: s.count }] }))];
+async function economy(op, body) {
+  c.clear();
+  c.send(op, body);
+  await sleep(300);
+  return c.take(OP.ECONOMY_RESULT)[0];
+}
+const salvaged = await economy(OP.SALVAGE, lines[0]);
+check(salvaged?.ok && salvaged.dust === salvaged.gained && salvaged.gained > 0 && salvaged.coin === 0, 'SALVAGE turns a bag line into dust');
+const rest = lines.slice(1);
+const sold = rest.length === 0 ? null : await economy(OP.SELL, {
+  items: rest.flatMap((l) => l.items || []),
+  stacks: rest.flatMap((l) => l.stacks || []),
+});
+check(!sold || (sold.ok && sold.coin === sold.gained && sold.gained > 0 && sold.dust === salvaged.dust), 'SELL turns the rest into Coin');
+const emptied = (await client.rpc(c.session, 'get_inventory', {})).payload;
+check(emptied.items.length === 0 && emptied.stacks.length === 0 && emptied.slotsUsed === 0 && emptied.coin === (sold ? sold.coin : 0) && emptied.dust === salvaged?.dust,
+  'get_inventory shows an empty bag and the new balances');
+check((await economy(OP.SELL, { items: lines[0].items || ['gone'] }))?.reason === 'NOT_OWNED', 'selling the same thing twice is refused');
+if (first) check((await economy(OP.SELL, { items: [first.item.instanceId] }))?.reason === 'NOT_OWNED', 'a book slot item cannot be sold');
+check((await economy(OP.SALVAGE, { stacks: [{ defId: 'lake.junk.boot', count: 0 }] }))?.reason === 'BAD_REQUEST', 'a bad request is refused');
 
 // Fake REEL_DONE without a reel game is ignored
 c.clear();
