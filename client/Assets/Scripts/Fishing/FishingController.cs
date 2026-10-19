@@ -197,9 +197,10 @@ namespace CollectionGame.Fishing
             }
             view.Set(new Vector2(b.x, b.y), b.state);
             if (b.id != myId) return;
-            Debug.Log($"[Fish] BOBBER {b.state} {b.band} ({b.x:0.0}, {b.y:0.0})");
+            Debug.Log($"[Fish] BOBBER {b.state} {b.band} ({b.x:0.0}, {b.y:0.0}){(b.state == BobberState.Cast ? $" energy {b.energy}" : "")}");
             if (b.state == BobberState.Bite && (State == Phase.Waiting || State == Phase.Casting)) SetState(Phase.Bite);
             else if (b.state == BobberState.Cast && State == Phase.Casting) SetState(Phase.Waiting);
+            if (b.state == BobberState.Cast) Energy = b.energy;
         }
 
         public void OnReelStart(ReelStartMsg r)

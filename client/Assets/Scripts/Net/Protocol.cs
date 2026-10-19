@@ -208,6 +208,8 @@ namespace CollectionGame.Net
         public float y;
         public string band;
         public string state;
+        /// <summary>Only in the fisher's own "cast" message: energy after the cast (0 elsewhere).</summary>
+        public int energy;
     }
 
     /// <summary>C → S, op 11 and 15 (HOOK, CANCEL) have an empty body.</summary>
