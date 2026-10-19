@@ -36,7 +36,10 @@ function send(ctx: FishingContext, op: number, body: unknown, to: nkruntime.Pres
 function bobber(ctx: FishingContext, f: Fisher, state: BobberState): void {
   const fs = f.fish!;
   const msg: BobberMsg = { id: f.presence.userId, x: fs.x, y: fs.y, band: fs.band, state };
-  send(ctx, OpCode.BOBBER, msg, ctx.audience(f));
+  if (state !== 'cast') return send(ctx, OpCode.BOBBER, msg, ctx.audience(f));
+  // The fisher's own cast message also carries the new energy.
+  send(ctx, OpCode.BOBBER, { ...msg, energy: f.energy }, [f.presence]);
+  send(ctx, OpCode.BOBBER, msg, ctx.audience(f).filter((p) => p.sessionId !== f.presence.sessionId));
 }
 
 /** Ends fishing: everyone nearby learns the outcome, the fisher gets the details. */
