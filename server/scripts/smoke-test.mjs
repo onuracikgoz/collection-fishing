@@ -5,6 +5,7 @@ import { Client } from '@heroiclabs/nakama-js';
 const OP = {
   MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8,
   CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15, BOOK_PLACE: 16, BOOK_RESULT: 17,
+  GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -242,6 +243,37 @@ check(c.take(OP.BOOK_RESULT)[0]?.reason === 'NOT_OWNED', 'BOOK_PLACE with an unk
 c.clear();
 c.send(OP.REEL_DONE, { inputs: [20, 40] });
 check((await lastEnd(c)) === undefined, 'REEL_DONE without a reel is ignored');
+
+
+// Friends (Faz 3): Nakama friend requests, friends_status, "Yanına git", emotes.
+await client.addFriends(b.session, [c.session.user_id]);
+await client.addFriends(c.session, [b.session.user_id]);
+const fs = (await client.rpc(b.session, 'friends_status', {})).payload;
+const cf = fs.friends.find((f) => f.userId === c.session.user_id);
+check(cf?.online && cf.matchId === target.matchId && Math.abs(cf.x - pos.x) < 1e-6, 'friends_status shows the friend online with server and place');
+b.clear();
+b.send(OP.GOTO_FRIEND, { userId: c.session.user_id });
+await sleep(300);
+const tp = b.take(OP.TELEPORT)[0];
+check(tp && !tp.reason && Math.hypot(tp.x - pos.x, tp.y - pos.y) < 6, 'GOTO_FRIEND lands next to the friend');
+a3.clear();
+a3.send(OP.GOTO_FRIEND, { userId: c.session.user_id });
+await sleep(300);
+check(a3.take(OP.TELEPORT)[0]?.reason === 'NOT_FRIEND', 'GOTO_FRIEND to a non-friend is refused');
+b.clear();
+c.send(OP.EMOTE, { emote: 'show_fish' });
+c.send(OP.EMOTE, { emote: 'kiss' });
+await sleep(400);
+const em = b.take(OP.EMOTE_SHOW);
+check(em.length === 1 && em[0].id === c.session.user_id && em[0].emote === 'show_fish' && em[0].defId, 'nearby friend sees show_fish with the last catch, bad emote dropped');
+// "Yanına git" from outside: join with { near } and land beside the friend
+await b.socket.leaveMatch(target.matchId);
+await sleep(300);
+b.clear();
+await b.join(target.matchId, { protocolVersion: '1', characterId: 'default', near: c.session.user_id });
+await sleep(400);
+const wb = b.take(OP.WELCOME)[0];
+check(wb && Math.hypot(wb.you.x - pos.x, wb.you.y - pos.y) < 6, 'joining with near lands beside the friend');
 
 for (const p of [a, a2, a3, b, c]) p.socket.disconnect(false);
 console.log(failed === 0 ? 'all good' : `${failed} failed`);
