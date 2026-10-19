@@ -29,6 +29,14 @@ Sonucu her zaman sunucu verir; client mini oyunu sadece çizer ve tuş zamanlar�
 - **CollectionGame → Check Reel Reference**: C# mini oyun modeli `server/test/fixtures/reel-reference.json` ile birebir mi.
 - Otomatik pilot (sadece komut satırından açılınca çalışır): `CollectionGame.app/Contents/MacOS/collection-fishing -screen-fullscreen 0 -cgUser bot1 -cgServer Mercan -cgBot fish -cgSay selam -cgShot /tmp/bot1.png -cgQuit 120`. `-cgBot walk` sadece yürür ve konuşur. Sonuçlar oyuncu logunda `[Autopilot]` / `[Fish]` satırları.
 
+### Web build
+
+- Menü: **CollectionGame → Build Web** (`Builds/Web`, git'e girmez). Komut satırı: `-executeMethod CollectionGame.EditorTools.BuildTools.BuildWeb`. WebGL modülü gerekir (Unity Hub → Installs → Add modules → Web Build Support).
+- Yerelde açmak: `cd client/Builds/Web && python3 -m http.server 8080` → tarayıcıda `http://localhost:8080`. Sunucu adresi sayfanın adresinden gelir; aynı Wi-Fi'daki arkadaş `http://<Mac'in IP'si>:8080` açar (Nakama 7350 portu da erişilebilir olmalı).
+- Test argümanları adres satırından: `http://localhost:8080/?cgUser=webbot&cgServer=Mercan&cgBot=fish`.
+- İnternetten açılması için sunucunun bir yerde barınması gerekiyor (`docs/acik-sorular.md` 12). Sayfa https ise Nakama'ya da https/wss gerekir.
+- Web fontunda bazı karakterler yok (… – ×); arayüz yazılarında düz ASCII karşılıkları kullanılıyor.
+
 İki oyuncu: File → Build Profiles → macOS → Build, çıkan uygulamayı aç ve editörle birlikte farklı bir kullanıcı adıyla gir. Aynı sunucuyu seçin. Cihaz kimliği "kurulum id'si + kullanıcı adı" olduğu için aynı Mac'te farklı ad = farklı hesap. Aynı adla ikinci kez girilirse ilk pencere atılır (protokoldeki yeniden bağlanma).
 
 Başka bir Mac'ten bağlanmak için sunucu adresine bu Mac'in yerel IP'sini yaz (7350 portu açık olmalı).

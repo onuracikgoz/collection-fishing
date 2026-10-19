@@ -38,7 +38,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Fare tıklaması ve WASD ile yürüme, 4 yön LPC animasyonu. Client yazıldı (tahmin + düzeltme)
 - [x] 2+ oyuncu birbirini akıcı görüyor, sunucu hız sınırını uyguluyor. Sunucu tarafı hazır: `world` match, hız / sınır / çarpışma kontrolü, yakınlık. Client yazıldı (diğer oyuncular 150 ms gecikmeli interpolasyon)
 - [x] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı. Sunucu tarafı hazır. Client yazıldı (Enter ile chat)
-- [ ] Web build arkadaşlara linkle açılıyor (test sunucusu)
+- [ ] Web build arkadaşlara linkle açılıyor (test sunucusu). Web build hazır ve yerelde / aynı ağda çalışıyor (`client/README.md`, Web build); internetten açılması için sunucu barındırma kararı bekliyor (`acik-sorular.md` 12)
 
 ## Faz 2: bitti sayılma şartları
 

@@ -266,7 +266,7 @@ namespace CollectionGame.World
 
         void DrawHud()
         {
-            var info = mover == null ? "Bağlanıyor…" : $"{serverName} · {others.Count + 1} kişi görüşte";
+            var info = mover == null ? "Bağlanıyor..." : $"{serverName} · {others.Count + 1} kişi görüşte";
             GUI.Label(new Rect(10, 8, 400, 24), info, Gui.Hud);
             if (!chatOpen) GUI.Label(new Rect(10, Gui.Height - 30, 600, 24), "WASD / tıkla: yürü · Enter: konuş", Gui.Hud);
             if (mover != null) fishing.DrawGui(mover.Position);

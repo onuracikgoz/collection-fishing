@@ -63,7 +63,7 @@ namespace CollectionGame
                 PlayerPrefs.Save();
             }
 
-            Busy("Giriş yapılıyor…");
+            Busy("Giriş yapılıyor...");
             try
             {
                 net = new Connection(host);
@@ -78,7 +78,7 @@ namespace CollectionGame
 
         async System.Threading.Tasks.Task RefreshServers()
         {
-            Busy("Sunucular yükleniyor…");
+            Busy("Sunucular yükleniyor...");
             servers = await net.ListServersAsync();
             error = null;
             screen = Page.Servers;
@@ -95,7 +95,7 @@ namespace CollectionGame
 
         async void Join(ServerInfo server)
         {
-            Busy($"{server.name} sunucusuna giriliyor…");
+            Busy($"{server.name} sunucusuna giriliyor...");
             try
             {
                 // The world exists before joining: WELCOME can arrive before JoinAsync returns.
@@ -172,7 +172,7 @@ namespace CollectionGame
 
         void DrawLogin()
         {
-            GUILayout.Label("Kullanıcı adı (3–16: harf, rakam, _)", Gui.Hud);
+            GUILayout.Label("Kullanıcı adı (3-16: harf, rakam, _)", Gui.Hud);
             GUI.SetNextControlName("username");
             username = GUILayout.TextField(username, 16, Gui.Input, GUILayout.Height(32));
             GUILayout.Space(8);

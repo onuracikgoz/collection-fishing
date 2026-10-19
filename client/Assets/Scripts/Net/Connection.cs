@@ -147,7 +147,7 @@ namespace CollectionGame.Net
             if (msg.Contains(ErrorCode.ProtocolMismatch)) return "Oyun sürümü sunucuyla uyuşmuyor. Güncel sürümü kullan.";
             if (msg.Contains(ErrorCode.ServerFull)) return "Sunucu dolu, başka bir sunucu seç.";
             if (msg.Contains(ErrorCode.BadRequest) || msg.Contains("invalid username"))
-                return "Kullanıcı adı 3–16 karakter olmalı: harf, rakam ve _ kullanılabilir.";
+                return "Kullanıcı adı 3-16 karakter olmalı: harf, rakam ve _ kullanılabilir.";
             if (msg.Contains("Username is already in use") || msg.Contains("already in use"))
                 return "Bu kullanıcı adı alınmış, başka bir ad dene.";
             if (msg.Contains("Cannot connect") || msg.Contains("Connection refused") || msg.Contains("ConnectionError") || msg.Contains("timed out"))
