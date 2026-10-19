@@ -5,11 +5,20 @@ import { Condition, FloatBand, Tier } from './catch';
 
 export type RecipeGrade = 'normal' | 'good' | 'master';
 
+/** A Float item with a Tier, or a stack (e.g. special bait) with a count. */
+export type RecipeOutput = { defId: string; tier: Tier } | { defId: string; count: number };
+
+export function isStackOutput(o: RecipeOutput): o is { defId: string; count: number } {
+  return (o as { count?: number }).count !== undefined;
+}
+
 export interface RecipeDef {
   /** The recipe item's definition id; one is spent per craft. */
   id: string;
   grade: RecipeGrade;
-  output: { defId: string; tier: Tier };
+  output: RecipeOutput;
+  /** Dust for stack outputs, which have no Tier to price by. */
+  dust?: number;
   /** Stackable inputs (materials, junk). */
   stacks: { defId: string; count: number }[];
   /** Float item inputs; the player picks which copies. */
@@ -58,7 +67,7 @@ export interface CraftPlan {
   removeItems: string[];
   /** Changed stack counts after the action; 0 means the stack is gone. */
   stacksAfter: { [defId: string]: number };
-  output: { defId: string; tier: Tier };
+  output: RecipeOutput;
   /** Average Float of the Float inputs, null if there were none. */
   inputAverage: number | null;
   /** The result's Float is at most this. */
@@ -151,7 +160,8 @@ export function planCraft(
   for (const defId in want) if (got[defId] !== want[defId]) return { ok: false, reason: 'MISSING_INPUTS' };
   for (const defId in got) if (!want[defId]) return { ok: false, reason: 'MISSING_INPUTS' };
 
-  const cost = cfg.craftDust[recipe.output.tier];
+  const out = recipe.output;
+  const cost = isStackOutput(out) ? recipe.dust || 0 : cfg.craftDust[out.tier];
   if (dust < cost) return { ok: false, reason: 'NOT_ENOUGH_DUST' };
 
   const stacksAfter: { [defId: string]: number } = {};
@@ -161,8 +171,12 @@ export function planCraft(
     if (stacksAfter[defId] > 0) after[defId] = stacksAfter[defId];
     else delete after[defId];
   }
-  // The new item needs a slot once the inputs are gone.
-  if (slotsUsed({ items: bag.items - selected.length, stacks: after }, bagCfg) >= bagCfg.slots) return { ok: false, reason: 'BAG_FULL' };
+  // The result needs room once the inputs are gone.
+  const items = bag.items - selected.length;
+  if (isStackOutput(out)) {
+    after[out.defId] = (after[out.defId] || 0) + out.count;
+    if (slotsUsed({ items, stacks: after }, bagCfg) > bagCfg.slots) return { ok: false, reason: 'BAG_FULL' };
+  } else if (slotsUsed({ items, stacks: after }, bagCfg) >= bagCfg.slots) return { ok: false, reason: 'BAG_FULL' };
 
   return {
     ok: true,

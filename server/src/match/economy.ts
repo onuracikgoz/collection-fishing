@@ -8,7 +8,7 @@ import { EconomyResultMsg, OpCode } from '../protocol';
 import { Category } from '../rules/catch';
 import { EconomyAction, OwnedItem, parseEconomyRequest, planEconomy } from '../rules/economy';
 import { Fisher } from './fishing';
-import { StoredItem, readWallet, stacksWrite } from './playerData';
+import { StoredItem, inBag, readWallet, stacksWrite } from './playerData';
 
 const CATEGORY: { [defId: string]: Category } = {};
 for (const d of LAKE_POOL) CATEGORY[d.id] = d.category;
@@ -46,7 +46,7 @@ export function handleEconomy(
     const objs = nk.storageRead(req.items.map((key) => ({ collection: 'items', key, userId })));
     for (const o of objs) {
       const item = o.value as StoredItem;
-      if (!item.inBook) owned[o.key] = { instanceId: item.instanceId, tier: item.tier, float: item.float };
+      if (inBag(item)) owned[o.key] = { instanceId: item.instanceId, tier: item.tier, float: item.float };
     }
   }
 

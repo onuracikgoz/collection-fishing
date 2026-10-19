@@ -25,6 +25,15 @@ export const RECIPES: RecipeDef[] = [
     stacks: [{ defId: 'lake.mat.scale', count: 2 }],
     items: [{ defId: 'craft.scale_charm', count: 1 }, { defId: 'lake.fish.pike', count: 1 }],
   },
+  {
+    // Special bait can be crafted too (16-ekonomi-tablosu.md 4.1). Dust is per recipe: bait has no Tier.
+    id: 'recipe.shiny_bait',
+    grade: 'normal',
+    output: { defId: 'bait.shiny', count: 5 },
+    dust: 10, // (Öneri) 5 baits cost 25 Coin at the shop
+    stacks: [{ defId: 'lake.mat.scale', count: 2 }, { defId: 'lake.junk.shell', count: 1 }],
+    items: [],
+  },
 ];
 
 /** Given once to every new account, so crafting can be learned right away (10.2). */

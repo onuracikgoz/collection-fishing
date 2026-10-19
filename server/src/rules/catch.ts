@@ -12,6 +12,8 @@ export interface ItemDef {
   category: Category;
   /** Bands it can come from; all bands if missing. */
   bands?: Band[];
+  /** Labels baits can favour, e.g. "crystal" (03-balik-tutma.md 5.0.0). */
+  tags?: string[];
 }
 
 /** Category weights, integers (e.g. 2500 = %25). */
@@ -46,15 +48,39 @@ export function tierOf(category: Category): Tier | null {
  * Picks the catch at the moment the bobber sinks. Without energy only junk comes up.
  * A category with no item in this band falls back to junk.
  */
-export function rollCatch(pool: ItemDef[], table: CatchTable, band: Band, hasEnergy: boolean, random: Random): CatchRoll | null {
+export function rollCatch(
+  pool: ItemDef[],
+  table: CatchTable,
+  band: Band,
+  hasEnergy: boolean,
+  random: Random,
+  tagBoost: { [tag: string]: number } | null = null,
+): CatchRoll | null {
   const fits = (d: ItemDef) => !d.bands || d.bands.indexOf(band) >= 0;
   const category: Category | null = hasEnergy ? pickWeighted<Category>(table, random) : 'junk';
   if (category === null) return null;
   let options = pool.filter((d) => d.category === category && fits(d));
   if (options.length === 0) options = pool.filter((d) => d.category === 'junk' && fits(d));
   if (options.length === 0) return null;
-  const def = options[Math.min(options.length - 1, Math.floor(random() * options.length))];
+  const def = tagBoost ? pickItem(options, tagBoost, random) : options[Math.min(options.length - 1, Math.floor(random() * options.length))];
   return { def, tier: tierOf(def.category) };
+}
+
+/** Picks an item from one category, tagged items weighing more (a bait's tagBoost). */
+function pickItem(options: ItemDef[], tagBoost: { [tag: string]: number }, random: Random): ItemDef {
+  const weights = options.map((d) => {
+    let w = 1;
+    for (const t of d.tags || []) if (tagBoost[t] !== undefined) w *= tagBoost[t];
+    return w;
+  });
+  let total = 0;
+  for (const w of weights) total += w;
+  let roll = random() * total;
+  for (let i = 0; i < options.length; i++) {
+    if (roll < weights[i]) return options[i];
+    roll -= weights[i];
+  }
+  return options[options.length - 1];
 }
 
 /** Condition first by weight, then a value inside its range, 4 decimals. */

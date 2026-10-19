@@ -117,3 +117,22 @@ describe('recipe data', () => {
     expect(salvage).toEqual({ ok: false, reason: 'CANNOT_SALVAGE' });
   });
 });
+
+describe('bait craft', () => {
+  const bait = recipeById('recipe.shiny_bait')!;
+
+  it('makes a stack of bait for the recipe dust, no Float, no book', () => {
+    const bag = { items: 0, stacks: { 'recipe.shiny_bait': 1, 'lake.mat.scale': 2, 'lake.junk.shell': 1, 'bait.shiny': 3 } };
+    const r = planCraft(bait, [], bag, 10, BAG, CRAFT);
+    expect(r).toMatchObject({ ok: true, dustCost: 10, output: { defId: 'bait.shiny', count: 5 } });
+    expect(planCraft(bait, [], bag, 9, BAG, CRAFT)).toEqual({ ok: false, reason: 'NOT_ENOUGH_DUST' });
+  });
+
+  it('a stack result can fill the last slot or join an open stack', () => {
+    const stacks = { 'recipe.shiny_bait': 2, 'lake.mat.scale': 3, 'lake.junk.shell': 2 };
+    // Inputs keep their slots, the 5 baits take the one free slot.
+    expect(planCraft(bait, [], { items: BAG.slots - 4, stacks }, 10, BAG, CRAFT).ok).toBe(true);
+    expect(planCraft(bait, [], { items: BAG.slots - 3, stacks }, 10, BAG, CRAFT)).toEqual({ ok: false, reason: 'BAG_FULL' });
+    expect(planCraft(bait, [], { items: BAG.slots - 4, stacks: { ...stacks, 'bait.shiny': 10 } }, 10, BAG, CRAFT).ok).toBe(true);
+  });
+});

@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { EMOTES, ENERGY, FRIENDS, SERVERS, WATER, WORLD } from '../config';
+import { EMOTES, ENERGY, FRIENDS, ROD, SERVERS, WATER, WORLD } from '../config';
 import { LAKE_MAP } from '../data/lake-map';
 import {
   BubbleMsg,
@@ -26,10 +26,13 @@ import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
-import { currentEnergy, energyWrite, loadBag, readBook } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, readRod } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
+import { handleShop } from './shop';
+import { StashAction, StashCache, handleStash } from './stash';
+import { Rod, rodView } from '../rules/rod';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 
@@ -51,6 +54,9 @@ interface Player {
   energy: number;
   bag: BagSummary;
   book: BookEntries;
+  rod: Rod;
+  /** Loaded the first time the stash is used at the bank. */
+  stash?: StashCache;
   fish?: FishState;
   /** Last thing caught, for the show_fish emote. */
   lastCatch?: string;
@@ -77,6 +83,13 @@ export interface WorldState {
 }
 
 const tickMs = 1000 / WORLD.tickRate;
+
+const STASH_OPS: { [op: number]: StashAction } = {
+  [OpCode.STASH_OPEN]: 'open',
+  [OpCode.STASH_PUT]: 'put',
+  [OpCode.STASH_TAKE]: 'take',
+  [OpCode.STASH_EXPAND]: 'expand',
+};
 const moveCfg = WORLD;
 
 function send(dispatcher: nkruntime.MatchDispatcher, op: number, body: unknown, to: nkruntime.Presence[]): void {
@@ -204,6 +217,7 @@ export function worldJoin(
     const energy = old ? old.energy : currentEnergy(nk, presence.userId);
     const bag = old ? old.bag : loadBag(nk, presence.userId);
     const book = old ? old.book : readBook(nk, presence.userId);
+    const rod = old ? old.rod : readRod(nk, presence.userId);
     if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
 
     state.players[presence.userId] = {
@@ -218,8 +232,10 @@ export function worldJoin(
       energy,
       bag,
       book,
+      rod,
+      stash: old ? old.stash : undefined,
     };
-    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max };
+    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD) };
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
   }
   return { state };
@@ -407,6 +423,12 @@ export function worldLoop(
     } else if ((m.opCode === OpCode.MERGE || m.opCode === OpCode.CRAFT) && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleCraft(nk, logger, dispatcher, p, m.opCode === OpCode.MERGE ? 'merge' : 'craft', body);
+    } else if ((m.opCode === OpCode.REPAIR_ROD || m.opCode === OpCode.BUY_BAIT) && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleShop(nk, logger, dispatcher, p, m.opCode === OpCode.REPAIR_ROD ? 'repair' : 'buy_bait', body);
+    } else if (STASH_OPS[m.opCode] && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleStash(nk, logger, dispatcher, p, STASH_OPS[m.opCode], body);
     } else if (m.opCode === OpCode.GOTO_FRIEND) {
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {

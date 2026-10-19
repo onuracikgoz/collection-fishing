@@ -5,6 +5,7 @@ import { BOOK_PAGES } from '../src/data/book-pages';
 import { RECIPES } from '../src/data/recipes';
 import { BookEntries, BookPage, SlotRef, applyLuck, discover, luckOf, onCatch, place, scoreOf, stateOf } from '../src/rules/book';
 import { tierOf } from '../src/rules/catch';
+import { isStackOutput } from '../src/rules/craft';
 
 const pages: BookPage[] = [
   { id: 'a', items: ['a1', 'a2', 'a3', 'a4'] },
@@ -103,10 +104,10 @@ describe('luck and score', () => {
 });
 
 describe('book data', () => {
-  it('lists every Tier item of the lake and every crafted item once, and nothing else', () => {
+  it('lists every Tier item of the lake and every crafted Tier item once, and nothing else', () => {
     const all = BOOK_PAGES.flatMap((p) => p.items);
     expect(new Set(all).size).toBe(all.length);
-    const crafted = RECIPES.map((r) => r.output.defId).filter((id, i, a) => a.indexOf(id) === i);
+    const crafted = RECIPES.filter((r) => !isStackOutput(r.output)).map((r) => r.output.defId).filter((id, i, a) => a.indexOf(id) === i);
     const tiered = LAKE_POOL.filter((d) => tierOf(d.category)).map((d) => d.id).concat(crafted).sort();
     expect([...all].sort()).toEqual(tiered);
   });

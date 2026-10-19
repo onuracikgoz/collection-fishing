@@ -5,7 +5,7 @@ import { BOOK_PAGES } from '../data/book-pages';
 import { BookResultMsg, OpCode } from '../protocol';
 import { place, scoreOf } from '../rules/book';
 import { Fisher } from './fishing';
-import { StoredItem, bookWrite, itemWrite, publicItem, readItem } from './playerData';
+import { StoredItem, bookWrite, inBag, itemWrite, publicItem, readItem } from './playerData';
 
 function reply(dispatcher: nkruntime.MatchDispatcher, f: Fisher, msg: BookResultMsg): void {
   dispatcher.broadcastMessage(OpCode.BOOK_RESULT, JSON.stringify(msg), [f.presence], null, true);
@@ -25,7 +25,7 @@ export function handleBookPlace(
   }
   const userId = f.presence.userId;
   const item = readItem(nk, userId, instanceId);
-  if (!item || item.inBook) return reply(dispatcher, f, { ok: false, reason: 'NOT_OWNED' });
+  if (!item || !inBag(item)) return reply(dispatcher, f, { ok: false, reason: 'NOT_OWNED' });
 
   const res = place(f.book, BOOK_PAGES, item.defId, { instanceId: item.instanceId, tier: item.tier, float: item.float });
   if (!res.ok) return reply(dispatcher, f, { ok: false, reason: res.reason, defId: item.defId });

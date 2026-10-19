@@ -29,6 +29,14 @@ export const OpCode = {
   MERGE: 25,
   CRAFT: 26,
   CRAFT_RESULT: 27,
+  REPAIR_ROD: 28,
+  BUY_BAIT: 29,
+  SHOP_RESULT: 30,
+  STASH_OPEN: 31,
+  STASH_PUT: 32,
+  STASH_TAKE: 33,
+  STASH_EXPAND: 34,
+  STASH_RESULT: 35,
 } as const;
 
 export const ErrorCode = {
@@ -98,6 +106,14 @@ export interface WelcomeMsg {
   serverName: string;
   energy: number;
   energyMax: number;
+  rod: RodView;
+}
+
+/** The player's rod (Faz 4). */
+export interface RodView {
+  level: number;
+  durability: number;
+  max: number;
 }
 
 // --- Faz 2: fishing ---
@@ -115,6 +131,8 @@ export interface BobberMsg {
   state: BobberState;
   /** Only in the fisher's own `cast` message: energy after the cast. */
   energy?: number;
+  /** Only in the fisher's own `cast` message: the special bait used and how many are left. */
+  bait?: { defId: string; count: number };
 }
 
 export interface ReelStartMsg {
@@ -154,6 +172,8 @@ export interface FishEndMsg {
   energy?: number;
   /** Book outcome for a Tier item on a book page. */
   book?: FishBookMsg;
+  /** The rod after this catch, when it wore. */
+  rod?: RodView;
 }
 
 export interface FishBookMsg {
@@ -211,6 +231,7 @@ export interface InventoryResponse {
   stacks: { defId: string; count: number }[];
   coin: number;
   dust: number;
+  rod: RodView;
 }
 
 /** Reply to SELL and SALVAGE, only to the player. */
@@ -294,8 +315,47 @@ export interface CraftResultMsg {
   dust: number;
   /** The new item; with `book.kind === "discovered"` it went straight to its slot. */
   item?: ItemInstance;
+  /** A stack result (e.g. bait): its new total in the bag. */
+  stack?: { defId: string; count: number };
   book?: FishBookMsg;
   /** What left the bag: item ids and stack counts used up. */
+  items?: string[];
+  stacks?: { defId: string; count: number }[];
+}
+
+/** Reply to REPAIR_ROD and BUY_BAIT, only to the player. */
+export interface ShopResultMsg {
+  action: 'repair' | 'buy_bait';
+  ok: boolean;
+  /** NOT_NEEDED, NOT_ENOUGH_COIN, BAG_FULL, BAD_REQUEST */
+  reason?: string;
+  /** Coin after the action (unchanged on failure). */
+  coin: number;
+  spent?: number;
+  rod?: RodView;
+  /** buy_bait: the bait's new total in the bag. */
+  stack?: { defId: string; count: number };
+}
+
+export interface StashView {
+  level: number;
+  slotsUsed: number;
+  slotsMax: number;
+  items: ItemInstance[];
+  stacks: { defId: string; count: number }[];
+}
+
+/** Reply to every STASH_* message, only to the player. */
+export interface StashResultMsg {
+  action: 'open' | 'put' | 'take' | 'expand';
+  ok: boolean;
+  /** NOT_AT_BANK, BAD_REQUEST, TOO_MANY, NOT_OWNED, NOT_ENOUGH, STASH_FULL, BAG_FULL, MAX_LEVEL, NOT_ENOUGH_COIN */
+  reason?: string;
+  /** Full contents after a successful action. */
+  stash?: StashView;
+  /** expand: Coin left. */
+  coin?: number;
+  /** put / take: what moved. */
   items?: string[];
   stacks?: { defId: string; count: number }[];
 }
