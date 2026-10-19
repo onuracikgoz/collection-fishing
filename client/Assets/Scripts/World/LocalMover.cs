@@ -22,6 +22,8 @@ namespace CollectionGame.World
         public string Facing { get; private set; } = Dir.Down;
         public bool Moving { get; private set; }
         public Vector2? Target { get; private set; }
+        /// <summary>Standing still and the server has our last position (nothing left to send).</summary>
+        public bool Synced => !Moving && !Target.HasValue && Position == sentPos && Moving == sentMoving;
 
         int seq;
         float lastSendAt = float.NegativeInfinity;
@@ -80,14 +82,18 @@ namespace CollectionGame.World
             if (want == Vector2.zero) return false;
 
             Facing = FacingFor(want);
+            var chasing = Target.HasValue && input == Vector2.zero;
             var delta = want.normalized * (WalkSpeed * dt);
-            if (Target.HasValue && input == Vector2.zero && delta.magnitude > want.magnitude) delta = want;
+            if (chasing && delta.magnitude > want.magnitude) delta = want;
 
             // Try the full step, then slide along walls on one axis.
             foreach (var d in new[] { delta, new Vector2(delta.x, 0f), new Vector2(0f, delta.y) })
             {
                 if (d == Vector2.zero) continue;
                 var next = Position + d;
+                // A click target only takes steps that bring us closer, so a target in
+                // the lake stops us at the shore instead of sliding back and forth.
+                if (chasing && Vector2.Distance(next, Target.Value) >= want.magnitude - 0.001f) continue;
                 // The server checks the straight line from the last MOVE it accepted,
                 // so a slide around a corner must not cut through a blocked tile.
                 if (LakeMap.IsWalkable(next) && LakeMap.IsPathClear(Position, next) && LakeMap.IsPathClear(sentPos, next))
