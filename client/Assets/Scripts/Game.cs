@@ -39,7 +39,7 @@ namespace CollectionGame
         void Awake()
         {
             username = PlayerPrefs.GetString(UsernameKey, "");
-            host = PlayerPrefs.GetString(HostKey, "127.0.0.1");
+            host = Application.platform == RuntimePlatform.WebGLPlayer ? Connection.DefaultHost() : PlayerPrefs.GetString(HostKey, Connection.DefaultHost());
             Application.runInBackground = true; // two windows on one Mac both keep running
         }
 

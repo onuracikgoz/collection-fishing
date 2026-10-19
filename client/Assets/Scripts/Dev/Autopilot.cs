@@ -16,11 +16,25 @@ namespace CollectionGame.Dev
     /// </summary>
     public class Autopilot : MonoBehaviour
     {
+        /// <summary>
+        /// A test argument: "-cgUser bob" on the command line, or "?cgUser=bob" in the
+        /// page address of a web build.
+        /// </summary>
         public static string Arg(string name)
         {
             var args = Environment.GetCommandLineArgs();
             for (var i = 0; i < args.Length - 1; i++)
                 if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase)) return args[i + 1];
+
+            var url = Application.absoluteURL ?? "";
+            var q = url.IndexOf('?');
+            if (q < 0) return null;
+            foreach (var pair in url.Substring(q + 1).Split('&'))
+            {
+                var eq = pair.IndexOf('=');
+                if (eq > 0 && string.Equals("-" + pair.Substring(0, eq), name, StringComparison.OrdinalIgnoreCase))
+                    return Uri.UnescapeDataString(pair.Substring(eq + 1).Replace('+', ' '));
+            }
             return null;
         }
 

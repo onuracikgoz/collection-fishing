@@ -38,7 +38,17 @@ namespace CollectionGame.Net
 
         public Connection(string host)
         {
-            client = new Client("http", host, Port, ServerKey, UnityWebRequestAdapter.Instance);
+            // A web build served over https may only talk to Nakama over https / wss.
+            var scheme = Application.absoluteURL != null && Application.absoluteURL.StartsWith("https:") ? "https" : "http";
+            client = new Client(scheme, host, Port, ServerKey, UnityWebRequestAdapter.Instance);
+        }
+
+        /// <summary>Server address to suggest: the web page's own host in a web build, else this machine.</summary>
+        public static string DefaultHost()
+        {
+            if (Application.platform == RuntimePlatform.WebGLPlayer && Uri.TryCreate(Application.absoluteURL, UriKind.Absolute, out var page) && !string.IsNullOrEmpty(page.Host))
+                return page.Host;
+            return "127.0.0.1";
         }
 
         /// <summary>Device login with the username (sent every time; ignored by Nakama once the account exists).</summary>

@@ -15,3 +15,4 @@
 9. Collection setlerinin malzemeleri defterde yer alsın mı, 66 eşyalık set kaç sayfaya bölünsün? (bkz. `tasarim/17-collection-setleri.md`)
 10. Makara mini oyunu (Faz 2): sunucu client'ın tuş kaydını aynı seed ile yeniden oynatıp sonucu kendisi buluyor. Zorluk değerleri (`REEL_PARAMS`) simüle oyuncuyla ayarlandı (Öneri); Onur oynayıp his onayı vermeli.
 11. Faz 2 eşya havuzu (`server/src/data/lake-pool.ts`) yer tutucudur; gerçek eşyalar Item Art Studio / set verisinden gelince değişecek. Dinlenme alanları (enerji yenileme) henüz yok, şimdilik çevrimdışı 8 saatte dolum var (Öneri).
+12. Web build arkadaş testi için sunucu nerede barınsın? Yerel ağda Mac yeterli (sayfa ve Nakama aynı Mac'te). İnternetten açılması için bir VPS / bulut sunucu (Nakama + Postgres + statik sayfa) veya geçici bir tünel gerekiyor; https sayfa Nakama'ya da TLS (wss) ister. Maliyet ve hesap kararı Onur'un.
