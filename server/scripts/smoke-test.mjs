@@ -4,7 +4,8 @@ import { Client } from '@heroiclabs/nakama-js';
 
 const OP = {
   MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8,
-  CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15,
+  CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15, BOOK_PLACE: 16, BOOK_RESULT: 17,
+  GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -169,37 +170,110 @@ check(!!cast && cast.state === 'cast' && cast.band && cast.energy === wc.energy 
 await walkTo(c, { x: 85.0, y: 47.5 });
 check((await lastEnd(c, 100))?.outcome === 'cancelled', 'moving cancels fishing');
 
-// Cast and wait for the bite
-c.clear();
-c.send(OP.CAST, { x: 88.5, y: 47.5 });
-let reel;
-for (let t = 0; t < 250 && !reel; t++) {
-  await sleep(100);
-  if (c.inbox.some((m) => m.op === OP.BOBBER && m.body.state === 'bite') && !c.hooked) {
-    c.hooked = true;
-    c.send(OP.HOOK, {});
+// Cast, wait for the bite, hook and play the reel well. Returns FISH_END or null.
+async function catchOne(p) {
+  p.clear();
+  p.hooked = false;
+  p.send(OP.CAST, { x: 88.5, y: 47.5 });
+  let reel;
+  for (let t = 0; t < 250 && !reel; t++) {
+    await sleep(100);
+    if (p.inbox.some((m) => m.op === OP.BOBBER && m.body.state === 'bite') && !p.hooked) {
+      p.hooked = true;
+      p.send(OP.HOOK, {});
+    }
+    reel = p.take(OP.REEL_START)[0];
   }
-  reel = c.take(OP.REEL_START)[0];
-}
-check(c.take(OP.BOBBER).some((m) => m.state === 'twitch' || m.state === 'bite'), 'bobber twitches or bites');
-check(!!reel && reel.seed >= 0 && reel.params?.barSize > 0, 'HOOK on the bite starts the reel game');
-if (reel) {
+  p.lastBobbers = p.take(OP.BOBBER);
+  p.lastReel = reel;
+  if (!reel) return null;
   const inputs = bot(reel.seed, reel.params);
-  const steps = simulate(reel.seed, reel.params, inputs);
-  await sleep(steps * 20);
-  c.send(OP.REEL_DONE, { inputs });
-  const done = await lastEnd(c, 600);
-  check(done?.outcome === 'caught' && done.defId && (done.item || done.stack), 'good reel catches something');
-  const inv = (await client.rpc(c.session, 'get_inventory', {})).payload;
-  const has = inv.items.some((i) => i.defId === done?.defId) || inv.stacks.some((s) => s.defId === done?.defId);
-  check(has && inv.energy === wc.energy - 2 && inv.slotsMax === 40, 'get_inventory shows the catch and spent energy');
-  if (done?.item) check(done.item.float >= 0 && done.item.float <= 1 && done.item.tier, 'item has Tier and Float');
+  await sleep(simulate(reel.seed, reel.params, inputs) * 20);
+  p.send(OP.REEL_DONE, { inputs });
+  return (await lastEnd(p, 600)) || null;
 }
+const inBag = (inv, defId) => inv.items.some((i) => i.defId === defId) || inv.stacks.some((s) => s.defId === defId);
+
+const done = await catchOne(c);
+check(c.lastBobbers.some((m) => m.state === 'twitch' || m.state === 'bite'), 'bobber twitches or bites');
+check(!!c.lastReel && c.lastReel.seed >= 0 && c.lastReel.params?.barSize > 0, 'HOOK on the bite starts the reel game');
+check(done?.outcome === 'caught' && done.defId && (done.item || done.stack), 'good reel catches something');
+const inv = (await client.rpc(c.session, 'get_inventory', {})).payload;
+const discovered = done?.book?.kind === 'discovered';
+check((discovered ? !inBag(inv, done.defId) : inBag(inv, done?.defId)) && inv.energy === wc.energy - 2 && inv.slotsMax === 40,
+  'get_inventory shows the catch (or not, if it went to the book) and spent energy');
+if (done?.item) check(done.item.float >= 0 && done.item.float <= 1 && done.item.tier, 'item has Tier and Float');
+
+// Collection Book (Faz 3): fish until a Tier item comes up; the first copy goes to its slot.
+let first = done?.book?.kind === 'discovered' ? done : null;
+for (let i = 0; i < 8 && !first; i++) {
+  const d = await catchOne(c);
+  if (d?.book?.kind === 'discovered') first = d;
+}
+check(!!first && first.book.page && first.book.score > 0 && typeof first.book.luck === 'number', 'first Tier catch is a "Yeni keşif!" with page, score and luck');
+if (first) {
+  const book = (await client.rpc(c.session, 'get_book', {})).payload;
+  const rec = book.pages.flatMap((pg) => pg.records).find((r) => r.defId === first.defId);
+  check(rec?.state === 'filled' && rec.item?.instanceId === first.item.instanceId, 'get_book shows the item in its slot');
+  check(book.pages.flatMap((pg) => pg.records).some((r) => r.state === 'unknown' && !r.defId), 'unknown records hide their id');
+  const invNow = (await client.rpc(c.session, 'get_inventory', {})).payload;
+  check(!invNow.items.some((i) => i.instanceId === first.item.instanceId), 'book item takes no bag slot');
+  const other = (await client.rpc(b.session, 'get_book', { userId: c.session.user_id })).payload;
+  check(other.userId === c.session.user_id && other.score === book.score, 'others can view the book');
+
+  // Profile card: showcase from book slots and "Arıyorum"
+  const set = (await client.rpc(c.session, 'set_profile', { showcase: [first.defId], hunting: 'lake.item.blue_crystal' })).payload;
+  check(set.showcase.length === 1 && set.showcase[0].instanceId === first.item.instanceId, 'set_profile puts a book item in the showcase');
+  const card = (await client.rpc(b.session, 'get_profile', { userId: c.session.user_id })).payload;
+  check(card.username && card.hunting === 'lake.item.blue_crystal' && card.showcase[0]?.defId === first.defId && card.score === book.score,
+    'others see the profile card');
+  try {
+    await client.rpc(c.session, 'set_profile', { showcase: ['lake.junk.boot'] });
+    check(false, 'showcase refuses items that are not in the book');
+  } catch (_e) {
+    check(true, 'showcase refuses items that are not in the book');
+  }
+}
+c.clear();
+c.send(OP.BOOK_PLACE, { instanceId: 'not-an-item' });
+await sleep(300);
+check(c.take(OP.BOOK_RESULT)[0]?.reason === 'NOT_OWNED', 'BOOK_PLACE with an unknown item is refused');
 
 // Fake REEL_DONE without a reel game is ignored
 c.clear();
 c.send(OP.REEL_DONE, { inputs: [20, 40] });
 check((await lastEnd(c)) === undefined, 'REEL_DONE without a reel is ignored');
+
+
+// Friends (Faz 3): Nakama friend requests, friends_status, "Yanına git", emotes.
+await client.addFriends(b.session, [c.session.user_id]);
+await client.addFriends(c.session, [b.session.user_id]);
+const fs = (await client.rpc(b.session, 'friends_status', {})).payload;
+const cf = fs.friends.find((f) => f.userId === c.session.user_id);
+check(cf?.online && cf.matchId === target.matchId && Math.abs(cf.x - pos.x) < 1e-6, 'friends_status shows the friend online with server and place');
+b.clear();
+b.send(OP.GOTO_FRIEND, { userId: c.session.user_id });
+await sleep(300);
+const tp = b.take(OP.TELEPORT)[0];
+check(tp && !tp.reason && Math.hypot(tp.x - pos.x, tp.y - pos.y) < 6, 'GOTO_FRIEND lands next to the friend');
+a3.clear();
+a3.send(OP.GOTO_FRIEND, { userId: c.session.user_id });
+await sleep(300);
+check(a3.take(OP.TELEPORT)[0]?.reason === 'NOT_FRIEND', 'GOTO_FRIEND to a non-friend is refused');
+b.clear();
+c.send(OP.EMOTE, { emote: 'show_fish' });
+c.send(OP.EMOTE, { emote: 'kiss' });
+await sleep(400);
+const em = b.take(OP.EMOTE_SHOW);
+check(em.length === 1 && em[0].id === c.session.user_id && em[0].emote === 'show_fish' && em[0].defId, 'nearby friend sees show_fish with the last catch, bad emote dropped');
+// "Yanına git" from outside: join with { near } and land beside the friend
+await b.socket.leaveMatch(target.matchId);
+await sleep(300);
+b.clear();
+await b.join(target.matchId, { protocolVersion: '1', characterId: 'default', near: c.session.user_id });
+await sleep(400);
+const wb = b.take(OP.WELCOME)[0];
+check(wb && Math.hypot(wb.you.x - pos.x, wb.you.y - pos.y) < 6, 'joining with near lands beside the friend');
 
 for (const p of [a, a2, a3, b, c]) p.socket.disconnect(false);
 console.log(failed === 0 ? 'all good' : `${failed} failed`);

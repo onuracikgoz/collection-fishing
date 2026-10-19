@@ -1,5 +1,6 @@
 // Tunable numbers for the world (docs/protokol.md). Values marked (Öneri)
 // are not final; change them here, not in rules or match code.
+import type { Category } from './rules/catch';
 
 export interface ServerDef {
   /** Stable id, used to find the match again after a restart. */
@@ -104,4 +105,35 @@ export const ENERGY = {
 export const BAG = {
   slots: 40, // (Öneri)
   stackSize: 99,
+};
+
+// Collection Book luck (docs/tasarim/06-defter.md 8.3, Öneri): per page, not per item.
+export const BOOK_LUCK = {
+  halfPage: 0.02,
+  fullPage: 0.05,
+  cap: 0.25,
+  boosts: ['rare', 'epic', 'legendary', 'mythic'] as Category[],
+};
+
+// Collection Score (06-defter.md 8.4, Öneri until playtest): only filled slots count.
+export const SCORE = {
+  tierPoints: { common: 1, rare: 3, epic: 10, legendary: 30, mythic: 100 },
+  pageFilled: 20,
+};
+
+export const PROFILE = {
+  showcaseMax: 3, // docs/tasarim/10-sosyal.md 13.3
+};
+
+// Emotes (docs/tasarim/10-sosyal.md 13.2.2). show_fish holds up the last catch.
+export const EMOTES = {
+  list: ['wave', 'clap', 'dance', 'sit', 'laugh', 'show_fish'],
+  cooldownMs: 2000, // (Öneri)
+};
+
+// Friends: "Yanına git" (10-sosyal.md 13.2.1).
+export const FRIENDS = {
+  teleportCooldownMs: 3000, // (Öneri)
+  landRadius: 4, // tiles searched around the friend for a free spot
+  maxListed: 300,
 };

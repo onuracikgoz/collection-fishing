@@ -17,6 +17,12 @@ export const OpCode = {
   REEL_DONE: 13,
   FISH_END: 14,
   CANCEL: 15,
+  BOOK_PLACE: 16,
+  BOOK_RESULT: 17,
+  GOTO_FRIEND: 18,
+  TELEPORT: 19,
+  EMOTE: 20,
+  EMOTE_SHOW: 21,
 } as const;
 
 export const ErrorCode = {
@@ -140,6 +146,54 @@ export interface FishEndMsg {
   item?: ItemInstance;
   stack?: { defId: string; count: number };
   energy?: number;
+  /** Book outcome for a Tier item on a book page. */
+  book?: FishBookMsg;
+}
+
+export interface FishBookMsg {
+  page: string;
+  /** discovered: first copy, recorded and placed in its slot (not in the bag). copy: went to the bag. */
+  kind: 'discovered' | 'copy';
+  /** discovered: this record completed its page. */
+  pageComplete?: boolean;
+  /** copy: cleaner than the slot's copy, or the slot is empty ("Defterdekiyle değiştir?"). */
+  better?: boolean;
+  /** discovered: new values. */
+  luck?: number;
+  score?: number;
+}
+
+export interface BookPlaceMsg {
+  instanceId: string;
+}
+
+export interface BookResultMsg {
+  ok: boolean;
+  /** NOT_OWNED, NOT_IN_BOOK, NOT_FOUND, BAD_REQUEST */
+  reason?: string;
+  defId?: string;
+  page?: string;
+  /** Now in the slot. */
+  slot?: ItemInstance;
+  /** Was in the slot, now in the bag. */
+  previous?: ItemInstance;
+  score?: number;
+}
+
+export type RecordState = 'unknown' | 'found' | 'filled';
+
+export interface BookRecordMsg {
+  /** Missing for unknown records. */
+  defId?: string;
+  state: RecordState;
+  item?: ItemInstance;
+}
+
+export interface BookResponse {
+  userId: string;
+  pages: { id: string; total: number; found: number; filled: number; records: BookRecordMsg[] }[];
+  luck: number;
+  score: number;
 }
 
 export interface InventoryResponse {
@@ -154,4 +208,56 @@ export interface InventoryResponse {
 /** Body of an error thrown from an RPC or hook (docs/protokol.md, Hata kodları). */
 export function errorMessage(code: string, message: string): string {
   return JSON.stringify({ code, message });
+}
+
+export interface ProfileResponse {
+  userId: string;
+  username: string;
+  score: number;
+  /** Pages whose every record was found. */
+  pagesComplete: string[];
+  /** Showcase items as they sit in the book now. */
+  showcase: ItemInstance[];
+  hunting?: string;
+}
+
+export interface SetProfileRequest {
+  /** Book record ids; each needs a filled slot. Omit to keep. */
+  showcase?: string[];
+  /** A book record id, or null to clear. Omit to keep. */
+  hunting?: string | null;
+}
+
+export interface GotoFriendMsg {
+  userId: string;
+}
+
+/** Sent to the player who was moved; others see the new place in SNAPSHOT / PLAYER_ENTER. */
+export interface TeleportMsg {
+  x: number;
+  y: number;
+  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED. */
+  reason?: string;
+}
+
+export interface EmoteShowMsg {
+  id: string;
+  emote: string;
+  /** show_fish: the last thing this player caught. */
+  defId?: string;
+}
+
+export interface FriendStatus {
+  userId: string;
+  username: string;
+  online: boolean;
+  /** Where they are, when online in a world server. */
+  serverName?: string;
+  matchId?: string;
+  x?: number;
+  y?: number;
+}
+
+export interface FriendsStatusResponse {
+  friends: FriendStatus[];
 }

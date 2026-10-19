@@ -8,7 +8,7 @@ export interface WorldLabel {
   serverId: string;
 }
 
-function findWorldMatches(nk: nkruntime.Nakama): { [serverId: string]: nkruntime.Match } {
+export function findWorldMatches(nk: nkruntime.Nakama): { [serverId: string]: nkruntime.Match } {
   const found: { [serverId: string]: nkruntime.Match } = {};
   for (const m of nk.matchList(100, true, null, null, null, '+label.kind:world')) {
     try {

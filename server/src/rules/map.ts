@@ -53,3 +53,31 @@ export function isPathClear(map: CollisionMap, ax: number, ay: number, bx: numbe
   }
   return true;
 }
+
+/**
+ * The walkable tile centre nearest to (x, y), searching rings out to maxRadius.
+ * Skips the tile itself so a teleported player lands beside, not on, the target.
+ */
+export function spotNear(map: CollisionMap, x: number, y: number, maxRadius: number): { x: number; y: number } | null {
+  const cx = Math.floor(x);
+  const cy = Math.floor(y);
+  for (let r = 1; r <= maxRadius; r++) {
+    let best: { x: number; y: number } | null = null;
+    let bestD = Infinity;
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+        const px = cx + dx + 0.5;
+        const py = cy + dy + 0.5;
+        if (!isWalkable(map, px, py)) continue;
+        const d = (px - x) * (px - x) + (py - y) * (py - y);
+        if (d < bestD) {
+          bestD = d;
+          best = { x: px, y: py };
+        }
+      }
+    }
+    if (best) return best;
+  }
+  return null;
+}

@@ -15,3 +15,4 @@
 9. Collection setlerinin malzemeleri defterde yer alsın mı, 66 eşyalık set kaç sayfaya bölünsün? (bkz. `tasarim/17-collection-setleri.md`)
 10. Makara mini oyunu (Faz 2): sunucu client'ın tuş kaydını aynı seed ile yeniden oynatıp sonucu kendisi buluyor. Zorluk değerleri (`REEL_PARAMS`) simüle oyuncuyla ayarlandı (Öneri); Onur oynayıp his onayı vermeli.
 11. Faz 2 eşya havuzu (`server/src/data/lake-pool.ts`) yer tutucudur; gerçek eşyalar Item Art Studio / set verisinden gelince değişecek. Dinlenme alanları (enerji yenileme) henüz yok, şimdilik çevrimdışı 8 saatte dolum var (Öneri).
+13. Collection Book (Faz 3): çöp ve malzemeler defterde kayıt değil, sadece Tier'lı eşyalar (Öneri). Sayfalar şimdilik yer tutucu (`server/src/data/book-pages.ts`). Şans ve Score formülü Öneri (`docs/protokol.md`, Collection Book). Kopya gelince boş yuva otomatik dolmuyor, oyuncuya soruluyor.
