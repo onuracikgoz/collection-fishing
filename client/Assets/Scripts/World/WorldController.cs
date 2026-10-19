@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using CollectionGame.Collection;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
+using CollectionGame.Social;
 using CollectionGame.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -31,19 +32,22 @@ namespace CollectionGame.World
 
         FishingController fishing;
         CollectionController collection;
+        SocialController social;
         bool inputLatched;
         bool chatOpen;
         bool focusChat;
         string chatText = "";
 
-        public static WorldController Create(Connection net, string serverName, Action<string> onDisconnected)
+        /// <param name="switchServer">Joins another server beside a friend: (matchId, serverName, friendUserId).</param>
+        public static WorldController Create(Connection net, string serverName, Action<string> onDisconnected, Action<string, string, string> switchServer)
         {
             var go = new GameObject("World");
             var world = go.AddComponent<WorldController>();
             world.net = net;
             world.serverName = serverName;
             world.onDisconnected = onDisconnected;
-            world.collection = new CollectionController(net);
+            world.social = new SocialController(net, switchServer);
+            world.collection = new CollectionController(net) { AddFriend = world.social.AddFriend };
             world.fishing = new FishingController(net, go.transform, world.PositionOf, () => world.mover != null && world.mover.Synced);
             go.AddComponent<MapView>();
             return world;
@@ -58,6 +62,11 @@ namespace CollectionGame.World
         public IEnumerable<string> OtherIds => others.Keys;
         public FishingController Fishing => fishing;
         public CollectionController Collection => collection;
+        public SocialController Social => social;
+        public Connection Net => net;
+
+        /// <summary>Chat or any IMGUI text field has the keyboard: game keys are off.</summary>
+        bool Typing => chatOpen || GUIUtility.keyboardControl != 0;
         public void WalkTo(Vector2 target) => mover?.SetTarget(target);
         public void Say(string text) => net.Send(OpCode.Say, new SayMsg { text = text });
         public int Corrections { get; private set; }
@@ -93,7 +102,7 @@ namespace CollectionGame.World
             {
                 // Keys or the mouse button still held from before a cast must not walk
                 // (walking reels the line in): they count again once released.
-                var keys = chatOpen ? Vector2.zero : ReadKeys();
+                var keys = Typing ? Vector2.zero : ReadKeys();
                 var mouseHeld = Mouse.current != null && Mouse.current.leftButton.isPressed;
                 if (fishing.BlocksMovement) inputLatched = true;
                 else if (inputLatched && keys == Vector2.zero && !mouseHeld) inputLatched = false;
@@ -103,8 +112,9 @@ namespace CollectionGame.World
                 var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
-                fishing.Update(mover.Position, mover.Facing, chatOpen, cam);
-                collection.Update(chatOpen);
+                fishing.Update(mover.Position, mover.Facing, Typing, cam);
+                collection.Update(Typing);
+                social.Update(Typing);
             }
 
             foreach (var (view, remote) in others.Values)
@@ -207,6 +217,24 @@ namespace CollectionGame.World
                 case OpCode.BookResult:
                     collection.OnBookResult(JsonUtility.FromJson<BookResultMsg>(m.Json));
                     break;
+                case OpCode.Teleport:
+                {
+                    var t = JsonUtility.FromJson<TeleportMsg>(m.Json);
+                    if (string.IsNullOrEmpty(t.reason) && mover != null)
+                    {
+                        mover.Teleport(new Vector2(t.x, t.y));
+                        me.SetState(mover.Position, mover.Facing, false);
+                    }
+                    social.OnTeleport(t);
+                    break;
+                }
+                case OpCode.EmoteShow:
+                {
+                    var e = JsonUtility.FromJson<EmoteShowMsg>(m.Json);
+                    var who = e.id == net.UserId ? me : others.TryGetValue(e.id ?? "", out var o) ? o.view : null;
+                    social.OnEmote(e, who);
+                    break;
+                }
                 case OpCode.Bubble:
                 {
                     var b = JsonUtility.FromJson<BubbleMsg>(m.Json);
@@ -237,6 +265,7 @@ namespace CollectionGame.World
             var screen = mouse.position.ReadValue();
             // Clicks on the chat box, windows and name tags are not walking.
             if (Gui.ToGui(screen).y > Gui.Height - 60f || Gui.IsOverUi(screen)) return;
+            if (!chatOpen) GUIUtility.keyboardControl = 0; // clicking the world leaves a text field
             var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
             mover.SetTarget(Coords.ToServer(world));
         }
@@ -269,6 +298,16 @@ namespace CollectionGame.World
             Gui.Block(nameRect);
             if (GUI.Button(nameRect, GUIContent.none, GUIStyle.none)) collection.OpenProfile(isMe ? null : view.Id);
 
+            if (view.EmoteText != null && Time.time < view.EmoteTextUntil)
+            {
+                // Emotes are written under the feet, so they never cover a chat bubble.
+                var at = Gui.ToGui(cam.WorldToScreenPoint(feet));
+                var text = $"*{view.EmoteText}*";
+                var size = Gui.Emote.CalcSize(new GUIContent(text)) + new Vector2(6f, 2f);
+                GUI.Label(new Rect(at.x - size.x / 2f + 1, at.y + 1, size.x, size.y), text, Gui.Shadow);
+                GUI.Label(new Rect(at.x - size.x / 2f, at.y, size.x, size.y), text, Gui.Emote);
+            }
+
             if (view.Bubble == null || Time.time > view.BubbleUntil) return;
             var content = new GUIContent(view.Bubble);
             // A few pixels of slack: the scaled GUI matrix rounds text wider than CalcSize says.
@@ -286,6 +325,7 @@ namespace CollectionGame.World
             {
                 fishing.DrawGui(mover.Position);
                 collection.DrawGui();
+                social.DrawGui();
             }
         }
 

@@ -30,6 +30,11 @@ namespace CollectionGame.Net
         // Faz 3: Collection Book
         public const long BookPlace = 16;
         public const long BookResult = 17;
+        // Faz 3: friends, teleport, emotes
+        public const long GotoFriend = 18;
+        public const long Teleport = 19;
+        public const long Emote = 20;
+        public const long EmoteShow = 21;
     }
 
     public static class ErrorCode
@@ -371,6 +376,72 @@ namespace CollectionGame.Net
         public string[] pagesComplete;
         public ItemInstance[] showcase;
         public string hunting;
+    }
+
+    // --- Faz 3: friends, teleport, emotes (docs/protokol.md, Arkadaşlar, ışınlanma, emote) ---
+
+    public static class Emotes
+    {
+        public const string Wave = "wave";
+        public const string Clap = "clap";
+        public const string Dance = "dance";
+        public const string Sit = "sit";
+        public const string Laugh = "laugh";
+        public const string ShowFish = "show_fish";
+        /// <summary>Keys 1-6 in this order. The server drops anything else (no flirting emotes, 13+).</summary>
+        public static readonly string[] All = { Wave, Clap, Dance, Sit, Laugh, ShowFish };
+    }
+
+    /// <summary>C → S, op 18: "Yanına git" to a friend on this server.</summary>
+    [Serializable]
+    public class GotoFriendMsg
+    {
+        public string userId;
+    }
+
+    /// <summary>S → C, op 19. reason set = refused (NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED), x/y is where we are.</summary>
+    [Serializable]
+    public class TeleportMsg
+    {
+        public float x;
+        public float y;
+        public string reason;
+    }
+
+    /// <summary>C → S, op 20.</summary>
+    [Serializable]
+    public class EmoteMsg
+    {
+        public string emote;
+    }
+
+    /// <summary>S → C, op 21. defId only for show_fish.</summary>
+    [Serializable]
+    public class EmoteShowMsg
+    {
+        public string id;
+        public string emote;
+        public string defId;
+    }
+
+    [Serializable]
+    public class FriendStatus
+    {
+        public string userId;
+        public string username;
+        public bool online;
+        /// <summary>Empty when not in a world server.</summary>
+        public string serverName;
+        public string matchId;
+        public float x;
+        public float y;
+    }
+
+    /// <summary>friends_status RPC: mutual friends only.</summary>
+    [Serializable]
+    public class FriendsStatusResponse
+    {
+        public FriendStatus[] friends;
     }
 
     /// <summary>get_inventory RPC.</summary>

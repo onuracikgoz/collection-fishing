@@ -118,7 +118,40 @@ namespace CollectionGame.Net
             return sb.Append('"').ToString();
         }
 
-        public async Task JoinAsync(string matchId, string characterId = "default")
+        // ---- friends: Nakama's own friend API (docs/protokol.md, Arkadaşlar) ----
+
+        /// <summary>Nakama friend states.</summary>
+        public const int FriendMutual = 0, FriendInviteSent = 1, FriendInviteReceived = 2, FriendBlocked = 3;
+
+        public readonly struct Friend
+        {
+            public readonly string UserId, Username;
+            public readonly int State;
+            public Friend(string id, string name, int state) { UserId = id; Username = name; State = state; }
+        }
+
+        /// <summary>Sends a request, or accepts one when the other side already asked.</summary>
+        public Task AddFriendAsync(string userId = null, string username = null) =>
+            client.AddFriendsAsync(Session, userId != null ? new[] { userId } : null, username != null ? new[] { username } : null);
+
+        public Task RemoveFriendAsync(string userId) => client.DeleteFriendsAsync(Session, new[] { userId });
+
+        public async Task<List<Friend>> ListFriendsAsync()
+        {
+            var list = await client.ListFriendsAsync(Session, null, 100, null);
+            var result = new List<Friend>();
+            foreach (var f in list.Friends) result.Add(new Friend(f.User.Id, f.User.Username, f.State));
+            return result;
+        }
+
+        public async Task<FriendsStatusResponse> FriendsStatusAsync()
+        {
+            var rpc = await client.RpcAsync(Session, "friends_status", "{}");
+            return JsonUtility.FromJson<FriendsStatusResponse>(rpc.Payload);
+        }
+
+        /// <summary>Joins a world server; <paramref name="near"/> lands beside that friend (cross-server "Yanına git").</summary>
+        public async Task JoinAsync(string matchId, string characterId = "default", string near = null)
         {
             await CloseAsync();
             ClosedReason = null;
@@ -143,6 +176,7 @@ namespace CollectionGame.Net
                 ["protocolVersion"] = Protocol.Version.ToString(),
                 ["characterId"] = characterId,
             };
+            if (!string.IsNullOrEmpty(near)) metadata["near"] = near;
             await s.JoinMatchAsync(matchId, metadata);
             MatchId = matchId;
         }

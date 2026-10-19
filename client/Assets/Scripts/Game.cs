@@ -93,16 +93,19 @@ namespace CollectionGame
                     }
         }
 
-        async void Join(ServerInfo server)
+        /// <param name="near">Friend to land beside ("Yanına git" across servers).</param>
+        async void Join(ServerInfo server, string near = null)
         {
+            DestroyWorld();
             Busy($"{server.name} sunucusuna giriliyor...");
             try
             {
                 // The world exists before joining: WELCOME can arrive before JoinAsync returns.
-                world = WorldController.Create(net, server.name, OnDisconnected);
+                world = WorldController.Create(net, server.name, OnDisconnected,
+                    (matchId, name, friend) => Join(new ServerInfo { matchId = matchId, name = name }, friend));
                 if (Autopilot.Enabled) Autopilot.Attach(world);
                 screen = Page.World;
-                await net.JoinAsync(server.matchId);
+                await net.JoinAsync(server.matchId, near: near);
             }
             catch (Exception e)
             {

@@ -74,6 +74,20 @@ namespace CollectionGame.World
             BubbleUntil = Time.time + seconds;
         }
 
+        /// <summary>Current emote (EMOTE_SHOW); sit lasts until the character walks.</summary>
+        public string Emote { get; private set; }
+        public string EmoteText { get; private set; }
+        public float EmoteTextUntil { get; private set; }
+        float emoteUntil;
+
+        public void ShowEmote(string emote, string text, float seconds)
+        {
+            Emote = emote;
+            EmoteText = text;
+            emoteUntil = EmoteTextUntil = Time.time + seconds;
+            animTime = 0f;
+        }
+
         void Update()
         {
             if (Moving != wasMoving)
@@ -82,10 +96,14 @@ namespace CollectionGame.World
                 wasMoving = Moving;
             }
             animTime += Time.deltaTime;
+            if (Emote != null && (Moving || (Emote != Emotes.Sit && Time.time > emoteUntil))) Emote = null;
 
-            var anim = Moving ? "Walk" : "Idle";
-            var frames = Moving ? 8 : 3;
-            var frame = (int)(animTime * (Moving ? WalkFps : IdleFps)) % frames;
+            // Sitting.png has three poses per direction; the first is sitting on the ground.
+            var sitting = Emote == Emotes.Sit;
+            var walking = Moving || Emote == Emotes.Dance;
+            var anim = sitting ? "Sitting" : walking ? "Walk" : "Idle";
+            var frames = sitting ? 1 : walking ? 8 : 3;
+            var frame = (int)(animTime * (walking ? WalkFps : IdleFps)) % frames;
             var row = Row(Facing);
             var rect = new RectInt(frame * Frame, row * Frame, Frame, Frame);
             var paths = look.LayerPaths;

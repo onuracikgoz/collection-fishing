@@ -48,10 +48,17 @@ namespace CollectionGame.Dev
 
         WorldController world;
 
+        static Autopilot instance;
+
+        /// <summary>One autopilot for the whole run; it follows the player into each new world (server switch).</summary>
         public static void Attach(WorldController world)
         {
-            var bot = world.gameObject.AddComponent<Autopilot>();
-            bot.world = world;
+            if (instance == null)
+            {
+                instance = new GameObject(nameof(Autopilot)).AddComponent<Autopilot>();
+                DontDestroyOnLoad(instance.gameObject);
+            }
+            instance.world = world;
         }
 
         void Log(string msg) => Debug.Log($"[Autopilot] {msg}");
@@ -65,6 +72,14 @@ namespace CollectionGame.Dev
             while (!world.Ready) yield return null;
             Log($"joined at {world.MyPosition}");
 
+            var friend = Arg("-cgFriend");
+            if (!string.IsNullOrEmpty(friend)) world.Social.AddFriend(null, friend);
+            if (mode == "social")
+            {
+                yield return Social(friend);
+                yield break;
+            }
+
             foreach (var p in mode == "fish" ? FisherPath : WalkerPath)
             {
                 world.WalkTo(p);
@@ -77,7 +92,16 @@ namespace CollectionGame.Dev
             var say = Arg("-cgSay");
             if (!string.IsNullOrEmpty(say)) world.Say(say);
 
-            if (mode == "fish") yield return Fish();
+            if (mode == "fish")
+            {
+                yield return Fish();
+                // Show the catch off and wave to whoever is around.
+                world.Social.SendEmote(Emotes.ShowFish);
+                yield return new WaitForSeconds(2.5f);
+                world.Social.SendEmote(Emotes.Wave);
+                yield return new WaitForSeconds(1f);
+                Log($"emotes seen {world.Social.EmotesSeen}");
+            }
             else yield return LookAtOthers();
 
             yield return new WaitForSeconds(1.5f);
@@ -187,6 +211,61 @@ namespace CollectionGame.Dev
             collection.OpenBook(other, card.username);
             yield return WaitFor(() => collection.Book != null, 5f);
             if (collection.Book != null) Log($"other book score {collection.Book.score}");
+        }
+
+        /// <summary>
+        /// Social bot: waits until the friend is mutual and online, goes to them ("Yanına git",
+        /// across servers if needed, then once more on the same server), dances, and
+        /// waits to see the friend's emotes.
+        /// </summary>
+        IEnumerator Social(string friendName)
+        {
+            FriendStatus target = null;
+            var until = Time.time + 120f;
+            while (target == null && Time.time < until)
+            {
+                world.Social.Refresh();
+                yield return new WaitForSeconds(2f);
+                target = world.Social.Status.Values.FirstOrDefault(f => f.username == friendName && f.online && !string.IsNullOrEmpty(f.matchId));
+            }
+            if (target == null)
+            {
+                Log($"friend {friendName} never showed up");
+                yield break;
+            }
+            Log($"friend {target.username} on {target.serverName} at ({target.x:0.0}, {target.y:0.0}); me on {world.Net.MatchId == target.matchId}");
+
+            var before = world;
+            world.Social.GotoFriend(target);
+            if (target.matchId != before.Net.MatchId)
+            {
+                yield return WaitFor(() => world != before && world.Ready, 15f);
+                Log($"switched server, landed at {world.MyPosition}, {Vector2.Distance(world.MyPosition, new Vector2(target.x, target.y)):0.0} tiles from friend");
+            }
+
+            // Same-server "Yanına git" after the cooldown (the friend may have walked on).
+            yield return new WaitForSeconds(3.5f);
+            world.Social.Refresh();
+            yield return new WaitForSeconds(1.5f);
+            if (world.Social.Status.TryGetValue(target.userId, out var now))
+            {
+                world.Social.GotoFriend(now);
+                yield return WaitFor(() => world.Social.LastTeleport != null, 5f);
+                var t = world.Social.LastTeleport;
+                Log(t == null ? "no TELEPORT" : $"teleport to ({t.x:0.0}, {t.y:0.0}) {t.reason}, friend at ({now.x:0.0}, {now.y:0.0})");
+            }
+
+            world.Social.SendEmote(Emotes.Dance);
+            yield return WaitFor(() => world.Social.EmotesSeen >= 3, 240f);
+            Log($"emotes seen {world.Social.EmotesSeen}");
+            var shot = Arg("-cgShot");
+            if (!string.IsNullOrEmpty(shot))
+            {
+                ScreenCapture.CaptureScreenshot(shot);
+                Log($"screenshot {shot}");
+            }
+            yield return new WaitForSeconds(0.5f);
+            Log($"summary others {world.OthersInView}, corrections {world.Corrections}");
         }
 
         static IEnumerator WaitFor(Func<bool> done, float seconds)

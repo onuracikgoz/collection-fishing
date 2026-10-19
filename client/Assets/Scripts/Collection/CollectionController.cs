@@ -55,6 +55,9 @@ namespace CollectionGame.Collection
         float noteUntil;
         Vector2 bookScroll;
 
+        /// <summary>Sends a friend request (userId, username); set by the world.</summary>
+        public Action<string, string> AddFriend { get; set; }
+
         public CollectionController(Connection net) => this.net = net;
 
         public static string PageName(string id) => id != null && PageNames.TryGetValue(id, out var n) ? n : id ?? "?";
@@ -345,6 +348,8 @@ namespace CollectionGame.Collection
             GUILayout.Label($"Arıyorum: {(string.IsNullOrEmpty(Profile.hunting) ? "-" : FishingController.ItemName(Profile.hunting))}", Gui.Hud);
             GUILayout.FlexibleSpace();
             var mine = Profile.userId == net.UserId;
+            if (!mine && AddFriend != null && GUILayout.Button("Arkadaş ekle", Gui.Button, GUILayout.Height(28)))
+                AddFriend(Profile.userId, Profile.username);
             if (GUILayout.Button(mine ? "Defterimi aç (K)" : "Defterini gör", Gui.Button, GUILayout.Height(28)))
                 OpenBook(mine ? null : Profile.userId, Profile.username);
             GUILayout.EndArea();

@@ -15,7 +15,7 @@ namespace CollectionGame.UI
         public static float Width => Screen.width / Scale;
         public static float Height => Screen.height / Scale;
 
-        public static GUIStyle Name, NameMe, Shadow, Bubble, Hud, Input, Title, Error, Button, Alert, Toast, Fill, Water, FishMark, Header, Faint, Discover, Celebrate, Window;
+        public static GUIStyle Name, NameMe, Shadow, Bubble, Hud, Input, Title, Error, Button, Alert, Toast, Fill, Water, FishMark, Header, Faint, Discover, Celebrate, Window, Emote;
 
         // Styles hold a runtime texture; without a domain reload it is gone next Play.
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
@@ -58,6 +58,8 @@ namespace CollectionGame.UI
 
             Window = new GUIStyle(GUI.skin.box) { padding = new RectOffset(10, 10, 8, 8) };
             Window.normal.background = Solid(new Color(0.09f, 0.13f, 0.18f, 0.94f));
+            Emote = new GUIStyle(Name) { fontStyle = FontStyle.Italic };
+            Emote.normal.textColor = new Color(0.75f, 0.95f, 1f);
             Header = new GUIStyle(Hud) { fontSize = 17, fontStyle = FontStyle.Bold };
             Faint = new GUIStyle(Hud);
             Faint.normal.textColor = new Color(1f, 1f, 1f, 0.45f);

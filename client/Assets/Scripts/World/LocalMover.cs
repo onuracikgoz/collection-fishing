@@ -108,6 +108,16 @@ namespace CollectionGame.World
             return false;
         }
 
+        /// <summary>The server moved us (TELEPORT, "Yanına git"): start from there.</summary>
+        public void Teleport(Vector2 to)
+        {
+            ignoreCorrectionsUpTo = seq;
+            Position = to;
+            sentPos = to;
+            Target = null;
+            Moving = false;
+        }
+
         /// <summary>Server rejected a MOVE: jump to where it says we are.</summary>
         public bool ApplyCorrection(CorrectionMsg fix)
         {
