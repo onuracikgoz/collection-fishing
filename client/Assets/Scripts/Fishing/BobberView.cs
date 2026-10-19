@@ -51,12 +51,13 @@ namespace CollectionGame.Fishing
         public void Tick(Vector2? fisher)
         {
             var t = Time.time - stateAt;
-            var offset = 0f;
-            if (state == BobberState.Bite) offset = -0.18f;
-            else if (state == BobberState.Twitch && t < 0.35f) offset = -0.1f * Mathf.Sin(t / 0.35f * Mathf.PI);
-            else offset = 0.03f * Mathf.Sin(Time.time * 3f);
+            // Twitch only wiggles sideways (do not pull!); a bite pulls the float under.
+            var offset = Vector3.zero;
+            if (state == BobberState.Bite) offset.y = -0.22f + 0.03f * Mathf.Sin(Time.time * 25f);
+            else if (state == BobberState.Twitch && t < 0.4f) offset.x = 0.06f * Mathf.Sin(t * 60f);
+            else offset.y = 0.03f * Mathf.Sin(Time.time * 3f);
 
-            var p = Coords.ToUnity(pos) + new Vector3(0f, offset, 0f);
+            var p = Coords.ToUnity(pos) + offset;
             body.transform.position = p;
             body.color = state == BobberState.Bite ? new Color(1f, 1f, 1f, 0.55f) : Color.white;
 

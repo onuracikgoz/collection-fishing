@@ -51,6 +51,7 @@ namespace CollectionGame.Fishing
         public bool BlocksMovement => State != Phase.Idle && State != Phase.Waiting;
 
         float charge;
+        bool hookedEarly;
         Vector2? pendingCast;
         float stateSince;
         float reelStartedAt;
@@ -156,6 +157,7 @@ namespace CollectionGame.Fishing
         public void Hook()
         {
             if (State != Phase.Waiting && State != Phase.Bite) return;
+            hookedEarly = State == Phase.Waiting;
             net.Send(OpCode.Hook, new EmptyMsg());
             SetState(Phase.Hooked);
         }
@@ -226,7 +228,8 @@ namespace CollectionGame.Fishing
             LastOutcome = e.outcome;
             LastEnd = e;
             Debug.Log($"[Fish] FISH_END {e.outcome} {e.reason} {e.defId} energy {e.energy}");
-            ShowToast(Describe(e));
+            ShowToast(e.outcome == FishOutcome.Missed ? (hookedEarly ? "Erken çektin: kıpırdama sahte, şamandıra batınca çek" : "Geç kaldın: şamandıra batınca hemen Space") : Describe(e));
+            hookedEarly = false;
             if (keepsBobber) return;
             Reel = null;
             SetState(Phase.Idle);
@@ -358,7 +361,7 @@ namespace CollectionGame.Fishing
                 case Phase.Idle:
                     return LakeMap.IsNearWater(me, NearWater) ? "F basılı tut, bırak: olta at · sağ tık: suya at · B: çanta" : null;
                 case Phase.Charging: return "Bırakınca atar";
-                case Phase.Waiting: return "Bekle… şamandıra batınca Space · Esc: topla";
+                case Phase.Waiting: return "Bekle… kıpırdama sahte, şamandıra batınca Space · Esc: topla";
                 case Phase.Bite: return "ÇEK! (Space)";
                 case Phase.Reeling: return "Space basılı tut: yeşil çubuğu balığın üstünde tut";
                 default: return null;

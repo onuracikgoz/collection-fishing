@@ -29,6 +29,7 @@ namespace CollectionGame.World
         readonly Dictionary<string, (CharacterView view, RemoteMover mover)> others = new Dictionary<string, (CharacterView, RemoteMover)>();
 
         FishingController fishing;
+        bool inputLatched;
         bool chatOpen;
         bool focusChat;
         string chatText = "";
@@ -85,10 +86,16 @@ namespace CollectionGame.World
             var now = Time.time;
             if (mover != null)
             {
-                var frozen = fishing.BlocksMovement;
+                // Keys or the mouse button still held from before a cast must not walk
+                // (walking reels the line in): they count again once released.
+                var keys = chatOpen ? Vector2.zero : ReadKeys();
+                var mouseHeld = Mouse.current != null && Mouse.current.leftButton.isPressed;
+                if (fishing.BlocksMovement) inputLatched = true;
+                else if (inputLatched && keys == Vector2.zero && !mouseHeld) inputLatched = false;
+                var frozen = fishing.BlocksMovement || inputLatched;
                 if (frozen) mover.ClearTarget();
                 else ReadMouse();
-                var move = mover.Tick(chatOpen || frozen ? Vector2.zero : ReadKeys(), Time.deltaTime, now);
+                var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
                 fishing.Update(mover.Position, mover.Facing, chatOpen, cam);
