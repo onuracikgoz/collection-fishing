@@ -73,6 +73,51 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<InventoryResponse>(rpc.Payload);
         }
 
+        public async Task<BookResponse> GetBookAsync(string userId = null)
+        {
+            var rpc = await client.RpcAsync(Session, "get_book", UserArg(userId));
+            return JsonUtility.FromJson<BookResponse>(rpc.Payload);
+        }
+
+        public async Task<ProfileResponse> GetProfileAsync(string userId = null)
+        {
+            var rpc = await client.RpcAsync(Session, "get_profile", UserArg(userId));
+            return JsonUtility.FromJson<ProfileResponse>(rpc.Payload);
+        }
+
+        /// <summary>
+        /// set_profile. Fields left null are kept; <paramref name="clearHunting"/> sends
+        /// hunting: null. Written by hand because JsonUtility cannot omit or null a field.
+        /// </summary>
+        public async Task<ProfileResponse> SetProfileAsync(string[] showcase = null, string hunting = null, bool clearHunting = false)
+        {
+            var parts = new List<string>();
+            if (showcase != null)
+            {
+                var ids = new List<string>();
+                foreach (var id in showcase) ids.Add(JsonString(id));
+                parts.Add($"\"showcase\":[{string.Join(",", ids)}]");
+            }
+            if (clearHunting) parts.Add("\"hunting\":null");
+            else if (hunting != null) parts.Add($"\"hunting\":{JsonString(hunting)}");
+            var rpc = await client.RpcAsync(Session, "set_profile", "{" + string.Join(",", parts) + "}");
+            return JsonUtility.FromJson<ProfileResponse>(rpc.Payload);
+        }
+
+        static string UserArg(string userId) => string.IsNullOrEmpty(userId) ? "{}" : "{\"userId\":" + JsonString(userId) + "}";
+
+        static string JsonString(string s)
+        {
+            var sb = new StringBuilder("\"");
+            foreach (var c in s)
+            {
+                if (c == '"' || c == '\\') sb.Append('\\').Append(c);
+                else if (c < ' ') sb.Append($"\\u{(int)c:x4}");
+                else sb.Append(c);
+            }
+            return sb.Append('"').ToString();
+        }
+
         public async Task JoinAsync(string matchId, string characterId = "default")
         {
             await CloseAsync();

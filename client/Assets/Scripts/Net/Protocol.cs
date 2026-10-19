@@ -27,6 +27,9 @@ namespace CollectionGame.Net
         public const long ReelDone = 13;
         public const long FishEnd = 14;
         public const long Cancel = 15;
+        // Faz 3: Collection Book
+        public const long BookPlace = 16;
+        public const long BookResult = 17;
     }
 
     public static class ErrorCode
@@ -277,6 +280,97 @@ namespace CollectionGame.Net
         public ItemInstance item;
         public ItemStack stack;
         public int energy;
+        /// <summary>Book outcome for a Tier item on a book page; page is empty when absent.</summary>
+        public FishBookMsg book;
+    }
+
+    // --- Faz 3: Collection Book (docs/protokol.md, Collection Book) ---
+
+    public static class BookKind
+    {
+        public const string Discovered = "discovered";
+        public const string Copy = "copy";
+    }
+
+    public static class RecordState
+    {
+        public const string Unknown = "unknown";
+        public const string Found = "found";
+        public const string Filled = "filled";
+    }
+
+    [Serializable]
+    public class FishBookMsg
+    {
+        public string page;
+        /// <summary>discovered: first copy, now in its slot. copy: went to the bag.</summary>
+        public string kind;
+        public bool pageComplete;
+        /// <summary>copy: cleaner than the slot's copy, or the slot is empty.</summary>
+        public bool better;
+        public float luck;
+        public int score;
+    }
+
+    /// <summary>C → S, op 16: put a bag item in its book slot.</summary>
+    [Serializable]
+    public class BookPlaceMsg
+    {
+        public string instanceId;
+    }
+
+    /// <summary>S → C, op 17. slot / previous have an empty instanceId when absent.</summary>
+    [Serializable]
+    public class BookResultMsg
+    {
+        public bool ok;
+        public string reason;
+        public string defId;
+        public string page;
+        public ItemInstance slot;
+        public ItemInstance previous;
+        public int score;
+    }
+
+    [Serializable]
+    public class BookRecord
+    {
+        /// <summary>Empty for unknown records.</summary>
+        public string defId;
+        public string state;
+        public ItemInstance item;
+    }
+
+    [Serializable]
+    public class BookPage
+    {
+        public string id;
+        public int total;
+        public int found;
+        public int filled;
+        public BookRecord[] records;
+    }
+
+    /// <summary>get_book RPC.</summary>
+    [Serializable]
+    public class BookResponse
+    {
+        public string userId;
+        public BookPage[] pages;
+        public float luck;
+        public int score;
+    }
+
+    /// <summary>get_profile / set_profile RPC.</summary>
+    [Serializable]
+    public class ProfileResponse
+    {
+        public string userId;
+        public string username;
+        public int score;
+        public string[] pagesComplete;
+        public ItemInstance[] showcase;
+        public string hunting;
     }
 
     /// <summary>get_inventory RPC.</summary>

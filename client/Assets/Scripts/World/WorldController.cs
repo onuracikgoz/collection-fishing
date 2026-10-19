@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using CollectionGame.Collection;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
@@ -29,6 +30,7 @@ namespace CollectionGame.World
         readonly Dictionary<string, (CharacterView view, RemoteMover mover)> others = new Dictionary<string, (CharacterView, RemoteMover)>();
 
         FishingController fishing;
+        CollectionController collection;
         bool inputLatched;
         bool chatOpen;
         bool focusChat;
@@ -41,6 +43,7 @@ namespace CollectionGame.World
             world.net = net;
             world.serverName = serverName;
             world.onDisconnected = onDisconnected;
+            world.collection = new CollectionController(net);
             world.fishing = new FishingController(net, go.transform, world.PositionOf, () => world.mover != null && world.mover.Synced);
             go.AddComponent<MapView>();
             return world;
@@ -52,7 +55,9 @@ namespace CollectionGame.World
         public string MyFacing => mover?.Facing ?? Dir.Down;
         public bool Walking => mover != null && (mover.Target.HasValue || mover.Moving);
         public int OthersInView => others.Count;
+        public IEnumerable<string> OtherIds => others.Keys;
         public FishingController Fishing => fishing;
+        public CollectionController Collection => collection;
         public void WalkTo(Vector2 target) => mover?.SetTarget(target);
         public void Say(string text) => net.Send(OpCode.Say, new SayMsg { text = text });
         public int Corrections { get; private set; }
@@ -99,6 +104,7 @@ namespace CollectionGame.World
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
                 fishing.Update(mover.Position, mover.Facing, chatOpen, cam);
+                collection.Update(chatOpen);
             }
 
             foreach (var (view, remote) in others.Values)
@@ -195,8 +201,12 @@ namespace CollectionGame.World
                     var f = JsonUtility.FromJson<FishEndMsg>(m.Json);
                     others.TryGetValue(f.id ?? "", out var who);
                     fishing.OnFishEnd(f, net.UserId, who.view);
+                    if (f.id == net.UserId) collection.OnFishEnd(f);
                     break;
                 }
+                case OpCode.BookResult:
+                    collection.OnBookResult(JsonUtility.FromJson<BookResultMsg>(m.Json));
+                    break;
                 case OpCode.Bubble:
                 {
                     var b = JsonUtility.FromJson<BubbleMsg>(m.Json);
@@ -225,8 +235,8 @@ namespace CollectionGame.World
             var mouse = Mouse.current;
             if (mouse == null || cam == null || !mouse.leftButton.isPressed) return;
             var screen = mouse.position.ReadValue();
-            // Clicks on the chat box are not walking.
-            if (Gui.ToGui(screen).y > Gui.Height - 60f) return;
+            // Clicks on the chat box, windows and name tags are not walking.
+            if (Gui.ToGui(screen).y > Gui.Height - 60f || Gui.IsOverUi(screen)) return;
             var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
             mover.SetTarget(Coords.ToServer(world));
         }
@@ -255,6 +265,9 @@ namespace CollectionGame.World
             var nameRect = new Rect(namePos.x - nameSize.x / 2f, namePos.y - nameSize.y, nameSize.x, nameSize.y);
             GUI.Label(new Rect(nameRect.x + 1, nameRect.y + 1, nameRect.width, nameRect.height), view.DisplayName, Gui.Shadow);
             GUI.Label(nameRect, view.DisplayName, nameStyle);
+            // Click a name to see that player's profile card.
+            Gui.Block(nameRect);
+            if (GUI.Button(nameRect, GUIContent.none, GUIStyle.none)) collection.OpenProfile(isMe ? null : view.Id);
 
             if (view.Bubble == null || Time.time > view.BubbleUntil) return;
             var content = new GUIContent(view.Bubble);
@@ -269,7 +282,11 @@ namespace CollectionGame.World
             var info = mover == null ? "Bağlanıyor..." : $"{serverName} · {others.Count + 1} kişi görüşte";
             GUI.Label(new Rect(10, 8, 400, 24), info, Gui.Hud);
             if (!chatOpen) GUI.Label(new Rect(10, Gui.Height - 30, 600, 24), "WASD / tıkla: yürü · Enter: konuş", Gui.Hud);
-            if (mover != null) fishing.DrawGui(mover.Position);
+            if (mover != null)
+            {
+                fishing.DrawGui(mover.Position);
+                collection.DrawGui();
+            }
         }
 
         void DrawChat()

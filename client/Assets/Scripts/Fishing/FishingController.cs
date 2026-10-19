@@ -391,6 +391,7 @@ namespace CollectionGame.Fishing
         void DrawBag()
         {
             var r = new Rect(Gui.Width - 330, 60, 310, 360);
+            Gui.Block(r);
             GUILayout.BeginArea(r, GUI.skin.box);
             if (Bag == null)
             {

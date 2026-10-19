@@ -27,6 +27,7 @@ namespace CollectionGame.World
         float animTime;
         bool wasMoving;
 
+        public string Id { get; private set; }
         public string DisplayName { get; set; }
         public string Bubble { get; private set; }
         public float BubbleUntil { get; private set; }
@@ -40,6 +41,7 @@ namespace CollectionGame.World
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<CharacterView>();
             view.DisplayName = name;
+            view.Id = id;
             view.look = Appearance.For(id);
             view.group = go.AddComponent<SortingGroup>();
             var paths = view.look.LayerPaths;
