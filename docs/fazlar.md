@@ -51,11 +51,12 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 
 ## Faz 3: bitti sayılma şartları
 
-- [ ] Collection Book: yuvalar, 3 durum, "Yeni keşif!". Sunucu hazır (`rules/book.ts`, `BOOK_PLACE`, `get_book`). Client yok
-- [ ] Şans bonusu (sayfa başına, sınırlı) ve Collection Score. Sunucu hazır (Öneri değerler). Client yok
-- [ ] Profil kartı, showcase. Sunucu hazır (`get_profile`, `set_profile`, "Arıyorum"). Level XP'yle gelecek. Client yok
-- [ ] Arkadaşlar, ışınlanma. Sunucu hazır (Nakama arkadaş API'si, `friends_status`, `GOTO_FRIEND`, `near` ile katılım). Client yok
-- [ ] Emote. Sunucu hazır (`EMOTE`, `show_fish`). Client yok
+- [x] Collection Book: yuvalar, 3 durum, "Yeni keşif!". Sunucu: `rules/book.ts`, `BOOK_PLACE`, `get_book` (#12). Client: defter penceresi (K), keşif bandı, "Defterdekiyle değiştir?" (#11)
+- [x] Şans bonusu (sayfa başına, sınırlı) ve Collection Score. Öneri değerler, playtest sonrası ayarlanacak
+- [x] Profil kartı, showcase. Sunucu: `get_profile`, `set_profile`, "Arıyorum". Client: profil kartı (P), başkasının kartı ve defteri. Level XP'yle gelecek
+- [x] Arkadaşlar, ışınlanma. Nakama arkadaş API'si, `friends_status`, `GOTO_FRIEND`, `near` ile katılım. Client: arkadaş listesi (O), Yanına git. İniş noktası arkadaştan en az 1.25 tile uzakta (#13)
+- [x] Emote. `EMOTE`, `show_fish`. Client: 1-6 tuşları
+- [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
 
 ## Agent rolleri
 
