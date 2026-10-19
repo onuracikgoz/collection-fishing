@@ -120,3 +120,7 @@ export const SCORE = {
   tierPoints: { common: 1, rare: 3, epic: 10, legendary: 30, mythic: 100 },
   pageFilled: 20,
 };
+
+export const PROFILE = {
+  showcaseMax: 3, // docs/tasarim/10-sosyal.md 13.3
+};

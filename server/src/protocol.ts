@@ -205,3 +205,21 @@ export interface InventoryResponse {
 export function errorMessage(code: string, message: string): string {
   return JSON.stringify({ code, message });
 }
+
+export interface ProfileResponse {
+  userId: string;
+  username: string;
+  score: number;
+  /** Pages whose every record was found. */
+  pagesComplete: string[];
+  /** Showcase items as they sit in the book now. */
+  showcase: ItemInstance[];
+  hunting?: string;
+}
+
+export interface SetProfileRequest {
+  /** Book record ids; each needs a filled slot. Omit to keep. */
+  showcase?: string[];
+  /** A book record id, or null to clear. Omit to keep. */
+  hunting?: string | null;
+}

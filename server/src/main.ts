@@ -13,6 +13,7 @@ import { rpcHealthcheck } from './rpc/healthcheck';
 import { rpcListServers } from './rpc/listServers';
 import { rpcGetInventory } from './rpc/getInventory';
 import { rpcGetBook } from './rpc/getBook';
+import { rpcGetProfile, rpcSetProfile } from './rpc/profile';
 
 // Nakama finds handlers by their global function names, so every handler is
 // passed here directly as a top-level function, never wrapped.
@@ -26,6 +27,8 @@ function InitModule(
   initializer.registerRpc('list_servers', rpcListServers);
   initializer.registerRpc('get_inventory', rpcGetInventory);
   initializer.registerRpc('get_book', rpcGetBook);
+  initializer.registerRpc('get_profile', rpcGetProfile);
+  initializer.registerRpc('set_profile', rpcSetProfile);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerMatch('world', {
     matchInit: worldInit,

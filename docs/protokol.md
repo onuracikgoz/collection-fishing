@@ -28,6 +28,8 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
 | `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }] }` (defter yuvasındaki eşyalar hariç) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
+| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
+| `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
 
@@ -130,6 +132,7 @@ Kurallar: `docs/tasarim/06-defter.md`. Defter herkese açıktır; kayıt, yuva, 
 - `BOOK_PLACE` sonucu: `slot` yuvaya giren eşya, `previous` çantaya dönen eşya (yoksa yok). `reason`: `BAD_REQUEST`, `NOT_OWNED` (eşya çantada değil), `NOT_IN_BOOK` (eşyanın kaydı yok), `NOT_FOUND` (kayıt henüz bulunmamış). Oyuncu başına tick'te en fazla bir defter işlemi işlenir.
 - **Şans** (Öneri): sayfa başına; kayıtlarının yarısı bulunmuş sayfa +%2, tamamı bulunmuş sayfa +%5, toplam en fazla +%25. Silik kayıtlar da sayılır. Şans, av tablosunda Rare, Epic, Legendary ve Mythic ağırlıklarını `(1 + şans)` ile çarpar.
 - **Collection Score** (Öneri): sadece yuvadaki eşyalar sayılır. Common 1, Rare 3, Epic 10, Legendary 30, Mythic 100 puan; tüm yuvaları dolu sayfa +20.
+- **Profil kartı** (`10-sosyal.md` 13.3): `showcase` en fazla 3 defter kaydıdır, her birinin yuvası dolu olmalı; kartta yuvadaki eşya (Tier, Float) görünür. Yuva sonradan boşalırsa o kayıt karttan düşer. `hunting` ("Arıyorum") defterdeki herhangi bir kayıt olabilir. `pagesComplete`: tüm kayıtları bulunmuş sayfalar. Level, XP gelince eklenecek. `set_profile` hataları `BAD_REQUEST` koduyla, mesajda nedeni: `TOO_MANY`, `DUPLICATE`, `NOT_IN_BOOK`, `SLOT_EMPTY`.
 - `BookResponse`: `{ userId, pages: [{ id, total, found, filled, records: [{ defId?, state, item? }] }], luck, score }`. `unknown` kayıtlarda `defId` gönderilmez; `filled` kayıtlarda `item` yuvadaki `ItemInstance`'tır.
 
 ## Hata kodları

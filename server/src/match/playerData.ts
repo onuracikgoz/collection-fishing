@@ -3,9 +3,11 @@
 //   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot)
 //   bag/stacks  { stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
+//   profile/card  ProfileDoc               (public: showcase and "Arıyorum")
 import { BAG, ENERGY } from '../config';
 import { InventoryResponse, ItemInstance } from '../protocol';
 import { BookEntries } from '../rules/book';
+import { ProfileDoc } from '../rules/profile';
 import { BagSummary, slotsUsed } from '../rules/bag';
 import { regenOffline } from '../rules/energy';
 
@@ -126,4 +128,16 @@ export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryRe
     items,
     stacks: Object.keys(stacks).map((defId) => ({ defId, count: stacks[defId] })),
   };
+}
+
+export function readProfile(nk: nkruntime.Nakama, userId: string): ProfileDoc {
+  const objs = nk.storageRead([{ collection: 'profile', key: 'card', userId }]);
+  const v = objs.length > 0 ? (objs[0].value as Partial<ProfileDoc>) : {};
+  return { showcase: Array.isArray(v.showcase) ? v.showcase : [], hunting: typeof v.hunting === 'string' ? v.hunting : undefined };
+}
+
+export function profileWrite(userId: string, doc: ProfileDoc): nkruntime.StorageWriteRequest {
+  const value: { showcase: string[]; hunting?: string } = { showcase: doc.showcase };
+  if (doc.hunting) value.hunting = doc.hunting;
+  return { collection: 'profile', key: 'card', userId, value, permissionRead: READ_PUBLIC, permissionWrite: WRITE_SERVER };
 }

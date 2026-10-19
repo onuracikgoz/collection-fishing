@@ -219,6 +219,19 @@ if (first) {
   check(!invNow.items.some((i) => i.instanceId === first.item.instanceId), 'book item takes no bag slot');
   const other = (await client.rpc(b.session, 'get_book', { userId: c.session.user_id })).payload;
   check(other.userId === c.session.user_id && other.score === book.score, 'others can view the book');
+
+  // Profile card: showcase from book slots and "Arıyorum"
+  const set = (await client.rpc(c.session, 'set_profile', { showcase: [first.defId], hunting: 'lake.item.blue_crystal' })).payload;
+  check(set.showcase.length === 1 && set.showcase[0].instanceId === first.item.instanceId, 'set_profile puts a book item in the showcase');
+  const card = (await client.rpc(b.session, 'get_profile', { userId: c.session.user_id })).payload;
+  check(card.username && card.hunting === 'lake.item.blue_crystal' && card.showcase[0]?.defId === first.defId && card.score === book.score,
+    'others see the profile card');
+  try {
+    await client.rpc(c.session, 'set_profile', { showcase: ['lake.junk.boot'] });
+    check(false, 'showcase refuses items that are not in the book');
+  } catch (_e) {
+    check(true, 'showcase refuses items that are not in the book');
+  }
 }
 c.clear();
 c.send(OP.BOOK_PLACE, { instanceId: 'not-an-item' });
