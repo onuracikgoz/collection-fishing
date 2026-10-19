@@ -1,15 +1,17 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
-import { BAG, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS } from '../config';
+import { BAG, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, SCORE } from '../config';
+import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
+import { BookEntries, applyLuck, discover, luckOf, onCatch, scoreOf } from '../rules/book';
 import { rollCatch, rollFloat } from '../rules/catch';
 import { spendCast } from '../rules/energy';
 import { FishState, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelTimedOut } from '../rules/fishing';
 import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
-import { energyWrite, itemWrite, stacksWrite } from './playerData';
+import { StoredItem, bookWrite, energyWrite, itemWrite, stacksWrite } from './playerData';
 
 /** The part of a match player that fishing needs. */
 export interface Fisher {
@@ -17,6 +19,7 @@ export interface Fisher {
   move: { x: number; y: number };
   energy: number;
   bag: BagSummary;
+  book: BookEntries;
   fish?: FishState;
 }
 
@@ -125,6 +128,7 @@ function give(ctx: FishingContext, f: Fisher): void {
   const userId = f.presence.userId;
   const writes: nkruntime.StorageWriteRequest[] = [];
   const extra: Partial<FishEndMsg> = { defId: roll.def.id };
+  let book: BookEntries | null = null;
   if (roll.tier) {
     const item: ItemInstance = {
       instanceId: ctx.nk.uuidv4(),
@@ -134,7 +138,23 @@ function give(ctx: FishingContext, f: Fisher): void {
       source: 'fishing',
       obtainedAt: Date.now(),
     };
-    writes.push(itemWrite(userId, item));
+    const where = onCatch(f.book, BOOK_PAGES, item.defId, item.float);
+    if (where.kind === 'discovered') {
+      // First copy goes straight to its slot: recorded and not in the bag.
+      book = discover(f.book, item.defId, { instanceId: item.instanceId, tier: item.tier, float: item.float }, item.obtainedAt);
+      const stored: StoredItem = { ...item, inBook: true };
+      writes.push(itemWrite(userId, stored), bookWrite(userId, book));
+      extra.book = {
+        page: where.page,
+        kind: 'discovered',
+        pageComplete: where.pageComplete,
+        luck: luckOf(book, BOOK_PAGES, BOOK_LUCK),
+        score: scoreOf(book, BOOK_PAGES, SCORE),
+      };
+    } else {
+      writes.push(itemWrite(userId, item));
+      if (where.kind === 'copy') extra.book = { page: where.page, kind: 'copy', better: where.better };
+    }
     extra.item = item;
   } else {
     const stacks = { ...f.bag.stacks };
@@ -148,7 +168,8 @@ function give(ctx: FishingContext, f: Fisher): void {
     ctx.logger.error('Saving catch failed: %s', String(e));
     return end(ctx, f, 'escaped');
   }
-  if (extra.item) f.bag.items++;
+  if (book) f.book = book;
+  else if (extra.item) f.bag.items++;
   if (extra.stack) f.bag.stacks[extra.stack.defId] = extra.stack.count;
   end(ctx, f, 'caught', extra);
 }
@@ -163,7 +184,8 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
       bobber(ctx, f, 'twitch');
     }
     if (now >= fs.biteAt) {
-      const roll = rollCatch(LAKE_POOL, CATCH_TABLE, fs.band, fs.hasEnergy, Math.random);
+      const table = applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK);
+      const roll = rollCatch(LAKE_POOL, table, fs.band, fs.hasEnergy, Math.random);
       if (!roll) return end(ctx, f, 'escaped');
       fs.roll = roll;
       fs.phase = 'bite';

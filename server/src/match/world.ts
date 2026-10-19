@@ -22,7 +22,9 @@ import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
-import { currentEnergy, energyWrite, loadBag } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook } from './playerData';
+import { handleBookPlace } from './book';
+import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 
 export const POSITION_COLLECTION = 'player';
@@ -42,6 +44,7 @@ interface Player {
   dirty: boolean;
   energy: number;
   bag: BagSummary;
+  book: BookEntries;
   fish?: FishState;
 }
 
@@ -172,6 +175,7 @@ export function worldJoin(
     // A reconnect keeps the live energy and bag; a fresh join loads them.
     const energy = old ? old.energy : currentEnergy(nk, presence.userId);
     const bag = old ? old.bag : loadBag(nk, presence.userId);
+    const book = old ? old.book : readBook(nk, presence.userId);
     if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
 
     state.players[presence.userId] = {
@@ -185,6 +189,7 @@ export function worldJoin(
       dirty: true,
       energy,
       bag,
+      book,
     };
     const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max };
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
@@ -292,6 +297,7 @@ export function worldLoop(
 ): { state: WorldState } | null {
   const now = tick * tickMs;
   const moves: { [userId: string]: number } = {};
+  const bookActions: { [userId: string]: true } = {};
   const says: { p: Player; body: unknown }[] = [];
   const fishing = fishingContext(nk, logger, dispatcher, state);
 
@@ -319,6 +325,10 @@ export function worldLoop(
       handleReelDone(fishing, p, body, now);
     } else if (m.opCode === OpCode.CANCEL) {
       cancelFishing(fishing, p);
+    } else if (m.opCode === OpCode.BOOK_PLACE && !bookActions[m.sender.userId]) {
+      // One book action per player per tick; each one touches storage.
+      bookActions[m.sender.userId] = true;
+      handleBookPlace(nk, logger, dispatcher, p, body);
     }
   }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);

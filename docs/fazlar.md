@@ -49,6 +49,14 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Temel yem: bedava ve sınırsız, her atış onunla yapılır. Özel yemler Faz 4'te
 - [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
 
+## Faz 3: bitti sayılma şartları
+
+- [ ] Collection Book: yuvalar, 3 durum, "Yeni keşif!". Sunucu hazır (`rules/book.ts`, `BOOK_PLACE`, `get_book`). Client yok
+- [ ] Şans bonusu (sayfa başına, sınırlı) ve Collection Score. Sunucu hazır (Öneri değerler). Client yok
+- [ ] Profil kartı, showcase. Sunucu hazır (`get_profile`, `set_profile`, "Arıyorum"). Level XP'yle gelecek. Client yok
+- [ ] Arkadaşlar, ışınlanma
+- [ ] Emote
+
 ## Agent rolleri
 
 | Rol | Sorumluluk | Not |

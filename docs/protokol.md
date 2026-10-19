@@ -26,7 +26,10 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }] }` | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }] }` (defter yuvasındaki eşyalar hariç) | 2 |
+| `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
+| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
+| `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
 
@@ -79,7 +82,7 @@ Yem: Faz 2'de her atış temel yemle yapılır (bedava, sınırsız, oranları k
 | 11 | C → S | `HOOK` | `{}` (oyuncu çekti) |
 | 12 | S → C | `REEL_START` | `{ seed, params }` (sadece oyuncunun kendisi) |
 | 13 | C → S | `REEL_DONE` | `{ inputs: [ms, ...] }` |
-| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy` |
+| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?` |
 | 15 | C → S | `CANCEL` | `{}` (oltayı topla) |
 
 - `band`: `"shore"`, `"mid"`, `"deep"`. `state`: `"cast"` (şamandıra suda), `"twitch"` (sahte kıpırdama), `"bite"` (gerçek vuruş, şamandıra battı).
@@ -112,6 +115,25 @@ Tamamen tam sayı aritmetiği; client (C#) ve sunucu (TS) aynı sonucu üretmeli
   4. `progress >= 1000` yakalandı, `progress <= 0` kaçtı. `params.maxSteps` dolarsa kaçtı.
 - `params`: `{ barSize, lift, gravity, maxVel, fishSpeed, retargetSteps, gain, loss, maxSteps, maxMs }`. Değerler Tier'a göre sunucu config'inden gelir: Common ~2 sn sakin, Mythic ~8 sn hareketli (Öneri).
 - Referans: `server/test/fixtures/reel-reference.json` (seed, params, inputs, beklenen `{caught, steps}`). C# portu bu dosyadaki her durumu birebir üretmelidir.
+
+## Collection Book (Faz 3)
+
+Kurallar: `docs/tasarim/06-defter.md`. Defter herkese açıktır; kayıt, yuva, şans ve Collection Score sadece sunucuda hesaplanır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 16 | C → S | `BOOK_PLACE` | `{ instanceId }` (çantadaki eşyayı yuvasına koy; yuvadaki kopya çantaya döner) |
+| 17 | S → C | `BOOK_RESULT` | `{ ok, reason?, defId?, page?, slot?, previous?, score? }` (sadece oyuncunun kendisi) |
+
+- Kayıt sadece Tier'lı (Float'lı) eşyalar içindir. Çöp ve malzeme defterde yoktur (Öneri). Sayfalar şimdilik `server/src/data/book-pages.ts`.
+- Bir kaydın üç durumu: `unknown` (hiç bulunmamış), `found` (bulunmuş, yuva boş; silik), `filled` (yuvada eşya var). Kayıt kalıcıdır.
+- **Yeni keşif:** bir eşyanın ilk kopyası yakalanınca kaydedilir ve doğrudan yuvaya girer, çantada yer kaplamaz. `FISH_END.book = { page, kind: "discovered", pageComplete, luck, score }`. `pageComplete` sayfanın son kaydıysa `true` (büyük kutlama).
+- **Kopya:** kayıtlı bir eşya çantaya düşer. `FISH_END.book = { page, kind: "copy", better }`. `better`: yuvadakinden düşük (temiz) Float'lı ya da yuva boş; client "Defterdekiyle değiştir?" sorar, evet derse `BOOK_PLACE` gönderir.
+- `BOOK_PLACE` sonucu: `slot` yuvaya giren eşya, `previous` çantaya dönen eşya (yoksa yok). `reason`: `BAD_REQUEST`, `NOT_OWNED` (eşya çantada değil), `NOT_IN_BOOK` (eşyanın kaydı yok), `NOT_FOUND` (kayıt henüz bulunmamış). Oyuncu başına tick'te en fazla bir defter işlemi işlenir.
+- **Şans** (Öneri): sayfa başına; kayıtlarının yarısı bulunmuş sayfa +%2, tamamı bulunmuş sayfa +%5, toplam en fazla +%25. Silik kayıtlar da sayılır. Şans, av tablosunda Rare, Epic, Legendary ve Mythic ağırlıklarını `(1 + şans)` ile çarpar.
+- **Collection Score** (Öneri): sadece yuvadaki eşyalar sayılır. Common 1, Rare 3, Epic 10, Legendary 30, Mythic 100 puan; tüm yuvaları dolu sayfa +20.
+- **Profil kartı** (`10-sosyal.md` 13.3): `showcase` en fazla 3 defter kaydıdır, her birinin yuvası dolu olmalı; kartta yuvadaki eşya (Tier, Float) görünür. Yuva sonradan boşalırsa o kayıt karttan düşer. `hunting` ("Arıyorum") defterdeki herhangi bir kayıt olabilir. `pagesComplete`: tüm kayıtları bulunmuş sayfalar. Level, XP gelince eklenecek. `set_profile` hataları `BAD_REQUEST` koduyla, mesajda nedeni: `TOO_MANY`, `DUPLICATE`, `NOT_IN_BOOK`, `SLOT_EMPTY`.
+- `BookResponse`: `{ userId, pages: [{ id, total, found, filled, records: [{ defId?, state, item? }] }], luck, score }`. `unknown` kayıtlarda `defId` gönderilmez; `filled` kayıtlarda `item` yuvadaki `ItemInstance`'tır.
 
 ## Hata kodları
 
