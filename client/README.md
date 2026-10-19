@@ -31,11 +31,17 @@ Sonucu her zaman sunucu verir; client mini oyunu sadece çizer ve tuş zamanlar�
 - **P**: profil kartım. Başka bir oyuncunun **ismine tıkla**: onun kartı, oradan defteri.
 - Sayfa adları client'ta (`CollectionController.PageNames`), sayfalar ve sayılar sunucuda.
 
+### Arkadaşlar, Yanına git, emote (Faz 3)
+
+- **O**: arkadaşlar. Adla ekle, gelen isteği kabul et; karşılıklı arkadaşın çevrimiçi mi, hangi sunucuda görünür. **Yanına git**: aynı sunucudaysa ışınlanırsın, başka sunucudaysa o sunucuya arkadaşının yanına girersin. Profil kartında **Arkadaş ekle**.
+- Emote: **1** el salla, **2** alkış, **3** dans, **4** otur (yürüyene kadar), **5** gül, **6** son avını göster. Emote yazısı karakterin altında görünür.
+- Yazı kutusu (chat, arkadaş adı) açıkken oyun tuşları çalışmaz.
+
 ### Build ve otomatik test
 
 - Menü: **CollectionGame → Build macOS** (`Builds/macOS/CollectionGame.app`, git'e girmez). Editör kapalıyken komut satırından: `Unity -batchmode -projectPath client -executeMethod CollectionGame.EditorTools.BuildTools.BuildMac -quit -logFile -`.
 - **CollectionGame → Check Reel Reference**: C# mini oyun modeli `server/test/fixtures/reel-reference.json` ile birebir mi.
-- Otomatik pilot (sadece komut satırından açılınca çalışır): `CollectionGame.app/Contents/MacOS/collection-fishing -screen-fullscreen 0 -cgUser bot1 -cgServer Mercan -cgBot fish -cgSay selam -cgShot /tmp/bot1.png -cgQuit 120`. `-cgBot walk` sadece yürür ve konuşur. Sonuçlar oyuncu logunda `[Autopilot]` / `[Fish]` satırları.
+- Otomatik pilot (sadece komut satırından açılınca çalışır): `CollectionGame.app/Contents/MacOS/collection-fishing -screen-fullscreen 0 -cgUser bot1 -cgServer Mercan -cgBot fish -cgSay selam -cgShot /tmp/bot1.png -cgQuit 120`. `-cgBot walk` sadece yürür ve konuşur. `-cgFriend AD` o oyuncuyla arkadaş olur; `-cgBot social` arkadaşının yanına gider (gerekirse sunucu değiştirir) ve emote yapar. Sonuçlar oyuncu logunda `[Autopilot]` / `[Fish]` satırları.
 
 ### Web build
 
@@ -58,6 +64,7 @@ Başka bir Mac'ten bağlanmak için sunucu adresine bu Mac'in yerel IP'sini yaz 
 | `Assets/Scripts/World/` | `LakeMap` (sunucu çarpışma verisinin aynası), `MapView` (haritayı LPC tile'larıyla çizer), `CharacterView` (LPC katmanları, animasyon), `LocalMover` (tahmin, MOVE, CORRECTION), `RemoteMover` (interpolasyon), `WorldController` (mesajlar, kamera, chat) |
 | `Assets/Scripts/Fishing/` | `ReelModel` (sunucudaki mini oyunun birebir C# portu), `FishingController` (atış, vuruş, çekme, sonuç, çanta), `BobberView` |
 | `Assets/Scripts/Collection/` | `CollectionController` (defter penceresi, keşif / sayfa kutlaması, değiştirme sorusu, profil kartı) |
+| `Assets/Scripts/Social/` | `SocialController` (arkadaş penceresi, Yanına git, emote tuşları) |
 | `Assets/Scripts/Dev/Autopilot.cs` | Build'leri komut satırından test eden otomatik oyuncu |
 | `Assets/Scripts/Art/ArtCatalog.cs` | `Assets/Art/LPC/` altındaki dokuların listesi; `Assets/Resources/ArtCatalog.asset` editörde otomatik güncellenir (`Editor/ArtCatalogBuilder.cs`, menü: CollectionGame → Refresh Art Catalog) |
 
