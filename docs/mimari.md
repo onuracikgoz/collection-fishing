@@ -26,6 +26,7 @@ CollectionGame/              (repo kökü)
 ├── client/                  Unity 6 projesi (C#, 2D URP)
 ├── server/                  Nakama modülleri (TypeScript)
 ├── tools/item-art-studio/   AI görselini oyun ikonuna çeviren araç (React + Vite)
+├── tools/dev-dashboard/     geliştirici test paneli (sadece yerel, DEV_TOOLS)
 ├── tools/admin/             admin paneli (Faz 6)
 ├── content/                 palette.hex (ortak palet), sets/: set.json, prompts.md, PNG'ler
 └── docs/                    tasarım, mimari, protokol, fazlar

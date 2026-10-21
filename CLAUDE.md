@@ -12,6 +12,7 @@ Sosyal balık tutma ve koleksiyon oyunu. Unity 6 client, Nakama (TypeScript) sun
 | Oyun kuralları (konuya göre) | `docs/tasarim/*.md` |
 | Cevap bekleyen tasarım soruları | `docs/acik-sorular.md` |
 | Item Art Studio | `docs/araclar/item-art-studio.md` |
+| Geliştirici dashboard'u (dev RPC'leri) | `docs/araclar/dev-dashboard.md` |
 
 Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `docs/acik-sorular.md`'ye ekle ve Onur'a sor.
 
@@ -40,4 +41,5 @@ docker compose up -d          # sunucuyu derler, Nakama + Postgres'i açar (kons
 docker compose up -d --force-recreate server-build nakama   # sunucu kodu değişince
 cd server && npm install && npm test                        # kural testleri
 cd server && npm run smoke                                  # çalışan Nakama'ya iki sahte oyuncuyla uçtan uca test
+node tools/dev-dashboard/serve.mjs                          # geliştirici dashboard'u: http://127.0.0.1:7360
 ```

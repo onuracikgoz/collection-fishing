@@ -32,6 +32,7 @@ import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
+import { devSignal } from '../debug/signal';
 
 export const POSITION_COLLECTION = 'player';
 export const POSITION_KEY = 'position';
@@ -463,11 +464,11 @@ export function worldTerminate(
 }
 
 export function worldSignal(
-  _ctx: nkruntime.Context,
-  _logger: nkruntime.Logger,
-  _nk: nkruntime.Nakama,
-  _dispatcher: nkruntime.MatchDispatcher,
-  _tick: number,
+  ctx: nkruntime.Context,
+  logger: nkruntime.Logger,
+  nk: nkruntime.Nakama,
+  dispatcher: nkruntime.MatchDispatcher,
+  tick: number,
   state: WorldState,
   data: string,
 ): { state: WorldState; data?: string } | null {
@@ -478,6 +479,9 @@ export function worldSignal(
   } catch (_e) {
     return { state };
   }
+  // dev_* signals come only from the developer dashboard's RPCs (debug/).
+  const dev = devSignal(ctx, logger, nk, dispatcher, tick, state, req as { [k: string]: unknown });
+  if (dev !== null) return { state, data: dev };
   if (req.type !== 'where' || !Array.isArray(req.userIds)) return { state };
   const found: { [userId: string]: { x: number; y: number } } = {};
   for (const id of req.userIds) {

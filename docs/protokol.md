@@ -189,6 +189,10 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.4, `08-recipe-craft.md` 10–11,
 - `CRAFT_RESULT`: başarıda `item` yeni eşya, `items` ve `stacks` harcananlar, `dust` kalan toz. `reason`: `BAD_REQUEST`, `NOT_OWNED`, `NOT_SAME_ITEM` (birleştirmede farklı eşyalar), `NO_RECIPE`, `MISSING_INPUTS`, `NOT_ENOUGH_DUST`, `BAG_FULL`. Oyuncu başına tick'te en fazla bir defter, ekonomi veya craft işlemi işlenir.
 - Pristine sonuç duyurusu (yakındakilere, Mythic Pristine tüm sunucuya) henüz yok.
 
+## Geliştirici RPC'leri (sadece yerel)
+
+`dev_*` RPC'leri ve `dev_*` match sinyalleri oyun protokolünün parçası değildir; client bunları çağırmaz. Sadece `DEV_TOOLS=true` olan yerel sunucuda çalışır, başka yerde `DEV_TOOLS_OFF` döner. Liste: `docs/araclar/dev-dashboard.md`.
+
 ## Hata kodları
 
 RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`.

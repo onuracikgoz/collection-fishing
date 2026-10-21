@@ -15,11 +15,32 @@ import { rpcGetInventory } from './rpc/getInventory';
 import { rpcGetBook } from './rpc/getBook';
 import { rpcGetProfile, rpcSetProfile } from './rpc/profile';
 import { rpcFriendsStatus } from './rpc/friendsStatus';
+import { isDevEnabled } from './debug/gate';
+import {
+  rpcDevBook,
+  rpcDevCraftPreview,
+  rpcDevEnergy,
+  rpcDevFriends,
+  rpcDevGive,
+  rpcDevInfo,
+  rpcDevItemDelete,
+  rpcDevItemEdit,
+  rpcDevLive,
+  rpcDevPlayer,
+  rpcDevProfile,
+  rpcDevReel,
+  rpcDevReset,
+  rpcDevSimCatch,
+  rpcDevStacks,
+  rpcDevUsers,
+  rpcDevWallet,
+  rpcDevWorld,
+} from './debug/rpc';
 
 // Nakama finds handlers by their global function names, so every handler is
 // passed here directly as a top-level function, never wrapped.
 function InitModule(
-  _ctx: nkruntime.Context,
+  ctx: nkruntime.Context,
   logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
   initializer: nkruntime.Initializer,
@@ -42,6 +63,28 @@ function InitModule(
     matchTerminate: worldTerminate,
     matchSignal: worldSignal,
   });
+  // Developer dashboard RPCs (tools/dev-dashboard). Nakama only finds registrations
+  // written straight in InitModule, so they are always registered, but every one
+  // refuses to run unless DEV_TOOLS=true (local.yml). Test and live configs leave it out.
+  initializer.registerRpc('dev_info', rpcDevInfo);
+  initializer.registerRpc('dev_users', rpcDevUsers);
+  initializer.registerRpc('dev_player', rpcDevPlayer);
+  initializer.registerRpc('dev_give', rpcDevGive);
+  initializer.registerRpc('dev_item_edit', rpcDevItemEdit);
+  initializer.registerRpc('dev_item_delete', rpcDevItemDelete);
+  initializer.registerRpc('dev_stacks', rpcDevStacks);
+  initializer.registerRpc('dev_wallet', rpcDevWallet);
+  initializer.registerRpc('dev_energy', rpcDevEnergy);
+  initializer.registerRpc('dev_book', rpcDevBook);
+  initializer.registerRpc('dev_profile', rpcDevProfile);
+  initializer.registerRpc('dev_friends', rpcDevFriends);
+  initializer.registerRpc('dev_reset', rpcDevReset);
+  initializer.registerRpc('dev_world', rpcDevWorld);
+  initializer.registerRpc('dev_live', rpcDevLive);
+  initializer.registerRpc('dev_sim_catch', rpcDevSimCatch);
+  initializer.registerRpc('dev_reel', rpcDevReel);
+  initializer.registerRpc('dev_craft_preview', rpcDevCraftPreview);
+  if (isDevEnabled(ctx)) logger.warn('DEV_TOOLS on: dev_* RPCs work. Never enable this on a test or live server.');
   try {
     ensureServers(nk, logger);
   } catch (e) {
