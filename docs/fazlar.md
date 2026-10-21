@@ -68,6 +68,21 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [ ] Client: satış / parçalama / birleştirme / craft / tamir / yem / depo pencereleri
 - [ ] Haritaya Zanaatkar, Banka ve dükkan NPC'leri; mesafe şartları (şimdilik sadece depo Banka'ya bağlı)
 - [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
+## Sürekli: mekanik önce, asset sonra
+
+Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti, kodla çizilen harita, IMGUI pencereler, kodla çizilen şamandıra). Assetler sonradan tamamen değişecek, bu yüzden:
+
+- Kural ve hesap (hareket tahmini, mini oyun, protokol) görüntüden ayrı sınıflarda durur (`LocalMover`, `ReelModel`, `Net/`); görüntü sınıfları (`MapView`, `CharacterView`, `BobberView`, pencereler) değiştirilebilir.
+- Asset yolları birkaç yerde toplanır (`ArtCatalog`, `CharacterView.Appearance`, `MapView`); yeni assetler gelince sadece bunlar değişir.
+
+## Denetim (Faz 5'ten önce, sonra her faz sonunda)
+
+Onur'un istediği kontroller (19.10.2026). Faz 5 (ticaret ve güvenlik) başlamadan bir test/review oturumu bunları inceler:
+
+- [ ] **Güvenlik açıkları:** sunucu otoritesi (client'tan gelen her alan doğrulanıyor mu), RPC girdileri, başka oyuncunun verisine erişim (defter / profil herkese açık, çanta değil), Nakama ayarları (`defaultkey`, konsol şifresi, yayın öncesi değişmeli), web build'de https/wss.
+- [ ] **DB'yi döngüye sokan istekler:** match içi mesajlar sınırlı (MOVE tick başına 4, chat 1/sn, emote 2 sn, ışınlanma 3 sn, defter işlemi tick başına 1) ama RPC'lerde (`get_book`, `get_profile`, `get_inventory`, `friends_status`, `set_profile`) oyuncu başına hız sınırı yok; döngüyle çağrılırsa her çağrı DB okur. Atış / toplama döngüsü her atışta enerji yazar. Oyuncu başına RPC ve atış hız sınırı eklenmeli.
+- [ ] **Cache:** match oyuncu durumunu (konum, enerji, çanta özeti, defter) bellekte tutar, DB'ye sadece değişince yazar. RPC'ler her çağrıda DB okur, client da pencere açılınca yeniden ister (arkadaş listesi açıkken 5 sn'de bir). Sık okunanlar (defter, profil) için kısa süreli cache ve client tarafında "değişmediyse tekrar isteme" değerlendirilmeli.
+- [ ] **Kod düzeni:** client'ta `WorldController` mesaj yönlendirmesi büyüyor; faz sayısı arttıkça op koduna göre dağıtan küçük bir mesaj yönlendiricisine bölünmeli.
 
 ## Agent rolleri
 

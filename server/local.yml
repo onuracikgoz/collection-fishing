@@ -4,6 +4,9 @@ logger:
   level: DEBUG
 runtime:
   js_entrypoint: index.js
+  # Geliştirici dashboard'unun dev_* RPC'leri (tools/dev-dashboard). Test/canlı config'te olmaz.
+  env:
+    - "DEV_TOOLS=true"
 session:
   token_expiry_sec: 86400
 console:

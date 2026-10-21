@@ -228,6 +228,10 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3, genişletme fiyatları `16-ek
 - `reason`: `NOT_AT_BANK`, `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya / yığın çıkılan yerde değil), `NOT_ENOUGH`, `STASH_FULL`, `BAG_FULL`, `MAX_LEVEL`, `NOT_ENOUGH_COIN`.
 - Oyuncu başına tick'te en fazla bir defter, ekonomi, craft, dükkan veya depo işlemi işlenir.
 
+## Geliştirici RPC'leri (sadece yerel)
+
+`dev_*` RPC'leri ve `dev_*` match sinyalleri oyun protokolünün parçası değildir; client bunları çağırmaz. Sadece `DEV_TOOLS=true` olan yerel sunucuda çalışır, başka yerde `DEV_TOOLS_OFF` döner. Liste: `docs/araclar/dev-dashboard.md`.
+
 ## Hata kodları
 
 RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`.
