@@ -34,7 +34,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 
 - [x] Cihaz kimliğiyle giriş (Steam girişi Faz 7'de). Sunucu tarafı hazır: kullanıcı adı kuralı. Client yazıldı (giriş ekranı)
 - [x] Sunucu listesi: isim, dil, kişi sayısı (`docs/protokol.md`). Sunucu tarafı hazır: `list_servers`. Client yazıldı
-- [x] Küçük bir test haritası, çarpışmalar. Sunucuda geçici çarpışma verisi var (`server/src/data/lake-map.ts`), Unity haritası çizilince ondan üretilmeli. Client şimdilik aynı veriden kodla çiziyor (`MapView.cs`, `LakeMap.cs`)
+- [x] Küçük bir test haritası, çarpışmalar. Çarpışma verisi ortak harita dosyasında (`content/maps/lake.json`, şimdilik taslaktan üretildi), Unity haritası çizilince editor komutuyla oradan yazılmalı. Client şimdilik aynı veriden kodla çiziyor (`MapView.cs`, `LakeMap.cs`)
 - [x] Fare tıklaması ve WASD ile yürüme, 4 yön LPC animasyonu. Client yazıldı (tahmin + düzeltme)
 - [x] 2+ oyuncu birbirini akıcı görüyor, sunucu hız sınırını uyguluyor. Sunucu tarafı hazır: `world` match, hız / sınır / çarpışma kontrolü, yakınlık. Client yazıldı (diğer oyuncular 150 ms gecikmeli interpolasyon)
 - [x] Yakınlık bazlı chat balonları, mesaj sınırı ve hız sınırı. Sunucu tarafı hazır. Client yazıldı (Enter ile chat)

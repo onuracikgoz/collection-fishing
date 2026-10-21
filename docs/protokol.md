@@ -4,7 +4,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 
 - Bağlantı: Nakama WebSocket. Mesaj gövdesi **JSON** (ileride gerekirse ikili formata geçilir).
 - Konum birimi: **tile** (1 tile = 32 px, ondalıklı). x sağa, **y aşağı** doğru büyür (satır 0 haritanın kuzey kenarı). Süreler milisaniye.
-- Unity tarafında 1 tile = 1 birim ve dünya konumu `(x, -y)`; sunucu tile'ı `(sütun, satır)` tilemap hücresi `(sütun, -satır - 1)` olur (`client/Assets/Scripts/World/LakeMap.cs`, `Coords`).
+- Unity tarafında 1 tile = 1 birim ve dünya konumu `(x, -y)`; sunucu tile'ı `(sütun, satır)` tilemap hücresi `(sütun, -satır - 1)` olur (`client/Assets/Scripts/World/LakeMap.cs`, `Coords`). Harita verisi: bkz. Harita dosyası.
 - Sunucu tick hızı: **10 Hz** (Öneri).
 - Sürüm: client bağlanırken `protocolVersion` gönderir; uyuşmazsa sunucu reddeder.
 
@@ -227,6 +227,40 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3, genişletme fiyatları `16-ek
 - **Taşıma:** `STASH_PUT` ve `STASH_TAKE` en fazla 40 satır, ya tamamen olur ya hiç. `items` ve `stacks` taşınanlardır. Defter yuvasındaki eşya depoya konamaz. Depodaki eşya satılamaz, parçalanamaz, craft'ta kullanılamaz, defter yuvasına konamaz: önce çantaya alınmalıdır.
 - `reason`: `NOT_AT_BANK`, `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya / yığın çıkılan yerde değil), `NOT_ENOUGH`, `STASH_FULL`, `BAG_FULL`, `MAX_LEVEL`, `NOT_ENOUGH_COIN`.
 - Oyuncu başına tick'te en fazla bir defter, ekonomi, craft, dükkan veya depo işlemi işlenir.
+
+## Harita dosyası
+
+Harita her sunucuda aynıdır (`docs/tasarim/02-harita-sunucu.md` 4.0). Çarpışma, su ve önemli noktalar tek dosyada durur: `content/maps/<id>.json` (ilk harita: `lake.json`). Sunucu bu dosyayı derlerken pakete gömer; client da aynı dosyayı okur. İki taraf ayrı kopya tutmaz.
+
+Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosyayı yazar, sunucu ve client ondan okur. Unity haritası çizilene kadar dosya taslaktan üretilmiştir (`16-ilk-harita.md`).
+
+```json
+{
+  "format": 1,
+  "id": "lake",
+  "width": 128,
+  "height": 96,
+  "spawn": { "x": 64.5, "y": 50.5 },
+  "rows": ["....##....~~~~", "..."],
+  "points": [{ "id": "bank", "kind": "bank", "x": 30.5, "y": 78.5 }]
+}
+```
+
+- `format`: dosya biçiminin sürümü, şimdilik `1`. Sunucu tanımadığı sürümü reddeder.
+- `width`, `height`: tile. Konumlar protokolün geri kalanındaki gibidir: x sağa, y aşağı, satır 0 kuzey kenarı.
+- `rows`: `height` adet satır, her biri `width` karakter. Satır `y`'nin `x`. karakteri `(x, y)` tile'ıdır:
+
+| Karakter | Anlam |
+|---|---|
+| `.` | Yürünür |
+| `#` | Yürünmez (bina, çeşme, kaya, ağaç gövdesi) |
+| `~` | Su: yürünmez, balık tutulur |
+
+- Su bandı (kıyı / orta / derin) dosyada yazılmaz; sunucu her su tile'ının karaya uzaklığından hesaplar (`WATER` config). Haritayı çizen yalnızca suyu işaretler.
+- `spawn`: ilk giriş noktası (meydan). Yürünür bir tile'da olmalı.
+- `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı). Şimdilik sunucu sadece `bank`'ı kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
+- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`) var.
+- Sonraki adım (Öneri): balık noktaları (`spot`) ve her noktanın havuzu. Havuzlar sunucu verisidir, dosyada sadece noktanın yeri ve id'si durur.
 
 ## Geliştirici RPC'leri (sadece yerel)
 
