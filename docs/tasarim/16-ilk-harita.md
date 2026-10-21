@@ -73,7 +73,7 @@ Karar (18.10.2026): Faz 1'de yalnızca **çekirdek** yapılır, harita sistemler
 
 Pano ve zanaatkarın yeri baştan ayrılır, sistemleri gelene kadar boş durur.
 
-Sunucu çarpışmayı kendi verisinden kontrol eder: `server/src/data/lake-map.ts` (harita boyutu, meydan doğuş noktası, yürünemez dikdörtgenler). Şimdilik bu taslağa göre elle yazıldı (çeşme ve Büyük Göl'ün batı yarısı, iskele açık). Unity'de harita çizilince bu dosya tilemap'ten üretilmeli; iki taraf aynı çarpışmayı görmezse oyuncu düzeltme yer.
+Çarpışma, su ve önemli noktalar tek dosyadadır: `content/maps/lake.json` (biçim: `docs/protokol.md`, Harita dosyası). Sunucu derlemede bu dosyayı gömer ve açılırken kontrol eder. Şimdilik taslaktan üretildi (çeşme, Büyük Göl'ün batı yarısı, iskele açık, Banka noktası). Sıradaki adım (client, Mac): harita Unity'de tilemap olarak çizilir ve bir editor komutu bu dosyayı yazar; client'taki `LakeMap.cs` kopyası da bu dosyayı okumaya geçer. İki taraf aynı çarpışmayı görmezse oyuncu düzeltme yer.
 
 ## Faz 1 için görseller
 
@@ -89,5 +89,34 @@ LPC Revised paketinden `client/Assets/Art/LPC/` altına eklendi (lisans: `conten
 | Çit, tabela | `Structure/Fences/Plain Fence A.png`, `Structure/Signs/Sign Backgrounds A.png` |
 | Sonraki fazlar için hazır | `Terrain/cliff_summer.png` (mağara, kayalık), `FX/WaterRipple.png`, `FX/Splash.png` |
 
-Pakette dış mekan bankı yok: Faz 1'de dinlenme yeri olarak kafe yeter, bank sonra bulunacak veya çizdirilecek. Meydan zemini için şimdilik toprak / kum kullanılır, taş döşeme ayrıca aranacak.
+## Görünüm önizlemesi
+
+Sadece LPC Revised parçalarıyla hazırlanmış bir önizleme (21.10.2026): meydan, kafe, iskele, göl kıyısı ve derin su. Konumlar haritanın kendisi değil, sadece görünümü göstermek için sıkıştırıldı.
+
+![Meydan önizlemesi](../gorsel/meydan-onizleme-v0.1.png)
+
+## LPC Revised paketinde olup henüz repoya eklenmeyenler
+
+Paket (commit `f07f7f5`) tarandı (21.10.2026). Haritanın eksik sanılan parçalarının çoğu pakette var; gerektiği fazda `client/Assets/Art/LPC/` altına aynı klasör yapısıyla kopyalanır ve sanatçısı `content/CREDITS.md`'ye yazılır.
+
+| İhtiyaç | Faz | Pakette |
+|---|---|---|
+| Meydan taş döşemesi | 1 | `Structure/Floor/Herringbone A.png`, `Tile A.png` (gri taş) |
+| Sokak lambası | 1 | `Objects/Furniture/Lighting, Outdoors.png` |
+| Kafe dış masa / sandalye, tabela ikonu | 1 | `Objects/Furniture/Table, Rough Wood.png`, `Seating/Chair, Dining *.png`, `Seating/Bar Stools.png`, `Structure/Signs/Sign Icons A.png` |
+| Kamp ateşi (4 kare animasyon) | 2 | `Objects/Small Items/Fire, Camp.png` |
+| Saz, nilüfer (Sazlık, göl kenarı) | 2 | `Terrain/plants_summer.png` (repoda, kullanılmıyor) |
+| Su yansıması | 2 | `FX/Water Reflections.png` |
+| Zanaatkar tezgahı | 4 | `Objects/Furniture/Workbench, Carpentry.png`, `Table, Workshop.png` |
+| Banka binası, kasa | 4 | `Structure/Structures/Brick House B.png`, `Objects/Furniture/Chest.png` |
+| Mağara: kayalık, mantar, şelale | 4 | `Terrain/Rocks, Cliffs.png`, `mushrooms.png`, `Waterfall.png` |
+| NPC'ler | 4 | LPC karakter katmanları, yaşlı kafa `Head/Head 03 - Elderly` |
+| Pazar dekoru | 5 | `Objects/Furniture/Barrel.png`, `Crate.png`, `Objects/Small Items/Baskets A.png`, `Buckets.png` |
+| Etkinlik dekoru | sonra | `Objects/Furniture/Christmas Tree.png`, `Objects/Small Items/Presents.png` |
+| Mevsimler | sonra | `Terrain/*_spring / _autumn / _winter.png` |
+
+Pakette olmayanlar:
+
+- **Plaj bankı:** geçici olarak `Objects/Furniture/Stone Slab.png` (taş oturak); kalıcısı çizdirilir (**Öneri**).
+- **Pazar Panosu:** `Sign Backgrounds A` + ahşap çerçeveyle denenir, olmazsa çizdirilir.
 

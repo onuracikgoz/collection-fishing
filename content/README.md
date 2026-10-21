@@ -1,6 +1,7 @@
 # content
 
 - `palette.hex`: oyunun ortak renk paleti (Resurrect 64). Item Art Studio bunu okur.
+- `maps/<id>.json`: harita dosyası (çarpışma, su, önemli noktalar). Sunucu ve client aynı dosyayı okur; biçim `docs/protokol.md`, Harita dosyası.
 - `sets/index.md`: tüm setlerin listesi
 - `sets/<set_id>/set.json`: setin makine okunur tanımı
 - `sets/<set_id>/prompts.md`: eşya başına Perchance promptları

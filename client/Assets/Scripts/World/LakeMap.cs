@@ -3,7 +3,7 @@ using UnityEngine;
 namespace CollectionGame.World
 {
     /// <summary>
-    /// Client copy of server/src/data/lake-map.ts and the collision checks in
+    /// Client copy of content/maps/lake.json (read by server/src/data/lake-map.ts) and the collision checks in
     /// server/src/rules/map.ts. Both sides must agree or the player gets CORRECTIONs.
     /// Temporary: later both should be generated from the Unity tilemap.
     ///
