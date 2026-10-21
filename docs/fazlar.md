@@ -58,6 +58,16 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Emote. `EMOTE`, `show_fish`. Client: 1-6 tuşları
 - [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
 
+## Faz 4: bitti sayılma şartları
+
+- [x] Coin, NPC satış, toz. Sunucu: `rules/economy.ts`, `SELL`, `SALVAGE` (#16)
+- [x] Birleştirme (3'ü 1) ve recipe + craft. Sunucu: `rules/craft.ts`, `MERGE`, `CRAFT`, başlangıç recipe'leri (#16)
+- [x] Olta dayanıklılığı ve tamir. Sunucu: `rules/rod.ts`, `REPAIR_ROD`; kırık olta sadece çöp çıkarır (Öneri)
+- [x] Özel yemler: satın alma, yemle atış, yem craft'ı. Sunucu: `rules/bait.ts`, `BUY_BAIT`, `CAST.bait`
+- [x] Depo: sadece Banka'da, kademeli genişletme. Sunucu: `rules/stash.ts`, `STASH_*`
+- [ ] Client: satış / parçalama / birleştirme / craft / tamir / yem / depo pencereleri
+- [ ] Haritaya Zanaatkar, Banka ve dükkan NPC'leri; mesafe şartları (şimdilik sadece depo Banka'ya bağlı)
+- [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
 ## Sürekli: mekanik önce, asset sonra
 
 Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti, kodla çizilen harita, IMGUI pencereler, kodla çizilen şamandıra). Assetler sonradan tamamen değişecek, bu yüzden:

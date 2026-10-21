@@ -4,10 +4,10 @@ import { BAG, CRAFT, FLOAT_TABLE } from '../config';
 import { recipeById } from '../data/recipes';
 import { CraftResultMsg, ItemInstance, OpCode } from '../protocol';
 import { rollFloat } from '../rules/catch';
-import { CraftItem, CraftResult, craftBands, parseCraft, parseMerge, planCraft, planMerge } from '../rules/craft';
+import { CraftItem, CraftResult, craftBands, isStackOutput, parseCraft, parseMerge, planCraft, planMerge } from '../rules/craft';
 import { Fisher } from './fishing';
 import { placeNewItem } from './items';
-import { StoredItem, readWallet, stacksWrite } from './playerData';
+import { StoredItem, inBag, readWallet, stacksWrite } from './playerData';
 
 type Action = 'merge' | 'craft';
 
@@ -21,7 +21,7 @@ function readPicked(nk: nkruntime.Nakama, userId: string, ids: string[]): CraftI
   const out: CraftItem[] = [];
   for (const o of nk.storageRead(ids.map((key) => ({ collection: 'items', key, userId })))) {
     const item = o.value as StoredItem;
-    if (!item.inBook) out.push({ instanceId: item.instanceId, defId: item.defId, tier: item.tier, float: item.float });
+    if (inBag(item)) out.push({ instanceId: item.instanceId, defId: item.defId, tier: item.tier, float: item.float });
   }
   return out;
 }
@@ -53,16 +53,6 @@ export function handleCraft(
   }
   if (!plan.ok) return fail(plan.reason);
 
-  const item: ItemInstance = {
-    instanceId: nk.uuidv4(),
-    defId: plan.output.defId,
-    tier: plan.output.tier,
-    float: rollFloat(craftBands(FLOAT_TABLE, plan.inputAverage, plan.maxFloat, CRAFT), Math.random).value,
-    source: action,
-    obtainedAt: Date.now(),
-  };
-  const placed = placeNewItem(userId, f.book, item);
-
   const stacks: { [defId: string]: number } = { ...f.bag.stacks };
   const usedStacks: { defId: string; count: number }[] = [];
   for (const defId in plan.stacksAfter) {
@@ -70,13 +60,34 @@ export function handleCraft(
     if (plan.stacksAfter[defId] > 0) stacks[defId] = plan.stacksAfter[defId];
     else delete stacks[defId];
   }
-  const writes = placed.writes.slice();
-  if (usedStacks.length > 0) writes.push(stacksWrite(userId, stacks));
+
+  // A stack result (bait) has no Float and no book record.
+  const out = plan.output;
+  let item: ItemInstance | undefined;
+  let stack: { defId: string; count: number } | undefined;
+  let placed: ReturnType<typeof placeNewItem> | null = null;
+  const writes: nkruntime.StorageWriteRequest[] = [];
+  if (isStackOutput(out)) {
+    stacks[out.defId] = (stacks[out.defId] || 0) + out.count;
+    stack = { defId: out.defId, count: stacks[out.defId] };
+  } else {
+    item = {
+      instanceId: nk.uuidv4(),
+      defId: out.defId,
+      tier: out.tier,
+      float: rollFloat(craftBands(FLOAT_TABLE, plan.inputAverage, plan.maxFloat, CRAFT), Math.random).value,
+      source: action,
+      obtainedAt: Date.now(),
+    };
+    placed = placeNewItem(userId, f.book, item);
+    writes.push(...placed.writes);
+  }
+  if (usedStacks.length > 0 || stack) writes.push(stacksWrite(userId, stacks));
   const deletes = plan.removeItems.map((key) => ({ collection: 'items', key, userId }));
   let dustAfter: number;
   try {
     const res = nk.multiUpdate(null, writes, deletes, [
-      { userId, changeset: { dust: -plan.dustCost }, metadata: { action, output: item.defId, items: plan.removeItems.length } },
+      { userId, changeset: { dust: -plan.dustCost }, metadata: { action, output: out.defId, items: plan.removeItems.length } },
     ]);
     dustAfter = res.walletUpdateAcks[0].updated.dust || 0;
   } catch (e) {
@@ -86,7 +97,7 @@ export function handleCraft(
   }
 
   f.bag.stacks = stacks;
-  f.bag.items = Math.max(0, f.bag.items - plan.removeItems.length) + (placed.inBag ? 1 : 0);
-  if (placed.book) f.book = placed.book;
-  reply(dispatcher, f, { action, ok: true, dust: dustAfter, item, book: placed.msg, items: plan.removeItems, stacks: usedStacks });
+  f.bag.items = Math.max(0, f.bag.items - plan.removeItems.length) + (placed && placed.inBag ? 1 : 0);
+  if (placed && placed.book) f.book = placed.book;
+  reply(dispatcher, f, { action, ok: true, dust: dustAfter, item, stack, book: placed ? placed.msg : undefined, items: plan.removeItems, stacks: usedStacks });
 }

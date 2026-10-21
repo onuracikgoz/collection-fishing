@@ -1,18 +1,20 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
-import { BAG, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS } from '../config';
+import { BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
+import { applyBait, baitDef, baitTagBoost } from '../rules/bait';
+import { Rod, isBroken, rodView, wearRod } from '../rules/rod';
 import { BookEntries, applyLuck, luckOf } from '../rules/book';
 import { rollCatch, rollFloat } from '../rules/catch';
 import { spendCast } from '../rules/energy';
-import { FishState, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelTimedOut } from '../rules/fishing';
+import { FishState, checkBait, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelTimedOut } from '../rules/fishing';
 import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
 import { placeNewItem } from './items';
-import { energyWrite, stacksWrite } from './playerData';
+import { energyWrite, rodWrite, stacksWrite } from './playerData';
 
 /** The part of a match player that fishing needs. */
 export interface Fisher {
@@ -21,6 +23,7 @@ export interface Fisher {
   energy: number;
   bag: BagSummary;
   book: BookEntries;
+  rod: Rod;
   fish?: FishState;
   lastCatch?: string;
 }
@@ -42,8 +45,10 @@ function bobber(ctx: FishingContext, f: Fisher, state: BobberState): void {
   const fs = f.fish!;
   const msg: BobberMsg = { id: f.presence.userId, x: fs.x, y: fs.y, band: fs.band, state };
   if (state !== 'cast') return send(ctx, OpCode.BOBBER, msg, ctx.audience(f));
-  // The fisher's own cast message also carries the new energy.
-  send(ctx, OpCode.BOBBER, { ...msg, energy: f.energy }, [f.presence]);
+  // The fisher's own cast message also carries the new energy and the bait left.
+  const own: BobberMsg = { ...msg, energy: f.energy };
+  if (fs.bait) own.bait = { defId: fs.bait, count: f.bag.stacks[fs.bait] || 0 };
+  send(ctx, OpCode.BOBBER, own, [f.presence]);
   send(ctx, OpCode.BOBBER, msg, ctx.audience(f).filter((p) => p.sessionId !== f.presence.sessionId));
 }
 
@@ -59,13 +64,6 @@ function end(ctx: FishingContext, f: Fisher, outcome: FishOutcome, extra: Partia
   f.fish = undefined;
 }
 
-function saveEnergy(ctx: FishingContext, f: Fisher): void {
-  try {
-    ctx.nk.storageWrite([energyWrite(f.presence.userId, f.energy, true)]);
-  } catch (e) {
-    ctx.logger.error('Saving energy failed: %s', String(e));
-  }
-}
 
 export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: number): void {
   const target = parseCast(body);
@@ -76,11 +74,33 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
     if (check.reason === 'BUSY') return send(ctx, OpCode.FISH_END, { id: f.presence.userId, outcome: 'rejected', reason: 'BUSY', energy: f.energy }, [f.presence]);
     return end(ctx, f, 'rejected', { reason: check.reason });
   }
-  const spent = spendCast(f.energy, ENERGY);
-  if (spent.hasEnergy) {
-    f.energy = spent.value;
-    saveEnergy(ctx, f);
+  // A broken rod fishes like a cast without energy: no energy spent, junk only.
+  const broken = isBroken(f.rod);
+  const spent = broken ? { value: f.energy, hasEnergy: false } : spendCast(f.energy, ENERGY);
+  if (target.bait) {
+    const b = checkBait(target.bait, !!baitDef(target.bait, BAIT), f.bag.stacks, spent.hasEnergy, broken);
+    if (!b.ok) return end(ctx, f, 'rejected', { reason: b.reason });
   }
+  const writes: nkruntime.StorageWriteRequest[] = [];
+  const stacks = { ...f.bag.stacks };
+  if (spent.hasEnergy) writes.push(energyWrite(f.presence.userId, spent.value, true));
+  if (target.bait) {
+    // One special bait per cast, gone whatever happens next (03-balik-tutma.md 5.0.0.1).
+    if (stacks[target.bait] > 1) stacks[target.bait]--;
+    else delete stacks[target.bait];
+    writes.push(stacksWrite(f.presence.userId, stacks));
+  }
+  if (writes.length > 0) {
+    try {
+      ctx.nk.storageWrite(writes);
+    } catch (e) {
+      ctx.logger.error('Saving cast failed: %s', String(e));
+      // The bait must not be lost without a cast; energy alone is safe to keep in memory.
+      if (target.bait) return end(ctx, f, 'rejected', { reason: 'NO_BAIT' });
+    }
+  }
+  f.energy = spent.value;
+  f.bag.stacks = stacks;
   const wait = planWait(now, FISHING, Math.random);
   f.fish = {
     phase: 'waiting',
@@ -88,6 +108,7 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
     y: target.y,
     band: check.band,
     hasEnergy: spent.hasEnergy,
+    bait: target.bait,
     biteAt: wait.biteAt,
     twitches: wait.twitches,
     hookDeadline: 0,
@@ -131,6 +152,12 @@ function give(ctx: FishingContext, f: Fisher): void {
   const writes: nkruntime.StorageWriteRequest[] = [];
   const extra: Partial<FishEndMsg> = { defId: roll.def.id };
   let book: BookEntries | null = null;
+  // Catches with energy wear the rod; a broken rod's casts never have energy.
+  const rod = f.fish!.hasEnergy ? wearRod(f.rod, ROD) : null;
+  if (rod) {
+    writes.push(rodWrite(userId, rod));
+    extra.rod = rodView(rod, ROD);
+  }
   if (roll.tier) {
     const item: ItemInstance = {
       instanceId: ctx.nk.uuidv4(),
@@ -159,6 +186,7 @@ function give(ctx: FishingContext, f: Fisher): void {
   }
   if (book) f.book = book;
   else if (extra.item) f.bag.items++;
+  if (rod) f.rod = rod;
   if (extra.stack) f.bag.stacks[extra.stack.defId] = extra.stack.count;
   f.lastCatch = roll.def.id;
   end(ctx, f, 'caught', extra);
@@ -174,8 +202,9 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
       bobber(ctx, f, 'twitch');
     }
     if (now >= fs.biteAt) {
-      const table = applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK);
-      const roll = rollCatch(LAKE_POOL, table, fs.band, fs.hasEnergy, Math.random);
+      const bait = fs.bait ? baitDef(fs.bait, BAIT) : null;
+      const table = applyBait(applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK), bait, fs.band);
+      const roll = rollCatch(LAKE_POOL, table, fs.band, fs.hasEnergy, Math.random, baitTagBoost(bait, fs.band));
       if (!roll) return end(ctx, f, 'escaped');
       fs.roll = roll;
       fs.phase = 'bite';

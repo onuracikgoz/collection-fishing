@@ -17,9 +17,10 @@ export const LAKE_POOL: ItemDef[] = [
   { id: 'lake.item.old_coin', category: 'rare' },
   { id: 'lake.fish.catfish', category: 'epic', bands: ['mid', 'deep'] },
   { id: 'lake.fish.golden_carp', category: 'legendary', bands: ['deep'] },
-  { id: 'lake.item.blue_crystal', category: 'mythic', bands: ['deep'] },
+  { id: 'lake.item.blue_crystal', category: 'mythic', bands: ['deep'], tags: ['crystal'] },
   // "Şişedeki recipe" (08-recipe-craft.md 10.3); stacks like materials.
   { id: 'recipe.scale_charm', category: 'recipe' },
   { id: 'recipe.moss_wreath', category: 'recipe' },
   { id: 'recipe.pike_trophy', category: 'recipe', bands: ['mid', 'deep'] },
+  { id: 'recipe.shiny_bait', category: 'recipe' },
 ];

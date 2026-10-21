@@ -6,6 +6,7 @@ const OP = {
   MOVE: 1, SNAPSHOT: 2, PLAYER_ENTER: 3, PLAYER_LEAVE: 4, SAY: 5, BUBBLE: 6, CORRECTION: 7, WELCOME: 8,
   CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15, BOOK_PLACE: 16, BOOK_RESULT: 17,
   GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21, SELL: 22, SALVAGE: 23, ECONOMY_RESULT: 24, MERGE: 25, CRAFT: 26, CRAFT_RESULT: 27,
+  REPAIR_ROD: 28, BUY_BAIT: 29, SHOP_RESULT: 30, STASH_OPEN: 31, STASH_PUT: 32, STASH_TAKE: 33, STASH_EXPAND: 34, STASH_RESULT: 35,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -171,10 +172,10 @@ await walkTo(c, { x: 85.0, y: 47.5 });
 check((await lastEnd(c, 100))?.outcome === 'cancelled', 'moving cancels fishing');
 
 // Cast, wait for the bite, hook and play the reel well. Returns FISH_END or null.
-async function catchOne(p) {
+async function catchOne(p, extra = {}) {
   p.clear();
   p.hooked = false;
-  p.send(OP.CAST, { x: 88.5, y: 47.5 });
+  p.send(OP.CAST, { x: 88.5, y: 47.5, ...extra });
   let reel;
   for (let t = 0; t < 250 && !reel; t++) {
     await sleep(100);
@@ -322,6 +323,102 @@ check(!st['recipe.scale_charm'] && st['lake.mat.scale'] === 2 && !st['lake.mat.m
   dInv.items.some((i) => i.instanceId === carp(4, 0).instanceId) && !dInv.items.some((i) => ids.includes(i.instanceId)),
   'get_inventory shows what merge and craft used up');
 await d.socket.leaveMatch(target.matchId);
+
+// Rod, special bait and the stash (Faz 4). Seeded like the craft player: a broken rod,
+// Coin, the bait recipe and its materials, and one fish to store.
+const e = await player('ege');
+const eid = e.session.user_id;
+const seedE = (collection, key, value) =>
+  consoleApi(`/v2/console/storage/${collection}/${key}/${eid}`, 'PUT', { value: JSON.stringify(value), version: '', permission_read: 1, permission_write: 0 }, admin);
+const perch = { instanceId: `smoke-perch-${run}`, defId: 'lake.fish.perch', tier: 'common', float: 0.4, source: 'fishing', obtainedAt: Date.now() };
+await seedE('player', 'rod', { level: 1, durability: 0 });
+await seedE('bag', 'stacks', { stacks: { 'recipe.shiny_bait': 1, 'lake.mat.scale': 2, 'lake.junk.shell': 4 } });
+await seedE('items', perch.instanceId, perch);
+await consoleApi(`/v2/console/account/${eid}`, 'POST', { wallet: JSON.stringify({ coin: 3000, dust: 10 }) }, admin);
+await e.join(target.matchId);
+await sleep(400);
+const we = e.take(OP.WELCOME)[0];
+check(we?.rod?.level === 1 && we.rod.durability === 0 && we.rod.max === 200, 'WELCOME carries the rod');
+const epos = { x: we.you.x, y: we.you.y };
+async function walkE(to) {
+  while (Math.abs(epos.x - to.x) > 1e-6 || Math.abs(epos.y - to.y) > 1e-6) {
+    const dx = Math.max(-0.35, Math.min(0.35, to.x - epos.x));
+    const dy = Math.max(-0.35, Math.min(0.35, to.y - epos.y));
+    epos.x += dx;
+    epos.y += dy;
+    e.send(OP.MOVE, { seq: ++e.seq, x: epos.x, y: epos.y, dir: dx > 0 ? 'right' : 'up', moving: true });
+    await sleep(100);
+  }
+  await sleep(300);
+}
+async function eOp(op, body, reply) {
+  e.clear();
+  e.send(op, body);
+  await sleep(300);
+  return e.take(reply)[0];
+}
+const eEnd = async () => {
+  await sleep(400);
+  const ends = e.take(OP.FISH_END);
+  return ends[ends.length - 1];
+};
+for (const to of [{ x: 74.5, y: 50.5 }, { x: 74.5, y: 47.5 }, { x: 85.4, y: 47.5 }]) await walkE(to);
+
+const bought = await eOp(OP.BUY_BAIT, { defId: 'bait.shiny', count: 3 }, OP.SHOP_RESULT);
+check(bought?.ok && bought.spent === 15 && bought.coin === 2985 && bought.stack?.count === 3, 'BUY_BAIT puts 3 Parlak yem in the bag for 15 Coin');
+check((await eOp(OP.BUY_BAIT, { defId: 'bait.gold', count: 1 }, OP.SHOP_RESULT))?.reason === 'BAD_REQUEST', 'unknown bait cannot be bought');
+e.clear();
+e.send(OP.CAST, { x: 88.5, y: 47.5, bait: 'bait.crystal' });
+check((await eEnd())?.reason === 'NO_BAIT', 'cast with bait not in the bag is refused (NO_BAIT)');
+e.send(OP.CAST, { x: 88.5, y: 47.5, bait: 'bait.shiny' });
+check((await eEnd())?.reason === 'ROD_BROKEN', 'cast with bait and a broken rod is refused (ROD_BROKEN)');
+e.clear();
+e.send(OP.CAST, { x: 88.5, y: 47.5 });
+await sleep(300);
+const brokenCast = e.take(OP.BOBBER)[0];
+check(brokenCast?.state === 'cast' && brokenCast.energy === we.energy, 'a broken rod still fishes but spends no energy');
+e.send(OP.CANCEL, {});
+await eEnd();
+
+const repaired = await eOp(OP.REPAIR_ROD, {}, OP.SHOP_RESULT);
+check(repaired?.ok && repaired.spent === 100 && repaired.coin === 2885 && repaired.rod?.durability === 200, 'REPAIR_ROD fixes the whole rod for 100 Coin');
+check((await eOp(OP.REPAIR_ROD, {}, OP.SHOP_RESULT))?.reason === 'NOT_NEEDED', 'repairing a whole rod is refused');
+
+const baited = await catchOne(e, { bait: 'bait.shiny' });
+const castMsg = e.lastBobbers.find((m) => m.state === 'cast');
+check(castMsg?.bait?.defId === 'bait.shiny' && castMsg.bait.count === 2 && castMsg.energy === we.energy - 1, 'a cast with bait spends one bait and one energy');
+check(baited?.outcome === 'caught' && baited.rod?.durability === 199, 'a catch with energy wears the rod by one');
+const eInv = (await client.rpc(e.session, 'get_inventory', {})).payload;
+check(eInv.rod?.durability === 199 && eInv.stacks.some((x) => x.defId === 'bait.shiny' && x.count === 2), 'get_inventory shows the rod and the bait left');
+
+const baitCraft = await eOp(OP.CRAFT, { recipeId: 'recipe.shiny_bait' }, OP.CRAFT_RESULT);
+check(baitCraft?.ok && baitCraft.stack?.defId === 'bait.shiny' && baitCraft.stack.count === 7 && !baitCraft.item && baitCraft.dust === 0, 'CRAFT of the bait recipe makes 5 Parlak yem');
+
+check((await eOp(OP.STASH_OPEN, {}, OP.STASH_RESULT))?.reason === 'NOT_AT_BANK', 'the stash does not open away from the bank');
+for (const to of [{ x: 74.5, y: 47.5 }, { x: 74.5, y: 50.5 }, { x: 30.5, y: 78.5 }]) await walkE(to);
+check(e.take(OP.CORRECTION).length === 0, 'walk to the bank gets no CORRECTION');
+const opened = await eOp(OP.STASH_OPEN, {}, OP.STASH_RESULT);
+check(opened?.ok && opened.stash.level === 0 && opened.stash.slotsMax === 100 && opened.stash.slotsUsed === 0, 'STASH_OPEN at the bank shows an empty 100-slot stash');
+const put = await eOp(OP.STASH_PUT, { items: [perch.instanceId], stacks: [{ defId: 'lake.junk.shell', count: 3 }] }, OP.STASH_RESULT);
+check(put?.ok && put.stash.slotsUsed === 2 && put.stash.items[0]?.instanceId === perch.instanceId && put.stash.stacks[0]?.count === 3, 'STASH_PUT moves an item and a stack into the stash');
+const eInv2 = (await client.rpc(e.session, 'get_inventory', {})).payload;
+check(!eInv2.items.some((i) => i.instanceId === perch.instanceId) && !eInv2.stacks.some((x) => x.defId === 'lake.junk.shell'), 'stashed things leave the bag');
+check((await eOp(OP.SELL, { items: [perch.instanceId] }, OP.ECONOMY_RESULT))?.reason === 'NOT_OWNED', 'a stashed item cannot be sold');
+check((await eOp(OP.STASH_TAKE, { stacks: [{ defId: 'lake.junk.shell', count: 4 }] }, OP.STASH_RESULT))?.reason === 'NOT_ENOUGH', 'taking more than the stash has is refused');
+const took = await eOp(OP.STASH_TAKE, { items: [perch.instanceId] }, OP.STASH_RESULT);
+check(took?.ok && took.stash.items.length === 0 && took.stash.slotsUsed === 1, 'STASH_TAKE brings the item back');
+const expanded = await eOp(OP.STASH_EXPAND, {}, OP.STASH_RESULT);
+check(expanded?.ok && expanded.stash.level === 1 && expanded.stash.slotsMax === 120 && expanded.coin === 885, 'STASH_EXPAND buys 120 slots for 2.000 Coin');
+check((await eOp(OP.STASH_EXPAND, {}, OP.STASH_RESULT))?.reason === 'NOT_ENOUGH_COIN', 'the next tier needs 5.000 Coin');
+// Everything stays after leaving: rod, stash level and contents.
+await e.socket.leaveMatch(target.matchId);
+await sleep(300);
+await e.join(target.matchId);
+await sleep(400);
+check(e.take(OP.WELCOME)[0]?.rod?.durability === 199, 'the rod is saved');
+const reopened = await eOp(OP.STASH_OPEN, {}, OP.STASH_RESULT);
+check(reopened?.ok && reopened.stash.level === 1 && reopened.stash.stacks.some((x) => x.defId === 'lake.junk.shell' && x.count === 3), 'the stash is saved');
+e.socket.disconnect(false);
 
 // Friends (Faz 3): Nakama friend requests, friends_status, "Yanına git", emotes.
 await client.addFriends(b.session, [c.session.user_id]);

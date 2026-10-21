@@ -3,6 +3,9 @@
 import type { Category } from './rules/catch';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
+import type { RodConfig } from './rules/rod';
+import type { BaitConfig } from './rules/bait';
+import type { StashConfig } from './rules/stash';
 
 export interface ServerDef {
   /** Stable id, used to find the match again after a restart. */
@@ -168,4 +171,43 @@ export const CRAFT: CraftConfig = {
   ],
   qualityWithoutFloat: { below: 1.01, pristine: 2, excellent: 13 },
   gradeMaxFloat: { normal: 1, good: 0.5, master: 0.2 },
+};
+
+// Rod durability and repair (03-balik-tutma.md 5.0.0.2, 16-ekonomi-tablosu.md 4.2; all Öneri).
+// Everyone has a level 1 rod until XP brings better ones.
+export const ROD: RodConfig = {
+  levels: {
+    1: { max: 200, fullRepair: 100 },
+    2: { max: 200, fullRepair: 150 },
+    3: { max: 200, fullRepair: 250 },
+  },
+  wearPerCatch: 1, // only catches with energy wear the rod
+};
+
+// Special baits (03-balik-tutma.md 5.0.0.1, 16-ekonomi-tablosu.md 4.1; multipliers Öneri).
+export const BAIT: BaitConfig = {
+  baits: {
+    // Parlak yem: Rare and up a little more often, anywhere.
+    'bait.shiny': { price: 5, boost: { rare: 1.3, epic: 1.3, legendary: 1.2, mythic: 1.2 } },
+    // Kristal yem: only in deep water; rarer things and crystals.
+    'bait.crystal': { price: 20, bands: ['deep'], boost: { epic: 1.5, legendary: 1.5, mythic: 2 }, tagBoost: { crystal: 4 } },
+  },
+  maxBuy: 99,
+};
+
+// The stash (07-kopya-envanter.md 9.3, 16-ekonomi-tablosu.md 4.5; all Öneri).
+export const STASH: StashConfig = {
+  baseSlots: 100,
+  stackSize: 99,
+  tiers: [
+    { slots: 120, price: 2000 },
+    { slots: 140, price: 5000 },
+    { slots: 160, price: 12000 },
+    { slots: 180, price: 30000 },
+    { slots: 200, price: 75000 },
+  ],
+  // Banka in the south-west village (16-ilk-harita.md 5). Placeholder until the map is drawn.
+  bank: { x: 30.5, y: 78.5 },
+  range: 3,
+  maxEntries: 40,
 };

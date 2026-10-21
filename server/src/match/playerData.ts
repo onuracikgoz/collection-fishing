@@ -1,12 +1,15 @@
 // Persistent player data: energy and bag. Storage layout:
 //   player/energy  { value, at, online }   (at = wall-clock ms of the last save)
-//   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot)
+//   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot, inStash = in the stash)
 //   bag/stacks  { stacks: { defId: count } }
+//   player/rod  { level, durability }
+//   stash/state  { level, stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
 //   profile/card  ProfileDoc               (public: showcase and "Arıyorum")
 // Coin and dust live in the Nakama wallet: { coin, dust }.
-import { BAG, ENERGY } from '../config';
+import { BAG, ENERGY, ROD } from '../config';
 import { InventoryResponse, ItemInstance } from '../protocol';
+import { Rod, normalizeRod, rodView } from '../rules/rod';
 import { BookEntries } from '../rules/book';
 import { ProfileDoc } from '../rules/profile';
 import { BagSummary, slotsUsed } from '../rules/bag';
@@ -16,15 +19,21 @@ const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
 const WRITE_SERVER = 0 as nkruntime.WritePermissionValues;
 
-/** An item as stored: book slot items stay in `items` so one write moves them atomically. */
+/** An item as stored: book slot and stash items stay in `items` so one write moves them atomically. */
 export interface StoredItem extends ItemInstance {
   inBook?: boolean;
+  inStash?: boolean;
 }
 
 /** The item without storage-only fields, as sent to clients. */
 export function publicItem(item: StoredItem): ItemInstance {
-  const { inBook: _inBook, ...rest } = item;
+  const { inBook: _inBook, inStash: _inStash, ...rest } = item;
   return rest;
+}
+
+/** True if the item sits in the bag: not in a book slot, not in the stash. */
+export function inBag(item: StoredItem): boolean {
+  return !item.inBook && !item.inStash;
 }
 
 interface EnergyDoc {
@@ -65,8 +74,8 @@ function readStacks(nk: nkruntime.Nakama, userId: string): { [defId: string]: nu
   return v.stacks || {};
 }
 
-/** Every stored item, bag and book. */
-function listItems(nk: nkruntime.Nakama, userId: string): StoredItem[] {
+/** Every stored item: bag, book and stash. */
+export function listItems(nk: nkruntime.Nakama, userId: string): StoredItem[] {
   const out: StoredItem[] = [];
   let cursor: string | undefined = undefined;
   for (let page = 0; page < 20; page++) {
@@ -79,7 +88,7 @@ function listItems(nk: nkruntime.Nakama, userId: string): StoredItem[] {
 }
 
 export function loadBag(nk: nkruntime.Nakama, userId: string): BagSummary {
-  return { items: listItems(nk, userId).filter((i) => !i.inBook).length, stacks: readStacks(nk, userId) };
+  return { items: listItems(nk, userId).filter(inBag).length, stacks: readStacks(nk, userId) };
 }
 
 export function readItem(nk: nkruntime.Nakama, userId: string, instanceId: string): StoredItem | null {
@@ -125,7 +134,7 @@ export function readWallet(nk: nkruntime.Nakama, userId: string): { coin: number
 }
 
 export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryResponse {
-  const items = listItems(nk, userId).filter((i) => !i.inBook).map(publicItem);
+  const items = listItems(nk, userId).filter(inBag).map(publicItem);
   const stacks = readStacks(nk, userId);
   return {
     energy: currentEnergy(nk, userId),
@@ -135,7 +144,32 @@ export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryRe
     items,
     stacks: Object.keys(stacks).map((defId) => ({ defId, count: stacks[defId] })),
     ...readWallet(nk, userId),
+    rod: rodView(readRod(nk, userId), ROD),
   };
+}
+
+export function readRod(nk: nkruntime.Nakama, userId: string): Rod {
+  const objs = nk.storageRead([{ collection: 'player', key: 'rod', userId }]);
+  return normalizeRod(objs.length > 0 ? objs[0].value : null, ROD);
+}
+
+export function rodWrite(userId: string, rod: Rod): nkruntime.StorageWriteRequest {
+  return { collection: 'player', key: 'rod', userId, value: { level: rod.level, durability: rod.durability }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
+}
+
+export interface StashState {
+  level: number;
+  stacks: { [defId: string]: number };
+}
+
+export function readStashState(nk: nkruntime.Nakama, userId: string): StashState {
+  const objs = nk.storageRead([{ collection: 'stash', key: 'state', userId }]);
+  const v = objs.length > 0 ? (objs[0].value as Partial<StashState>) : {};
+  return { level: typeof v.level === 'number' ? v.level : 0, stacks: v.stacks || {} };
+}
+
+export function stashWrite(userId: string, state: StashState): nkruntime.StorageWriteRequest {
+  return { collection: 'stash', key: 'state', userId, value: state, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
 export function readProfile(nk: nkruntime.Nakama, userId: string): ProfileDoc {

@@ -6,7 +6,7 @@ import { Random } from './rng';
 import { ReelParams, ReelResult, STEP_MS } from './reel';
 import { Band, WaterMap, bandAt, isNearWater } from './water';
 
-export type RejectReason = 'BUSY' | 'NOT_NEAR_WATER' | 'NOT_WATER' | 'TOO_FAR' | 'BAG_FULL';
+export type RejectReason = 'BUSY' | 'NOT_NEAR_WATER' | 'NOT_WATER' | 'TOO_FAR' | 'BAG_FULL' | 'NO_BAIT' | 'NO_ENERGY' | 'ROD_BROKEN';
 
 export interface FishingConfig {
   /** Player must be this close to water to cast (tiles). */
@@ -35,6 +35,8 @@ export interface FishState {
   band: Band;
   /** Whether this cast spent energy (else junk only). */
   hasEnergy: boolean;
+  /** Special bait spent on this cast. */
+  bait?: string;
   biteAt: number;
   /** Twitch times not yet shown. */
   twitches: number[];
@@ -48,13 +50,34 @@ export interface FishState {
 export interface CastIntent {
   x: number;
   y: number;
+  /** Special bait id; basic bait if missing. */
+  bait?: string;
 }
 
 export function parseCast(body: unknown): CastIntent | null {
   if (typeof body !== 'object' || body === null) return null;
-  const { x, y } = body as { x?: unknown; y?: unknown };
+  const { x, y, bait } = body as { x?: unknown; y?: unknown; bait?: unknown };
   if (typeof x !== 'number' || typeof y !== 'number' || !isFinite(x) || !isFinite(y)) return null;
-  return { x, y };
+  if (bait === undefined || bait === null) return { x, y };
+  if (typeof bait !== 'string' || bait.length === 0 || bait.length > 64) return null;
+  return { x, y, bait };
+}
+
+/**
+ * Checks a cast's special bait after the cast itself was accepted. A bait that
+ * could only be wasted (no energy, broken rod) refuses the cast instead.
+ */
+export function checkBait(
+  bait: string,
+  known: boolean,
+  stacks: { [defId: string]: number },
+  hasEnergy: boolean,
+  rodBroken: boolean,
+): { ok: true } | { ok: false; reason: RejectReason } {
+  if (!known || (stacks[bait] || 0) < 1) return { ok: false, reason: 'NO_BAIT' };
+  if (rodBroken) return { ok: false, reason: 'ROD_BROKEN' };
+  if (!hasEnergy) return { ok: false, reason: 'NO_ENERGY' };
+  return { ok: true };
 }
 
 /** Checks a cast. Returns the band, or why it was refused. */
