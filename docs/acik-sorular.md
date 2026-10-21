@@ -10,7 +10,7 @@
 4. Takas kısıtı: tekrar takas yok mu, yoksa 7 gün bekleme mi? (ertelendi)
 5. Recipe'ler de Collection Book'ta yer alsın mı?
 6. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
-7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut ve banka uzaklığı onay bekliyor (Faz 1 çekirdek kararı alındı).
+7. İlk harita yerleşimi (`tasarim/16-ilk-harita.md`, v0.1): boyut ve banka uzaklığı onay bekliyor (Faz 1 çekirdek kararı alındı). Taslaktan LPC ile çizilen kaba harita (21.10.2026, proje dosyaları `collectiongame/harita/harita-v0.2-kaba-onizleme.png`) haritanın boş, meydanın büyük (24×18 tile) göründüğünü gösterdi: 128×96 küçülsün mü (ör. 112×84), meydan 16×12 civarına insin mi?
 8. Dış sitelerdeki gerçek para satışı için hukuki görüş (yayından önce).
 9. Collection setlerinin malzemeleri defterde yer alsın mı, 66 eşyalık set kaç sayfaya bölünsün? (bkz. `tasarim/17-collection-setleri.md`)
 10. Makara mini oyunu (Faz 2): sunucu client'ın tuş kaydını aynı seed ile yeniden oynatıp sonucu kendisi buluyor. Zorluk değerleri (`REEL_PARAMS`) simüle oyuncuyla ayarlandı (Öneri); Onur oynayıp his onayı vermeli.
