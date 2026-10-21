@@ -89,6 +89,12 @@ LPC Revised paketinden `client/Assets/Art/LPC/` altına eklendi (lisans: `conten
 | Çit, tabela | `Structure/Fences/Plain Fence A.png`, `Structure/Signs/Sign Backgrounds A.png` |
 | Sonraki fazlar için hazır | `Terrain/cliff_summer.png` (mağara, kayalık), `FX/WaterRipple.png`, `FX/Splash.png` |
 
+## Görünüm önizlemesi
+
+Sadece LPC Revised parçalarıyla hazırlanmış bir önizleme (21.10.2026): meydan, kafe, iskele, göl kıyısı ve derin su. Konumlar haritanın kendisi değil, sadece görünümü göstermek için sıkıştırıldı.
+
+![Meydan önizlemesi](../gorsel/meydan-onizleme-v0.1.png)
+
 ## LPC Revised paketinde olup henüz repoya eklenmeyenler
 
 Paket (commit `f07f7f5`) tarandı (21.10.2026). Haritanın eksik sanılan parçalarının çoğu pakette var; gerektiği fazda `client/Assets/Art/LPC/` altına aynı klasör yapısıyla kopyalanır ve sanatçısı `content/CREDITS.md`'ye yazılır.
