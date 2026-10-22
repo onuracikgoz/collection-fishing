@@ -205,6 +205,10 @@ check((discovered ? !inBag(inv, done.defId) : inBag(inv, done?.defId)) && inv.en
   'get_inventory shows the catch (or not, if it went to the book) and spent energy');
 if (done?.item) check(done.item.float >= 0 && done.item.float <= 1 && done.item.tier, 'item has Tier and Float');
 
+// Faz 4 price and recipe list for the client windows.
+const cat = (await client.rpc(c.session, 'get_catalog', {})).payload;
+check(cat.tiers?.length === 5 && cat.recipes?.length > 0 && cat.baits?.length > 0 && cat.stash?.tiers?.length > 0, 'get_catalog lists prices, recipes, baits and stash tiers');
+
 // Collection Book (Faz 3): fish until a Tier item comes up; the first copy goes to its slot.
 let first = done?.book?.kind === 'discovered' ? done : null;
 for (let i = 0; i < 8 && !first; i++) {
