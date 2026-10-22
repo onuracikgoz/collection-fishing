@@ -35,6 +35,21 @@ namespace CollectionGame.Net
         public const long Teleport = 19;
         public const long Emote = 20;
         public const long EmoteShow = 21;
+        // Faz 4: economy, craft, shop, stash
+        public const long Sell = 22;
+        public const long Salvage = 23;
+        public const long EconomyResult = 24;
+        public const long Merge = 25;
+        public const long Craft = 26;
+        public const long CraftResult = 27;
+        public const long RepairRod = 28;
+        public const long BuyBait = 29;
+        public const long ShopResult = 30;
+        public const long StashOpen = 31;
+        public const long StashPut = 32;
+        public const long StashTake = 33;
+        public const long StashExpand = 34;
+        public const long StashResult = 35;
     }
 
     public static class ErrorCode
@@ -164,6 +179,8 @@ namespace CollectionGame.Net
         public string serverName;
         public int energy;
         public int energyMax;
+        /// <summary>Faz 4.</summary>
+        public RodView rod;
     }
 
     // --- Faz 2: fishing (docs/protokol.md, Balık tutma) ---
@@ -199,12 +216,24 @@ namespace CollectionGame.Net
         public string band;
     }
 
-    /// <summary>C → S, op 9: where the bobber should land (tiles).</summary>
+    /// <summary>C → S, op 9: where the bobber should land (tiles), basic bait.</summary>
     [Serializable]
     public class CastMsg
     {
         public float x;
         public float y;
+    }
+
+    /// <summary>
+    /// C → S, op 9 with a special bait (Faz 4). A separate class because JsonUtility
+    /// writes a null string as "", which the server refuses as a bait id.
+    /// </summary>
+    [Serializable]
+    public class CastBaitMsg
+    {
+        public float x;
+        public float y;
+        public string bait;
     }
 
     /// <summary>S → C, op 10.</summary>
@@ -218,6 +247,8 @@ namespace CollectionGame.Net
         public string state;
         /// <summary>Only in the fisher's own "cast" message: energy after the cast (0 elsewhere).</summary>
         public int energy;
+        /// <summary>Faz 4, own "cast" message with a special bait: what is left. defId empty otherwise.</summary>
+        public ItemStack bait;
     }
 
     /// <summary>C → S, op 11 and 15 (HOOK, CANCEL) have an empty body.</summary>
@@ -287,6 +318,8 @@ namespace CollectionGame.Net
         public int energy;
         /// <summary>Book outcome for a Tier item on a book page; page is empty when absent.</summary>
         public FishBookMsg book;
+        /// <summary>Faz 4: the rod after this catch when it wore; max is 0 when absent.</summary>
+        public RodView rod;
     }
 
     // --- Faz 3: Collection Book (docs/protokol.md, Collection Book) ---
@@ -454,5 +487,230 @@ namespace CollectionGame.Net
         public int slotsMax;
         public ItemInstance[] items;
         public ItemStack[] stacks;
+        /// <summary>Faz 4.</summary>
+        public long coin;
+        public long dust;
+        public RodView rod;
+    }
+
+    // --- Faz 4: economy, craft, rod and bait, stash (docs/protokol.md) ---
+
+    public static class Tiers
+    {
+        public const string Common = "common";
+        public const string Rare = "rare";
+        public const string Epic = "epic";
+        public const string Legendary = "legendary";
+        public const string Mythic = "mythic";
+        public static readonly string[] All = { Common, Rare, Epic, Legendary, Mythic };
+        public static int Rank(string tier) => Array.IndexOf(All, tier);
+    }
+
+    /// <summary>Rod durability; max 0 means the field was absent.</summary>
+    [Serializable]
+    public class RodView
+    {
+        public int level;
+        public int durability;
+        public int max;
+    }
+
+    /// <summary>C → S, ops 22, 23 (SELL, SALVAGE) and 32, 33 (STASH_PUT, STASH_TAKE).</summary>
+    [Serializable]
+    public class ItemsAndStacksMsg
+    {
+        public string[] items;
+        public ItemStack[] stacks;
+    }
+
+    /// <summary>S → C, op 24. items are instance ids that left the bag.</summary>
+    [Serializable]
+    public class EconomyResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public long coin;
+        public long dust;
+        public long gained;
+        public string[] items;
+        public ItemStack[] stacks;
+    }
+
+    /// <summary>C → S, op 25: three copies of the same item.</summary>
+    [Serializable]
+    public class MergeMsg
+    {
+        public string[] items;
+    }
+
+    /// <summary>C → S, op 26.</summary>
+    [Serializable]
+    public class CraftMsg
+    {
+        public string recipeId;
+        public string[] items;
+    }
+
+    /// <summary>S → C, op 27. item has an empty instanceId for stack results; stack has an empty defId for item results.</summary>
+    [Serializable]
+    public class CraftResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public long dust;
+        public ItemInstance item;
+        public ItemStack stack;
+        public FishBookMsg book;
+        public string[] items;
+        public ItemStack[] stacks;
+    }
+
+    /// <summary>C → S, op 29.</summary>
+    [Serializable]
+    public class BuyBaitMsg
+    {
+        public string defId;
+        public int count;
+    }
+
+    /// <summary>S → C, op 30.</summary>
+    [Serializable]
+    public class ShopResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public long coin;
+        public long spent;
+        public RodView rod;
+        public ItemStack stack;
+    }
+
+    [Serializable]
+    public class StashView
+    {
+        public int level;
+        public int slotsUsed;
+        public int slotsMax;
+        public ItemInstance[] items;
+        public ItemStack[] stacks;
+    }
+
+    /// <summary>S → C, op 35. stash.slotsMax is 0 when absent (failures).</summary>
+    [Serializable]
+    public class StashResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public StashView stash;
+        /// <summary>Coin left; only sent for expand.</summary>
+        public long coin;
+        public string[] items;
+        public ItemStack[] stacks;
+    }
+
+    // get_catalog RPC: display-only prices and recipes (server/src/rules/catalog.ts).
+
+    [Serializable]
+    public class CatalogTier
+    {
+        public string tier;
+        public int sell;
+        public int dust;
+        public int merge;
+        public int craft;
+    }
+
+    [Serializable]
+    public class CatalogCondition
+    {
+        public string condition;
+        public float min;
+        public float max;
+        /// <summary>double so 0.7 x 5 rounds like the server's JavaScript.</summary>
+        public double multiplier;
+    }
+
+    /// <summary>sell / dust 0 = the NPC does not buy it / it cannot be salvaged.</summary>
+    [Serializable]
+    public class CatalogStack
+    {
+        public string defId;
+        public string category;
+        public int sell;
+        public int dust;
+    }
+
+    /// <summary>tier is empty and count above 0 for stack outputs (bait).</summary>
+    [Serializable]
+    public class RecipeOutput
+    {
+        public string defId;
+        public string tier;
+        public int count;
+    }
+
+    [Serializable]
+    public class CatalogRecipe
+    {
+        public string id;
+        public string grade;
+        public RecipeOutput output;
+        public int dust;
+        public ItemStack[] stacks;
+        public ItemStack[] items;
+        public float maxFloat;
+    }
+
+    [Serializable]
+    public class CatalogBait
+    {
+        public string defId;
+        public int price;
+    }
+
+    [Serializable]
+    public class CatalogRodLevel
+    {
+        public int level;
+        public int max;
+        public int fullRepair;
+    }
+
+    [Serializable]
+    public class CatalogStashTier
+    {
+        public int slots;
+        public int price;
+    }
+
+    [Serializable]
+    public class CatalogStash
+    {
+        public float x;
+        public float y;
+        public float range;
+        public int baseSlots;
+        public int maxEntries;
+        public CatalogStashTier[] tiers;
+    }
+
+    [Serializable]
+    public class CatalogResponse
+    {
+        public CatalogTier[] tiers;
+        public CatalogCondition[] conditions;
+        public CatalogStack[] stacks;
+        public int maxEntries;
+        public int mergeCount;
+        public CatalogRecipe[] recipes;
+        public float[] qualitySteps;
+        public CatalogBait[] baits;
+        public int maxBuy;
+        public CatalogRodLevel[] rodLevels;
+        public CatalogStash stash;
     }
 }

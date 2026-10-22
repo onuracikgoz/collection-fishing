@@ -28,7 +28,7 @@ import { RECIPES, STARTER_RECIPES, recipeById } from '../data/recipes';
 import { OpCode, PROTOCOL_VERSION, ItemInstance, Tier } from '../protocol';
 import { BookEntries, luckOf, scoreOf } from '../rules/book';
 import { Category, ItemDef, rollFloat, tierOf } from '../rules/catch';
-import { craftBands, qualityRow } from '../rules/craft';
+import { craftBands, isStackOutput, qualityRow } from '../rules/craft';
 import { planEconomy } from '../rules/economy';
 import { buildCollisionMap, isWalkable } from '../rules/map';
 import { simulateReel } from '../rules/reel';
@@ -151,7 +151,8 @@ function allDefs(): { id: string; category: Category; tier: Tier | null; bands?:
   for (const d of LAKE_POOL) add(d, 'lake');
   for (const r of RECIPES) {
     add({ id: r.id, category: 'recipe' }, 'recipe');
-    add({ id: r.output.defId, category: r.output.tier }, 'craft');
+    // Stack outputs (bait) have no Tier and are not item definitions.
+    if (!isStackOutput(r.output)) add({ id: r.output.defId, category: r.output.tier }, 'craft');
   }
   for (const p of BOOK_PAGES) for (const id of p.items) if (!seen[id]) out.push({ id, category: 'common', tier: null, source: 'book-only', page: p.id });
   return out;

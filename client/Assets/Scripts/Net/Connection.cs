@@ -73,6 +73,13 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<InventoryResponse>(rpc.Payload);
         }
 
+        /// <summary>Faz 4 prices, recipes, baits and stash tiers. Display only; the server decides every result.</summary>
+        public async Task<CatalogResponse> GetCatalogAsync()
+        {
+            var rpc = await client.RpcAsync(Session, "get_catalog", "{}");
+            return JsonUtility.FromJson<CatalogResponse>(rpc.Payload);
+        }
+
         public async Task<BookResponse> GetBookAsync(string userId = null)
         {
             var rpc = await client.RpcAsync(Session, "get_book", UserArg(userId));

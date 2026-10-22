@@ -31,6 +31,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
+| `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
 
@@ -227,6 +228,22 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3, genişletme fiyatları `16-ek
 - **Taşıma:** `STASH_PUT` ve `STASH_TAKE` en fazla 40 satır, ya tamamen olur ya hiç. `items` ve `stacks` taşınanlardır. Defter yuvasındaki eşya depoya konamaz. Depodaki eşya satılamaz, parçalanamaz, craft'ta kullanılamaz, defter yuvasına konamaz: önce çantaya alınmalıdır.
 - `reason`: `NOT_AT_BANK`, `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED` (eşya / yığın çıkılan yerde değil), `NOT_ENOUGH`, `STASH_FULL`, `BAG_FULL`, `MAX_LEVEL`, `NOT_ENOUGH_COIN`.
 - Oyuncu başına tick'te en fazla bir defter, ekonomi, craft, dükkan veya depo işlemi işlenir.
+
+## Fiyat ve recipe listesi (Faz 4)
+
+Client'ın Faz 4 pencereleri (satış, birleştirme, craft, dükkan, depo) fiyatları ve recipe'leri tıklamadan önce göstermek için `get_catalog` çağırır. Sadece gösterim içindir: sayılar `server/src/config.ts` ve `data/recipes.ts`'ten gelir, client'a gömülmez; her sonucu yine yukarıdaki mesajlarda sunucu hesaplar. Cevap config değişmedikçe aynıdır (sunucu bir kez hesaplar), client girişte bir kez ister.
+
+Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe bağlı sayı yoktur (`0` = yok):
+
+- `tiers: [{ tier, sell, dust, merge, craft }]`: Tier başına NPC fiyatı (kondisyondan önce), parçalama tozu, birleştirme ve craft toz maliyeti.
+- `conditions: [{ condition, min, max, multiplier }]`: Float bantları ve NPC fiyat çarpanı. Satış önizlemesi `max(1, round(sell × multiplier))`, yarım yukarı yuvarlanır.
+- `stacks: [{ defId, category, sell, dust }]`: yığılan şeyler (çöp, malzeme, recipe, yem), adet başı. `sell: 0` NPC almaz, `dust: 0` parçalanmaz.
+- `maxEntries`, `mergeCount`.
+- `recipes: [{ id, grade, output: { defId, tier, count }, dust, stacks, items, maxFloat }]`: Float'lı çıktıda `count: 0`, yığın çıktıda (yem) `tier: ""`. `dust` craft'ın toz maliyeti, `maxFloat` kademenin en kötü sonucu.
+- `qualitySteps: [0.05, 0.2, 0.5]`: girdi Float ortalamasının "Kalite şansı" kelimesini değiştirdiği sınırlar (altında Çok Yüksek / Yüksek / Normal, üstü Düşük; Float'lı girdi yoksa Normal). Kesin oran gönderilmez.
+- `baits: [{ defId, price }]`, `maxBuy`. Yemin hangi bantta işe yaradığı gönderilmez (keşif konusu).
+- `rodLevels: [{ level, max, fullRepair }]`.
+- `stash: { x, y, range, baseSlots, maxEntries, tiers: [{ slots, price }] }`: Banka noktası (client haritada işaretler) ve genişletme kademeleri.
 
 ## Geliştirici RPC'leri (sadece yerel)
 

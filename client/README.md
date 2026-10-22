@@ -37,6 +37,17 @@ Sonucu her zaman sunucu verir; client mini oyunu sadece çizer ve tuş zamanlar�
 - Emote: **1** el salla, **2** alkış, **3** dans, **4** otur (yürüyene kadar), **5** gül, **6** son avını göster. Emote yazısı karakterin altında görünür.
 - Yazı kutusu (chat, arkadaş adı) açıkken oyun tuşları çalışmaz.
 
+### Ekonomi, craft, depo (Faz 4)
+
+- **E**: dükkan / zanaat penceresi. Üstte Coin ve toz. Sekmeler:
+  - **Sat / Parçala**: çantadaki eşyaları işaretle, yığınlarda adet seç (Hepsi, Tüm çöpü seç). Sat Coin, Parçala toz verir; tahmini toplam butonda yazar. Rare ve üstü, Pristine veya recipe seçiliyse ikinci tıklama ister.
+  - **Birleştir**: 3 kopyası olan eşyalar solda; seçince en kötü Float'lı 3 kopya işaretlenir, istersen değiştir. Toz maliyeti Tier'a göre.
+  - **Craft**: çantandaki recipe'ler. Malzemeler (sahip / gereken), Float'lı girdilerden hangilerinin kullanılacağı, "Kalite şansı" (Düşük / Normal / Yüksek / Çok Yüksek) ve toz maliyeti. İlk kopya "Yeni keşif!" ile deftere girer.
+  - **Dükkan**: olta dayanıklılığı ve tamir (Coin yetmezse yettiği kadar), Parlak / Kristal yem satın al, **Kullan** ile atışlarda o yemi seç.
+  - **Depo**: sadece Banka'nın 3 tile yakınında (haritada **Banka (Depo)** yazısı, güneybatı köyü ~30, 78). Solda çanta, sağda depo; işaretle, **Depoya koy** / **Çantaya al**, **Genişlet**.
+- **Y**: balık tutmadan önce yemi değiştir (çantadaki özel yemler, sonra temel yem). Sol üstte enerji, olta dayanıklılığı ve seçili yem görünür. Olta kırılınca (0) sadece çöp çıkar; E → Dükkan'dan tamir.
+- Fiyatlar ve recipe'ler girişte `get_catalog` ile sunucudan gelir; butonlardaki sayılar tahmindir, sonucu sunucu verir. Cevap gelene kadar (en fazla 3 sn) butonlar kapalı.
+
 ### Build ve otomatik test
 
 - Menü: **CollectionGame → Build macOS** (`Builds/macOS/CollectionGame.app`, git'e girmez). Editör kapalıyken komut satırından: `Unity -batchmode -projectPath client -executeMethod CollectionGame.EditorTools.BuildTools.BuildMac -quit -logFile -`.
@@ -65,6 +76,7 @@ Başka bir Mac'ten bağlanmak için sunucu adresine bu Mac'in yerel IP'sini yaz 
 | `Assets/Scripts/Fishing/` | `ReelModel` (sunucudaki mini oyunun birebir C# portu), `FishingController` (atış, vuruş, çekme, sonuç, çanta), `BobberView` |
 | `Assets/Scripts/Collection/` | `CollectionController` (defter penceresi, keşif / sayfa kutlaması, değiştirme sorusu, profil kartı) |
 | `Assets/Scripts/Social/` | `SocialController` (arkadaş penceresi, Yanına git, emote tuşları) |
+| `Assets/Scripts/Economy/` | `EconomyController` (E penceresi: sat / parçala, birleştir, craft, dükkan, depo; Banka işareti), `Prices` (`get_catalog` üstünde fiyat önizlemesi, kalite kelimesi, tamir ücreti) |
 | `Assets/Scripts/Dev/Autopilot.cs` | Build'leri komut satırından test eden otomatik oyuncu |
 | `Assets/Scripts/Art/ArtCatalog.cs` | `Assets/Art/LPC/` altındaki dokuların listesi; `Assets/Resources/ArtCatalog.asset` editörde otomatik güncellenir (`Editor/ArtCatalogBuilder.cs`, menü: CollectionGame → Refresh Art Catalog) |
 
