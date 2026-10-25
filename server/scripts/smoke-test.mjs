@@ -260,14 +260,28 @@ async function economy(op, body) {
   await sleep(300);
   return c.take(OP.ECONOMY_RESULT)[0];
 }
+// What the client windows would show before the click, worked out from get_catalog only.
+const conditionMult = (float) => (cat.conditions.find((b) => float >= b.min && float < b.max) || cat.conditions[cat.conditions.length - 1]).multiplier;
+const previewSell = (items, stacks) =>
+  items.reduce((n, id) => { const it = bag.items.find((i) => i.instanceId === id); return n + Math.max(1, Math.round(cat.tiers.find((t) => t.tier === it.tier).sell * conditionMult(it.float))); }, 0) +
+  stacks.reduce((n, st) => n + cat.stacks.find((x) => x.defId === st.defId).sell * st.count, 0);
+const previewDust = (items, stacks) =>
+  items.reduce((n, id) => n + cat.tiers.find((t) => t.tier === bag.items.find((i) => i.instanceId === id).tier).dust, 0) +
+  stacks.reduce((n, st) => n + cat.stacks.find((x) => x.defId === st.defId).dust * st.count, 0);
+const rest = lines.slice(1);
+const restItems = rest.flatMap((l) => l.items || []);
+const restStacks = rest.flatMap((l) => l.stacks || []);
+const expectDust = previewDust(lines[0].items || [], lines[0].stacks || []);
+const expectCoin = previewSell(restItems, restStacks);
 const salvaged = await economy(OP.SALVAGE, lines[0]);
 check(salvaged?.ok && salvaged.dust === salvaged.gained && salvaged.gained > 0 && salvaged.coin === 0, 'SALVAGE turns a bag line into dust');
-const rest = lines.slice(1);
+check(salvaged?.gained === expectDust, 'get_catalog predicts the salvage dust exactly');
 const sold = rest.length === 0 ? null : await economy(OP.SELL, {
   items: rest.flatMap((l) => l.items || []),
   stacks: rest.flatMap((l) => l.stacks || []),
 });
 check(!sold || (sold.ok && sold.coin === sold.gained && sold.gained > 0 && sold.dust === salvaged.dust), 'SELL turns the rest into Coin');
+check(!sold || sold.gained === expectCoin, 'get_catalog predicts the sell price exactly (Tier x condition, junk and material per unit)');
 const emptied = (await client.rpc(c.session, 'get_inventory', {})).payload;
 check(emptied.items.length === 0 && emptied.stacks.every((x) => isRecipe(x.defId)) && emptied.coin === (sold ? sold.coin : 0) && emptied.dust === salvaged?.dust,
   'get_inventory shows an empty bag and the new balances');
@@ -312,6 +326,7 @@ async function craftOp(op, body) {
 const ids = [1, 2, 3].map((n) => carp(n, 0).instanceId);
 check((await craftOp(OP.MERGE, { items: [ids[0], ids[1], 'nope'] }))?.reason === 'NOT_OWNED', 'MERGE with an item not owned is refused');
 const merged = await craftOp(OP.MERGE, { items: ids });
+check(cat.tiers.find((t) => t.tier === 'common').merge === 10 && cat.mergeCount === 3, 'get_catalog lists the merge cost the server charges');
 check(merged?.ok && merged.item.defId === 'lake.fish.carp' && merged.item.source === 'merge' && merged.item.float <= 0.6 && merged.dust === 15 && merged.items.length === 3,
   'MERGE turns three carps and 10 dust into one carp no worse than the worst');
 check((await craftOp(OP.CRAFT, { recipeId: 'recipe.moss_wreath' }))?.reason === 'MISSING_INPUTS', 'CRAFT without the materials is refused');
@@ -321,6 +336,7 @@ await consoleApi(`/v2/console/account/${uid}`, 'POST', { wallet: JSON.stringify(
 const crafted = await craftOp(OP.CRAFT, { recipeId: 'recipe.scale_charm' });
 check(crafted?.ok && crafted.item.defId === 'craft.scale_charm' && crafted.item.source === 'craft' && crafted.dust === 20 && crafted.book?.kind === 'discovered' && crafted.book.page === 'crafts',
   'CRAFT spends recipe, materials and dust, and the first crafted item goes to its book slot');
+check(cat.recipes.find((r) => r.id === 'recipe.scale_charm')?.dust === 20, 'get_catalog lists the craft dust the server charged');
 const dInv = (await client.rpc(d.session, 'get_inventory', {})).payload;
 const st = Object.fromEntries(dInv.stacks.map((x) => [x.defId, x.count]));
 check(!st['recipe.scale_charm'] && st['lake.mat.scale'] === 2 && !st['lake.mat.moss'] && dInv.dust === 20 &&
@@ -370,6 +386,7 @@ for (const to of [{ x: 74.5, y: 50.5 }, { x: 74.5, y: 47.5 }, { x: 85.4, y: 47.5
 
 const bought = await eOp(OP.BUY_BAIT, { defId: 'bait.shiny', count: 3 }, OP.SHOP_RESULT);
 check(bought?.ok && bought.spent === 15 && bought.coin === 2985 && bought.stack?.count === 3, 'BUY_BAIT puts 3 Parlak yem in the bag for 15 Coin');
+check(cat.baits.find((x) => x.defId === 'bait.shiny')?.price * 3 === bought.spent, 'get_catalog lists the bait price the server charged');
 check((await eOp(OP.BUY_BAIT, { defId: 'bait.gold', count: 1 }, OP.SHOP_RESULT))?.reason === 'BAD_REQUEST', 'unknown bait cannot be bought');
 e.clear();
 e.send(OP.CAST, { x: 88.5, y: 47.5, bait: 'bait.crystal' });
@@ -386,6 +403,7 @@ await eEnd();
 
 const repaired = await eOp(OP.REPAIR_ROD, {}, OP.SHOP_RESULT);
 check(repaired?.ok && repaired.spent === 100 && repaired.coin === 2885 && repaired.rod?.durability === 200, 'REPAIR_ROD fixes the whole rod for 100 Coin');
+check(cat.rodLevels.find((l) => l.level === 1)?.fullRepair === repaired.spent, 'get_catalog lists the repair cost the server charged');
 check((await eOp(OP.REPAIR_ROD, {}, OP.SHOP_RESULT))?.reason === 'NOT_NEEDED', 'repairing a whole rod is refused');
 
 const baited = await catchOne(e, { bait: 'bait.shiny' });
@@ -399,7 +417,7 @@ const baitCraft = await eOp(OP.CRAFT, { recipeId: 'recipe.shiny_bait' }, OP.CRAF
 check(baitCraft?.ok && baitCraft.stack?.defId === 'bait.shiny' && baitCraft.stack.count === 7 && !baitCraft.item && baitCraft.dust === 0, 'CRAFT of the bait recipe makes 5 Parlak yem');
 
 check((await eOp(OP.STASH_OPEN, {}, OP.STASH_RESULT))?.reason === 'NOT_AT_BANK', 'the stash does not open away from the bank');
-for (const to of [{ x: 74.5, y: 47.5 }, { x: 74.5, y: 50.5 }, { x: 30.5, y: 78.5 }]) await walkE(to);
+for (const to of [{ x: 74.5, y: 47.5 }, { x: 74.5, y: 50.5 }, { x: cat.stash.x, y: cat.stash.y }]) await walkE(to);
 check(e.take(OP.CORRECTION).length === 0, 'walk to the bank gets no CORRECTION');
 const opened = await eOp(OP.STASH_OPEN, {}, OP.STASH_RESULT);
 check(opened?.ok && opened.stash.level === 0 && opened.stash.slotsMax === 100 && opened.stash.slotsUsed === 0, 'STASH_OPEN at the bank shows an empty 100-slot stash');
@@ -413,6 +431,7 @@ const took = await eOp(OP.STASH_TAKE, { items: [perch.instanceId] }, OP.STASH_RE
 check(took?.ok && took.stash.items.length === 0 && took.stash.slotsUsed === 1, 'STASH_TAKE brings the item back');
 const expanded = await eOp(OP.STASH_EXPAND, {}, OP.STASH_RESULT);
 check(expanded?.ok && expanded.stash.level === 1 && expanded.stash.slotsMax === 120 && expanded.coin === 885, 'STASH_EXPAND buys 120 slots for 2.000 Coin');
+check(cat.stash.tiers[0].price === 2000 && cat.stash.tiers[0].slots === expanded.stash.slotsMax, 'get_catalog lists the first stash tier the server sold');
 check((await eOp(OP.STASH_EXPAND, {}, OP.STASH_RESULT))?.reason === 'NOT_ENOUGH_COIN', 'the next tier needs 5.000 Coin');
 // Everything stays after leaving: rod, stash level and contents.
 await e.socket.leaveMatch(target.matchId);
