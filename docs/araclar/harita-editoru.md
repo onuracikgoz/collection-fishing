@@ -19,9 +19,9 @@ Harita **128 × 96 tile**. Unity'de koordinatlar: x sağa 0..127, y aşağıya d
 
 ## İlk kurulum
 
-1. Unity'de `CollectionGame > Map > Create Map Prefab`. Araç `terrain_summer.png`'yi 32×32 parçalara böler, prefab'ı kurar (çimen zemin, düz su gölü, çeşme, işaretçiler) ve açar. Prefab modunda Scene penceresinde haritayı görürsün.
+1. Unity'de `CollectionGame > Map > Create Map Prefab`. Araç prefab'ı kurar (çimen zemin, düz su gölü, çeşme, işaretçiler) ve açar. Prefab modunda Scene penceresinde haritayı görürsün.
 2. `Window > 2D > Tile Palette` aç, **Create New Palette** (örn. `Assets/Map/Palettes/Lake`).
-3. Project penceresinde `Assets/Art/LPC/Terrain/terrain_summer.png`'nin yanındaki oka basıp parçaları aç, **tümünü seçip palete sürükle**. Unity her parça için bir tile kaydeder (`Assets/Map/Tiles/` seç). Aynısını başka sheet'ler için de yap.
+3. Sheet'i parçalara böl: `Assets/Art/LPC/Terrain/terrain_summer.png`'yi seç > `CollectionGame > Map > Slice Selected Textures (32x32)`. Uyarı çıkarsa elle yap: dosyayı seç > Inspector'da **Sprite Mode = Multiple** > **Sprite Editor** > Slice > Type **Grid By Cell Size**, 32 × 32 > Slice > Apply. Sonra dosyanın yanındaki oka basıp parçaları aç, **tümünü seçip palete sürükle**. Unity her parça için bir tile kaydeder (`Assets/Map/Tiles/` seç). Aynısını başka sheet'ler için de yap.
 4. İşaretçi karelerini de palete sürükle: `Assets/Map/Markers/water-tile.asset` (mavi) ve `blocked-tile.asset` (kırmızı).
 
 ## Çizim

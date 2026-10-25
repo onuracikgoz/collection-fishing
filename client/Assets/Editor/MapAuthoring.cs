@@ -43,7 +43,9 @@ namespace CollectionGame.EditorTools
                 var path = AssetDatabase.GetAssetPath(obj);
                 if (path.StartsWith("Assets/") && path.EndsWith(".png") && Slice(path)) done++;
             }
-            EditorUtility.DisplayDialog("Dilimleme", done == 0 ? "Project penceresinde bir veya birkaç .png seç." : $"{done} dosya 32x32 parçalara bölündü. Tile Palette'e sürükleyebilirsin.", "Tamam");
+            EditorUtility.DisplayDialog("Dilimleme", done == 0
+                ? "Dilimlenemedi. Project'te bir veya birkaç .png seçtiğinden emin ol; Console'daki sarı uyarıda elle yöntem yazıyor (Sprite Editor > Slice > Grid By Cell Size 32x32)."
+                : $"{done} dosya 32x32 parçalara bölündü. Tile Palette'e sürükleyebilirsin.", "Tamam");
         }
 
         /// <summary>Cuts a texture into 32x32 sprites named {file}_{col}_{row} (row 0 = top). Empty cells are skipped.</summary>
@@ -81,6 +83,12 @@ namespace CollectionGame.EditorTools
             importer.spritesheet = metas.ToArray();
 #pragma warning restore CS0618
             importer.SaveAndReimport();
+            var found = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().Count();
+            if (found < metas.Count)
+            {
+                Debug.LogWarning($"[Map] {path}: {metas.Count} parça beklenirdi, {found} bulundu. Unity bu dosyayı koddan dilimlemedi. Elle: dosyayı seç > Inspector > Sprite Mode = Multiple > Sprite Editor > Slice > Type: Grid By Cell Size 32x32 > Slice > Apply.");
+                return false;
+            }
             return true;
         }
 
@@ -92,8 +100,26 @@ namespace CollectionGame.EditorTools
             return true;
         }
 
-        static Sprite SpriteOf(string path, string name) =>
-            AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().FirstOrDefault(s => s.name == name);
+        /// <summary>A tile of one 32x32 cell (col, row from the top-left) of a sheet. The sprite is stored inside the tile asset, so no slicing of the sheet is needed.</summary>
+        static Tile CellTile(string name, string sheetPath, int col, int row)
+        {
+            var path = $"{TileDir}/{name}.asset";
+            var existing = AssetDatabase.LoadAssetAtPath<Tile>(path);
+            if (existing != null && existing.sprite != null) return existing;
+
+            var texture = AssetDatabase.LoadAssetAtPath<Texture2D>(sheetPath);
+            if (texture == null) return null;
+            var sprite = Sprite.Create(texture, new Rect(col * Cell, texture.height - (row + 1) * Cell, Cell, Cell), new Vector2(0.5f, 0.5f), Cell, 0, SpriteMeshType.FullRect);
+            sprite.name = name;
+            var tile = ScriptableObject.CreateInstance<Tile>();
+            tile.colliderType = Tile.ColliderType.None;
+            AssetDatabase.CreateAsset(tile, path);
+            AssetDatabase.AddObjectToAsset(sprite, tile);
+            tile.sprite = sprite;
+            EditorUtility.SetDirty(tile);
+            AssetDatabase.SaveAssets();
+            return tile;
+        }
 
         // ---------- create ----------
 
@@ -103,8 +129,7 @@ namespace CollectionGame.EditorTools
             if (File.Exists(PrefabPath) &&
                 !EditorUtility.DisplayDialog("Harita zaten var", "Assets/Resources/Map/Lake.prefab var. Sıfırdan oluşturup üzerine yazayım mı? Boyadığın her şey gider.", "Üzerine yaz", "Vazgeç"))
                 return;
-            Create();
-            Open();
+            if (Create()) Open();
         }
 
         [MenuItem("CollectionGame/Map/Open Map Prefab")]
@@ -119,24 +144,21 @@ namespace CollectionGame.EditorTools
             AssetDatabase.OpenAsset(prefab);
         }
 
-        static void Create()
+        static bool Create()
         {
-            if (SpriteOf(TerrainSheet, "terrain_summer_3_1") == null) Slice(TerrainSheet);
-            var grassSprite = SpriteOf(TerrainSheet, "terrain_summer_3_1");
-            var waterSprite = SpriteOf(TerrainSheet, "terrain_summer_1_11");
-            if (grassSprite == null || waterSprite == null)
-            {
-                EditorUtility.DisplayDialog("Dilimleme olmadı", $"{TerrainSheet} dilimlenemedi (terrain_summer_3_1 yok).", "Tamam");
-                return;
-            }
-
             EnsureFolder("Assets/Resources/Map");
             EnsureFolder(MapDir);
             EnsureFolder(MarkerDir);
             EnsureFolder(TileDir);
 
-            var grass = TileAsset("grass", grassSprite);
-            var water = TileAsset("water", waterSprite);
+            // Same cells MapView uses: grass (3, 1) and open water (1, 11) of terrain_summer.png.
+            var grass = CellTile("grass", TerrainSheet, 3, 1);
+            var water = CellTile("water", TerrainSheet, 1, 11);
+            if (grass == null || water == null)
+            {
+                EditorUtility.DisplayDialog("Zemin sheet'i bulunamadı", $"{TerrainSheet} yok ya da okunamadı.", "Tamam");
+                return false;
+            }
             var waterMarker = MarkerTile("water", new Color(0.2f, 0.5f, 1f, 1f));
             var blockedMarker = MarkerTile("blocked", new Color(1f, 0.25f, 0.2f, 1f));
             var spawnSprite = MarkerSprite("spawn", new Color(1f, 0.9f, 0.1f, 1f));
@@ -181,7 +203,7 @@ namespace CollectionGame.EditorTools
                 UnityEngine.Object.DestroyImmediate(root);
             }
             AssetDatabase.SaveAssets();
-            Export();
+            return Export();
         }
 
         static void AddFountain(Transform parent)
@@ -403,18 +425,6 @@ namespace CollectionGame.EditorTools
             var parent = Path.GetDirectoryName(path).Replace('\\', '/');
             EnsureFolder(parent);
             AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
-        }
-
-        static Tile TileAsset(string name, Sprite sprite)
-        {
-            var path = $"{TileDir}/{name}.asset";
-            var tile = AssetDatabase.LoadAssetAtPath<Tile>(path);
-            if (tile != null) return tile;
-            tile = ScriptableObject.CreateInstance<Tile>();
-            tile.sprite = sprite;
-            tile.colliderType = Tile.ColliderType.None;
-            AssetDatabase.CreateAsset(tile, path);
-            return tile;
         }
 
         static Tile MarkerTile(string name, Color color)
