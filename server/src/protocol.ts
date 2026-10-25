@@ -359,3 +359,6 @@ export interface StashResultMsg {
   items?: string[];
   stacks?: { defId: string; count: number }[];
 }
+
+/** get_catalog RPC (Faz 4): display-only prices and recipes, see rules/catalog.ts. */
+export type { CatalogResponse } from './rules/catalog';

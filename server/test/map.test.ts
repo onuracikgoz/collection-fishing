@@ -21,6 +21,18 @@ describe('isPathClear', () => {
   });
 });
 
+// The Unity map editor overwrites src/data/lake-map.ts (docs/araclar/harita-editoru.md); these hold for any map it writes.
+describe('exported map shape', () => {
+  it('keeps the water inside the map and blocked, and the spawn on dry land', () => {
+    const lake = buildCollisionMap(LAKE_MAP);
+    for (const r of LAKE_MAP.water ?? []) {
+      expect(r.x >= 0 && r.y >= 0 && r.x + r.w <= LAKE_MAP.width && r.y + r.h <= LAKE_MAP.height).toBe(true);
+      for (let y = r.y; y < r.y + r.h; y++) for (let x = r.x; x < r.x + r.w; x++) expect(isWalkable(lake, x + 0.5, y + 0.5)).toBe(false);
+    }
+    expect(isWalkable(lake, LAKE_MAP.spawn.x, LAKE_MAP.spawn.y)).toBe(true);
+  });
+});
+
 describe('first map', () => {
   it('spawns on a walkable tile and leaves the pier open', () => {
     const lake = buildCollisionMap(LAKE_MAP);
