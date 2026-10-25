@@ -80,6 +80,8 @@ Başka bir Mac'ten bağlanmak için sunucu adresine bu Mac'in yerel IP'sini yaz 
 | `Assets/Scripts/Dev/Autopilot.cs` | Build'leri komut satırından test eden otomatik oyuncu |
 | `Assets/Scripts/Art/ArtCatalog.cs` | `Assets/Art/LPC/` altındaki dokuların listesi; `Assets/Resources/ArtCatalog.asset` editörde otomatik güncellenir (`Editor/ArtCatalogBuilder.cs`, menü: CollectionGame → Refresh Art Catalog) |
 
+Harita: `Assets/Resources/Map/Lake.prefab` varsa oyun onu gösterir (Unity'de fırçayla çizilir, çarpışma `CollectionGame > Map > Export` ile sunucuya da yazılır); yoksa `MapView` eski test haritasını kodla çizer. Kullanım: `docs/araclar/harita-editoru.md`.
+
 Koordinatlar: sunucu tile cinsinden, y aşağı büyür. Unity'de 1 tile = 1 birim, dünya konumu `(x, -y)` (`Coords`).
 
 LPC sayfaları: 64×64 kare, satırlar yukarıdan aşağı **yukarı, sol, aşağı, sağ** (3. satır 1. satırın aynası). Walk 8 kare, Idle 3 kare.

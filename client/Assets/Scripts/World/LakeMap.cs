@@ -5,28 +5,16 @@ namespace CollectionGame.World
     /// <summary>
     /// Client copy of server/src/data/lake-map.ts and the collision checks in
     /// server/src/rules/map.ts. Both sides must agree or the player gets CORRECTIONs.
-    /// Temporary: later both should be generated from the Unity tilemap.
+    /// The size, spawn, water and blocked tiles are in LakeMapData.cs, which the
+    /// map editor writes (CollectionGame > Map > Export); see docs/araclar/harita-editoru.md.
     ///
     /// Coordinates are server tiles: x grows right, y grows DOWN (row 0 is the
     /// north edge). <see cref="Coords"/> converts to Unity world space.
     /// </summary>
-    public static class LakeMap
+    public static partial class LakeMap
     {
-        public const int Width = 128;
-        public const int Height = 96;
-        public static readonly Vector2 Spawn = new Vector2(64.5f, 50.5f);
-
+        // Used only by the code-drawn fallback map (MapView, when there is no map prefab).
         public static readonly RectInt Fountain = new RectInt(63, 47, 3, 2);
-
-        /// <summary>Fishable water (server LAKE_WATER); also blocked.</summary>
-        public static readonly RectInt[] Water =
-        {
-            new RectInt(76, 30, 40, 17),
-            new RectInt(76, 49, 40, 18),
-            new RectInt(86, 47, 30, 2), // water past the pier's end
-        };
-
-        public static readonly RectInt[] Blocked = { Fountain, Water[0], Water[1], Water[2] };
 
         // Drawing only (not collision): the lake's water and the walkable pier through it.
         public static readonly RectInt Lake = new RectInt(76, 30, 40, 37);
