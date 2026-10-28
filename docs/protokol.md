@@ -26,6 +26,11 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 - **Steam ilk açılış:** önce `authenticateSteam` hesap oluşturmadan denenir. Bağlı hesap yoksa oyuncu seçer:
   - **Yeni başla:** Steam hesabıyla yeni hesap ve karakter oluşturma.
   - **Web hesabım var:** webde Ayarlar > "Steam'e taşı" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir ve Steam o hesaba bağlanır (`linkSteam`). Masaüstünde Google / Facebook / Discord girişi tarayıcı yönlendirmesi istediği için Steam'de tek yol koddur. Yeni RPC'ler gerekir (`transfer_code_create`, `transfer_code_redeem`), adları ve gövdeleri yazılırken bu tabloya eklenecek.
+- **Taşıma kodu güvenliği:** kodu ele geçiren biri kendi Steam'ini bu hesaba bağlayıp karakteri alabilir (ör. "kodunu ver, eşya vereyim" kandırması). Bu yüzden:
+  - Steam'de kod girilince bağlama hemen olmaz; webde açık oturuma "`<Steam adı>` bu hesaba bağlanmak istiyor" onayı düşer, hesap sahibi onaylamazsa bağlanmaz (onay süresi kodla aynı, 10 dk, Öneri). Web oturumu kapalıysa onay bir sonraki girişte sorulur, kod o arada geçersiz olur.
+  - Kodun yanında sabit uyarı: "Bu kodu kimseyle paylaşma. Yetkililer asla istemez."
+  - Yeni bağlanan Steam hesabıyla ilk 72 saat (Öneri) takas ve pazar satışı kapalıdır; hesap sahibi bu sürede bağlantıyı kaldırırsa çalınan karakter elden çıkmamış olur.
+  - Hesaba bir giriş yolu bağlanınca veya kaldırılınca diğer yollardan girişte bildirim gösterilir.
 - **İki hesap birleştirilmez.** Bir Steam hesabı tek oyun hesabına bağlıdır.
 - **Steam hesabını silip web hesabını açmak:** Steam'de "Yeni başla" ile oynamış oyuncu, ayarlardan bu hesabı silip Steam'i web hesabına bağlayabilir. Silinen hesabın karakteri, defteri, eşyaları ve o hesapta alınmış kozmetikler kalıcı olarak gider; ekranda iki adımlı onay (hesap adını yazdırma) istenir. Tekrar bağlamaya bekleme süresi konur (ör. 30 günde bir, Öneri), hesap değiştirerek ekonomi açığı aranmasın.
 - **Bağlı hesapta iki ayrı işlem:**
