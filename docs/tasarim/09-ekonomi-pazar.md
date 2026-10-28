@@ -43,7 +43,7 @@ Knight Online pazarı gibi: oyuncular pazar alanında **tezgah** kurar, alıcıl
 - İlan **yalnızca tezgah açıkken** durur; tezgah kapanınca kalkar.
 - Panodaki ilana tıklayan alıcı **satıcının yanına ışınlanabilir** (aynı sunucuda; "Yanına git" kuralları, `10-sosyal.md` 13.2.1).
 - Pano arama ve fiyat sıralaması yapmaz; ilanlar sırayla döner.
-- **Ücret:** Onur'un fikri elmas. Açık soru (`acik-sorular.md` 22): elmas parayla satılırsa bu, parayla satış avantajı demek olabilir (kural 2). **(Öneri)** Coin ile ödensin (iyi bir Coin sink), elmas seçeneği monetization netleşince değerlendirilsin.
+- **Ücret: elmas** (karar 28.10.2026, Onur). Reklam bir kolaylık sayılır; eşya miktarı veya kalitesi artmaz.
 - **Alım ilanı** ("Mavi Kristal arıyorum, 500 Coin'e kadar") panoda kalsın mı: açık soru.
 
 Dış sitelerde gerçek parayla satılan eşyalar tezgahtan değil **takas penceresinden** teslim edilir. Tezgah yalnızca Coin ile çalışır.
