@@ -29,7 +29,8 @@
 
 - Meydanda fiziksel bir pano; **yalnızca oradan** açılır.
 - **Satış ilanı:** eşya + Coin fiyatı. Eşya panoya kilitlenir, satıcı çevrimdışıyken de satılır, Coin satıcıya gelir.
-- Her ilan tek bir eşya instance'ıdır; alıcı Float ve kondisyonu görür. Aynı eşyanın farklı Float'ları ayrı listelenir.
+- **Sıradan balık** (Float'sız, yığılan) adetle listelenir; görev için pazardan alınabilir (`18-gunluk-gorevler.md` 4).
+- Her Float'lı ilan tek bir eşya instance'ıdır; alıcı Float ve kondisyonu görür. Aynı eşyanın farklı Float'ları ayrı listelenir.
 - **Arama:** eşya adı, set, Tier, Float aralığı; en ucuz ilan üstte.
 - **Alım ilanı:** "Mavi Kristal arıyorum, 500 Coin'e kadar". Satıcı panoda görür, tek tıkla satar. Currently Hunting ile bağlanabilir.
 - İlan sahibine panodan **whisper** atılabilir (bkz. 13.1.2).

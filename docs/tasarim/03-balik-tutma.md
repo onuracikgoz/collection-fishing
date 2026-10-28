@@ -114,6 +114,8 @@ Sunucudaki değerler (hepsi Öneri, `server/src/config.ts`):
 | Legendary | %0.5 | 2 saatte 1 |
 | Mythic | %0.05 | ~17 saatte 1 |
 
+> **Değişiklik önerisi (28.10.2026):** Common %50'den %12'ye iner, aradaki fark yeni **sıradan balık** kategorisine (%38, defter kaydı değil) gider. Ayrıntı: `18-gunluk-gorevler.md`.
+
 Saatte ~30 değerli şey (malzeme, Rare ve üstü) çıkar. Hedeflenen defter temposu: Common'lar ilk gün, Rare'ler birkaç gün, Epic'ler 1–2 hafta, Legendary birkaç hafta, Mythic ve Pristine kovalamak aylar. Oranlar sunucuda tutulur, playtest'te ayarlanır.
 
 **Sudan her şey çıkabilir:** balık, sandık, eski gözlük, şişe, eski para, kristal, craft malzemesi, şişedeki recipe. Böylece AI ile üretilen herhangi bir temadaki eşya oyuna uyar.
@@ -136,6 +138,7 @@ Eşyalar dış sitelerde gerçek para edeceği için bot koruması zorunludur. T
 
 ### 5.2. Günlük Görevler ve Sandık
 
+- Balıkçı NPC'sinin sıradan balık siparişleri: günde 3 görev, Coin ödülü. Ayrıntı: `18-gunluk-gorevler.md`.
 - "3 balık tut", "birinin collection'ına bak" gibi günlük görevler. Sosyal davranışı da ödüllendirir.
 - Ödül olarak **sandık**: içinden eşya çıkan kutu. Faz 1'de sandık yalnızca günlük görev ödülüdür.
 - Sandıklarda garanti ödüller olabilir (ör. "garanti 1 recipe").
