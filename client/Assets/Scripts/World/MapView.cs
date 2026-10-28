@@ -7,13 +7,14 @@ namespace CollectionGame.World
     /// <summary>
     /// Draws the Phase 1 test map from <see cref="LakeMap"/> with LPC terrain tiles:
     /// grass everywhere, a dirt square and roads around the fountain, the lake with
-    /// a grass shore and the wooden pier. Built in code until the real map is
-    /// painted in a Unity tilemap (docs/tasarim/16-ilk-harita.md).
+    /// a grass shore and the wooden pier. That code map is only the fallback: once the
+    /// map prefab exists (Assets/Resources/Map/Lake.prefab, built and painted with the map
+    /// editor, docs/araclar/harita-editoru.md) the game shows that instead.
     /// </summary>
     public class MapView : MonoBehaviour
     {
-        public const int GroundOrder = -30000;
-        public const int OverlayOrder = -29999;
+        public const int GroundOrder = MapLayout.GroundOrder;
+        public const int OverlayOrder = MapLayout.DetailOrder;
 
         const string Terrain = "Terrain/terrain_summer.png";
         const string Bridge = "Structure/Bridges/Wood Bridge A - No Rails.png";
@@ -41,6 +42,47 @@ namespace CollectionGame.World
         void Start() => Build();
 
         public void Build()
+        {
+            var prefab = MapLayout.Load();
+            if (prefab != null)
+            {
+                BuildFromPrefab(prefab);
+                return;
+            }
+            BuildFromCode();
+        }
+
+        void BuildFromPrefab(GameObject prefab)
+        {
+            var map = Instantiate(prefab, transform);
+            map.name = "Map";
+            // The markers are for the editor and the server's collision; players do not see them.
+            foreach (var marker in new[] { MapLayout.Water, MapLayout.Blocked })
+            {
+                var layer = map.transform.Find(marker);
+                if (layer == null) continue;
+                var renderer = layer.GetComponent<TilemapRenderer>();
+                if (renderer != null) renderer.enabled = false;
+            }
+            var spawn = map.transform.Find(MapLayout.Spawn);
+            if (spawn != null)
+            {
+                var r = spawn.GetComponent<Renderer>();
+                if (r != null) r.enabled = false;
+            }
+            var guide = map.GetComponent<MapGuide>();
+            if (guide != null) Destroy(guide);
+
+            // Collision comes from LakeMapData.cs (written by the editor's Export), the same numbers
+            // the server uses. A mismatch means the prefab was painted after the last export.
+            var hash = MapLayout.MarkerHash(map);
+            if (LakeMap.MarkerHash != 0 && hash != LakeMap.MarkerHash)
+                Debug.LogWarning("[Map] The map prefab's Water / Blocked / Spawn markers changed after the last export. Run CollectionGame > Map > Export, then restart the server, or walking will be corrected by the server.");
+            else if (LakeMap.MarkerHash == 0)
+                Debug.LogWarning("[Map] The map prefab has not been exported yet (CollectionGame > Map > Export): collision is still the old test map.");
+        }
+
+        void BuildFromCode()
         {
             var grid = new GameObject("Grid", typeof(Grid));
             grid.transform.SetParent(transform, false);

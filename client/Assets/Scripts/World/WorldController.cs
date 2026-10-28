@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CollectionGame.Collection;
+using CollectionGame.Economy;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.Social;
@@ -33,6 +34,7 @@ namespace CollectionGame.World
         FishingController fishing;
         CollectionController collection;
         SocialController social;
+        EconomyController economy;
         bool inputLatched;
         bool chatOpen;
         bool focusChat;
@@ -49,6 +51,7 @@ namespace CollectionGame.World
             world.social = new SocialController(net, switchServer);
             world.collection = new CollectionController(net) { AddFriend = world.social.AddFriend };
             world.fishing = new FishingController(net, go.transform, world.PositionOf, () => world.mover != null && world.mover.Synced);
+            world.economy = new EconomyController(net, world.fishing, () => world.mover?.Position) { Crafted = world.collection.OnFishEnd };
             go.AddComponent<MapView>();
             return world;
         }
@@ -63,6 +66,7 @@ namespace CollectionGame.World
         public FishingController Fishing => fishing;
         public CollectionController Collection => collection;
         public SocialController Social => social;
+        public EconomyController Economy => economy;
         public Connection Net => net;
 
         /// <summary>Chat or any IMGUI text field has the keyboard: game keys are off.</summary>
@@ -115,6 +119,7 @@ namespace CollectionGame.World
                 fishing.Update(mover.Position, mover.Facing, Typing, cam);
                 collection.Update(Typing);
                 social.Update(Typing);
+                economy.Update(Typing);
             }
 
             foreach (var (view, remote) in others.Values)
@@ -151,6 +156,7 @@ namespace CollectionGame.World
                     var start = new Vector2(w.you.x, w.you.y);
                     mover = new LocalMover(start);
                     fishing.OnWelcome(w);
+                    economy.OnWelcome();
                     if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username);
                     me.SetState(start, mover.Facing, false);
                     break;
@@ -217,6 +223,18 @@ namespace CollectionGame.World
                 case OpCode.BookResult:
                     collection.OnBookResult(JsonUtility.FromJson<BookResultMsg>(m.Json));
                     break;
+                case OpCode.EconomyResult:
+                    economy.OnEconomyResult(JsonUtility.FromJson<EconomyResultMsg>(m.Json));
+                    break;
+                case OpCode.CraftResult:
+                    economy.OnCraftResult(JsonUtility.FromJson<CraftResultMsg>(m.Json));
+                    break;
+                case OpCode.ShopResult:
+                    economy.OnShopResult(JsonUtility.FromJson<ShopResultMsg>(m.Json));
+                    break;
+                case OpCode.StashResult:
+                    economy.OnStashResult(JsonUtility.FromJson<StashResultMsg>(m.Json));
+                    break;
                 case OpCode.Teleport:
                 {
                     var t = JsonUtility.FromJson<TeleportMsg>(m.Json);
@@ -281,6 +299,7 @@ namespace CollectionGame.World
         void DrawLabels()
         {
             if (cam == null) return;
+            economy.DrawMarkers(cam);
             if (me != null) DrawLabel(me, true);
             foreach (var (view, _) in others.Values) DrawLabel(view, false);
         }
@@ -320,12 +339,13 @@ namespace CollectionGame.World
         {
             var info = mover == null ? "Bağlanıyor..." : $"{serverName} · {others.Count + 1} kişi görüşte";
             GUI.Label(new Rect(10, 8, 400, 24), info, Gui.Hud);
-            if (!chatOpen) GUI.Label(new Rect(10, Gui.Height - 30, 600, 24), "WASD / tıkla: yürü · Enter: konuş", Gui.Hud);
+            if (!chatOpen) GUI.Label(new Rect(10, Gui.Height - 30, 600, 24), "WASD / tıkla: yürü · Enter: konuş · E: dükkan, craft, depo", Gui.Hud);
             if (mover != null)
             {
                 fishing.DrawGui(mover.Position);
                 collection.DrawGui();
                 social.DrawGui();
+                economy.DrawGui();
             }
         }
 

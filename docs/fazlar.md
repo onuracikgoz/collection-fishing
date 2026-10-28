@@ -65,9 +65,10 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Olta dayanıklılığı ve tamir. Sunucu: `rules/rod.ts`, `REPAIR_ROD`; kırık olta sadece çöp çıkarır (Öneri)
 - [x] Özel yemler: satın alma, yemle atış, yem craft'ı. Sunucu: `rules/bait.ts`, `BUY_BAIT`, `CAST.bait`
 - [x] Depo: sadece Banka'da, kademeli genişletme. Sunucu: `rules/stash.ts`, `STASH_*`
-- [ ] Client: satış / parçalama / birleştirme / craft / tamir / yem / depo pencereleri
-- [ ] Haritaya Zanaatkar, Banka ve dükkan NPC'leri; mesafe şartları (şimdilik sadece depo Banka'ya bağlı)
+- [ ] Client: satış / parçalama / birleştirme / craft / tamir / yem / depo pencereleri. Client yazıldı: E penceresi (`Economy/`), Y ile yem seçimi, HUD'da olta ve yem; fiyatlar `get_catalog` RPC'sinden. Bulutta Unity DLL'leriyle derlendi, Unity editöründe elle deneme bekliyor
+- [ ] Haritaya Zanaatkar, Banka ve dükkan NPC'leri; mesafe şartları (şimdilik sadece depo Banka'ya bağlı). Client Banka noktasını haritada yazıyla işaretliyor (bina yok)
 - [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
+- [ ] Harita editörü: Unity'de çizilen harita oyunun haritası olur, çarpışma sunucuya dışa aktarılır (`docs/araclar/harita-editoru.md`). Kod yazıldı, Unity'de denenmedi
 ## Sürekli: mekanik önce, asset sonra
 
 Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti, kodla çizilen harita, IMGUI pencereler, kodla çizilen şamandıra). Assetler sonradan tamamen değişecek, bu yüzden:

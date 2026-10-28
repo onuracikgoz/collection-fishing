@@ -15,7 +15,8 @@ namespace CollectionGame.Fishing
     ///
     /// Keys: hold F and release to cast in the facing direction (longer hold =
     /// farther), or right-click on water. Space hooks on a bite and, held, lifts
-    /// the reel bar. Esc reels in. B opens the bag.
+    /// the reel bar. Esc reels in. B opens the bag. Y picks the special bait for
+    /// the next casts (Faz 4), cycling through what is in the bag and back to basic bait.
     /// </summary>
     public sealed class FishingController
     {
@@ -41,6 +42,12 @@ namespace CollectionGame.Fishing
         public int EnergyMax { get; private set; }
         public ReelModel Reel { get; private set; }
         public InventoryResponse Bag { get; private set; }
+        /// <summary>Faz 4: our rod; max 0 until the server sent it.</summary>
+        public RodView Rod { get; private set; }
+        /// <summary>Faz 4: special bait for the next casts, null for basic bait.</summary>
+        public string SelectedBait { get; set; }
+        /// <summary>Called after every bag refresh (economy windows rebuild their lists).</summary>
+        public Action BagChanged { get; set; }
         public bool BagOpen { get; set; }
         public string LastOutcome { get; private set; }
         public FishEndMsg LastEnd { get; private set; }
@@ -71,6 +78,43 @@ namespace CollectionGame.Fishing
         {
             Energy = w.energy;
             EnergyMax = w.energyMax;
+            if (w.rod != null && w.rod.max > 0) Rod = w.rod;
+            RefreshBag(); // bait counts and balances for the HUD
+        }
+
+        public void SetRod(RodView rod)
+        {
+            if (rod != null && rod.max > 0) Rod = rod;
+        }
+
+        public bool RodBroken => Rod != null && Rod.max > 0 && Rod.durability <= 0;
+
+        /// <summary>How many of a stack the bag holds, as of the last refresh.</summary>
+        public int StackCount(string defId)
+        {
+            if (Bag?.stacks == null || string.IsNullOrEmpty(defId)) return 0;
+            foreach (var st in Bag.stacks)
+                if (st.defId == defId) return st.count;
+            return 0;
+        }
+
+        /// <summary>Y: next special bait in the bag, then basic bait again.</summary>
+        void CycleBait()
+        {
+            var owned = new List<string>();
+            if (Bag?.stacks != null)
+                foreach (var st in Bag.stacks)
+                    if (st.defId.StartsWith("bait.") && st.count > 0) owned.Add(st.defId);
+            owned.Sort(StringComparer.Ordinal);
+            if (owned.Count == 0)
+            {
+                SelectedBait = null;
+                ShowToast("Çantanda özel yem yok (dükkandan alınır)");
+                return;
+            }
+            var i = SelectedBait == null ? -1 : owned.IndexOf(SelectedBait);
+            SelectedBait = i + 1 < owned.Count ? owned[i + 1] : null;
+            ShowToast(SelectedBait == null ? "Temel yem" : $"Yem: {ItemName(SelectedBait)} (çantada {StackCount(SelectedBait)})");
         }
 
         // ---------- input ----------
@@ -87,6 +131,7 @@ namespace CollectionGame.Fishing
                 BagOpen = !BagOpen;
                 if (BagOpen) RefreshBag();
             }
+            if (!typing && k.yKey.wasPressedThisFrame && State == Phase.Idle) CycleBait();
 
             switch (State)
             {
@@ -116,7 +161,11 @@ namespace CollectionGame.Fishing
                     // so the CAST waits until the server has our final position.
                     if (pendingCast.HasValue && movementSynced())
                     {
-                        net.Send(OpCode.Cast, new CastMsg { x = pendingCast.Value.x, y = pendingCast.Value.y });
+                        var p = pendingCast.Value;
+                        // Out of the chosen bait: fall back to basic bait instead of a NO_BAIT refusal.
+                        if (SelectedBait != null && StackCount(SelectedBait) <= 0) SelectedBait = null;
+                        if (SelectedBait != null) net.Send(OpCode.Cast, new CastBaitMsg { x = p.x, y = p.y, bait = SelectedBait });
+                        else net.Send(OpCode.Cast, new CastMsg { x = p.x, y = p.y });
                         pendingCast = null;
                         stateSince = now;
                     }
@@ -201,6 +250,20 @@ namespace CollectionGame.Fishing
             if (b.state == BobberState.Bite && (State == Phase.Waiting || State == Phase.Casting)) SetState(Phase.Bite);
             else if (b.state == BobberState.Cast && State == Phase.Casting) SetState(Phase.Waiting);
             if (b.state == BobberState.Cast) Energy = b.energy;
+            if (b.state == BobberState.Cast && b.bait != null && !string.IsNullOrEmpty(b.bait.defId)) SetStack(b.bait.defId, b.bait.count);
+        }
+
+        /// <summary>Keeps the cached bag in step with a stack total the server just sent.</summary>
+        public void SetStack(string defId, int count)
+        {
+            if (Bag == null || string.IsNullOrEmpty(defId)) return;
+            var list = new List<ItemStack>(Bag.stacks ?? Array.Empty<ItemStack>());
+            var i = list.FindIndex(st => st.defId == defId);
+            if (count <= 0) { if (i >= 0) list.RemoveAt(i); }
+            else if (i >= 0) list[i].count = count;
+            else list.Add(new ItemStack { defId = defId, count = count });
+            Bag.stacks = list.ToArray();
+            if (SelectedBait == defId && count <= 0) SelectedBait = null;
         }
 
         public void OnReelStart(ReelStartMsg r)
@@ -226,6 +289,7 @@ namespace CollectionGame.Fishing
             }
 
             Energy = e.energy;
+            SetRod(e.rod);
             LastOutcome = e.outcome;
             LastEnd = e;
             Debug.Log($"[Fish] FISH_END {e.outcome} {e.reason} {e.defId} energy {e.energy}");
@@ -257,6 +321,9 @@ namespace CollectionGame.Fishing
                 Bag = await net.GetInventoryAsync();
                 Energy = Bag.energy;
                 EnergyMax = Bag.energyMax;
+                SetRod(Bag.rod);
+                if (SelectedBait != null && StackCount(SelectedBait) <= 0) SelectedBait = null;
+                BagChanged?.Invoke();
             }
             catch (Exception ex)
             {
@@ -322,6 +389,9 @@ namespace CollectionGame.Fishing
                         case "NOT_WATER": return "Oraya atılmaz, suya at";
                         case "TOO_FAR": return "Çok uzak";
                         case "BAG_FULL": return "Çanta dolu";
+                        case "NO_BAIT": return "Bu yemden kalmadı";
+                        case "NO_ENERGY": return "Enerjin yok: özel yem boşa gitmesin diye atılmadı";
+                        case "ROD_BROKEN": return "Olta kırık: özel yemle atılmaz, önce tamir et";
                         default: return $"Atış reddedildi ({e.reason})";
                     }
                 default: return e.outcome;
@@ -333,6 +403,9 @@ namespace CollectionGame.Fishing
         public void DrawGui(Vector2 me)
         {
             GUI.Label(new Rect(10, 30, 300, 24), $"Enerji: {Energy}/{EnergyMax}", Gui.Hud);
+            if (Rod != null && Rod.max > 0)
+                GUI.Label(new Rect(10, 52, 360, 24), RodBroken ? "Olta KIRIK: sadece çöp çıkar (E: tamir)" : $"Olta: {Rod.durability}/{Rod.max}", RodBroken ? Gui.Warn : Gui.Hud);
+            GUI.Label(new Rect(10, 74, 360, 24), SelectedBait == null ? "Yem: temel" : $"Yem: {ItemName(SelectedBait)} x {StackCount(SelectedBait)}", Gui.Hud);
 
             var hint = Hint(me);
             if (hint != null) GUI.Label(new Rect(10, Gui.Height - 56, 700, 24), hint, State == Phase.Bite ? Gui.Alert : Gui.Hud);
@@ -360,7 +433,7 @@ namespace CollectionGame.Fishing
             switch (State)
             {
                 case Phase.Idle:
-                    return LakeMap.IsNearWater(me, NearWater) ? "F basılı tut, bırak: olta at · sağ tık: suya at · B: çanta" : null;
+                    return LakeMap.IsNearWater(me, NearWater) ? "F basılı tut, bırak: olta at · sağ tık: suya at · Y: yem · B: çanta" : null;
                 case Phase.Charging: return "Bırakınca atar";
                 case Phase.Waiting: return "Bekle... kıpırdama sahte, şamandıra batınca Space · Esc: topla";
                 case Phase.Bite: return "ÇEK! (Space)";
@@ -401,6 +474,7 @@ namespace CollectionGame.Fishing
             else
             {
                 GUILayout.Label($"Çanta {Bag.slotsUsed}/{Bag.slotsMax} · Enerji {Bag.energy}/{Bag.energyMax}", Gui.Hud);
+                GUILayout.Label($"Coin {Bag.coin} · Toz {Bag.dust}", Gui.Hud);
                 GUILayout.Space(6);
                 if (Bag.items != null)
                     for (var i = Bag.items.Length - 1; i >= 0 && i >= Bag.items.Length - 10; i--)

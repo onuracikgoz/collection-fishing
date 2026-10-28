@@ -15,6 +15,7 @@ import { rpcGetInventory } from './rpc/getInventory';
 import { rpcGetBook } from './rpc/getBook';
 import { rpcGetProfile, rpcSetProfile } from './rpc/profile';
 import { rpcFriendsStatus } from './rpc/friendsStatus';
+import { rpcGetCatalog } from './rpc/getCatalog';
 import { isDevEnabled } from './debug/gate';
 import {
   rpcDevBook,
@@ -52,6 +53,7 @@ function InitModule(
   initializer.registerRpc('get_profile', rpcGetProfile);
   initializer.registerRpc('set_profile', rpcSetProfile);
   initializer.registerRpc('friends_status', rpcFriendsStatus);
+  initializer.registerRpc('get_catalog', rpcGetCatalog);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
   initializer.registerMatch('world', {
