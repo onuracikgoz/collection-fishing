@@ -1,4 +1,4 @@
-"""Draws the pixel UI kit (Resurrect 64, "dark wood" theme) into client/Assets/Art/UI.
+"""Draws the pixel UI kit (Resurrect 64, wood frame + sage linen theme) into client/Assets/Art/UI.
 
 Run from the repo root:  python3 tools/ui-kit/make_ui_kit.py
 Writes one PNG per piece, ui-borders.json (9-slice borders, read by PixelArtImporter)
@@ -18,6 +18,9 @@ INK = c("2e222f")
 # wood ramp: deep, shade, face, light, shine
 WD, WM, W, WL, WH = map(c, ["45293f", "7a3045", "9e4539", "cd683d", "e6904e"])
 PAPER, PAPER_S, PAPER_D = c("fdcbb0"), c("fca790"), c("e6904e")
+# sage: linen fill of windows, slot / field faces, flat bottom bar
+LINEN, LINEN_W = c("b2ba90"), c("92a984")
+SAGE_L, SAGE, SAGE_M, SAGE_D = c("c7dcd0"), c("92a984"), c("547e64"), c("374e4a")
 NAIL, NAIL_D = c("f9c22b"), c("4c3e24")
 GREY_D, GREY, GREY_L = c("625565"), c("7f708a"), c("9babb2")
 WHITE = c("ffffff")
@@ -38,6 +41,12 @@ def speckle(im, x0, y0, x1, y1, colors, density=18, seed=3):
     rnd = random.Random(seed)
     for _ in range(max(1, (x1 - x0 + 1) * (y1 - y0 + 1) // density)):
         im.putpixel((rnd.randint(x0, x1), rnd.randint(y0, y1)), rnd.choice(colors))
+def linen(im, x0, y0, x1, y1):
+    """Woven linen, period 4 px, so a Tiled center repeats without seams."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            dx, dy = x - x0, y - y0
+            im.putpixel((x, y), LINEN_W if (dx // 2 + dy // 2) % 2 == 0 and (dx + dy) % 4 == 0 else LINEN)
 def from_ascii(rows, colors):
     im = new(len(rows[0]), len(rows))
     for y, row in enumerate(rows):
@@ -87,7 +96,7 @@ for state in ("normal", "hover", "pressed"):
     im.alpha_composite(cross, (1, 1 + (1 if state == "pressed" else 0)) if state == "pressed" else (1, 0))
     put(f"button_close_{state}", im)
 
-# ---------- window A: plank frame, speckled paper, drop shadow ----------
+# ---------- window: plank frame, sage linen, drop shadow ----------
 def window(s=50, f=8, sh=2):
     im = new(s, s)
     r(im, sh, sh, s - 1, s - 1, c("2e222f", 110))      # baked drop shadow
@@ -104,12 +113,11 @@ def window(s=50, f=8, sh=2):
         r(im, x, y, x + f - 2, y + f - 2, W); r(im, x, y, x + f - 2, y, WL)
         r(im, x + 2, y + 2, x + 4, y + 4, NAIL_D); r(im, x + 2, y + 2, x + 3, y + 3, NAIL)
     r(im, f - 1, f - 1, n - f, n - f, WD)               # inner lip
-    r(im, f, f, n - 1 - f, n - 1 - f, PAPER)
-    speckle(im, f, f + 1, n - 1 - f, n - 1 - f, [PAPER_S, PAPER_S, PAPER_D])
-    r(im, f, f, n - 1 - f, f, PAPER_S)
+    linen(im, f, f, n - 1 - f, n - 1 - f)
+    r(im, f, f, n - 1 - f, f, SAGE)                     # shade under the top frame
     im.putpixel((0, 0), CLR); im.putpixel((n - 1, 0), CLR); im.putpixel((0, n - 1), CLR)
     return im, (f + 1, f + 1, f + 1 + sh, f + 1 + sh)
-put("window", *window())
+put("window", *window(s=52))
 
 # ---------- box C: translucent dark (chat, HUD, server info) ----------
 im = new(16, 16)
@@ -117,11 +125,23 @@ r(im, 0, 0, 15, 15, c("625565", 200)); r(im, 1, 1, 14, 14, c("2e222f", 190)); r(
 round_corners(im); put("box_dark", im, 3)
 
 # ---------- paper card, tooltip, name tag, chat bubble ----------
-im = new(24, 24)
-r(im, 0, 0, 23, 23, PAPER_D); r(im, 1, 1, 22, 22, PAPER)
-speckle(im, 2, 2, 21, 21, [PAPER_S], density=14)
-r(im, 1, 22, 22, 22, PAPER_S); r(im, 22, 1, 22, 22, PAPER_S)
-round_corners(im); put("card_paper", im, 3)
+im = new(24, 24)   # light card inside a window (friend row, server row, rule row)
+r(im, 0, 0, 23, 23, SAGE); r(im, 1, 1, 22, 22, SAGE_L)
+round_corners(im); put("card", im, 3)
+
+# ---------- flat bottom bar (opaque sage) + its buttons ----------
+im = new(8, 16); r(im, 0, 0, 7, 15, SAGE_D); r(im, 0, 0, 7, 0, INK)
+put("hud_bar", im, (0, 2, 0, 0))
+def flat(face):
+    im = new(16, 16); r(im, 0, 0, 15, 15, INK); r(im, 1, 1, 14, 14, face); return im
+put("button_flat_normal", flat(SAGE_M), 3); put("button_flat_hover", flat(c("6a9a7a")), 3)
+put("button_flat_pressed", flat(SAGE), 3)
+
+# ---------- context menu (right click), list highlight ----------
+im = new(12, 12)
+r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, c("3e3546")); r(im, 1, 1, 10, 1, GREY_D)
+put("menu", im, 3)
+im = new(8, 8); r(im, 0, 0, 7, 7, SAGE_M); put("menu_highlight", im, 1)
 
 im = new(12, 12)
 r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, c("3e3546")); r(im, 1, 1, 10, 1, c("625565"))
@@ -138,10 +158,9 @@ put("bubble_tail", from_ascii(["xwwwwwx", ".xwwwx.", "..xwx..", "...x..."], {"x"
 # ---------- tabs ----------
 def tab(active):
     im = new(24, 16)
-    face, top = (PAPER, PAPER_S) if active else (W, WL)
-    r(im, 0, 0, 23, 15, INK); r(im, 1, 1, 22, 15, face); r(im, 1, 1, 22, 1, top)
-    if active: speckle(im, 2, 3, 21, 15, [PAPER_S], density=16, seed=5)
-    else: r(im, 1, 15, 22, 15, INK)                     # inactive tab is closed at the bottom
+    r(im, 0, 0, 23, 15, INK)
+    if active: linen(im, 1, 1, 22, 15); r(im, 1, 1, 22, 1, SAGE_L)
+    else: r(im, 1, 1, 22, 15, W); r(im, 1, 1, 22, 1, WL); r(im, 1, 15, 22, 15, INK)                     # inactive tab is closed at the bottom
     im.putpixel((0, 0), CLR); im.putpixel((23, 0), CLR)
     return im
 put("tab_active", tab(True), (4, 4, 4, 1)); put("tab_inactive", tab(False), (4, 4, 4, 1))
@@ -150,7 +169,7 @@ put("tab_active", tab(True), (4, 4, 4, 1)); put("tab_inactive", tab(False), (4, 
 def field(focus):
     im = new(32, 16)
     r(im, 0, 0, 31, 15, NAIL if focus else WD); r(im, 1, 1, 30, 14, WHITE)
-    r(im, 1, 1, 30, 1, PAPER_S); r(im, 1, 1, 1, 14, PAPER_S)   # sunken
+    r(im, 1, 1, 30, 1, SAGE_L); r(im, 1, 1, 1, 14, SAGE_L)   # sunken
     return im
 put("input_normal", field(False), 3); put("input_focus", field(True), 3)
 
@@ -174,19 +193,19 @@ r(im, 2, 6, 5, 6, W); r(im, 2, 9, 5, 9, W); round_corners(im); put("scroll_thumb
 
 def checkbox(on):
     im = new(12, 12)
-    r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, WHITE); r(im, 1, 1, 10, 1, PAPER_S); r(im, 1, 1, 1, 10, PAPER_S)
+    r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, WHITE); r(im, 1, 1, 10, 1, SAGE_L); r(im, 1, 1, 1, 10, SAGE_L)
     if on:
         im.alpha_composite(from_ascii(["......g", ".....gg", "g...gg.", "gg.gg..", ".ggg...", "..g...."],
                                       {"g": c("239063")}), (3, 3))
     round_corners(im); return im
 put("checkbox_off", checkbox(False)); put("checkbox_on", checkbox(True))
 
-im = new(16, 4); r(im, 0, 1, 15, 1, WM); r(im, 0, 2, 15, 2, PAPER); im.putpixel((0, 1), CLR); im.putpixel((15, 1), CLR)
+im = new(16, 4); r(im, 0, 1, 15, 1, SAGE); r(im, 0, 2, 15, 2, SAGE_L); im.putpixel((0, 1), CLR); im.putpixel((15, 1), CLR)
 put("divider", im, (2, 0, 2, 0))
 
 # ---------- item slots (40x40 holds a 32 px icon) ----------
 TIERS = {"common": "9babb2", "rare": "4d9be6", "epic": "a884f3", "legendary": "f79617", "mythic": "e83b3b"}
-def slot(outline=WD, fill=PAPER, inner=PAPER_S):
+def slot(outline=WM, fill=SAGE_L, inner=SAGE):
     im = new(40, 40)
     r(im, 0, 0, 39, 39, outline); r(im, 1, 1, 38, 38, fill)
     r(im, 1, 1, 38, 2, inner); r(im, 1, 1, 2, 38, inner)      # sunken top-left
@@ -276,7 +295,9 @@ for i, st in enumerate(["normal", "hover", "pressed", "disabled"]):
 # chat bubble, name tag, tooltip, card, cursors
 at(tiled("bubble", 70, 14), 70, 140); at(pieces["bubble_tail"], 90, 153)
 at(tiled("nametag", 30, 9), 6, 140)
-at(tiled("tooltip", 60, 20), 6, 160); at(tiled("card_paper", 60, 36), 70, 176)
+at(tiled("tooltip", 60, 20), 6, 160); at(tiled("card", 60, 36), 70, 176)
+at(tiled("hud_bar", 120, 20), 264, 204)
+for i, st in enumerate(["normal", "hover", "pressed"]): at(pieces[f"button_flat_{st}"], 300 + i * 20, 206)
 for i, n in enumerate(["cursor_arrow", "cursor_hand", "cursor_rod"]): at(pieces[n], 8 + i * 16, 190)
 at(pieces["flag_en"], 56, 192)
 pv.resize((pv.width * 3, pv.height * 3), Image.NEAREST).save(PREVIEW)
