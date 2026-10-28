@@ -46,7 +46,7 @@ Sunucu ağırlıkları (10000 = %100): çöp 2500, sıradan balık 3805, Common 
 
 ## 4. Pazar ve görev
 
-- Sıradan balık pazar panosunda **adetle** listelenir (ör. "10 sazan, tanesi 12 Coin"). Float'ı olmadığı için tek tek instance değildir.
+- Sıradan balık tezgahta **adetle** satılır (ör. "10 sazan, tanesi 12 Coin"). Float'ı olmadığı için tek tek instance değildir.
 - Vakti olmayan oyuncu görev balığını pazardan alıp NPC'ye verebilir. Görev ödülü pazar fiyatından yüksekse aradaki fark kazançtır; balık tutan oyuncu da balığını NPC'den daha iyi fiyata satar. Bu, sıradan balığa doğal bir talep yaratır.
 - Herkesin görevi farklı olduğu için talep türlere dağılır; tek bir tür patlamaz.
 - Pazar şartları (level 10 vb.) aynen geçerlidir.

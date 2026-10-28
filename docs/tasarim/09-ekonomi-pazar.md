@@ -20,24 +20,33 @@
 - **Hukuk:** şansla çıkan eşyanın gerçek para değeri bazı ülkelerde (ör. Belçika, Hollanda) kumar tartışmasına girebilir, kitle genç olabilir. Yayından önce avukata danışılmalı.
 - Steam Community Market ileride alternatif olarak değerlendirilebilir (ödeme ve dolandırıcılık kontrolü Valve'de). O zaman v0.2'deki Steam Inventory PoC'si geçerli olur (yedek dosyada bölüm 42–44).
 
-### 12.3. Oyun İçi Pazar
+### 12.3. Oyun İçi Pazar (karar 28.10.2026: tezgah)
 
-- Oyun içi pazarda eşya ve recipe Coin ile alınıp satılır.
-- Ayrı bir Pazar Odası / tezgah sistemi **yok**; sosyal alanlar bunun yerine sohbet mekanlarıdır (bkz. 4.0).
+Knight Online pazarı gibi: oyuncular pazar alanında **tezgah** kurar, alıcılar gezerek bakar. **Global arama ve fiyat sıralaması yoktur**; fiyatı bilmek için gezmek, sormak ve pazarlık etmek gerekir. Pazar böylece bir tablo değil, sosyal bir buluşma yeri olur. (Eski "tek pano, arama, en ucuz üstte" tasarımı kaldırıldı.)
 
-#### Pazar Panosu
+#### Tezgah
 
-- Meydanda fiziksel bir pano; **yalnızca oradan** açılır.
-- **Satış ilanı:** eşya + Coin fiyatı. Eşya panoya kilitlenir, satıcı çevrimdışıyken de satılır, Coin satıcıya gelir.
-- **Sıradan balık** (Float'sız, yığılan) adetle listelenir; görev için pazardan alınabilir (`18-gunluk-gorevler.md` 4).
-- Her Float'lı ilan tek bir eşya instance'ıdır; alıcı Float ve kondisyonu görür. Aynı eşyanın farklı Float'ları ayrı listelenir.
-- **Arama:** eşya adı, set, Tier, Float aralığı; en ucuz ilan üstte.
-- **Alım ilanı:** "Mavi Kristal arıyorum, 500 Coin'e kadar". Satıcı panoda görür, tek tıkla satar. Currently Hunting ile bağlanabilir.
-- İlan sahibine panodan **whisper** atılabilir (bkz. 13.1.2).
-- **(Öneri)** Pazar ücreti satıştan %5. **İlan açma ücreti yoktur**; ücret yalnızca satış olunca alınır.
-- **(Öneri)** Oyuncu başına en fazla 10 aktif ilan, ilanlar 7 gün sonra kalkar.
+- **Pazar alanı:** meydanın yanında haritada ayrılmış bir bölge (yeri `16-ilk-harita.md`). Tezgah yalnızca burada kurulur; her oyuncu bir yer kaplar, yerler dolunca yeni tezgah açılmaz (Öneri: sunucu başına ~40 tezgah yeri).
+- Satıcı oturup tezgahı açar, bir **başlık** yazar ("Taze sazan, ucuz!", chat filtresinden geçer) ve satacağı eşyaları fiyatıyla koyar. Eşyalar tezgaha kilitlenir.
+- **Görünüm:** tezgaha yaklaşınca başının üstünde başlık ve **ilk 4 eşya** (ikon + fiyat) görünür. Tıklayınca (büyütünce) satılan **tüm eşyalar** açılır; Float'lı eşyada Float ve kondisyon görünür.
+- Alıcı tek tıkla satın alır; Coin satıcıya gelir. **(Öneri)** Pazar ücreti satıştan %5, ilan/tezgah açma ücretsiz.
+- Sıradan balık, malzeme ve recipe gibi yığılanlar **adetle** konur ("10 sazan, tanesi 12 Coin"); alıcı istediği kadarını alır.
+- Tezgah açıkken oyuncu AFK kalabilir ama oyunda olmalıdır. **(Öneri)** Tezgah en fazla 8 saat açık kalır, çıkışta kapanır, eşyalar çantaya döner. Çevrimdışı tezgah yok.
+- **(Öneri)** Tezgahta en fazla 12 kalem.
+- Her sunucunun kendi pazarı vardır; sunucular arası fiyat farkı doğaldır.
+- Satıcıya tezgahtan **whisper** atılabilir (bkz. 13.1.2).
 - Level 10 ve kısıtlı olmayan Steam hesabı şartı geçerlidir.
-- Dış sitelerde gerçek parayla satılan eşyalar panodan değil **takas penceresinden** teslim edilir. Pano yalnızca Coin ile çalışır.
+
+#### Pazar Panosu (reklam)
+
+- Meydandaki pano bir **reklam panosudur**: tezgahı açık olan oyuncu, ücret ödeyerek kendini panoya ilan verir (başlık + öne çıkardığı birkaç eşya).
+- İlan **yalnızca tezgah açıkken** durur; tezgah kapanınca kalkar.
+- Panodaki ilana tıklayan alıcı **satıcının yanına ışınlanabilir** (aynı sunucuda; "Yanına git" kuralları, `10-sosyal.md` 13.2.1).
+- Pano arama ve fiyat sıralaması yapmaz; ilanlar sırayla döner.
+- **Ücret:** Onur'un fikri elmas. Açık soru (`acik-sorular.md` 22): elmas parayla satılırsa bu, parayla satış avantajı demek olabilir (kural 2). **(Öneri)** Coin ile ödensin (iyi bir Coin sink), elmas seçeneği monetization netleşince değerlendirilsin.
+- **Alım ilanı** ("Mavi Kristal arıyorum, 500 Coin'e kadar") panoda kalsın mı: açık soru.
+
+Dış sitelerde gerçek parayla satılan eşyalar tezgahtan değil **takas penceresinden** teslim edilir. Tezgah yalnızca Coin ile çalışır.
 
 ### 12.4. Eşya ve Coin Yakma (Sink) Noktaları
 
