@@ -27,6 +27,9 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
   - **Web hesabım var:** e-posta + şifreyle girer, Steam o hesaba bağlanır (`linkSteam`). E-postası olmayan misafir web hesabı için web ayarlarında "Steam'e taşı" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir. Yeni RPC'ler gerekir (`transfer_code_create`, `transfer_code_redeem`), adları ve gövdeleri yazılırken bu tabloya eklenecek.
 - **İki hesap birleştirilmez.** Bir Steam hesabı tek oyun hesabına bağlıdır.
 - **Steam hesabını silip web hesabını açmak:** Steam'de "Yeni başla" ile oynamış oyuncu, ayarlardan bu hesabı silip Steam'i web hesabına bağlayabilir. Silinen hesabın karakteri, defteri, eşyaları ve o hesapta alınmış kozmetikler kalıcı olarak gider; ekranda iki adımlı onay (hesap adını yazdırma) istenir. Tekrar bağlamaya bekleme süresi konur (ör. 30 günde bir, Öneri), hesap değiştirerek ekonomi açığı aranmasın.
+- **Bağlı hesapta iki ayrı işlem:**
+  - **Bağlantıyı kaldır** (`unlinkSteam` / `unlinkEmail`): karakter kalır, sadece o giriş yolu ayrılır. Hesapta en az bir giriş yolu kalmalı.
+  - **Hesabı sil:** hesap tektir, bütün giriş yolları (Steam, e-posta, cihaz) birlikte serbest kalır; aynı e-posta veya Steam ile sonra sıfırdan yeni karakter açılabilir. Silme önce 14 gün bekler (Öneri), bu sürede tekrar girince iptal olur; sonra kalıcıdır. Silinen hesabın e-postası / Steam'i 7 gün yeni hesap açamaz ve kullanıcı adı 30 gün başkasına verilmez (Öneri: başlangıç ödüllerini tekrar toplamak ve ad kapmak için sil-aç yapılmasın).
 
 - Kullanıcı adı ilk girişte (hesap oluşurken) gönderilir. Kural: **3–16 karakter**, harf (Türkçe harfler dahil), rakam ve `_` (Öneri). Uymazsa giriş `BAD_REQUEST` ile reddedilir. Ad başkasındaysa Nakama'nın kendi hatası döner.
 - Ad gönderilmezse Nakama rastgele bir ad atar, bu yüzden client ilk girişte adı her zaman gönderir. Hesap zaten varsa gönderilen ad yok sayılır.
