@@ -27,6 +27,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
   - **Yeni başla:** Steam hesabıyla yeni hesap ve karakter oluşturma.
   - **Web hesabım var:** webde Ayarlar > Hesap > "Kod üret" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir ve Steam o hesaba bağlanır (`linkSteam`). Masaüstünde Google / Facebook / Discord girişi tarayıcı yönlendirmesi istediği için Steam'de tek yol koddur. Yeni RPC'ler gerekir (`transfer_code_create`, `transfer_code_redeem`), adları ve gövdeleri yazılırken bu tabloya eklenecek.
 - **Taşıma kodu güvenliği:** kod webde Ayarlar > Hesap > "Kod üret" ile üretilir ve Steam'de girilince bağlama hemen olur (ayrı onay yok, kodu üretmek onaydır). Kodu ele geçiren biri kendi Steam'ini bu hesaba bağlayıp karakteri alabilir (ör. "kodunu ver, eşya vereyim" kandırması). Bu yüzden:
+  - Ayarlar > Hesap sayfası her açılışta bulanık gelir; "Hesap bilgilerin gizlendi" uyarısı onaylanınca açılır (yayın / omuz üstünden bakma için).
   - Kodun yanında sabit uyarı: "Bu kodu kimseyle paylaşma. Yetkililer asla istemez."
   - Yeni bağlanan Steam hesabıyla ilk 72 saat (Öneri) takas ve pazar satışı kapalıdır; hesap sahibi bu sürede bağlantıyı kaldırırsa çalınan karakter elden çıkmamış olur.
   - Hesaba bir giriş yolu bağlanınca veya kaldırılınca diğer yollardan girişte bildirim gösterilir.
