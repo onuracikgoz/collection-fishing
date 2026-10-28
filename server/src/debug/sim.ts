@@ -1,7 +1,7 @@
 // Pure helpers for the developer dashboard (tools/dev-dashboard). No Nakama dependency.
 // They only reuse the game rules; nothing here is used by the game itself.
 import { BookPage, LuckConfig, applyLuck } from '../rules/book';
-import { CatchTable, Category, FloatBand, ItemDef, rollCatch, rollFloat } from '../rules/catch';
+import { CatchConfig, CatchSpot, CatchTable, Category, FloatBand, ItemDef, applyBand, rollCatch, rollFloat } from '../rules/catch';
 import { conditionOf } from '../rules/economy';
 import { Random } from '../rules/rng';
 import { FIELD, ReelParams, STEP_MS, START_PROGRESS, simulateReel } from '../rules/reel';
@@ -17,22 +17,24 @@ export interface CatchSimResult {
   empty: number;
 }
 
-/** Rolls the catch table `n` times the way a bite does, Float included. */
+/** Rolls the catch table `n` times the way a bite does (band weights included when `catchCfg` is given), Float included. */
 export function simulateCatches(
   pool: ItemDef[],
   table: CatchTable,
-  band: Band,
+  spot: CatchSpot,
   hasEnergy: boolean,
   luck: number,
   luckCfg: LuckConfig,
   floatTable: FloatBand[],
   n: number,
   random: Random,
+  catchCfg: CatchConfig | null = null,
 ): CatchSimResult {
-  const boosted = applyLuck(table, luck, luckCfg);
+  const lucky = applyLuck(table, luck, luckCfg);
+  const boosted = catchCfg ? applyBand(lucky, spot.band, catchCfg) : lucky;
   const out: CatchSimResult = { n, byCategory: {}, byDef: {}, byCondition: {}, empty: 0 };
   for (let i = 0; i < n; i++) {
-    const roll = rollCatch(pool, boosted, band, hasEnergy, random);
+    const roll = rollCatch(pool, boosted, spot, hasEnergy, random);
     if (!roll) {
       out.empty++;
       continue;

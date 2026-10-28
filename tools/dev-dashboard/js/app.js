@@ -273,7 +273,7 @@ function renderConfig(area) {
   const drawn = () => drawMap(canvas, info.map, 7);
   mount(
     area,
-    card('Eşya tanımları', table(['defId', 'Kategori', 'Tier', 'Bant', 'Kaynak', 'Defter sayfası'], info.defs.map((d) => [h('code', null, d.id), d.category, d.tier || '—', (d.bands || ['hepsi']).join(', '), d.source, d.page || '—']))),
+    card('Eşya tanımları', table(['defId', 'Kategori', 'Tier', 'Su', 'Bant', 'Yem', 'Min level', 'Kaynak', 'Defter sayfası'], info.defs.map((d) => [h('code', null, d.id), d.category, d.tier || '—', (d.waters || ['hepsi']).join(', '), (d.bands || ['hepsi']).join(', '), (d.baits || ['—']).join(', '), d.minLevel || 1, d.source, d.page || '—']))),
     card('Defter sayfaları', table(['Sayfa', 'Kayıtlar'], info.pages.map((p) => [p.id, p.items.join(', ')]))),
     card('Recipe\'ler', table(['Recipe', 'Kademe', 'Çıkan', 'Yığınlar', 'Eşyalar'], info.recipes.map((r) => [r.id, r.grade, `${r.output.defId} (${r.output.tier})`, r.stacks.map((s) => `${s.count}× ${s.defId}`).join(', '), r.items.map((s) => `${s.count}× ${s.defId}`).join(', ') || '—']))),
     card('Harita', h('p', { class: 'muted' }, `${info.map.width}×${info.map.height} tile. Açık yeşil yürünebilir, gri engel, mavi tonları kıyı / orta / derin su.`), canvas),

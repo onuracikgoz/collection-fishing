@@ -1,6 +1,7 @@
 // Tunable numbers for the world (docs/protokol.md). Values marked (Öneri)
 // are not final; change them here, not in rules or match code.
-import type { Category } from './rules/catch';
+import type { CatchConfig, Category } from './rules/catch';
+import type { FishingConfig } from './rules/fishing';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
 import type { RodConfig } from './rules/rod';
@@ -45,11 +46,23 @@ export const WATER = {
   midMax: 5, // then mid up to 5, deep beyond (Öneri)
 };
 
-export const FISHING = {
+// Bands play differently so the shore stays worth it for good players
+// (03-balik-tutma.md "Bantların dengesi", all Öneri): the shore is quick and
+// easy, deep water is slow, harder to reel and wears the rod twice as fast.
+export const FISHING: FishingConfig = {
   nearWater: 1.5, // tiles (Öneri)
   maxCast: 8, // tiles; one rod for now (Öneri)
-  waitMinMs: 5000,
-  waitMaxMs: 20000,
+  wait: {
+    shore: { minMs: 5000, maxMs: 10000 },
+    mid: { minMs: 8000, maxMs: 15000 },
+    deep: { minMs: 12000, maxMs: 20000 },
+  },
+  // On top of the Tier's reel game (REEL_PARAMS).
+  reel: {
+    shore: { barScale: 1.1, fishSpeedAdd: 0 },
+    mid: { barScale: 1, fishSpeedAdd: 0 },
+    deep: { barScale: 0.9, fishSpeedAdd: 1 },
+  },
   maxTwitches: 3, // (Öneri)
   hookWindowMs: { common: 600, rare: 525, epic: 450, legendary: 400, mythic: 350 },
   hookGraceMs: 300, // network delay allowance (Öneri)
@@ -68,6 +81,26 @@ export const CATCH_TABLE = {
   recipe: 40, // ~0.4% (16-ekonomi-tablosu.md V5)
   legendary: 50,
   mythic: 5,
+};
+
+// Item catch fields and bands (03-balik-tutma.md "Eşyanın çıkış alanları", Öneri).
+export const CATCH: CatchConfig = {
+  // Category multipliers per band. Materials mostly come from the shore so
+  // recipes keep it busy; deeper water gives high Tiers more often. Together
+  // with the per-band wait and reel (FISHING), coin per hour stays close
+  // (test/balance.test.ts) while the shore gives several times more materials.
+  bandBoost: {
+    shore: { material: 2, epic: 0.6, legendary: 0.6 },
+    mid: { material: 1.3, rare: 1.2, epic: 1.5 },
+    deep: { material: 0.5, rare: 1.3, epic: 2, legendary: 2, mythic: 2 },
+  },
+  // An item listing the cast's bait in `baits` weighs this much inside its category.
+  baitItemFactor: 3,
+};
+
+// Player level until XP arrives (04-xp-level.md); items with a higher minLevel stay locked.
+export const LEVEL = {
+  start: 1,
 };
 
 // 05-esya-float.md 7.2
@@ -182,7 +215,8 @@ export const ROD: RodConfig = {
     2: { max: 200, fullRepair: 150 },
     3: { max: 200, fullRepair: 250 },
   },
-  wearPerCatch: 1, // only catches with energy wear the rod
+  // Only catches with energy wear the rod; deep water twice as much.
+  wear: { shore: 1, mid: 1, deep: 2 },
 };
 
 // Special baits (03-balik-tutma.md 5.0.0.1, 16-ekonomi-tablosu.md 4.1; multipliers Öneri).
@@ -190,8 +224,8 @@ export const BAIT: BaitConfig = {
   baits: {
     // Parlak yem: Rare and up a little more often, anywhere.
     'bait.shiny': { price: 5, boost: { rare: 1.3, epic: 1.3, legendary: 1.2, mythic: 1.2 } },
-    // Kristal yem: only in deep water; rarer things and crystals.
-    'bait.crystal': { price: 20, bands: ['deep'], boost: { epic: 1.5, legendary: 1.5, mythic: 2 }, tagBoost: { crystal: 4 } },
+    // Kristal yem: only in deep water; rarer things, and items listing it in `baits`.
+    'bait.crystal': { price: 20, bands: ['deep'], boost: { epic: 1.5, legendary: 1.5, mythic: 2 } },
   },
   maxBuy: 99,
 };
