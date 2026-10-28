@@ -29,6 +29,12 @@ export const DEFAULT_PREPARE: PrepareSettings = {
   quantize: true,
 }
 
+// Default empty border around the object for an output size: 4 px on a
+// 128 item, 1 px on a 16 icon, none on an 8 px inline icon.
+export function paddingFor(size: number): number {
+  return size >= 64 ? 4 : size >= 16 ? 1 : 0
+}
+
 export interface PreparedBase {
   buffer: PixelBuffer
   toSource(x: number, y: number): Point | null

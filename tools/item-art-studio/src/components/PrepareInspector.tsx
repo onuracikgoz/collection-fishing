@@ -1,4 +1,12 @@
-import type { PrepareSettings } from '../engine/pipeline'
+import { paddingFor, type PrepareSettings } from '../engine/pipeline'
+
+// 128: collection item. 16 / 8: UI icons (HUD, menu, emote / inline coin, dust).
+const SIZES = [
+  { size: 128, label: 'Item 128' },
+  { size: 32, label: '32' },
+  { size: 16, label: 'Icon 16' },
+  { size: 8, label: 'Inline 8' },
+]
 
 interface Props {
   prepare: PrepareSettings
@@ -60,9 +68,19 @@ export function PrepareInspector({
           Center and fit to {prepare.size} × {prepare.size}
         </label>
         {prepare.resize && (
+          <div className="row">
+            {SIZES.map(({ size, label }) => (
+              <button key={size} type="button" className={`btn ${prepare.size === size ? 'btn-active' : ''}`}
+                onClick={() => onChange({ size, padding: paddingFor(size) })}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+        {prepare.resize && (
           <label className="slider">
             <span>Padding <b>{prepare.padding}px</b></span>
-            <input type="range" min="0" max="16" value={prepare.padding}
+            <input type="range" min="0" max={Math.max(1, Math.floor(prepare.size / 8))} value={prepare.padding}
               onChange={(e) => onChange({ padding: Number(e.target.value) })} />
           </label>
         )}
