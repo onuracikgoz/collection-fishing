@@ -54,7 +54,7 @@ Sunucu ağırlıkları (10000 = %100): çöp 2500, sıradan balık 3805, Common 
 ## 5. Enerji
 
 - 3 görev ~50–60 atış ister; oyuncunun koleksiyon için en az ~100 atışı kalmalı.
-- Öneri: enerji üst sınırı **100 → 160**, çevrimdışı dolum yine ~8 saat. Dinlenme alanlarında 3 kat hızlı dolum aynen kalır. Sayı Onur'un onayını bekliyor (`acik-sorular.md` 21).
+- Karar (28.10.2026): enerji üst sınırı **100 → 160**, çevrimdışı dolum yine ~8 saat. Dinlenme alanlarında 3 kat hızlı dolum aynen kalır. Config sıradan balık koduyla birlikte değişir.
 
 ## 6. Sonra konuşulacak
 
