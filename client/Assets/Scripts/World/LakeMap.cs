@@ -3,7 +3,7 @@ using UnityEngine;
 namespace CollectionGame.World
 {
     /// <summary>
-    /// Client copy of server/src/data/lake-map.ts and the collision checks in
+    /// Client copy of content/maps/lake.json (read by server/src/data/lake-map.ts) and the collision checks in
     /// server/src/rules/map.ts. Both sides must agree or the player gets CORRECTIONs.
     /// The size, spawn, water and blocked tiles are in LakeMapData.cs, which the
     /// map editor writes (CollectionGame > Map > Export); see docs/araclar/harita-editoru.md.

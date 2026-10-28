@@ -6,6 +6,7 @@ import type { CraftConfig } from './rules/craft';
 import type { RodConfig } from './rules/rod';
 import type { BaitConfig } from './rules/bait';
 import type { StashConfig } from './rules/stash';
+import { BANK_POINT } from './data/lake-map';
 
 export interface ServerDef {
   /** Stable id, used to find the match again after a restart. */
@@ -206,8 +207,8 @@ export const STASH: StashConfig = {
     { slots: 180, price: 30000 },
     { slots: 200, price: 75000 },
   ],
-  // Banka in the south-west village (16-ilk-harita.md 5). Placeholder until the map is drawn.
-  bank: { x: 30.5, y: 78.5 },
+  // Banka in the south-west village (16-ilk-harita.md 5), from the map file's `bank` point.
+  bank: { x: BANK_POINT.x, y: BANK_POINT.y },
   range: 3,
   maxEntries: 40,
 };
