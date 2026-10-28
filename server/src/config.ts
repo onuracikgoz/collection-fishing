@@ -221,7 +221,7 @@ export const WATCH: WatchConfig = {
   hourBuckets: 168, // one week
   maxSpots: 40,
   maxPartners: 50,
-  flushMs: 60000,
+  flushMs: 5 * 60000, // a crash loses at most 5 min of signals; unchanged stats are never rewritten
   // Reactions arrive in 100 ms ticks, so a human's spread is well above 40 ms.
   hook: { minSamples: 30, maxStdMs: 40, minMeanMs: 150 },
   // A perfect solver keeps the fish inside ‰1000; a quick simulated player ‰800-950 (test/watch.test.ts).

@@ -36,7 +36,7 @@ import { Rod, rodView } from '../rules/rod';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 import { devSignal } from '../debug/signal';
-import { WatchStats, recordChat } from '../rules/watch';
+import { WatchStats, changeMark, recordChat } from '../rules/watch';
 import { readWatch, saveWatch } from './watch';
 
 export const POSITION_COLLECTION = 'player';
@@ -68,6 +68,7 @@ interface Player {
   /** Bot signals (rules/watch.ts), saved every WATCH.flushMs and on leave. */
   watch: WatchStats;
   watchSavedAt: number;
+  watchMark?: string;
 }
 
 /** Join metadata accepted in matchJoinAttempt. */
@@ -243,6 +244,8 @@ export function worldJoin(
       stash: old ? old.stash : undefined,
       watch,
       watchSavedAt: old ? old.watchSavedAt : now,
+      // What storage already holds, so a player who only stands around never writes.
+      watchMark: old ? old.watchMark : changeMark(watch),
     };
     const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD) };
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);

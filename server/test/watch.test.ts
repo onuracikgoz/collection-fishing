@@ -4,6 +4,7 @@ import { simulateReel } from '../src/rules/reel';
 import { solveReel } from '../src/debug/sim';
 import {
   activity,
+  changeMark,
   emptyStats,
   ipGroups,
   normalizeStats,
@@ -142,6 +143,19 @@ describe('ip groups', () => {
 });
 
 describe('storage and score', () => {
+  it('change mark moves only when something was recorded', () => {
+    const s = emptyStats();
+    const m = changeMark(s);
+    expect(changeMark(normalizeStats(JSON.parse(JSON.stringify(s))))).toBe(m);
+    recordChat(s);
+    expect(changeMark(s)).not.toBe(m);
+    const c = changeMark(s);
+    recordCast(s, 1, 1, T0, WATCH);
+    expect(changeMark(s)).not.toBe(c);
+    const r = changeMark(s);
+    recordReel(s, 10, 20, true, WATCH);
+    expect(changeMark(s)).not.toBe(r);
+  });
   it('normalizes junk', () => {
     expect(normalizeStats(null)).toEqual(emptyStats());
     const s = normalizeStats({ hookMs: [1, 'x', 2], casts: 'many', hours: { 1: 2, 2: 'x' }, given: { u: { n: 1, value: 'x' } } });

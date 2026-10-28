@@ -2,7 +2,7 @@
 //   watch/stats    WatchStats     (written by the world match)
 //   watch/account  AccountWatch   (written on every device login)
 // Neither is readable by clients; only the dev dashboard (and later the admin panel) reads them.
-import { AccountWatch, WatchStats, normalizeStats } from '../rules/watch';
+import { AccountWatch, WatchStats, changeMark, normalizeStats } from '../rules/watch';
 
 export const WATCH_COLLECTION = 'watch';
 const READ_NONE = 0 as nkruntime.ReadPermissionValues;
@@ -37,12 +37,26 @@ export function recordLogin(nk: nkruntime.Nakama, userId: string, ip: string, cr
   nk.storageWrite([accountWrite(userId, a)]);
 }
 
-/** Saves the bot signals of these players. */
-export function saveWatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, players: { presence: nkruntime.Presence; watch: WatchStats; watchSavedAt: number }[], now: number): void {
-  if (players.length === 0) return;
-  for (const p of players) p.watchSavedAt = now;
+/** The part of a match player that holds bot signals. */
+export interface Watched {
+  presence: nkruntime.Presence;
+  watch: WatchStats;
+  watchSavedAt: number;
+  /** changeMark of the last saved stats; unchanged stats are not written again. */
+  watchMark?: string;
+}
+
+/** Saves the bot signals of these players, skipping the ones that did not change. */
+export function saveWatch(nk: nkruntime.Nakama, logger: nkruntime.Logger, players: Watched[], now: number): void {
+  const changed: Watched[] = [];
+  for (const p of players) {
+    p.watchSavedAt = now;
+    if (changeMark(p.watch) !== p.watchMark) changed.push(p);
+  }
+  if (changed.length === 0) return;
   try {
-    nk.storageWrite(players.map((p) => watchWrite(p.presence.userId, p.watch)));
+    nk.storageWrite(changed.map((p) => watchWrite(p.presence.userId, p.watch)));
+    for (const p of changed) p.watchMark = changeMark(p.watch);
   } catch (e) {
     logger.error('Saving watch stats failed: %s', String(e));
   }

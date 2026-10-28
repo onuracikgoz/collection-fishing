@@ -129,6 +129,14 @@ function trim<T>(map: { [k: string]: T }, max: number, size: (t: T) => number): 
   for (const k of keys.slice(max)) delete map[k];
 }
 
+/**
+ * Changes whenever anything the match records changes (every hook and reel
+ * follows a cast), so an idle player's unchanged numbers are not written again.
+ */
+export function changeMark(s: WatchStats): string {
+  return s.casts + ':' + s.chats + ':' + s.reels;
+}
+
 export const hourOf = (ms: number): number => Math.floor(ms / 3600000);
 
 export function recordCast(s: WatchStats, x: number, y: number, wallMs: number, cfg: WatchConfig): void {

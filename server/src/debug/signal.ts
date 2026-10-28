@@ -170,6 +170,7 @@ export function devSignal(
     case 'dev_watch_set': {
       // A dev RPC rewrote this player's bot signals in storage; the match copy follows.
       p.watch = normalizeStats(req.stats);
+      p.watchMark = undefined; // storage already has it, but one extra write is harmless
       return reply({ found: true });
     }
     case 'dev_push': {

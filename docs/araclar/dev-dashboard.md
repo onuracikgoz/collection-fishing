@@ -59,6 +59,6 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_suspects` | `{ limit? }` her hesap, işaretleri, puanı ve sayıları (önce maçlara sinyalleri kaydettirir); IP grupları |
 | `dev_watch` | `{ userId, action: reset }`, `{ action: transfer, to, value, n? }` sahte takas kaydı, `{ action: ip, ip }` hesabı o IP'den açılmış say |
 
-Bot sinyalleri (`watch/stats`) maçta bellekte tutulur, dakikada bir ve oyuncu çıkınca kaydedilir; giriş IP'leri (`watch/account`) her cihaz girişinde yazılır. İkisi de client'a kapalıdır.
+Bot sinyalleri (`watch/stats`) maçta bellekte tutulur, 5 dakikada bir (sadece değiştiyse) ve oyuncu çıkınca kaydedilir; giriş IP'leri (`watch/account`) her cihaz girişinde yazılır. İkisi de client'a kapalıdır.
 
 Depoyu değiştiren her dev RPC, oyuncu oyundaysa maça `dev_reload` sinyali yollar; maçın bellekteki çanta, defter ve enerji kopyası yenilenir. Unity client'a "çanta değişti" mesajı gitmez; client çantayı yeniden açınca görür.
