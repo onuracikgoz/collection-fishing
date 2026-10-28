@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using CollectionGame.World;
 using UnityEditor;
+using UnityEditor.U2D.Sprites;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
@@ -61,32 +62,42 @@ namespace CollectionGame.EditorTools
             UnityEngine.Object.DestroyImmediate(probe);
 
             var name = Path.GetFileNameWithoutExtension(path);
-            var metas = new List<SpriteMetaData>();
+            var rects = new List<SpriteRect>();
             for (var row = 0; row < h / Cell; row++)
             for (var col = 0; col < w / Cell; col++)
             {
                 // Unity's texture origin is bottom-left; row 0 is the top row of the image.
                 var y = h - (row + 1) * Cell;
                 if (IsEmpty(pixels, w, col * Cell, y)) continue;
-                metas.Add(new SpriteMetaData
+                rects.Add(new SpriteRect
                 {
                     name = $"{name}_{col}_{row}",
                     rect = new Rect(col * Cell, y, Cell, Cell),
-                    alignment = 0, // SpriteAlignment.Center
+                    alignment = SpriteAlignment.Center,
                     pivot = new Vector2(0.5f, 0.5f),
+                    spriteID = GUID.Generate(),
                 });
             }
 
+            // Unity 6 ignores the old TextureImporter.spritesheet; the Sprite Editor's data provider is the way.
             importer.textureType = TextureImporterType.Sprite;
             importer.spriteImportMode = SpriteImportMode.Multiple;
-#pragma warning disable CS0618 // the old sprite sheet API is the shortest way to slice by code
-            importer.spritesheet = metas.ToArray();
-#pragma warning restore CS0618
             importer.SaveAndReimport();
+
+            var factory = new SpriteDataProviderFactories();
+            factory.Init();
+            var provider = factory.GetSpriteEditorDataProviderFromObject(importer);
+            provider.InitSpriteEditorDataProvider();
+            provider.SetSpriteRects(rects.ToArray());
+            var names = provider.GetDataProvider<ISpriteNameFileIdDataProvider>();
+            names?.SetNameFileIdPairs(rects.Select(r => new SpriteNameFileIdPair(r.name, r.spriteID)).ToList());
+            provider.Apply();
+            importer.SaveAndReimport();
+
             var found = AssetDatabase.LoadAllAssetsAtPath(path).OfType<Sprite>().Count();
-            if (found < metas.Count)
+            if (found < rects.Count)
             {
-                Debug.LogWarning($"[Map] {path}: {metas.Count} parça beklenirdi, {found} bulundu. Unity bu dosyayı koddan dilimlemedi. Elle: dosyayı seç > Inspector > Sprite Mode = Multiple > Sprite Editor > Slice > Type: Grid By Cell Size 32x32 > Slice > Apply.");
+                Debug.LogWarning($"[Map] {path}: {rects.Count} parça beklenirdi, {found} bulundu. Elle: dosyayı seç > Inspector > Sprite Mode = Multiple > Sprite Editor > Slice > Type: Grid By Cell Size 32x32 > Slice > Apply.");
                 return false;
             }
             return true;
