@@ -7,6 +7,7 @@ import { renderPlayers } from './tab-players.js';
 import { renderPlay } from './tab-play.js';
 import { renderMessages } from './tab-messages.js';
 import { renderSim } from './tab-sim.js';
+import { renderSuspects } from './tab-suspects.js';
 
 const ADMIN_DEVICE = 'cg-dev-dashboard-admin-device';
 const ADMIN_NAME = 'dev_admin';
@@ -66,6 +67,7 @@ const TABS = [
   ['messages', 'Mesajlar'],
   ['rpc', 'RPC'],
   ['sim', 'Simülasyon'],
+  ['suspects', 'Şüpheliler'],
   ['config', 'Yapılandırma'],
 ];
 
@@ -133,6 +135,7 @@ function render() {
     messages: renderMessages,
     rpc: renderRpc,
     sim: renderSim,
+    suspects: renderSuspects,
     config: renderConfig,
   }[app.tab];
   cleanup = (app.info || app.tab === 'overview' ? r : renderOverview)(area, app) || null;
@@ -163,7 +166,8 @@ const FEATURES = [
   ['Recipe ve craft, kalite şansı', 'var', 'Oyna → Çanta → Craft; Simülasyon → Craft kalitesi'],
   ['XP ve Level', 'yok', 'Sunucuda henüz yok (docs/tasarim/04-xp-level.md)'],
   ['Takas penceresi, pazar panosu, alım ilanı', 'yok', 'Faz 5'],
-  ['Whisper, moderasyon, bot önlemleri', 'yok', 'Faz 5'],
+  ['Bot ve çoklu hesap işaretleri (vuruş, çekme, 7/24, IP, tek yönlü akış)', 'var', 'Şüpheliler'],
+  ['Whisper, moderasyon, bot önlemleri (takas kapıları, IP sınırı)', 'yok', 'Faz 5 (docs/tasarim/03-balik-tutma.md 5.1.1)'],
   ['Günlük görev, sandık, seri', 'yok', 'Faz 6'],
   ['Kozmetik mağaza', 'yok', 'Faz 7'],
 ];

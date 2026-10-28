@@ -27,6 +27,7 @@ Node dışında bağımlılık yok; derleme adımı yok.
 | Mesajlar | Herhangi bir oyuncu olarak istediğin op ve gövdeyi gönder (tekrar ve aralıkla, hız sınırı denemesi için). Sunucudan bir oyuncuya istediğin S→C mesajını it (keşif kutlaması, sayfa tamamlama, hata ekranları). Filtrelenebilir mesaj kaydı |
 | RPC | Her RPC'yi admin ya da bir test oyuncusu olarak çağır, şablonlar ve geçmiş |
 | Simülasyon | Av tablosu (bant, enerji, şans ya da bir oyuncunun defter şansı), çekme mini oyunu (sunucudaki çözücü oynar, tarayıcıdaki model tekrar oynatıp sunucuyla aynı mı diye bakar), craft kalitesi |
+| Şüpheliler | Bot ve çoklu hesap işaretleri (`server/src/rules/watch.ts`): vuruş tepkisi çok düzenli / hızlı, çekme kusursuz, 7/24 oynama, hiç chat yok, hep aynı yer, tek yönlü eşya / Coin akışı, aynı IP'den çok hesap / oturum. Puana göre sıralı liste, satır ayrıntısında vuruş dağılımı, haftalık saat haritası, takas ortakları. Aynı IP'yi paylaşan hesaplar. Eşikler ve ağırlıklar `config.ts` `WATCH`'ta. Sahte takas ve sahte IP ile deneme. Sadece işaretler, kimseyi banlamaz; canlıda yerini Faz 6 admin paneli alır |
 | Yapılandırma | Eşya tanımları, defter sayfaları, recipe'ler, harita, `config.ts` değerleri |
 
 Yeni bir özellik sunucuya gelince (yem, tamir, depo, XP, takas…) dashboard'u değiştirmeden RPC ve Mesajlar sekmeleriyle denenebilir; kalıcı bir arayüz gerekirse ilgili sekmeye eklenir.
@@ -55,5 +56,9 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_sim_catch` | `{ n, band, hasEnergy, luck \| userId }` av tablosu simülasyonu |
 | `dev_reel` | `{ seed, tier \| params, inputs? , lose? }` mini oyunu oynar ya da girdileri değerlendirir |
 | `dev_craft_preview` | `{ recipeId \| grade, average }` craft Float bantları |
+| `dev_suspects` | `{ limit? }` her hesap, işaretleri, puanı ve sayıları (önce maçlara sinyalleri kaydettirir); IP grupları |
+| `dev_watch` | `{ userId, action: reset }`, `{ action: transfer, to, value, n? }` sahte takas kaydı, `{ action: ip, ip }` hesabı o IP'den açılmış say |
+
+Bot sinyalleri (`watch/stats`) maçta bellekte tutulur, dakikada bir ve oyuncu çıkınca kaydedilir; giriş IP'leri (`watch/account`) her cihaz girişinde yazılır. İkisi de client'a kapalıdır.
 
 Depoyu değiştiren her dev RPC, oyuncu oyundaysa maça `dev_reload` sinyali yollar; maçın bellekteki çanta, defter ve enerji kopyası yenilenir. Unity client'a "çanta değişti" mesajı gitmez; client çantayı yeniden açınca görür.

@@ -18,6 +18,7 @@ import {
   SCORE,
   SERVERS,
   USERNAME,
+  WATCH,
   WATER,
   WORLD,
 } from '../config';
@@ -52,6 +53,8 @@ import {
 } from '../match/playerData';
 import { rpcGetBook } from '../rpc/getBook';
 import { rpcGetProfile } from '../rpc/profile';
+import { WATCH_COLLECTION, accountWrite, normalizeAccount, watchWrite } from '../match/watch';
+import { AccountWatch, WatchStats, activity, emptyStats, ipGroups, mean, normalizeStats, playerFlags, recordTransfer, scoreOf as watchScore, stdDev, topSpot } from '../rules/watch';
 import { isDevEnabled } from './gate';
 import { conditionName, mapRows, pageIdOf, simulateCatches, solveReel } from './sim';
 
@@ -195,7 +198,7 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
     serverTime: Date.now(),
     node: ctx.node,
     opCodes: OpCode,
-    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT },
+    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT, WATCH },
     servers,
     defs: allDefs(),
     pages: BOOK_PAGES,
@@ -649,4 +652,125 @@ export function rpcDevCraftPreview(ctx: nkruntime.Context, _logger: nkruntime.Lo
     craftDust: CRAFT.craftDust,
     recipe,
   });
+}
+
+// --- Şüpheliler: bot and multi-account signals (rules/watch.ts) ---
+
+/** Every match saves its players' bot signals, so storage is fresh. */
+function flushWatch(nk: nkruntime.Nakama, logger: nkruntime.Logger): void {
+  signalAll(nk, logger, { type: 'dev_watch_flush' });
+}
+
+function readWatchMany(nk: nkruntime.Nakama, userIds: string[]): { stats: { [id: string]: WatchStats }; accounts: { [id: string]: AccountWatch | null } } {
+  const stats: { [id: string]: WatchStats } = {};
+  const accounts: { [id: string]: AccountWatch | null } = {};
+  for (let i = 0; i < userIds.length; i += 50) {
+    const chunk = userIds.slice(i, i + 50);
+    const reads: nkruntime.StorageReadRequest[] = [];
+    for (const userId of chunk) reads.push({ collection: WATCH_COLLECTION, key: 'stats', userId }, { collection: WATCH_COLLECTION, key: 'account', userId });
+    for (const o of nk.storageRead(reads)) {
+      if (o.key === 'stats') stats[o.userId] = normalizeStats(o.value);
+      else accounts[o.userId] = normalizeAccount(o.value);
+    }
+  }
+  for (const id of userIds) {
+    if (!stats[id]) stats[id] = emptyStats();
+    if (accounts[id] === undefined) accounts[id] = null;
+  }
+  return { stats, accounts };
+}
+
+/**
+ * Every account with its bot and multi-account flags, most suspicious first:
+ * `{ limit? }`. Flags only; deciding is left to a person.
+ */
+export function rpcDevSuspects(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  devOnly(ctx);
+  const body = parse(payload);
+  const limit = Math.min(1000, Math.max(1, Number(body.limit) || 500));
+  flushWatch(nk, logger);
+  const online: { [id: string]: string } = {};
+  for (const s of signalAll(nk, logger, { type: 'dev_state' })) for (const p of s.players || []) online[p.userId] = s.serverName;
+  const rows = nk.sqlQuery("SELECT id, username, create_time FROM users WHERE id <> '00000000-0000-0000-0000-000000000000' ORDER BY create_time DESC LIMIT $1", [limit]);
+  const ids = rows.map((r) => String(r.id));
+  const { stats, accounts } = readWatchMany(nk, ids);
+  const now = Date.now();
+  const ip = ipGroups(ids.map((id) => ({ userId: id, account: accounts[id], online: !!online[id] })), now, WATCH);
+  const names: { [id: string]: string } = {};
+  const users = rows.map((r) => {
+    const id = String(r.id);
+    names[id] = String(r.username);
+    const s = stats[id];
+    const flags = playerFlags(s, WATCH).concat(ip.flags[id] || []);
+    const act = activity(s);
+    const spot = topSpot(s);
+    return {
+      userId: id,
+      username: String(r.username),
+      createTime: String(r.create_time),
+      online: online[id] || null,
+      score: watchScore(flags, WATCH),
+      flags,
+      account: accounts[id],
+      numbers: {
+        casts: s.casts,
+        chats: s.chats,
+        hookN: s.hookMs.length,
+        hookMean: Math.round(mean(s.hookMs)),
+        hookStd: Math.round(stdDev(s.hookMs)),
+        hookMs: s.hookMs,
+        reels: s.reels,
+        reelsLost: s.reelsLost,
+        reelFit: Math.round(mean(s.reelFit)),
+        reelN: s.reelFit.length,
+        streakHours: act.streak,
+        activeHours: act.active,
+        hours: s.hours,
+        topSpot: spot,
+        given: s.given,
+        received: s.received,
+      },
+    };
+  });
+  users.sort((a, b) => b.score - a.score || a.username.localeCompare(b.username));
+  return JSON.stringify({ now, config: WATCH, users, ipGroups: ip.groups, names });
+}
+
+/**
+ * Test helpers for the Şüpheliler screen, until Faz 5 trades exist:
+ * `{ userId, action: reset }`, `{ userId, action: transfer, to, value, n? }` (fake trades),
+ * `{ userId, action: ip, ip }` (pretend the account was made and last logged in from `ip`).
+ */
+export function rpcDevWatch(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  devOnly(ctx);
+  const body = parse(payload);
+  const userId = target(ctx, nk, body);
+  flushWatch(nk, logger);
+  const put = (id: string, s: WatchStats) => {
+    nk.storageWrite([watchWrite(id, s)]);
+    signalPlayer(nk, logger, { type: 'dev_watch_set', userId: id, stats: s });
+  };
+  if (body.action === 'reset') {
+    put(userId, emptyStats());
+    return JSON.stringify({ ok: true });
+  }
+  if (body.action === 'transfer') {
+    const to = target(ctx, nk, { userId: body.to });
+    if (to === userId) throw fail('to must be another player');
+    const value = Math.max(0, Math.min(Number(body.value) || 0, 1e9));
+    const n = Math.max(1, Math.min(Number(body.n) || 1, 50));
+    const m = readWatchMany(nk, [userId, to]).stats;
+    for (let i = 0; i < n; i++) recordTransfer(m[userId], userId, m[to], to, value, WATCH);
+    put(userId, m[userId]);
+    put(to, m[to]);
+    return JSON.stringify({ ok: true, given: m[userId].given[to] });
+  }
+  if (body.action === 'ip') {
+    if (typeof body.ip !== 'string' || body.ip.length === 0 || body.ip.length > 64) throw fail('ip missing');
+    const now = Date.now();
+    const a: AccountWatch = { createdIp: body.ip, createdAt: now, lastIp: body.ip, lastAt: now };
+    nk.storageWrite([accountWrite(userId, a)]);
+    return JSON.stringify({ ok: true, account: a });
+  }
+  throw fail('action must be reset, transfer or ip');
 }

@@ -40,7 +40,12 @@ export function parseInputs(body: unknown, maxMs: number): number[] | null {
   return inputs as number[];
 }
 
-export function simulateReel(seed: number, p: ReelParams, inputs: number[]): ReelResult {
+/**
+ * `track`, if given, counts the steps the fish spent inside the bar (bot signals,
+ * rules/watch.ts). It is kept out of the result so the client port's reference
+ * cases stay the same.
+ */
+export function simulateReel(seed: number, p: ReelParams, inputs: number[], track?: { inside: number }): ReelResult {
   const rng = mulberry32(seed);
   let bar = Math.floor((FIELD - p.barSize) / 2);
   let vel = 0;
@@ -80,8 +85,10 @@ export function simulateReel(seed: number, p: ReelParams, inputs: number[]): Ree
     if (fish < target) fish = Math.min(target, fish + p.fishSpeed);
     else fish = Math.max(target, fish - p.fishSpeed);
 
-    if (fish >= bar && fish <= bar + p.barSize) progress += p.gain;
-    else progress -= p.loss;
+    if (fish >= bar && fish <= bar + p.barSize) {
+      progress += p.gain;
+      if (track) track.inside++;
+    } else progress -= p.loss;
 
     if (progress >= FIELD) return { caught: true, steps: k };
     if (progress <= 0) return { caught: false, steps: k };

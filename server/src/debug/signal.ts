@@ -9,7 +9,9 @@ import { isWalkable } from '../rules/map';
 import { newMoveState } from '../rules/movement';
 import { Fisher, FishingContext, cancelFishing } from '../match/fishing';
 import { currentEnergy, energyWrite, loadBag, readBook } from '../match/playerData';
+import { saveWatch } from '../match/watch';
 import type { WorldState } from '../match/world';
+import { normalizeStats } from '../rules/watch';
 import { isDevEnabled } from './gate';
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -89,6 +91,11 @@ export function devSignal(
 
   const userId = typeof req.userId === 'string' ? req.userId : '';
   const p = state.players[userId];
+  if (req.type === 'dev_watch_flush') {
+    // The Şüpheliler screen reads storage: save everyone's bot signals first.
+    saveWatch(nk, logger, Object.keys(state.players).map((id) => state.players[id]), now);
+    return reply({ saved: Object.keys(state.players).length });
+  }
   if (req.type === 'dev_push_all') {
     // Push any server message to everyone in this match.
     const to = Object.keys(state.players).map((id) => state.players[id].presence);
@@ -159,6 +166,11 @@ export function devSignal(
         return reply({ found: true, hookWindowMs: fs.hookDeadline - now, normalWindowMs: FISHING.hookWindowMs[roll.tier || 'common'] });
       }
       return reply({ found: true, error: 'unknown action' });
+    }
+    case 'dev_watch_set': {
+      // A dev RPC rewrote this player's bot signals in storage; the match copy follows.
+      p.watch = normalizeStats(req.stats);
+      return reply({ found: true });
     }
     case 'dev_push': {
       // Push any server message to this player only, e.g. a FISH_END with a page

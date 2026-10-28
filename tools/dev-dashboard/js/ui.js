@@ -115,7 +115,7 @@ export function table(headers, rows) {
     'table',
     null,
     h('thead', null, h('tr', null, headers.map((x) => h('th', null, x)))),
-    h('tbody', null, rows.map((r) => h('tr', r.attrs || null, (r.cells || r).map((c) => h('td', null, c))))),
+    h('tbody', null, rows.map((r) => h('tr', r.attrs || null, (r.cells || r).map((c) => (c && c.colspan && !(c instanceof Node) ? h('td', { colspan: c.colspan }, c.content) : h('td', null, c)))))),
   );
 }
 

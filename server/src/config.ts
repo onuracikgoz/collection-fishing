@@ -6,6 +6,7 @@ import type { CraftConfig } from './rules/craft';
 import type { RodConfig } from './rules/rod';
 import type { BaitConfig } from './rules/bait';
 import type { StashConfig } from './rules/stash';
+import type { WatchConfig } from './rules/watch';
 import { BANK_POINT } from './data/lake-map';
 
 export interface ServerDef {
@@ -211,4 +212,25 @@ export const STASH: StashConfig = {
   bank: { x: BANK_POINT.x, y: BANK_POINT.y },
   range: 3,
   maxEntries: 40,
+};
+
+// Bot and multi-account signals (03-balik-tutma.md 5.1.1; all Öneri, playtest will tune).
+// They only flag accounts for a person to review; nothing is banned automatically.
+export const WATCH: WatchConfig = {
+  samples: 50,
+  hourBuckets: 168, // one week
+  maxSpots: 40,
+  maxPartners: 50,
+  flushMs: 60000,
+  // Reactions arrive in 100 ms ticks, so a human's spread is well above 40 ms.
+  hook: { minSamples: 30, maxStdMs: 40, minMeanMs: 150 },
+  // A perfect solver keeps the fish inside ‰1000; a quick simulated player ‰800-950 (test/watch.test.ts).
+  reel: { minSamples: 30, minFit: 985, maxLostRate: 0.02 },
+  nonstop: { maxStreakHours: 20, maxActiveHours: 140 },
+  silent: { minCasts: 500 },
+  spot: { minCasts: 200, maxShare: 0.9 },
+  flow: { minTransfers: 3, minValue: 1000, minShare: 0.8, maxBackRatio: 0.1 },
+  // Mobile CGNAT puts many people behind one IP: loose limits, low weight.
+  ip: { maxAccountsPerDay: 10, maxOnline: 10 },
+  weights: { hook_regular: 3, hook_fast: 2, reel_perfect: 3, nonstop: 3, silent: 1, same_spot: 1, one_way_flow: 3, ip_accounts: 1, ip_online: 1 },
 };
