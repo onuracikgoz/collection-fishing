@@ -28,6 +28,31 @@ Akış:
 - **Yem:** havuz içindeki oranları kaydırır, yeni eşya eklemez. Uygun olmayan noktada özel yem boşa gider.
 - Örnek: mağara gölü + derin su + kristal yem = en nadir kristallere en yakın kombinasyon. "Mavi kristal nerede, hangi yemle çıkıyor?" doğal bir sohbet konusudur.
 
+#### Eşyanın çıkış alanları (karar 28.10.2026)
+
+Her eşyanın verisinde neyin, nerede, ne zaman çıktığı yazar. Sunucu drop'u bunlara göre süzer; defterde ve dev dashboard'unda da aynı alanlar okunur.
+
+| Alan | Anlamı | Boşsa |
+|---|---|---|
+| `waters` | Çıktığı su noktaları (ör. `buyuk_gol`, `sazlik`, `magara_golu`; liste `16-ilk-harita.md`) | Her suda |
+| `bands` | Derinlik: `shore` (kıyı), `mid` (orta), `deep` (derin) | Her bantta |
+| `baits` | Şansını artıran özel yemler. O yemle atılınca eşya kendi kategorisi içinde daha sık seçilir (Öneri: ×3) | Hiçbir yem öne çıkarmaz |
+| `minLevel` | Çıkmaya başladığı oyuncu level'ı. Altındaki oyuncuda bu eşya havuzda yoktur, yerine aynı kategoriden başka eşya gelir | Level 1 |
+
+- Yem yeni eşya eklemez (5.0.0): `baits` sadece havuzdaki bir eşyanın ağırlığını artırır.
+- Defter bu alanları **göstermez** ("Mavi kristal nerede çıkıyor?" keşif ve sohbet konusu kalır). Sadece eşya bir kez yakalanınca nerede tutulduğu deftere işlenebilir (sonra konuşulacak).
+
+#### Bantların dengesi (Öneri, 28.10.2026)
+
+Amaç: iyi oltası olan oyuncu her zaman derine atmasın, kıyı da kârlı kalsın.
+
+1. **Her bandın kendine özel eşyası var.** Sadece derinde değil, sadece kıyıda veya ortada çıkan kayıtlar da olur (kıyıya özel Epic / Legendary dahil). Defteri bitirmek her bandı gerektirir.
+2. **Craft malzemesi en çok kıyıda çıkar.** Derin nadir eşya verir, kıyı recipe'lerin istediği malzemeyi verir; pazarda malzemeye talep kıyıyı kârlı tutar. (Öneri: kıyıda malzeme oranı ×2, derinde ×0.5.)
+3. **Saatlik getiri yakın, tempo farklı.** Kıyıda bekleme 5–10 sn ve çekme kolay; derinde bekleme 12–20 sn ve çekme zor. Derin daha nadir ama saatte daha az av ve daha çok kaçırma demektir: kıyı istikrarlı, derin kumar.
+4. **Derinin maliyeti var.** Derin av oltayı 2 kat yıpratır; kristal yem sadece derinde işe yarar.
+
+İleride: sunucu her gün bir noktada bir eşyayı "bol" ilan eder ("Bugün Sazlık kıyısında yengeç bol").
+
 ### 5.0.0.1. Yem
 
 - **Temel yem bedava ve sınırsızdır.** Oyuncu hiçbir zaman "balık tutamıyorum" durumuna düşmez.
