@@ -17,6 +17,17 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | Faz 1 | `authenticateDevice` (cihaz kimliği) + kullanıcı adı |
 | Faz 7 | `authenticateSteam` |
 
+### Hesap kuralları (karar 28.10.2026, Faz 7'de yazılacak)
+
+- **Bir hesap = bir karakter.** Defter, çanta, depo, level ve Score hesaba bağlıdır. Hesap başına ikinci karakter yok (kendi kendine takas ve bot çiftliği olmasın).
+- Bir hesaba birden fazla giriş yolu bağlanabilir (Nakama link): cihaz, e-posta, Steam. Hangisiyle girilirse aynı karakter açılır.
+- **Web:** "Misafir olarak oyna" (`authenticateDevice`) veya "Giriş yap" (`authenticateEmail`). Ayrı kayıt formu yok; misafir, ayarlardan "Hesabını koru" ile e-posta + şifre ekler (`linkEmail`). E-posta yalnız hesap kurtarma için tutulur (13+ kitle, KVKK kontrolü).
+- **Steam ilk açılış:** önce `authenticateSteam` hesap oluşturmadan denenir. Bağlı hesap yoksa oyuncu seçer:
+  - **Yeni başla:** Steam hesabıyla yeni hesap ve karakter oluşturma.
+  - **Web hesabım var:** e-posta + şifreyle girer, Steam o hesaba bağlanır (`linkSteam`). E-postası olmayan misafir web hesabı için web ayarlarında "Steam'e taşı" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir. Yeni RPC'ler gerekir (`transfer_code_create`, `transfer_code_redeem`), adları ve gövdeleri yazılırken bu tabloya eklenecek.
+- **İki hesap birleştirilmez.** Bir Steam hesabı tek oyun hesabına bağlıdır.
+- **Steam hesabını silip web hesabını açmak:** Steam'de "Yeni başla" ile oynamış oyuncu, ayarlardan bu hesabı silip Steam'i web hesabına bağlayabilir. Silinen hesabın karakteri, defteri, eşyaları ve o hesapta alınmış kozmetikler kalıcı olarak gider; ekranda iki adımlı onay (hesap adını yazdırma) istenir. Tekrar bağlamaya bekleme süresi konur (ör. 30 günde bir, Öneri), hesap değiştirerek ekonomi açığı aranmasın.
+
 - Kullanıcı adı ilk girişte (hesap oluşurken) gönderilir. Kural: **3–16 karakter**, harf (Türkçe harfler dahil), rakam ve `_` (Öneri). Uymazsa giriş `BAD_REQUEST` ile reddedilir. Ad başkasındaysa Nakama'nın kendi hatası döner.
 - Ad gönderilmezse Nakama rastgele bir ad atar, bu yüzden client ilk girişte adı her zaman gönderir. Hesap zaten varsa gönderilen ad yok sayılır.
 
