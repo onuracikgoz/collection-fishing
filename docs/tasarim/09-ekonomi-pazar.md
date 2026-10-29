@@ -20,23 +20,38 @@
 - **Hukuk:** şansla çıkan eşyanın gerçek para değeri bazı ülkelerde (ör. Belçika, Hollanda) kumar tartışmasına girebilir, kitle genç olabilir. Yayından önce avukata danışılmalı.
 - Steam Community Market ileride alternatif olarak değerlendirilebilir (ödeme ve dolandırıcılık kontrolü Valve'de). O zaman v0.2'deki Steam Inventory PoC'si geçerli olur (yedek dosyada bölüm 42–44).
 
-### 12.3. Oyun İçi Pazar
+### 12.3. Oyun İçi Pazar (karar 28.10.2026: petle tezgah)
 
-- Oyun içi pazarda eşya ve recipe Coin ile alınıp satılır.
-- Ayrı bir Pazar Odası / tezgah sistemi **yok**; sosyal alanlar bunun yerine sohbet mekanlarıdır (bkz. 4.0).
+Knight Online pazarı gibi gezilen bir pazar, ama satıcı başında beklemez: **oyuncu petini pazar alanına bırakır, pet onun yerine satar.** Oyuncu bu sırada balık tutar, sohbet eder ya da oyundan çıkar. **Global arama ve fiyat sıralaması yoktur**; fiyatı bilmek için gezmek, sormak ve pazarlık etmek gerekir. (Eski "tek pano, arama, en ucuz üstte" tasarımı kaldırıldı.)
 
-#### Pazar Panosu
+#### Pet tezgahı
 
-- Meydanda fiziksel bir pano; **yalnızca oradan** açılır.
-- **Satış ilanı:** eşya + Coin fiyatı. Eşya panoya kilitlenir, satıcı çevrimdışıyken de satılır, Coin satıcıya gelir.
-- Her ilan tek bir eşya instance'ıdır; alıcı Float ve kondisyonu görür. Aynı eşyanın farklı Float'ları ayrı listelenir.
-- **Arama:** eşya adı, set, Tier, Float aralığı; en ucuz ilan üstte.
-- **Alım ilanı:** "Mavi Kristal arıyorum, 500 Coin'e kadar". Satıcı panoda görür, tek tıkla satar. Currently Hunting ile bağlanabilir.
-- İlan sahibine panodan **whisper** atılabilir (bkz. 13.1.2).
-- **(Öneri)** Pazar ücreti satıştan %5. **İlan açma ücreti yoktur**; ücret yalnızca satış olunca alınır.
-- **(Öneri)** Oyuncu başına en fazla 10 aktif ilan, ilanlar 7 gün sonra kalkar.
+- **Pazar alanı:** meydanın kuzeyinde ayrılmış bir bölge (`16-ilk-harita.md`). Pet yalnızca burada tezgah açar; her pet bir yer kaplar, yerler dolunca yeni tezgah açılmaz (Öneri: sunucu başına ~40 yer).
+- Oyuncu pazar alanına gidip petini bırakır, bir **başlık** yazar ("Taze sazan, ucuz!", chat filtresinden geçer) ve satacağı eşyaları fiyatıyla koyar. Eşyalar tezgaha kilitlenir. Sonra istediği yere gider.
+- **Görünüm:** pete yaklaşınca başlık ve **ilk 4 eşya** (ikon + fiyat) görünür. Tıklayınca (büyütünce) satılan **tüm eşyalar** açılır; Float'lı eşyada Float ve kondisyon görünür.
+- Pet ekranında satıcının **profili** de açılır: oradan whisper atılır, arkadaş eklenir, defterine bakılır (bkz. `10-sosyal.md`).
+- Alıcı tek tıkla satın alır; Coin satıcıya gelir (çevrimdışıysa da). **(Öneri)** Pazar ücreti satıştan %5, tezgah açma ücretsiz.
+- Sıradan balık, malzeme ve recipe gibi yığılanlar **adetle** konur ("10 sazan, tanesi 12 Coin"); alıcı istediği kadarını alır.
+- **(Öneri)** Tezgahta en fazla 12 kalem. Pet oyuncu çevrimdışıyken de durur, en fazla 24 saat; süre bitince ya da oyuncu geri çağırınca kalkar, satılmayanlar depoya döner.
+- Oyuncu başına tek tezgah. Pet tezgahtayken oyuncunun yanında dolaşmaz.
+- Her sunucunun kendi pazarı vardır; sunucular arası fiyat farkı doğaldır.
 - Level 10 ve kısıtlı olmayan Steam hesabı şartı geçerlidir.
-- Dış sitelerde gerçek parayla satılan eşyalar panodan değil **takas penceresinden** teslim edilir. Pano yalnızca Coin ile çalışır.
+
+#### Petler
+
+- Her oyuncunun **bedava bir başlangıç peti** vardır; pazar herkese açıktır.
+- Başka pet türleri Coin veya elmasla alınır. Petlerin hepsi **aynı işi yapar**, fark sadece görünümdür (kural 2: kozmetik). Elmasla alınan pet takas edilemez.
+- Pet sistemi ve pet listesi ayrı tasarlanacak (`acik-sorular.md` 22).
+
+#### Pazar Panosu (reklam)
+
+- Meydandaki pano bir **reklam panosudur**: tezgahı (peti pazarda) olan oyuncu **elmasla** kendini panoya ilan verir (başlık + öne çıkardığı birkaç eşya). Karar 28.10.2026, Onur: reklam bir kolaylıktır, eşya miktarı veya kalitesi artmaz.
+- İlan **yalnızca tezgah açıkken** durur; tezgah kalkınca ilan da kalkar.
+- Panodaki ilana tıklayan alıcı **satıcının petinin yanına ışınlanır** (aynı sunucuda; "Yanına git" kuralları, `10-sosyal.md` 13.2.1).
+- Pano arama ve fiyat sıralaması yapmaz; ilanlar sırayla döner.
+- **Alım ilanı** ("Mavi Kristal arıyorum, 500 Coin'e kadar") panoda kalsın mı: açık soru.
+
+Dış sitelerde gerçek parayla satılan eşyalar pet tezgahından değil **takas penceresinden** teslim edilir. Tezgah yalnızca Coin ile çalışır.
 
 ### 12.4. Eşya ve Coin Yakma (Sink) Noktaları
 

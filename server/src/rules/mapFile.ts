@@ -1,6 +1,6 @@
 // Reads a map file (content/maps/*.json, docs/protokol.md "Harita dosyası") into MapData.
 // Pure functions, no Nakama dependency.
-import { MapData, Rect } from './map';
+import { MapData, Rect, WaterArea } from './map';
 
 export const MAP_FORMAT = 1;
 
@@ -23,6 +23,11 @@ export interface MapFile {
   /** One string per row, one character per tile: '.' walkable, '#' blocked, '~' water. */
   rows: string[];
   points: MapPoint[];
+  /**
+   * Named waters, optional. Water tiles inside a rect belong to that water
+   * (items' `waters` field). When given, every water tile must be in exactly one.
+   */
+  waters?: WaterArea[];
 }
 
 export interface LoadedMap {
@@ -84,7 +89,57 @@ export function checkMapFile(file: MapFile, required: string[] = []): string[] {
     else if (!walkable(p)) errors.push(`point ${name}: not on a walkable tile`);
   }
   for (const id of required) if (!seen[id]) errors.push(`point ${id} is required`);
+  errors.push(...checkWaters(file));
   return errors;
+}
+
+const WATER_ID = /^[a-z0-9_]{1,32}$/;
+
+/** Named waters: valid ids and rects, and every water tile named exactly once. */
+function checkWaters(file: MapFile): string[] {
+  if (file.waters === undefined) return [];
+  if (!Array.isArray(file.waters)) return ['waters must be a list'];
+  if (file.waters.length === 0) return [];
+  if (file.waters.length > 255) return ['waters: at most 255'];
+  const errors: string[] = [];
+  const { width, height, rows } = file;
+  const owner: (string | null)[] = new Array(width * height).fill(null);
+  const seen: Record<string, true> = {};
+  for (const a of file.waters) {
+    const name = a && typeof a.id === 'string' ? a.id : '?';
+    if (!a || typeof a.id !== 'string' || !WATER_ID.test(a.id)) {
+      errors.push(`water ${name}: id must be lowercase letters, digits or _`);
+      continue;
+    }
+    if (seen[a.id]) {
+      errors.push(`water ${a.id}: id repeats`);
+      continue;
+    }
+    seen[a.id] = true;
+    const ints = [a.x, a.y, a.w, a.h].every((v) => Number.isInteger(v));
+    if (!ints || a.w <= 0 || a.h <= 0 || a.x < 0 || a.y < 0 || a.x + a.w > width || a.y + a.h > height) {
+      errors.push(`water ${a.id}: rect must be whole tiles inside the map`);
+      continue;
+    }
+    let tiles = 0;
+    for (let y = a.y; y < a.y + a.h; y++) {
+      for (let x = a.x; x < a.x + a.w; x++) {
+        if (rows[y][x] !== WATER) continue;
+        tiles++;
+        const i = y * width + x;
+        if (owner[i] !== null) errors.push(`water ${a.id}: overlaps ${owner[i]} at ${x},${y}`);
+        else owner[i] = a.id;
+      }
+    }
+    if (tiles === 0) errors.push(`water ${a.id}: no water tile inside`);
+  }
+  if (errors.length) return errors.slice(0, 10);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (rows[y][x] === WATER && owner[y * width + x] === null) return [`water tile ${x},${y} has no name`];
+    }
+  }
+  return [];
 }
 
 /** Joins runs of the same character in a row into 1-tile-high rectangles. */
@@ -118,6 +173,7 @@ export function loadMapFile(file: MapFile, required: string[] = []): LoadedMap {
       spawn: { x: file.spawn.x, y: file.spawn.y },
       blocked: runs(file.rows, BLOCK).concat(water),
       water,
+      waterAreas: (file.waters || []).map((a) => ({ id: a.id, x: a.x, y: a.y, w: a.w, h: a.h })),
     },
     points: file.points.map((p) => ({ id: p.id, kind: p.kind, x: p.x, y: p.y })),
   };

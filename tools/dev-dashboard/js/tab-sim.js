@@ -8,13 +8,15 @@ export function renderSim(area, app) {
   // --- catch table ---
   const n = input({ type: 'number', value: 20000, style: { width: '7em' } });
   let band = 'deep';
+  let water = '';
+  const level = input({ type: 'number', value: 1, min: 1, style: { width: '4em' } });
   const energy = input({ type: 'checkbox', checked: true });
   const luck = input({ type: 'number', value: 0, step: '0.01', style: { width: '5em' } });
   let luckFrom = '';
   const catchOut = h('div');
   const runCatch = () =>
     act(async () => {
-      const payload = { n: Number(n.value), band, hasEnergy: energy.checked, luck: Number(luck.value) };
+      const payload = { n: Number(n.value), band, water, level: Number(level.value), hasEnergy: energy.checked, luck: Number(luck.value) };
       if (luckFrom) payload.userId = luckFrom;
       const r = await app.admin.rpc('dev_sim_catch', payload);
       const pct = (c) => ((c / r.n) * 100).toFixed(2) + '%';
@@ -22,7 +24,7 @@ export function renderSim(area, app) {
       const bar = (c, color) => h('div', { class: 'bar' }, h('span', { style: { width: Math.max(1, (c / r.n) * 100 * 2) + 'px', background: color || '#5aa7dd' } }));
       mount(
         catchOut,
-        row(badge(`${r.n} atış`), badge(`bant ${r.band}`), badge(`şans +%${(r.luck * 100).toFixed(1)}`), r.empty ? badge(`${r.empty} boş`, 'bad') : null),
+        row(badge(`${r.n} atış`), badge(`bant ${r.band}`), badge(`su ${r.water || 'isimsiz'}`), badge(`level ${r.level}`), badge(`şans +%${(r.luck * 100).toFixed(1)}`), r.empty ? badge(`${r.empty} boş`, 'bad') : null),
         h(
           'div',
           { class: 'grid2' },
@@ -39,6 +41,8 @@ export function renderSim(area, app) {
     row(
       field('Atış', n),
       field('Bant', select(['shore', 'mid', 'deep'], band, (v) => (band = v))),
+      field('Su', select([['', 'isimsiz'], ...(info.map.waters || []).map((w) => [w, w])], water, (v) => (water = v))),
+      field('Level', level),
       field('Enerjili', energy),
       field('Şans (0.05 = %5)', luck),
       field('ya da', select(users, '', (v) => (luckFrom = v))),
@@ -50,6 +54,7 @@ export function renderSim(area, app) {
 
   // --- reel ---
   let tier = 'mythic';
+  let reelBand = 'mid';
   const seed = input({ type: 'number', value: 42, style: { width: '9em' } });
   const lose = input({ type: 'checkbox' });
   const canvas = h('canvas', { width: 90, height: 300, class: 'reel' });
@@ -57,7 +62,7 @@ export function renderSim(area, app) {
   let anim = 0;
   const runReel = () =>
     act(async () => {
-      const r = await app.admin.rpc('dev_reel', { tier, seed: Number(seed.value), lose: lose.checked });
+      const r = await app.admin.rpc('dev_reel', { tier, band: reelBand, seed: Number(seed.value), lose: lose.checked });
       const local = replay(r.seed, r.params, r.inputs);
       const agree = local.result === (r.caught ? 'caught' : 'escaped') && local.steps === r.steps;
       mount(
@@ -77,7 +82,7 @@ export function renderSim(area, app) {
     });
   const reelCard = card(
     'Çekme mini oyunu',
-    row(field('Tier', select(['common', 'rare', 'epic', 'legendary', 'mythic'], tier, (v) => (tier = v))), field('Seed', seed), button('Rastgele seed', () => (seed.value = Math.floor(Math.random() * 4294967296))), field('Kaybetmeye oyna', lose), button('Oynat', runReel, 'primary')),
+    row(field('Tier', select(['common', 'rare', 'epic', 'legendary', 'mythic'], tier, (v) => (tier = v))), field('Bant', select(['shore', 'mid', 'deep'], reelBand, (v) => (reelBand = v))), field('Seed', seed), button('Rastgele seed', () => (seed.value = Math.floor(Math.random() * 4294967296))), field('Kaybetmeye oyna', lose), button('Oynat', runReel, 'primary')),
     h('p', { class: 'muted' }, 'Sunucudaki çözücü oynar, tarayıcı aynı girdileri kendi modeliyle tekrar oynatıp çizer. Uyuşmazlık Unity portunda da aranacak bir hata işaretidir.'),
     row(canvas, reelOut),
   );

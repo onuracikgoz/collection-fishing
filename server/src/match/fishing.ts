@@ -5,12 +5,12 @@ import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
-import { applyBait, baitDef, baitTagBoost } from '../rules/bait';
+import { applyBait, baitDef, baitFavour } from '../rules/bait';
 import { Rod, isBroken, rodView, wearRod } from '../rules/rod';
 import { BookEntries, applyLuck, luckOf } from '../rules/book';
-import { rollCatch, rollFloat } from '../rules/catch';
+import { applyBand, rollCatch, rollFloat } from '../rules/catch';
 import { spendCast } from '../rules/energy';
-import { FishState, checkBait, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelTimedOut } from '../rules/fishing';
+import { FishState, checkBait, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelParamsFor, reelTimedOut } from '../rules/fishing';
 import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
 import { WatchStats, recordCast, recordHook, recordReel } from '../rules/watch';
@@ -25,6 +25,8 @@ export interface Fisher {
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
+  /** Player level; LEVEL.start until XP arrives (04-xp-level.md). */
+  level?: number;
   fish?: FishState;
   lastCatch?: string;
   /** Bot signals, saved by the world match now and then. */
@@ -104,12 +106,13 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
   }
   f.energy = spent.value;
   f.bag.stacks = stacks;
-  const wait = planWait(now, FISHING, Math.random);
+  const wait = planWait(now, check.band, FISHING, Math.random);
   f.fish = {
     phase: 'waiting',
     x: target.x,
     y: target.y,
     band: check.band,
+    water: check.water,
     hasEnergy: spent.hasEnergy,
     bait: target.bait,
     biteAt: wait.biteAt,
@@ -127,7 +130,7 @@ export function handleHook(ctx: FishingContext, f: Fisher, now: number): void {
   if (action !== 'reel') return;
   const fs = f.fish;
   if (fs.biteShownAt !== undefined) recordHook(f.watch, now - fs.biteShownAt, WATCH);
-  const params = REEL_PARAMS[fs.roll!.tier || 'common'];
+  const params = reelParamsFor(REEL_PARAMS[fs.roll!.tier || 'common'], fs.band, FISHING);
   fs.phase = 'reeling';
   fs.seed = Math.floor(Math.random() * 4294967296);
   fs.params = params;
@@ -161,7 +164,7 @@ function give(ctx: FishingContext, f: Fisher): void {
   const extra: Partial<FishEndMsg> = { defId: roll.def.id };
   let book: BookEntries | null = null;
   // Catches with energy wear the rod; a broken rod's casts never have energy.
-  const rod = f.fish!.hasEnergy ? wearRod(f.rod, ROD) : null;
+  const rod = f.fish!.hasEnergy ? wearRod(f.rod, f.fish!.band, ROD) : null;
   if (rod) {
     writes.push(rodWrite(userId, rod));
     extra.rod = rodView(rod, ROD);
@@ -211,8 +214,10 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
     }
     if (now >= fs.biteAt) {
       const bait = fs.bait ? baitDef(fs.bait, BAIT) : null;
-      const table = applyBait(applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK), bait, fs.band);
-      const roll = rollCatch(LAKE_POOL, table, fs.band, fs.hasEnergy, Math.random, baitTagBoost(bait, fs.band));
+      const lucky = applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK);
+      const table = applyBait(applyBand(lucky, fs.band, CATCH), bait, fs.band);
+      const spot = { band: fs.band, water: fs.water || null, level: f.level || LEVEL.start };
+      const roll = rollCatch(LAKE_POOL, table, spot, fs.hasEnergy, Math.random, baitFavour(fs.bait, fs.band, BAIT, CATCH.baitItemFactor));
       if (!roll) return end(ctx, f, 'escaped');
       fs.roll = roll;
       fs.phase = 'bite';

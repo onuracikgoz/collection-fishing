@@ -1,7 +1,7 @@
 // Special baits: buying and how they shift the catch table. Pure functions, no Nakama dependency.
 // Rules: docs/tasarim/03-balik-tutma.md 5.0.0 and 5.0.0.1, prices 16-ekonomi-tablosu.md 4.1.
 import { BagConfig, BagSummary, slotsUsed } from './bag';
-import { CatchTable, Category } from './catch';
+import { CatchTable, Category, ItemFavour } from './catch';
 import { Band } from './water';
 
 export interface BaitDef {
@@ -11,8 +11,6 @@ export interface BaitDef {
   bands?: Band[];
   /** Category weight multipliers. Bait never adds items, it only shifts weights. */
   boost: { [c in Category]?: number };
-  /** Item weight multipliers inside a category, by item tag. */
-  tagBoost?: { [tag: string]: number };
 }
 
 export interface BaitConfig {
@@ -42,10 +40,14 @@ export function applyBait(table: CatchTable, bait: BaitDef | null, band: Band): 
   return out;
 }
 
-/** Item tag multipliers for this cast, or null when every item weighs the same. */
-export function baitTagBoost(bait: BaitDef | null, band: Band): { [tag: string]: number } | null {
-  if (!bait || !bait.tagBoost || !baitWorks(bait, band)) return null;
-  return bait.tagBoost;
+/**
+ * Which items this cast's bait favours (those listing it in `baits`), or null
+ * when every item weighs the same. A bait wasted in the wrong band favours nothing.
+ */
+export function baitFavour(defId: string | null | undefined, band: Band, cfg: BaitConfig, factor: number): ItemFavour | null {
+  const bait = defId ? baitDef(defId, cfg) : null;
+  if (!bait || !baitWorks(bait, band)) return null;
+  return { bait: defId!, factor };
 }
 
 /** BUY_BAIT body: `{ defId, count }`. */

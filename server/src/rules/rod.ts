@@ -1,5 +1,6 @@
 // Rod durability and repair. Pure functions, no Nakama dependency.
 // Rules: docs/tasarim/03-balik-tutma.md 5.0.0.2, prices 16-ekonomi-tablosu.md 4.2.
+import { Band } from './water';
 
 export interface RodLevel {
   /** Durability of a fully repaired rod. */
@@ -11,8 +12,8 @@ export interface RodLevel {
 export interface RodConfig {
   /** Indexed by rod level (1, 2, 3...). */
   levels: { [level: number]: RodLevel };
-  /** Durability lost per catch with energy. */
-  wearPerCatch: number;
+  /** Durability lost per catch with energy, by band (deep wears the rod faster). */
+  wear: { [b in Band]: number };
 }
 
 export interface Rod {
@@ -49,9 +50,9 @@ export function isBroken(rod: Rod): boolean {
   return rod.durability <= 0;
 }
 
-/** The rod after one catch. */
-export function wearRod(rod: Rod, cfg: RodConfig): Rod {
-  return { level: rod.level, durability: Math.max(0, rod.durability - cfg.wearPerCatch) };
+/** The rod after one catch in `band`. */
+export function wearRod(rod: Rod, band: Band, cfg: RodConfig): Rod {
+  return { level: rod.level, durability: Math.max(0, rod.durability - cfg.wear[band]) };
 }
 
 /** Coin for restoring `points` of durability, rounded up. */

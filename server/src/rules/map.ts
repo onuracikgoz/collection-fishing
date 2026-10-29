@@ -15,6 +15,12 @@ export interface MapData {
   blocked: Rect[];
   /** Fishable water. Should also be listed in `blocked`. */
   water?: Rect[];
+  /** Named waters (e.g. buyuk_gol): water tiles inside a rect take its id. */
+  waterAreas?: WaterArea[];
+}
+
+export interface WaterArea extends Rect {
+  id: string;
 }
 
 export interface CollisionMap {

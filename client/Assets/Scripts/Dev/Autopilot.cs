@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Linq;
 using CollectionGame.Collection;
+using CollectionGame.Economy;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.World;
@@ -77,6 +78,11 @@ namespace CollectionGame.Dev
             if (mode == "social")
             {
                 yield return Social(friend);
+                yield break;
+            }
+            if (mode == "economy")
+            {
+                yield return EconomyTour();
                 yield break;
             }
 
@@ -302,6 +308,87 @@ namespace CollectionGame.Dev
                 yield return new WaitForSeconds(4f);
                 world.Social.SendEmote(Emotes.ShowFish);
             }
+        }
+
+        /// <summary>
+        /// -cgBot economy: opens every Faz 4 tab and screenshots it (-cgShot base name,
+        /// one file per tab), does one of each action, then walks to the bank for the stash.
+        /// Give the account items first (dev_give, dev_stacks, dev_wallet) for full lists.
+        /// </summary>
+        IEnumerator EconomyTour()
+        {
+            var eco = world.Economy;
+            var fishing = world.Fishing;
+            var shot = Arg("-cgShot");
+            eco.Show(EconomyController.Tab.Sell);
+            yield return WaitFor(() => eco.Prices != null && fishing.Bag != null, 10f);
+            Log($"catalog {(eco.Prices != null ? "ok" : "missing")}, bag {fishing.Bag?.slotsUsed}/{fishing.Bag?.slotsMax}, coin {eco.Coin}, dust {eco.Dust}");
+
+            IEnumerator Shoot(string name)
+            {
+                yield return new WaitForSeconds(1.2f);
+                if (string.IsNullOrEmpty(shot)) yield break;
+                var file = shot.EndsWith(".png") ? shot.Substring(0, shot.Length - 4) + "-" + name + ".png" : shot + "-" + name + ".png";
+                ScreenCapture.CaptureScreenshot(file);
+                Log($"screenshot {file}");
+                yield return new WaitForSeconds(0.3f);
+            }
+
+            IEnumerator Act(string what, long op, object body)
+            {
+                Log($"send {what}");
+                world.Net.Send(op, body);
+                yield return new WaitForSeconds(1.5f);
+            }
+
+            foreach (EconomyController.Tab tab in new[] { EconomyController.Tab.Sell, EconomyController.Tab.Merge, EconomyController.Tab.Craft, EconomyController.Tab.Shop })
+            {
+                eco.Show(tab);
+                yield return Shoot(tab.ToString().ToLowerInvariant());
+            }
+
+            // One of each action; results land in the window's note and the log ([Economy] lines).
+            eco.Show(EconomyController.Tab.Sell);
+            var junk = fishing.Bag?.stacks?.FirstOrDefault(s => s.defId.Contains(".junk."));
+            if (junk != null) yield return Act("SELL 1 " + junk.defId, OpCode.Sell, new ItemsAndStacksMsg { items = new string[0], stacks = new[] { new ItemStack { defId = junk.defId, count = 1 } } });
+            yield return Shoot("sold");
+            var group = fishing.Bag?.items?.GroupBy(i => i.defId).FirstOrDefault(g => g.Count() >= 3);
+            if (group != null)
+            {
+                eco.Show(EconomyController.Tab.Merge);
+                yield return Act("MERGE " + group.Key, OpCode.Merge, new MergeMsg { items = group.Take(3).Select(i => i.instanceId).ToArray() });
+                yield return Shoot("merged");
+            }
+            eco.Show(EconomyController.Tab.Craft);
+            yield return Act("CRAFT recipe.scale_charm", OpCode.Craft, new CraftMsg { recipeId = "recipe.scale_charm", items = new string[0] });
+            yield return Shoot("crafted");
+            eco.Show(EconomyController.Tab.Shop);
+            yield return Act("BUY_BAIT bait.shiny 3", OpCode.BuyBait, new BuyBaitMsg { defId = "bait.shiny", count = 3 });
+            yield return Act("REPAIR_ROD", OpCode.RepairRod, new EmptyMsg());
+            yield return Shoot("shop-after");
+
+            // Far from the bank the stash must refuse.
+            eco.Show(EconomyController.Tab.Stash);
+            yield return Act("STASH_OPEN far away", OpCode.StashOpen, new EmptyMsg());
+            yield return Shoot("stash-far");
+            eco.Open = false;
+
+            var bank = eco.Prices?.Catalog.stash;
+            var target = bank != null && bank.range > 0 ? new Vector2(bank.x, bank.y - 1f) : new Vector2(30.5f, 77.5f);
+            foreach (var p in new[] { new Vector2(world.MyPosition.x, 50.5f), new Vector2(target.x, 50.5f), target })
+            {
+                world.WalkTo(p);
+                yield return new WaitForSeconds(0.2f);
+                var until = Time.time + 25f;
+                while (world.Walking && Time.time < until) yield return null;
+            }
+            Log($"at bank? {world.MyPosition}, corrections {world.Corrections}");
+            eco.Show(EconomyController.Tab.Stash);
+            yield return Act("STASH_OPEN", OpCode.StashOpen, new EmptyMsg());
+            var put = fishing.Bag?.items?.FirstOrDefault();
+            if (put != null) yield return Act("STASH_PUT " + put.defId, OpCode.StashPut, new ItemsAndStacksMsg { items = new[] { put.instanceId }, stacks = new ItemStack[0] });
+            yield return Shoot("stash");
+            Log($"summary coin {eco.Coin}, dust {eco.Dust}, stash {eco.Stash?.slotsUsed}/{eco.Stash?.slotsMax}");
         }
 
         static IEnumerator WaitFor(Func<bool> done, float seconds)

@@ -3,7 +3,7 @@ import { STASH, WATER } from '../src/config';
 import { BANK_POINT, LAKE, LAKE_MAP } from '../src/data/lake-map';
 import { buildCollisionMap, isWalkable } from '../src/rules/map';
 import { checkMapFile, loadMapFile, MapFile, pointById } from '../src/rules/mapFile';
-import { bandAt, buildWaterMap } from '../src/rules/water';
+import { bandAt, buildWaterMap, waterAt } from '../src/rules/water';
 
 function file(over: Partial<MapFile> = {}): MapFile {
   return {
@@ -48,6 +48,32 @@ describe('checkMapFile', () => {
   });
 });
 
+describe('named waters', () => {
+  const area = (id: string, x: number, y: number, w: number, h: number) => ({ id, x, y, w, h });
+
+  it('are optional, but when given name every water tile once', () => {
+    expect(checkMapFile(file({ waters: [] }))).toEqual([]);
+    expect(checkMapFile(file({ waters: [area('gol', 4, 1, 2, 3)] }))).toEqual([]);
+    expect(checkMapFile(file({ waters: [area('gol', 4, 1, 2, 2)] }))).toContain('water tile 4,3 has no name');
+    expect(checkMapFile(file({ waters: [area('a', 4, 1, 2, 3), area('b', 5, 3, 1, 1)] }))).toContain('water b: overlaps a at 5,3');
+  });
+
+  it('checks ids and rects', () => {
+    expect(checkMapFile(file({ waters: [area('Göl', 4, 1, 2, 3)] }))[0]).toMatch(/water Göl: id/);
+    expect(checkMapFile(file({ waters: [area('a', 4, 1, 2, 3), area('a', 4, 1, 1, 1)] }))).toContain('water a: id repeats');
+    expect(checkMapFile(file({ waters: [area('a', 4, 1, 3, 3)] }))).toContain('water a: rect must be whole tiles inside the map');
+    expect(checkMapFile(file({ waters: [area('a', 4, 1, 2, 3), area('dry', 0, 0, 2, 2)] }))).toContain('water dry: no water tile inside');
+  });
+
+  it('tell which water the bobber is in', () => {
+    const m = loadMapFile(file({ spawn: { x: 2.5, y: 0.5 }, rows: ['~~....', '~~....', '....~~', '....~~'], waters: [area('west', 0, 0, 2, 2), area('east', 4, 2, 2, 2)] }));
+    const w = buildWaterMap(m.data, WATER);
+    expect(waterAt(w, 0.5, 0.5)).toBe('west');
+    expect(waterAt(w, 5.5, 3.5)).toBe('east');
+    expect(waterAt(w, 2.5, 2.5)).toBeNull();
+  });
+});
+
 describe('loadMapFile', () => {
   it('turns rows into blocked and water rectangles', () => {
     const m = loadMapFile(file());
@@ -83,6 +109,8 @@ describe('content/maps/lake.json', () => {
     const w = buildWaterMap(LAKE_MAP, WATER);
     expect(bandAt(w, 76.5, 35.5)).toBe('shore');
     expect(bandAt(w, 100.5, 40.5)).toBe('deep');
+    expect(waterAt(w, 100.5, 40.5)).toBe('buyuk_gol');
+    expect(waterAt(w, 64, 48)).toBeNull();
   });
 
   it('puts the bank where the stash checks for it', () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { REEL_PARAMS } from '../src/config';
+import { FISHING, REEL_PARAMS } from '../src/config';
+import { reelParamsFor } from '../src/rules/fishing';
 import { FIELD, ReelParams, STEP_MS, parseInputs, simulateReel } from '../src/rules/reel';
 import { mulberry32 } from '../src/rules/rng';
 import REFERENCE from './fixtures/reel-reference.json';
@@ -82,6 +83,14 @@ describe('simulateReel', () => {
     for (const tier of Object.keys(REEL_PARAMS) as (keyof typeof REEL_PARAMS)[]) {
       expect(rate(REEL_PARAMS[tier], 5, 60)).toBeGreaterThanOrEqual(95);
     }
+  });
+
+  it('a quick player still catches every tier in deep water; a slower one misses more there', () => {
+    for (const tier of Object.keys(REEL_PARAMS) as (keyof typeof REEL_PARAMS)[]) {
+      expect(rate(reelParamsFor(REEL_PARAMS[tier], 'deep', FISHING), 5, 60), tier).toBeGreaterThanOrEqual(95);
+    }
+    const slow = (band: 'shore' | 'deep') => rate(reelParamsFor(REEL_PARAMS.epic, band, FISHING), 12, 200);
+    expect(slow('shore')).toBeGreaterThan(slow('deep'));
   });
 
   it('rarer fish are harder for a slower player', () => {
