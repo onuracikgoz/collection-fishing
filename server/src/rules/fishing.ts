@@ -4,7 +4,7 @@ import { BagConfig, BagSummary, hasFreeSlot } from './bag';
 import { CatchRoll, Tier } from './catch';
 import { Random } from './rng';
 import { ReelParams, ReelResult, STEP_MS } from './reel';
-import { Band, WaterMap, bandAt, isNearWater } from './water';
+import { Band, WaterMap, bandAt, isNearWater, waterAt } from './water';
 
 export type RejectReason = 'BUSY' | 'NOT_NEAR_WATER' | 'NOT_WATER' | 'TOO_FAR' | 'BAG_FULL' | 'NO_BAIT' | 'NO_ENERGY' | 'ROD_BROKEN';
 
@@ -13,8 +13,10 @@ export interface FishingConfig {
   nearWater: number;
   /** Farthest cast (tiles). */
   maxCast: number;
-  waitMinMs: number;
-  waitMaxMs: number;
+  /** Wait before the bite per band: quick on the shore, long in deep water. */
+  wait: { [b in Band]: { minMs: number; maxMs: number } };
+  /** Reel mini game per band, applied on top of the Tier's params. */
+  reel: { [b in Band]: ReelBandMod };
   maxTwitches: number;
   /** Bite window per tier, ms; junk and materials use common. */
   hookWindowMs: { [t in Tier]: number };
@@ -26,6 +28,14 @@ export interface FishingConfig {
   reelTimeoutGraceMs: number;
 }
 
+/** How a band changes the reel game: deep fish fight harder, shore fish less. */
+export interface ReelBandMod {
+  /** Bar size multiplier (bigger is easier). */
+  barScale: number;
+  /** Added to the fish's speed (faster is harder). */
+  fishSpeedAdd: number;
+}
+
 export type FishPhase = 'waiting' | 'bite' | 'reeling';
 
 export interface FishState {
@@ -33,6 +43,8 @@ export interface FishState {
   x: number;
   y: number;
   band: Band;
+  /** Named water under the bobber (map file `waters`), null if unnamed. */
+  water?: string | null;
   /** Whether this cast spent energy (else junk only). */
   hasEnergy: boolean;
   /** Special bait spent on this cast. */
@@ -80,7 +92,7 @@ export function checkBait(
   return { ok: true };
 }
 
-/** Checks a cast. Returns the band, or why it was refused. */
+/** Checks a cast. Returns the band and named water, or why it was refused. */
 export function checkCast(
   water: WaterMap,
   player: { x: number; y: number },
@@ -89,19 +101,20 @@ export function checkCast(
   bag: BagSummary,
   bagCfg: BagConfig,
   cfg: FishingConfig,
-): { ok: true; band: Band } | { ok: false; reason: RejectReason } {
+): { ok: true; band: Band; water: string | null } | { ok: false; reason: RejectReason } {
   if (busy) return { ok: false, reason: 'BUSY' };
   if (!isNearWater(water, player.x, player.y, cfg.nearWater)) return { ok: false, reason: 'NOT_NEAR_WATER' };
   const band = bandAt(water, target.x, target.y);
   if (band === null) return { ok: false, reason: 'NOT_WATER' };
   if (Math.hypot(target.x - player.x, target.y - player.y) > cfg.maxCast) return { ok: false, reason: 'TOO_FAR' };
   if (!hasFreeSlot(bag, bagCfg)) return { ok: false, reason: 'BAG_FULL' };
-  return { ok: true, band };
+  return { ok: true, band, water: waterAt(water, target.x, target.y) };
 }
 
 /** Plans the wait: when the real bite comes and when fake twitches happen before it. */
-export function planWait(now: number, cfg: FishingConfig, random: Random): { biteAt: number; twitches: number[] } {
-  const wait = cfg.waitMinMs + Math.floor(random() * (cfg.waitMaxMs - cfg.waitMinMs + 1));
+export function planWait(now: number, band: Band, cfg: FishingConfig, random: Random): { biteAt: number; twitches: number[] } {
+  const { minMs, maxMs } = cfg.wait[band];
+  const wait = minMs + Math.floor(random() * (maxMs - minMs + 1));
   const biteAt = now + wait;
   const count = Math.floor(random() * (cfg.maxTwitches + 1));
   const twitches: number[] = [];
@@ -113,6 +126,16 @@ export function planWait(now: number, cfg: FishingConfig, random: Random): { bit
   }
   twitches.sort((a, b) => a - b);
   return { biteAt, twitches };
+}
+
+/** The reel params for a catch: its Tier's game, made easier or harder by the band. Integers only. */
+export function reelParamsFor(tierParams: ReelParams, band: Band, cfg: FishingConfig): ReelParams {
+  const mod = cfg.reel[band];
+  return {
+    ...tierParams,
+    barSize: Math.max(1, Math.round(tierParams.barSize * mod.barScale)),
+    fishSpeed: Math.max(1, tierParams.fishSpeed + mod.fishSpeedAdd),
+  };
 }
 
 export function hookWindow(roll: CatchRoll, cfg: FishingConfig): number {

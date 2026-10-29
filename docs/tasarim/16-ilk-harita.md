@@ -19,7 +19,7 @@ Merkezde kalabalık, kenarlara doğru sakinlik ve nadirlik artar.
 | # | Yer | Konum | Ne işe yarar |
 |---|---|---|---|
 | 1 | **Meydan** | Ortada | İlk giriş noktası (çeşme). Yolların kesiştiği, herkesin geçtiği yer |
-| 2 | Pazar Panosu | Meydanın kuzeyi | Pazar yalnızca buradan açılır (bkz. 12.3) |
+| 2 | Pazar alanı + Pazar Panosu | Meydanın kuzeyi | Oyuncuların petleri burada tezgah açar, pano tezgah reklamlarını gösterir (bkz. 12.3, Öneri: ~40 tezgah yeri) |
 | 3 | Zanaatkar NPC | Meydanın doğusu, göl yolunda | Craft ve 3'ü 1 birleştirme (bkz. 9.4, 11) |
 | 4 | Kafe | Meydanın güneyi | Dinlenme alanı ve sohbet mekanı |
 | 5 | **Banka** | Güneybatı köyü, meydandan uzak | **Depo yalnızca burada açılır** (bkz. 9.3). Uzaklık bilinçli: çanta yönetimi bir karar olsun |

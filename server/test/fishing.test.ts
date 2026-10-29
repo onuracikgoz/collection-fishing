@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { BAG, FISHING, WATER } from '../src/config';
 import { LAKE_MAP } from '../src/data/lake-map';
-import { FishState, checkCast, judgeReel, onHook, parseCast, planWait, reelTimedOut } from '../src/rules/fishing';
+import { REEL_PARAMS } from '../src/config';
+import { FishState, checkCast, judgeReel, onHook, parseCast, planWait, reelParamsFor, reelTimedOut } from '../src/rules/fishing';
+import { Band } from '../src/rules/water';
 import { seededRandom } from '../src/rules/rng';
 import { buildWaterMap } from '../src/rules/water';
 
@@ -11,7 +13,7 @@ const empty = { items: 0, stacks: {} };
 
 describe('checkCast', () => {
   it('accepts a cast from the pier into the lake', () => {
-    expect(checkCast(lake, pier, { x: 88.5, y: 47.5 }, false, empty, BAG, FISHING)).toEqual({ ok: true, band: 'mid' });
+    expect(checkCast(lake, pier, { x: 88.5, y: 47.5 }, false, empty, BAG, FISHING)).toEqual({ ok: true, band: 'mid', water: 'buyuk_gol' });
   });
   it('explains each refusal', () => {
     expect(checkCast(lake, pier, { x: 88, y: 47 }, true, empty, BAG, FISHING)).toEqual({ ok: false, reason: 'BUSY' });
@@ -28,18 +30,43 @@ describe('checkCast', () => {
 });
 
 describe('planWait', () => {
-  it('waits 5-20 s with twitches strictly before the bite', () => {
+  it('waits per band, with twitches strictly before the bite', () => {
     const random = seededRandom(9);
-    for (let i = 0; i < 1000; i++) {
-      const w = planWait(1000, FISHING, random);
-      expect(w.biteAt - 1000).toBeGreaterThanOrEqual(5000);
-      expect(w.biteAt - 1000).toBeLessThanOrEqual(20000);
+    for (let i = 0; i < 3000; i++) {
+      const band = (['shore', 'mid', 'deep'] as Band[])[i % 3];
+      const w = planWait(1000, band, FISHING, random);
+      expect(w.biteAt - 1000).toBeGreaterThanOrEqual(FISHING.wait[band].minMs);
+      expect(w.biteAt - 1000).toBeLessThanOrEqual(FISHING.wait[band].maxMs);
       expect(w.twitches.length).toBeLessThanOrEqual(3);
       for (const t of w.twitches) {
         expect(t).toBeGreaterThanOrEqual(2000);
         expect(t).toBeLessThan(w.biteAt - 1000);
       }
     }
+  });
+});
+
+describe('band balance: tempo', () => {
+  it('the shore bites sooner than deep water', () => {
+    const avg = (band: Band) => {
+      const random = seededRandom(4);
+      let sum = 0;
+      for (let i = 0; i < 2000; i++) sum += planWait(0, band, FISHING, random).biteAt;
+      return sum / 2000;
+    };
+    expect(avg('shore')).toBeLessThan(avg('mid'));
+    expect(avg('mid')).toBeLessThan(avg('deep'));
+  });
+
+  it('deep fish are harder to reel, shore fish easier, integers kept', () => {
+    const p = REEL_PARAMS.rare;
+    const shore = reelParamsFor(p, 'shore', FISHING);
+    const deep = reelParamsFor(p, 'deep', FISHING);
+    expect(shore.barSize).toBeGreaterThan(p.barSize);
+    expect(deep.barSize).toBeLessThan(p.barSize);
+    expect(deep.fishSpeed).toBeGreaterThan(p.fishSpeed);
+    expect(reelParamsFor(p, 'mid', FISHING)).toEqual(p);
+    for (const v of Object.values(deep)) expect(Number.isInteger(v)).toBe(true);
   });
 });
 

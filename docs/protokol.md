@@ -165,7 +165,7 @@ Yem: `bait` verilmeyen atış temel yemle yapılır (bedava, sınırsız, oranla
 ### Akış
 
 1. **Atış:** client güç çubuğuyla bir nokta seçer, `CAST` gönderir. Sunucu kontrol eder: oyuncu boşta mı, en yakın suya 1.5 tile içinde mi, hedef su mu, hedef en fazla 8 tile uzakta mı (Öneri), çantada yer var mı. Kabul ederse enerji 1 düşer (enerji 0 ise düşmez, sadece çöp çıkar) ve herkese `BOBBER state:"cast"` gider. Bant hedefin kıyıya uzaklığından çıkar: 2 tile'a kadar kıyı, 5'e kadar orta, ötesi derin (Öneri).
-2. **Bekleme:** sunucu 5–20 sn arası bir süre seçer (Öneri), arada 0–3 sahte kıpırdama (`twitch`) olur.
+2. **Bekleme:** sunucu banda göre bir süre seçer (kıyı 5–10, orta 8–15, derin 12–20 sn, Öneri), arada 0–3 sahte kıpırdama (`twitch`) olur.
 3. **Vuruş:** sunucu av sonucunu bu anda seçer ve `BOBBER state:"bite"` gönderir. Oyuncu pencere içinde `HOOK` göndermelidir: Common 600 ms … Mythic 350 ms, artı ağ payı 300 ms (Öneri). Erken (`twitch` veya bekleme sırasında) ya da geç çekmek `missed` ile biter.
 4. **Çekme mini oyunu:** sunucu `REEL_START { seed, params }` gönderir. Mini oyun aşağıdaki **belirlenimci** modelle oynanır; client aynı modeli çalıştırıp çizer ve oyun bitince bastığı / bıraktığı anları `REEL_DONE` ile yollar. Sunucu aynı girdilerle modeli baştan oynatır, sonucu o belirler. `REEL_DONE` gerçek zamanda modelin bittiği andan 500 ms'den önce gelirse reddedilir (hızlandırma hilesi); `params.maxMs` + 5 sn içinde gelmezse balık kaçar.
 5. **Sonuç:** `FISH_END`. Yakalanan Float'lı eşya çantaya instance olarak, çöp ve malzeme yığın olarak girer.
@@ -461,7 +461,8 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
   "height": 96,
   "spawn": { "x": 64.5, "y": 50.5 },
   "rows": ["....##....~~~~", "..."],
-  "points": [{ "id": "bank", "kind": "bank", "x": 30.5, "y": 78.5 }]
+  "points": [{ "id": "bank", "kind": "bank", "x": 30.5, "y": 78.5 }],
+  "waters": [{ "id": "buyuk_gol", "x": 76, "y": 30, "w": 40, "h": 37 }]
 }
 ```
 
@@ -478,7 +479,8 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
 - Su bandı (kıyı / orta / derin) dosyada yazılmaz; sunucu her su tile'ının karaya uzaklığından hesaplar (`WATER` config). Haritayı çizen yalnızca suyu işaretler.
 - `spawn`: ilk giriş noktası (meydan). Yürünür bir tile'da olmalı.
 - `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı), `market` (pet tezgahı alanının merkezi). Şimdilik sunucu `bank` ve `market`'i kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
-- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`, `market`) var.
+- `waters` (isteğe bağlı): isimli sular. Dikdörtgenin içindeki `~` tile'lar o suya aittir; eşyaların `waters` alanı bu id'leri kullanır (`tasarim/03-balik-tutma.md`, Eşyanın çıkış alanları). `id` küçük harf, rakam ve `_`. Liste verilirse her su tile'ı tam bir suya ait olmalı. Client bu alanı kullanmaz; hangi suda olunduğu oyuncuya gösterilmez (keşif konusu).
+- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`, `market`) var, isimli suların dikdörtgeni harita içinde, içinde su var, çakışmıyor ve isimsiz su kalmıyor.
 - Sonraki adım (Öneri): balık noktaları (`spot`) ve her noktanın havuzu. Havuzlar sunucu verisidir, dosyada sadece noktanın yeri ve id'si durur.
 ## Fiyat ve recipe listesi (Faz 4)
 

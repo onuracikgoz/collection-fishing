@@ -16,7 +16,7 @@
 | V6 | Oyuncu "oturmuş" durumda: Common ve Rare defter kayıtları dolu, çıkanların çoğu kopya | tahmin |
 | V7 | Set başına Tier dağılımı %45 Common, %25 Rare, %15 Epic, %10 Legendary, en az 1 Mythic. Bu **setteki eşya sayısının** dağılımıdır, drop oranı değildir; Coin hesabını değiştirmez | plan kararı |
 | V8 | Legendary ve Mythic NPC'ye neredeyse hiç satılmaz, tutulur veya pazara gider | tahmin |
-| V9 | Pazar panosu %5 ücret, oyuncu başına 10 aktif ilan, ilan 7 gün | 09, 12.3 |
+| V9 | Pet tezgahı pazarı %5 ücret, tezgahta 12 kalem, en fazla 24 saat, çevrimdışı da açık (28.10.2026'da pano ilanından pet tezgahına geçildi) | 09, 12.3 |
 
 ## 2. Coin kaynakları ve harcama yerleri
 

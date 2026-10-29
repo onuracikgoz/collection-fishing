@@ -53,8 +53,8 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_friends` | `{ a, b, action: befriend \| request \| remove \| block }` |
 | `dev_reset` | Oyuncu verisini ve cüzdanı siler, başlangıç recipe'lerini yeniden verir |
 | `dev_live` | Maçtaki oyuncuya: `teleport`, `bite_now`, `force { defId }`, `twitch`, `cancel`, `push { op, body }`, `push_all`, `kick` |
-| `dev_sim_catch` | `{ n, band, hasEnergy, luck \| userId }` av tablosu simülasyonu |
-| `dev_reel` | `{ seed, tier \| params, inputs? , lose? }` mini oyunu oynar ya da girdileri değerlendirir |
+| `dev_sim_catch` | `{ n, band, water?, level?, hasEnergy, luck \| userId }` av tablosu simülasyonu (bant çarpanları dahil) |
+| `dev_reel` | `{ seed, tier \| params, band?, inputs? , lose? }` mini oyunu oynar ya da girdileri değerlendirir; `band` o bandın zorluğunu ekler |
 | `dev_craft_preview` | `{ recipeId \| grade, average }` craft Float bantları |
 
 Depoyu değiştiren her dev RPC, oyuncu oyundaysa maça `dev_reload` sinyali yollar; maçın bellekteki çanta, defter ve enerji kopyası yenilenir. Unity client'a "çanta değişti" mesajı gitmez; client çantayı yeniden açınca görür.

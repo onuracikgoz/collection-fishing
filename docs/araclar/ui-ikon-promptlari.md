@@ -118,7 +118,7 @@ Yazı sonradan pixel fontla eklenir.
 
 ## 5. Senin dışında gelecekler
 
-- **Google / Facebook / Discord logoları:** pixel art yapılmaz, resmi logo kare butonun içinde küçültülerek kullanılır (`acik-sorular.md` 21).
+- **Google / Facebook / Discord logoları:** pixel art yapılmaz, resmi logo kare butonun içinde küçültülerek kullanılır (`acik-sorular.md` 24).
 - **Pixel font:** Türkçe harfli (ç ğ ı İ ö ş ü), ticari izinli. Adaylar Pixel Operator, m5x7; indirince Türkçe karakterleri kontrol et.
 - **Evcil hayvanlar (pazar tezgahı), karakter ve balık sprite'ları:** UI değil, sprite işi; sonra ayrı liste.
 - **Eşya (balık, malzeme) görselleri:** `collection-set-generator` skill'i set başına prompt üretir.

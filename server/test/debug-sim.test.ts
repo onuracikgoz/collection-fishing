@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BOOK_LUCK, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS } from '../src/config';
+import { BOOK_LUCK, CATCH, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS } from '../src/config';
 import { LAKE_POOL } from '../src/data/lake-pool';
 import { mapRows, simulateCatches, solveReel } from '../src/debug/sim';
 import { simulateReel } from '../src/rules/reel';
@@ -29,12 +29,12 @@ describe('dev dashboard: solveReel', () => {
 
 describe('dev dashboard: simulateCatches', () => {
   it('without energy only junk comes up', () => {
-    const r = simulateCatches(LAKE_POOL, CATCH_TABLE, 'deep', false, 0, BOOK_LUCK, FLOAT_TABLE, 500, seededRandom(1));
+    const r = simulateCatches(LAKE_POOL, CATCH_TABLE, { band: 'deep', water: 'buyuk_gol', level: 1 }, false, 0, BOOK_LUCK, FLOAT_TABLE, 500, seededRandom(1));
     expect(Object.keys(r.byCategory)).toEqual(['junk']);
     expect(r.byCategory.junk).toBe(500);
   });
   it('shore never gives deep-only items and counts add up', () => {
-    const r = simulateCatches(LAKE_POOL, CATCH_TABLE, 'shore', true, 0, BOOK_LUCK, FLOAT_TABLE, 5000, seededRandom(2));
+    const r = simulateCatches(LAKE_POOL, CATCH_TABLE, { band: 'shore', water: 'buyuk_gol', level: 1 }, true, 0, BOOK_LUCK, FLOAT_TABLE, 5000, seededRandom(2), CATCH);
     expect(r.byDef['lake.fish.golden_carp']).toBeUndefined();
     const total = Object.values(r.byCategory).reduce((a, b) => a + b, 0);
     expect(total + r.empty).toBe(5000);
