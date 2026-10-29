@@ -227,6 +227,20 @@ put("panel_locked", im, 1)
 im = new(8, 8); r(im, 0, 0, 7, 7, c("ae2334")); r(im, 1, 1, 6, 6, PAPER)
 put("panel_alert", im, 1)
 
+# unselected tab (29.10.2026, Onur: the old one was too faint): darker linen, ink frame, light top edge.
+# The selected tab is button_wood_normal.
+im = new(12, 12); r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 11, LINEN_W); r(im, 1, 1, 10, 1, LINEN)
+im.putpixel((0, 0), CLR); im.putpixel((11, 0), CLR)
+put("tab_off", im, (3, 3, 3, 2))
+
+# opaque cover over hidden content (Ayarlar > Hesap)
+im = new(8, 8); r(im, 0, 0, 7, 7, INK); r(im, 1, 1, 6, 6, c("3e3546"))
+put("panel_cover", im, 1)
+
+# cast meter ground (balik-at): ink frame, sage inside
+im = new(8, 8); r(im, 0, 0, 7, 7, INK); r(im, 1, 1, 6, 6, c("839f69"))
+put("meter_back", im, 1)
+
 # ---------- item slots (40x40 holds a 32 px icon) ----------
 TIERS = {"common": "9babb2", "rare": "4d9be6", "epic": "a884f3", "legendary": "f79617", "mythic": "e83b3b"}
 def slot(outline=WM, fill=SAGE_L, inner=SAGE):
