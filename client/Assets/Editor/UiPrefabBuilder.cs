@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 3;
+        public const int Version = 5;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -70,7 +70,7 @@ namespace CollectionGame.EditorTools
             Save(BuildBag(), "Bag");
             Save(BuildPopup(), "Popup");
             Save(BuildPanel("Quests", "Günlük görevler", new Vector2(600, 330), 1), "Quests");
-            Save(BuildPanel("Settings", "Ayarlar", new Vector2(640, 470), 1), "Settings");
+            Save(BuildSettings(), "Settings");
             Save(BuildPanel("Trade", "Takas", new Vector2(780, 480), 3, new[] { "Çanta", "Sen", "Karşı taraf" }), "Trade");
             Save(BuildPanel("TradeInvite", "Takas teklifi", new Vector2(400, 128), 1), "TradeInvite");
             Save(BuildPanel("Market", "Pazar", new Vector2(760, 520), 1), "Market");
@@ -251,9 +251,9 @@ namespace CollectionGame.EditorTools
             Img(rt, "window", Image.Type.Tiled, true);
             var view = rt.gameObject.AddComponent<WindowView>();
 
-            var plate = At(Node("Plate", rt), Top, new Vector2(0, 11), new Vector2(Mathf.Max(110, title.Length * 10 + 40), 24), Top);
+            var plate = At(Node("Plate", rt), Top, new Vector2(0, 10), new Vector2(Mathf.Max(120, title.Length * 10 + 50), 28), Top);
             Img(plate, "button_wood_normal", Image.Type.Sliced, true);
-            view.title = Txt(Stretch(Node("Title", plate), 4, 2, 4, 2), title, 15, Paper, TextAnchor.MiddleCenter, true);
+            view.title = Txt(Stretch(Node("Title", plate), 4, 2, 4, 2), title, 16, Paper, TextAnchor.MiddleCenter, true);
             view.plate = plate;
 
             var close = At(Node("Close", rt), TopRight, new Vector2(-8, -8), new Vector2(24, 24));
@@ -432,8 +432,8 @@ namespace CollectionGame.EditorTools
             grid.offsetMin = new Vector2(0, 22);
             grid.offsetMax = new Vector2(0, -24);
             var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
-            layout.cellSize = new Vector2(40, 40);
-            layout.spacing = new Vector2(4, 4);
+            layout.cellSize = new Vector2(42, 42);
+            layout.spacing = new Vector2(2, 2);
             layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             layout.constraintCount = 8;
             view.grid = grid;
@@ -639,6 +639,233 @@ namespace CollectionGame.EditorTools
             Size(view.input, minH: 22, prefW: 70);
             input.gameObject.SetActive(false);
             return view;
+        }
+
+        // ================= Settings (drafts ayarlar-genel, ayarlar-hesap) =================
+
+        /// <summary>A node at draft coordinates inside a window: x, y from the window's top-left corner.</summary>
+        static RectTransform Abs(Transform parent, string name, float x, float y, float w, float h) =>
+            At(Node(name, parent), TopLeft, new Vector2(x, -y), new Vector2(w, h));
+
+        /// <summary>Text whose line is centred on draft y.</summary>
+        static Text TextAt(Transform parent, string name, string text, float x, float yCenter, float w, int size, Color colour,
+            TextAnchor align = TextAnchor.MiddleLeft, bool bold = false) =>
+            Txt(Abs(parent, name, x, yCenter - 11, w, 22), text, size, colour, align, bold);
+
+        static void Section(Transform parent, string title, float yCenter, float lineY)
+        {
+            TextAt(parent, "Section " + title, title, 203, yCenter, 300, 16, Ink, TextAnchor.MiddleLeft, true);
+            Img(Abs(parent, "Divider " + title, 203, lineY, 447, 4), "divider");
+        }
+
+        static Toggle Check(Transform parent, string name, string label, string hint, float yCenter)
+        {
+            var rt = Abs(parent, name, 203, yCenter - 12, 440, 24);
+            // The whole line is the click area (transparent), so the label toggles too.
+            rt.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            var box = At(Node("Box", rt), new Vector2(0, 0.5f), Vector2.zero, new Vector2(24, 24), new Vector2(0, 0.5f));
+            var off = Img(box, "checkbox_off", Image.Type.Simple, true);
+            var on = Img(Stretch(Node("On", box)), "checkbox_on", Image.Type.Simple);
+            var t = rt.gameObject.AddComponent<Toggle>();
+            t.targetGraphic = off;
+            t.graphic = on;
+            t.transition = Selectable.Transition.None;
+            var nav = t.navigation;
+            nav.mode = Navigation.Mode.None;
+            t.navigation = nav;
+            var text = Txt(At(Node("Label", rt), new Vector2(0, 0.5f), new Vector2(34, 0), new Vector2(400, 22), new Vector2(0, 0.5f)),
+                hint == null ? label : $"{label}  <color=#7f708a>{hint}</color>", 15, Ink);
+            text.supportRichText = true;
+            return t;
+        }
+
+        static Slider SliderAt(Transform parent, string name, float yCenter, out Text value)
+        {
+            var rt = Abs(parent, name, 327, yCenter - 9, 240, 18);
+            var back = Stretch(Node("Back", rt), 0, 1, 0, 1);
+            Img(back, "bar_back", Image.Type.Sliced, true);
+            var area = Stretch(Node("Fill Area", rt), 0, 1, 0, 1);
+            var fill = Node("Fill", area);
+            fill.sizeDelta = Vector2.zero;
+            Img(fill, "bar_fill_green");
+            var handleArea = Stretch(Node("Handle Area", rt), 6, 0, 6, 0);
+            var handle = Node("Handle", handleArea);
+            handle.sizeDelta = new Vector2(12, 6);
+            var hImg = Img(handle, "button_wood_hover", Image.Type.Sliced, true);
+            var sl = rt.gameObject.AddComponent<Slider>();
+            sl.fillRect = fill;
+            sl.handleRect = handle;
+            sl.targetGraphic = hImg;
+            sl.direction = Slider.Direction.LeftToRight;
+            sl.minValue = 0;
+            sl.maxValue = 1;
+            sl.value = 0.6f;
+            var nav = sl.navigation;
+            nav.mode = Navigation.Mode.None;
+            sl.navigation = nav;
+            value = TextAt(parent, name + "Value", "%60", 580, yCenter, 60, 14, Faint);
+            return sl;
+        }
+
+        /// <summary>A field-look button with "▼": the client cycles its options on click.</summary>
+        static Button Choice(Transform parent, string name, float yCenter, out Text label)
+        {
+            var rt = Abs(parent, name, 327, yCenter - 15, 178, 30);
+            var img = Img(rt, "input_normal", Image.Type.Sliced, true);
+            var b = rt.gameObject.AddComponent<Button>();
+            b.targetGraphic = img;
+            b.transition = Selectable.Transition.SpriteSwap;
+            b.spriteState = new SpriteState { highlightedSprite = S("input_focus"), pressedSprite = S("input_focus") };
+            var nav = b.navigation;
+            nav.mode = Navigation.Mode.None;
+            b.navigation = nav;
+            label = Txt(Stretch(Node("Label", rt), 9, 2, 28, 2), "", 15, Ink);
+            Txt(At(Node("Arrow", rt), new Vector2(1, 0.5f), new Vector2(-8, 0), new Vector2(16, 20), new Vector2(1, 0.5f)), "▼", 11, Ink, TextAnchor.MiddleCenter);
+            return b;
+        }
+
+        static SettingsView.LoginRow LoginRow(Transform parent, string name, Color icon, float top)
+        {
+            var row = new SettingsView.LoginRow();
+            var rt = Abs(parent, "Login " + name, 203, top, 447, 40);
+            row.back = Img(rt, "card");
+            Img(Stretch(Node("Outline", rt)), "outline");
+            Solid(At(Node("Icon", rt), new Vector2(0, 0.5f), new Vector2(10, 0), new Vector2(20, 20), new Vector2(0, 0.5f)), icon);
+            Txt(At(Node("Name", rt), new Vector2(0, 0.5f), new Vector2(45, 0), new Vector2(95, 22), new Vector2(0, 0.5f)), name, 16, Ink);
+            row.status = Txt(At(Node("Status", rt), new Vector2(0, 0.5f), new Vector2(140, 0), new Vector2(165, 22), new Vector2(0, 0.5f)), "bağlı değil", 14, Faint);
+            row.button = Btn(rt, "Button", "wood", "Bağla", 13);
+            At((RectTransform)row.button.transform, new Vector2(1, 0.5f), new Vector2(-7, 0), new Vector2(130, 30), new Vector2(1, 0.5f));
+            row.buttonText = row.button.GetComponentInChildren<Text>();
+            return row;
+        }
+
+        static void RecolourButton(Button b, string colour)
+        {
+            b.GetComponent<Image>().sprite = S($"button_{colour}_normal");
+            b.spriteState = new SpriteState
+            {
+                highlightedSprite = S($"button_{colour}_hover"), pressedSprite = S($"button_{colour}_pressed"),
+                selectedSprite = S($"button_{colour}_normal"), disabledSprite = S($"button_{colour}_disabled"),
+            };
+        }
+
+        static GameObject BuildSettings()
+        {
+            var size = new Vector2(675, 537);
+            var wrap = Stretch(Node("Settings", null));
+            var view = wrap.gameObject.AddComponent<SettingsView>();
+            view.window = Window(wrap, "Window", "Ayarlar", size);
+            At((RectTransform)view.window.transform, Center, new Vector2(-1, 31), size, Center);
+            var w = view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = (RectTransform)w;
+
+            // Left column: tabs, a vertical divider, the version.
+            view.tabOn = S("button_wood_normal");
+            view.tabOff = S("outline");
+            view.tabGeneral = Btn(w, "TabGeneral", "wood", "Genel", 16);
+            At((RectTransform)view.tabGeneral.transform, TopLeft, new Vector2(23, -32), new Vector2(152, 36));
+            view.tabAccount = Btn(w, "TabAccount", "wood", "Hesap", 16);
+            At((RectTransform)view.tabAccount.transform, TopLeft, new Vector2(23, -76), new Vector2(152, 36));
+            foreach (var tab in new[] { view.tabGeneral, view.tabAccount })
+            {
+                tab.transition = Selectable.Transition.None;
+                var label = tab.GetComponentInChildren<Text>();
+                label.alignment = TextAnchor.MiddleLeft;
+                ((RectTransform)label.transform).offsetMin = new Vector2(12, 2);
+            }
+            var vline = Abs(w, "ColumnDivider", 187, 17, 503, 4);
+            Img(vline, "divider");
+            vline.pivot = new Vector2(0, 1);
+            vline.localEulerAngles = new Vector3(0, 0, -90);
+            view.version = TextAt(w, "Version", "v0.4", 23, 501, 160, 13, Faint);
+
+            // ---- Genel ----
+            var g = Stretch(Node("General", w));
+            view.general = g.gameObject;
+            Section(g, "Ses", 42, 57);
+            TextAt(g, "MusicLabel", "Müzik", 203, 76, 120, 15, Ink);
+            view.music = SliderAt(g, "Music", 77, out view.musicValue);
+            TextAt(g, "EffectsLabel", "Efektler", 203, 109, 120, 15, Ink);
+            view.effects = SliderAt(g, "Effects", 109, out view.effectsValue);
+            view.hitSound = Check(g, "HitSound", "Vuruş sesini her zaman çal", "(müzik kısıksa da)", 143);
+            Section(g, "Ekran", 174, 189);
+            TextAt(g, "LanguageLabel", "Dil", 203, 214, 120, 15, Ink);
+            view.language = Choice(g, "Language", 214, out view.languageText);
+            TextAt(g, "ScaleLabel", "Arayüz boyutu", 203, 254, 120, 15, Ink);
+            view.uiScale = Choice(g, "UiScale", 254, out view.uiScaleText);
+            view.fullScreen = Check(g, "FullScreen", "Tam ekran", "(Steam)", 290);
+            view.showNames = Check(g, "ShowNames", "Oyuncu adlarını göster", null, 318);
+            Section(g, "Sohbet", 349, 364);
+            view.friendsOnly = Check(g, "FriendsOnly", "Sadece arkadaşlardan mesaj al", null, 387);
+            view.announcements = Check(g, "Announcements", "Sistem duyurularını göster", "(nadir avlar)", 415);
+            view.bubbles = Check(g, "Bubbles", "Sohbet balonları", null, 443);
+            view.blocked = TextAt(g, "Blocked", "Engellenenler: 0 kişi", 203, 477, 170, 15, Ink);
+            var link = Abs(g, "OpenBlocked", 384, 466, 90, 22);
+            var linkText = Txt(link, "Listeyi aç", 15, Hex("4d65b4"));
+            linkText.raycastTarget = true;
+            view.openBlocked = link.gameObject.AddComponent<Button>();
+            view.openBlocked.targetGraphic = linkText;
+
+            // ---- Hesap ----
+            var a = Stretch(Node("Account", w));
+            view.account = a.gameObject;
+            Section(a, "Giriş yöntemleri", 42, 57);
+            TextAt(a, "Subtitle", "Hepsi aynı karaktere girer. En az biri kalmalı.", 203, 72, 447, 14, Faint);
+            view.google = LoginRow(a, "Google", Hex("4d9be6"), 92);
+            view.facebook = LoginRow(a, "Facebook", Hex("4d65b4"), 137);
+            view.discord = LoginRow(a, "Discord", Hex("a884f3"), 183);
+            view.steam = LoginRow(a, "Steam", Hex("2e222f"), 229);
+            RecolourButton(view.steam.button, "green");
+            var box = Abs(a, "CodeBox", 203, 277, 447, 77);
+            Img(box, "box_dark");
+            view.codeBox = box.gameObject;
+            Txt(At(Node("Title", box), TopLeft, new Vector2(12, -4), new Vector2(420, 20)), "Steam'de bu kodu yaz:", 14, Paper);
+            view.code = Txt(At(Node("Code", box), TopLeft, new Vector2(12, -24), new Vector2(130, 24)), "ABCD-EFGH", 18, Gold, TextAnchor.MiddleLeft, true);
+            view.codeTimer = Txt(At(Node("Timer", box), TopLeft, new Vector2(142, -26), new Vector2(290, 20)), "", 14, Paper);
+            Txt(At(Node("Warn", box), TopLeft, new Vector2(12, -52), new Vector2(420, 20)), "Kimseyle paylaşma. Yetkililer asla istemez.", 14, Hex("e83b3b"));
+            Section(a, "Hesap", 379, 394);
+            view.username = TextAt(a, "Username", "Kullanıcı adı:", 203, 418, 220, 15, Ink);
+            TextAt(a, "Fixed", "(değişmez)", 425, 418, 120, 14, Faint);
+            view.logout = Btn(a, "Logout", "wood", "Çıkış yap", 15);
+            At((RectTransform)view.logout.transform, TopLeft, new Vector2(203, -437), new Vector2(159, 33));
+            view.delete = Btn(a, "Delete", "red", "Hesabı sil", 15);
+            At((RectTransform)view.delete.transform, TopLeft, new Vector2(471, -437), new Vector2(179, 33));
+            view.deleteNote = TextAt(a, "DeleteNote", "Silme 14 gün bekler, bu sürede geri alınır.", 300, 486, 343, 14, Hex("e83b3b"), TextAnchor.MiddleRight);
+            view.error = TextAt(a, "Error", "", 203, 504, 447, 13, Hex("9e4539"));
+
+            // Two-step delete: type the username (replaces the buttons while open).
+            var c = Abs(a, "Confirm", 203, 430, 447, 66);
+            Img(c, "card");
+            view.confirm = c.gameObject;
+            Txt(At(Node("Text", c), TopLeft, new Vector2(8, -3), new Vector2(430, 20)), "Her şey kalıcı olarak gider. Onay için kullanıcı adını aynen yaz:", 13, Ink);
+            var nameField = At(Node("Name", c), TopLeft, new Vector2(8, -28), new Vector2(170, 30));
+            view.confirmName = Field(nameField, "kullanıcı adı", 14);
+            view.confirmCancel = Btn(c, "Cancel", "wood", "Vazgeç", 14);
+            At((RectTransform)view.confirmCancel.transform, TopLeft, new Vector2(186, -28), new Vector2(110, 30));
+            view.confirmDelete = Btn(c, "Confirm", "red", "Hesabımı sil", 14);
+            At((RectTransform)view.confirmDelete.transform, TopLeft, new Vector2(304, -28), new Vector2(135, 30));
+            c.gameObject.SetActive(false);
+
+            // Pending deletion line (replaces the buttons while a deletion waits).
+            view.pending = TextAt(a, "Pending", "", 203, 452, 300, 14, Hex("9e4539"));
+            view.pending.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.cancelDeletion = Btn(a, "CancelDeletion", "green", "Silmeyi iptal et", 14);
+            At((RectTransform)view.cancelDeletion.transform, TopLeft, new Vector2(510, -437), new Vector2(140, 33));
+            view.pending.gameObject.SetActive(false);
+            view.cancelDeletion.gameObject.SetActive(false);
+
+            // Hidden cover: the account page opens behind it every time.
+            var cover = Abs(a, "Hidden", 203, 30, 447, 480);
+            Img(cover, "box_dark", Image.Type.Sliced, true);
+            view.hidden = cover.gameObject;
+            Txt(At(Node("Title", cover), Center, new Vector2(0, 40), new Vector2(400, 24), Center), "Hesap bilgilerin gizlendi", 17, Paper, TextAnchor.MiddleCenter, true);
+            var hint = Txt(At(Node("Hint", cover), Center, new Vector2(0, 5), new Vector2(380, 40), Center),
+                "Yayın yapıyorsan ya da yanında biri varsa açma.\nBu sayfada hesabını taşıyan kod ve silme ayarı var.", 14, Paper, TextAnchor.MiddleCenter);
+            hint.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.reveal = Btn(cover, "Reveal", "wood", "Göster", 15);
+            At((RectTransform)view.reveal.transform, Center, new Vector2(0, -45), new Vector2(120, 32), Center);
+            return wrap.gameObject;
         }
 
         // ================= Whisper window =================

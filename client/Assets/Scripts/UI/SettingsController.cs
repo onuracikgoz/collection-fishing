@@ -63,7 +63,11 @@ namespace CollectionGame.UI
             // The account page opens hidden every time.
             revealed = false;
             confirmDelete = false;
-            if (tab == Tab.Account) LoadDeletion();
+            if (tab == Tab.Account)
+            {
+                LoadDeletion();
+                logins = null;
+            }
         }
 
         // ---------- RPCs ----------
@@ -181,26 +185,113 @@ namespace CollectionGame.UI
             Toasts.Show("Tekrar giriş yaptığın için hesap silme iptal edildi");
         }
 
-        // ---------- UI (uGUI: Resources/UI/Settings, a PanelView) ----------
+        // ---------- UI (uGUI: Resources/UI/Settings, drafts ayarlar-genel / ayarlar-hesap) ----------
 
-        PanelView view;
+        static readonly Color Ink = new Color32(0x45, 0x29, 0x3f, 255);
+        static readonly Color Paper = new Color32(0xf2, 0xe8, 0xd0, 255);
+        static readonly Color Linked = new Color32(0x1e, 0x6f, 0x50, 255);
+        static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
+
+        SettingsView view;
         bool dirty = true;
-        Text codeLine;
-        UnityEngine.UI.Button deleteButton;
+        Connection.Logins? logins;
+        bool loadingLogins;
 
-        PanelView View
+        /// <summary>Count of blocked players for the Genel page, and opening the list.</summary>
+        public Func<int> BlockedCount { get; set; }
+        public Action OpenBlocked { get; set; }
+        /// <summary>Çıkış yap: leave the server.</summary>
+        public Action Logout { get; set; }
+
+        SettingsView View
         {
             get
             {
                 if (view != null) return view;
-                view = UiRoot.Get().Spawn<PanelView>("Settings");
-                if (view != null)
-                {
-                    view.window.Closed = Close;
-                    view.Open = false;
-                }
+                view = UiRoot.Get().Spawn<SettingsView>("Settings");
+                if (view == null) return null;
+                Wire(view);
+                view.window.Open = false;
                 return view;
             }
+        }
+
+        void Wire(SettingsView v)
+        {
+            v.window.Closed = Close;
+            v.tabGeneral.onClick.AddListener(() => Select(Tab.General));
+            v.tabAccount.onClick.AddListener(() => Select(Tab.Account));
+            v.version.text = $"v{Application.version}";
+
+            v.music.SetValueWithoutNotify(ClientSettings.Music);
+            v.effects.SetValueWithoutNotify(ClientSettings.Effects);
+            v.music.onValueChanged.AddListener(x =>
+            {
+                ClientSettings.Music = x;
+                v.musicValue.text = $"%{Mathf.RoundToInt(x * 100)}";
+            });
+            v.effects.onValueChanged.AddListener(x =>
+            {
+                ClientSettings.Effects = x;
+                v.effectsValue.text = $"%{Mathf.RoundToInt(x * 100)}";
+            });
+            v.musicValue.text = $"%{Mathf.RoundToInt(ClientSettings.Music * 100)}";
+            v.effectsValue.text = $"%{Mathf.RoundToInt(ClientSettings.Effects * 100)}";
+
+            Bind(v.hitSound, () => ClientSettings.HitSound, x => ClientSettings.HitSound = x);
+            Bind(v.fullScreen, () => Screen.fullScreen, x => Screen.fullScreen = x);
+            Bind(v.showNames, () => ClientSettings.ShowNames, x => ClientSettings.ShowNames = x);
+            Bind(v.announcements, () => ClientSettings.Announcements, x => ClientSettings.Announcements = x);
+            Bind(v.bubbles, () => ClientSettings.Bubbles, x => ClientSettings.Bubbles = x);
+            v.friendsOnly.onValueChanged.AddListener(x =>
+            {
+                if (pmLoaded && x != PmOff) SetPm(x);
+            });
+
+            v.languageText.text = "Türkçe";
+            v.language.interactable = false; // one language for now
+            v.uiScale.onClick.AddListener(() =>
+            {
+                ClientSettings.UiScale = (ClientSettings.UiScale + 1) % 4;
+                dirty = true;
+            });
+            v.openBlocked.onClick.AddListener(() => OpenBlocked?.Invoke());
+
+            v.reveal.onClick.AddListener(() =>
+            {
+                revealed = true;
+                dirty = true;
+            });
+            v.steam.button.onClick.AddListener(MakeCode);
+            v.logout.onClick.AddListener(() =>
+            {
+                Close();
+                Logout?.Invoke();
+            });
+            v.delete.onClick.AddListener(() =>
+            {
+                confirmDelete = true;
+                dirty = true;
+            });
+            v.confirmCancel.onClick.AddListener(() =>
+            {
+                confirmDelete = false;
+                typedName = "";
+                dirty = true;
+            });
+            v.confirmName.onValueChanged.AddListener(t =>
+            {
+                typedName = t;
+                v.confirmDelete.interactable = !busy && typedName == net.Username;
+            });
+            v.confirmDelete.onClick.AddListener(RequestDeletion);
+            v.cancelDeletion.onClick.AddListener(CancelDeletion);
+        }
+
+        static void Bind(Toggle t, Func<bool> get, Action<bool> set)
+        {
+            t.SetIsOnWithoutNotify(get());
+            t.onValueChanged.AddListener(x => set(x));
         }
 
         public void Destroy()
@@ -208,116 +299,100 @@ namespace CollectionGame.UI
             if (view != null) UnityEngine.Object.Destroy(view.gameObject);
         }
 
-        void Changed() => dirty = true;
-
         public void Tick()
         {
             var v = View;
             if (v == null) return;
-            if (v.Open != Open)
+            if (v.window.Open != Open)
             {
-                v.Open = Open;
+                v.window.Open = Open;
                 dirty = true;
             }
             if (!Open) return;
-            if (dirty) Redraw(v);
-            if (codeLine != null && code != null)
+            if (dirty && !UiRoot.Typing) Redraw(v);
+            if (code != null && v.codeBox.activeSelf)
             {
                 var left = code.expiresInMs / 1000f - (Time.time - codeAt);
-                codeLine.text = left > 0f
-                    ? $"Steam'de bu kodu yaz:  <b>{code.code}</b>   ({(int)left / 60}:{(int)left % 60:00} kaldı · tek kullanımlık)"
-                    : "Kodun süresi doldu, yenisini üret.";
+                var text = left > 0f ? $"{(int)left / 60}:{(int)left % 60:00} kaldı · tek kullanımlık" : "Süresi doldu, yenisini üret";
+                if (v.codeTimer.text != text) v.codeTimer.text = text;
             }
         }
 
-        void Redraw(PanelView v)
+        void Redraw(SettingsView v)
         {
             dirty = false;
-            codeLine = null;
-            deleteButton = null;
-            v.ClearRows();
-            v.ClearFooter();
-            v.Tabs(new[] { "Genel", "Hesap" }, (int)Current, i =>
+            var general = Current == Tab.General;
+            SettingsView.Tab(v.tabGeneral, general, v.tabOn, v.tabOff, Paper, Ink);
+            SettingsView.Tab(v.tabAccount, !general, v.tabOn, v.tabOff, Paper, Ink);
+            v.general.SetActive(general);
+            v.account.SetActive(!general);
+            if (general)
             {
-                Select((Tab)i);
-                dirty = true;
-            });
-            v.header.text = Current == Tab.General ? "Sohbet" : "Hesap";
-            v.headerRight.text = net.Username;
-            v.footer.text = error ?? "";
-            if (Current == Tab.General) DrawGeneral(v);
-            else if (!revealed) DrawHidden(v);
-            else DrawAccount(v);
-        }
-
-        void DrawGeneral(PanelView v)
-        {
-            var row = v.Row().Title("PM kapalı").Sub("Açıkken sadece arkadaşların sana fısıldayabilir. Yabancılar zaten sadece tezgahın açıkken yazabilir.");
-            row.Button(PmOff ? "Açık" : "Kapalı", PmOff ? "green" : "wood", pmLoaded && !busy ? () => SetPm(!PmOff) : (Action)null, 80);
-            v.Line("Fısıltı: sohbete /w Ad mesaj yaz, ya da bir oyuncunun kartında Fısılda'ya bas.");
-        }
-
-        void DrawHidden(PanelView v)
-        {
-            v.Row().Title("Hesap bilgilerin gizlendi")
-                .Sub("Yayın yapıyorsan ya da yanında biri varsa açma. Bu sayfada hesabını taşıyan kod ve silme ayarı var.")
-                .Button("Göster", "wood", () =>
-                {
-                    revealed = true;
-                    dirty = true;
-                }, 90);
-        }
-
-        void DrawAccount(PanelView v)
-        {
-            v.Line("Giriş yöntemleri: Google, Facebook ve Discord bağlama yakında. Hepsi aynı karaktere girer.");
-            v.Row().Title("Steam").Sub("Steam'de bu hesapla oynamak için kod üret").Button("Kod üret", "green", busy ? (Action)null : MakeCode, 90);
-            if (code != null)
-            {
-                codeLine = v.Line("", 0, false);
-                codeLine.supportRichText = true;
-                v.Line("Bu kodu kimseyle paylaşma. Yetkililer asla istemez.").color = new Color(0.62f, 0.27f, 0.22f);
-            }
-
-            v.Line($"Kullanıcı adı: {net.Username}  (değişmez)", 0, false);
-            if (Deletion == null)
-            {
-                v.Line("Yükleniyor...");
+                v.friendsOnly.SetIsOnWithoutNotify(PmOff);
+                v.friendsOnly.interactable = pmLoaded && !busy;
+                v.fullScreen.SetIsOnWithoutNotify(Screen.fullScreen);
+                v.uiScaleText.text = ClientSettings.UiScaleName(ClientSettings.UiScale);
+                v.blocked.text = $"Engellenenler: {BlockedCount?.Invoke() ?? 0} kişi";
                 return;
             }
-            if (Deletion.pending)
+
+            v.hidden.SetActive(!revealed);
+            if (!logins.HasValue && !loadingLogins) LoadLogins();
+            var l = logins;
+            Login(v.google, l?.Google ?? false, l?.Google == true ? $"✓ {l?.Email}" : null);
+            Login(v.facebook, l?.Facebook ?? false, null);
+            Login(v.discord, l?.Custom ?? false, null);
+            // Steam links only with a code from here (protokol.md, Taşıma kodu).
+            v.steam.back.enabled = l?.Steam ?? false;
+            v.steam.status.text = l?.Steam == true ? "✓ bağlı" : "bağlı değil";
+            v.steam.status.color = l?.Steam == true ? Linked : Faint;
+            v.steam.button.interactable = !busy && l?.Steam != true;
+            v.steam.buttonText.text = "Kod üret";
+            v.codeBox.SetActive(code != null);
+            if (code != null) v.code.text = code.code;
+            v.username.text = $"Kullanıcı adı: {net.Username}";
+            v.error.text = error ?? "";
+
+            var pending = Deletion != null && Deletion.pending;
+            v.pending.gameObject.SetActive(pending);
+            v.cancelDeletion.gameObject.SetActive(pending);
+            v.cancelDeletion.interactable = !busy;
+            if (pending) v.pending.text = $"Hesabın {When(Deletion.runAt)} tarihinde silinecek. O tarihten önce tekrar girersen silme iptal olur.";
+            v.confirm.SetActive(!pending && confirmDelete);
+            var buttons = !pending && !confirmDelete;
+            v.logout.gameObject.SetActive(!pending && !confirmDelete);
+            v.delete.gameObject.SetActive(buttons);
+            v.deleteNote.gameObject.SetActive(buttons);
+            if (confirmDelete)
             {
-                v.Row().Title($"Hesabın {When(Deletion.runAt)} tarihinde silinecek.")
-                    .Sub("O tarihten önce tekrar giriş yaparsan silme iptal olur.")
-                    .Button("Silmeyi iptal et", "green", busy ? (Action)null : CancelDeletion, 140);
-                return;
+                v.confirmName.SetTextWithoutNotify(typedName);
+                v.confirmDelete.interactable = !busy && typedName == net.Username;
             }
-            if (!confirmDelete)
+        }
+
+        /// <summary>Google / Facebook / Discord: linking from the game comes in Faz 7 (button shown, off).</summary>
+        static void Login(SettingsView.LoginRow row, bool linked, string status)
+        {
+            row.back.enabled = linked;
+            row.status.text = linked ? status ?? "✓ bağlı" : "bağlı değil";
+            row.status.color = linked ? Linked : Faint;
+            row.buttonText.text = linked ? "Kaldır" : "Bağla";
+            row.button.interactable = false;
+        }
+
+        async void LoadLogins()
+        {
+            loadingLogins = true;
+            try
             {
-                v.Row().Title("Hesabı sil").Sub("Silme hemen olmaz: bir süre bekler, bu sürede geri alınır.")
-                    .Button("Hesabı sil", "red", () =>
-                    {
-                        confirmDelete = true;
-                        dirty = true;
-                    }, 110);
-                return;
+                logins = await net.GetLoginsAsync();
             }
-            var row = v.Row().Title("Karakterin, defterin, eşyaların, Coin'in ve bu hesaptaki kozmetikler kalıcı olarak gider.")
-                .Sub("Silinen hesabın adı ve giriş yolları bir süre yeni hesap açamaz. Onaylamak için kullanıcı adını aynen yaz:");
-            row.Input(typedName, 130, t =>
+            catch (Exception e)
             {
-                typedName = t;
-                if (deleteButton != null) deleteButton.interactable = !busy && typedName == net.Username;
-            }, 32, false);
-            v.FooterButton("Vazgeç", "wood", () =>
-            {
-                confirmDelete = false;
-                typedName = "";
-                dirty = true;
-            });
-            v.FooterSpace();
-            deleteButton = v.FooterButton("Hesabımı sil", "red", RequestDeletion, 140);
-            deleteButton.interactable = !busy && typedName == net.Username;
+                Debug.LogWarning($"[Settings] account failed: {e.Message}");
+            }
+            loadingLogins = false;
+            dirty = true;
         }
     }
 }

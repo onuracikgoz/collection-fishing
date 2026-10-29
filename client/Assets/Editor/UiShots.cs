@@ -151,20 +151,40 @@ namespace CollectionGame.EditorTools
                 p.FooterButton("Arkadaş ekle", "green", () => { }, 110);
                 p.FooterSpace();
             });
-            Shot(outDir, "ayarlar", Path.Combine(drafts, "ayarlar-hesap.png"), canvas =>
+            Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
-                var p = Spawn<PanelView>(canvas, "Settings");
-                p.Tabs(new[] { "Genel", "Hesap" }, 1, _ => { });
-                p.header.text = "Hesap";
-                p.headerRight.text = "Ece";
-                p.Line("Giriş yöntemleri: Google, Facebook ve Discord bağlama yakında. Hepsi aynı karaktere girer.");
-                p.Row().Title("Steam").Sub("Steam'de bu hesapla oynamak için kod üret").Button("Kod üret", "green", () => { }, 90);
-                var code = p.Line("Steam'de bu kodu yaz:  <b>KX7Q-4ZPM</b>   (9:41 kaldı · tek kullanımlık)", 0, false);
-                code.supportRichText = true;
-                p.Line("Bu kodu kimseyle paylaşma. Yetkililer asla istemez.").color = new Color(0.62f, 0.27f, 0.22f);
-                p.Line("Kullanıcı adı: Ece  (değişmez)", 0, false);
-                p.Row().Title("Hesabı sil").Sub("Silme hemen olmaz: bir süre bekler, bu sürede geri alınır.").Button("Hesabı sil", "red", () => { }, 110);
+                var v = Spawn<SettingsView>(canvas, "Settings");
+                SettingsTabs(v, true);
+                v.music.value = 0.6f;
+                v.musicValue.text = "%60";
+                v.effects.value = 0.85f;
+                v.effectsValue.text = "%85";
+                v.hitSound.isOn = true;
+                v.languageText.text = "Türkçe";
+                v.uiScaleText.text = "2x (önerilen)";
+                v.fullScreen.isOn = false;
+                v.showNames.isOn = true;
+                v.friendsOnly.isOn = false;
+                v.announcements.isOn = true;
+                v.bubbles.isOn = true;
+                v.blocked.text = "Engellenenler: 2 kişi";
+                v.version.text = "v0.4 · Liman";
+            });
+            Shot(outDir, "ayarlar-hesap", Path.Combine(drafts, "ayarlar-hesap.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<SettingsView>(canvas, "Settings");
+                SettingsTabs(v, false);
+                v.hidden.SetActive(false);
+                Login(v.google, true, "✓ ece@gmail.com", "Kaldır", false);
+                Login(v.facebook, false, "bağlı değil", "Bağla", true);
+                Login(v.discord, false, "bağlı değil", "Bağla", true);
+                Login(v.steam, false, "bağlı değil", "Kod üret", true);
+                v.code.text = "KX7Q-4ZPM";
+                v.codeTimer.text = "9:41 kaldı · tek kullanımlık";
+                v.username.text = "Kullanıcı adı: Ece";
+                v.version.text = "v0.4 · Liman";
             });
             Shot(outDir, "fisilti", Path.Combine(drafts, "hud3.png"), canvas =>
             {
@@ -186,6 +206,25 @@ namespace CollectionGame.EditorTools
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Resources/UI/{name}.prefab");
             var go = (GameObject)UnityEngine.Object.Instantiate(prefab, canvas.transform, false);
             return go.GetComponent<T>();
+        }
+
+        static void SettingsTabs(SettingsView v, bool general)
+        {
+            var ink = new Color32(0x45, 0x29, 0x3f, 255);
+            var paper = new Color32(0xf2, 0xe8, 0xd0, 255);
+            SettingsView.Tab(v.tabGeneral, general, v.tabOn, v.tabOff, paper, ink);
+            SettingsView.Tab(v.tabAccount, !general, v.tabOn, v.tabOff, paper, ink);
+            v.general.SetActive(general);
+            v.account.SetActive(!general);
+        }
+
+        static void Login(SettingsView.LoginRow row, bool linked, string status, string button, bool enabled)
+        {
+            row.back.enabled = linked;
+            row.status.text = status;
+            row.status.color = linked ? new Color32(0x1e, 0x6f, 0x50, 255) : new Color(0.27f, 0.16f, 0.25f, 0.65f);
+            row.buttonText.text = button;
+            row.button.interactable = enabled;
         }
 
         static void FillHud(HudView h)

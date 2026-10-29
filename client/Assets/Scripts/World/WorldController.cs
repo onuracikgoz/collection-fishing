@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CollectionGame.Collection;
 using CollectionGame.Economy;
 using CollectionGame.Fishing;
@@ -66,7 +67,16 @@ namespace CollectionGame.World
                 BookOutcome = world.collection.OnFishEnd,
             };
             world.quests = new QuestController(net, world.fishing);
-            world.settings = new SettingsController(net);
+            world.settings = new SettingsController(net)
+            {
+                BlockedCount = () => world.social.Friends.Count(f => f.State == Connection.FriendBlocked),
+                OpenBlocked = () =>
+                {
+                    world.social.FriendsOpen = true;
+                    world.social.Refresh();
+                },
+                Logout = () => onDisconnected?.Invoke("Çıkış yaptın"),
+            };
             world.collection.OfferTrade = world.trade.Offer;
             world.collection.Whisper = (id, name) => world.whispers.OpenWith(id, name);
             world.BuildHud();
@@ -461,7 +471,8 @@ namespace CollectionGame.World
             economy.DrawMarkers(cam);
             market.DrawMarkers(cam);
             if (me != null) DrawLabel(me, true);
-            foreach (var (view, _) in others.Values) DrawLabel(view, false);
+            foreach (var (view, _) in others.Values)
+                if (ClientSettings.ShowNames) DrawLabel(view, false);
         }
 
         void DrawLabel(CharacterView view, bool isMe)
@@ -489,7 +500,7 @@ namespace CollectionGame.World
                 GUI.Label(new Rect(at.x - size.x / 2f, at.y, size.x, size.y), text, Gui.Emote);
             }
 
-            if (view.Bubble == null || Time.time > view.BubbleUntil) return;
+            if (!ClientSettings.Bubbles || view.Bubble == null || Time.time > view.BubbleUntil) return;
             var content = new GUIContent(view.Bubble);
             // A few pixels of slack: the scaled GUI matrix rounds text wider than CalcSize says.
             var width = Mathf.Min(240f, Gui.Bubble.CalcSize(content).x + 8f);

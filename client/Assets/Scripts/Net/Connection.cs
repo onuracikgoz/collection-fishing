@@ -142,6 +142,26 @@ namespace CollectionGame.Net
         public Task ReportAsync(string userId, string reason, string note, string text) =>
             RpcAsync<WhisperSettings>("report_player", new ReportPlayerRequest { userId = userId, reason = reason, note = note ?? "", text = text ?? "" });
 
+        /// <summary>Which login ways this account has (Ayarlar > Hesap): Nakama's own account call.</summary>
+        public readonly struct Logins
+        {
+            public readonly bool Device, Google, Facebook, Steam, Custom;
+            public readonly string Email;
+            public Logins(bool device, bool google, bool facebook, bool steam, bool custom, string email)
+            {
+                Device = device; Google = google; Facebook = facebook; Steam = steam; Custom = custom; Email = email;
+            }
+        }
+
+        public async Task<Logins> GetLoginsAsync()
+        {
+            var a = await client.GetAccountAsync(Session);
+            var u = a.User;
+            var devices = a.Devices != null && a.Devices.GetEnumerator().MoveNext();
+            return new Logins(devices, !string.IsNullOrEmpty(u.GoogleId), !string.IsNullOrEmpty(u.FacebookId),
+                !string.IsNullOrEmpty(u.SteamId), !string.IsNullOrEmpty(a.CustomId), a.Email);
+        }
+
         public Task BlockAsync(string userId) => client.BlockFriendsAsync(Session, new[] { userId });
 
         /// <summary>
