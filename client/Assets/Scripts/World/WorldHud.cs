@@ -124,6 +124,8 @@ namespace CollectionGame.World
             var sprite = low ? View.rodLow : View.rodGood;
             if (View.rodFillImage.sprite != sprite) View.rodFillImage.sprite = sprite;
             Set(View.rodText, fishing.RodBroken ? "Olta KIRIK (E: tamir)" : $"Olta %{Mathf.RoundToInt(share * 100)}");
+            var rodColour = low ? new Color(0.91f, 0.23f, 0.23f) : new Color(0.95f, 0.91f, 0.82f);
+            if (View.rodText.color != rodColour) View.rodText.color = rodColour;
 
             var bait = fishing.SelectedBait;
             if (bait == null)

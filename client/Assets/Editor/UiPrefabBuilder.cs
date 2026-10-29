@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 5;
+        public const int Version = 7;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -314,7 +314,8 @@ namespace CollectionGame.EditorTools
             var place = At(Node("Place", root), TopLeft, new Vector2(12, -12), new Vector2(300, 58));
             Img(place, "box_dark");
             view.place = Txt(At(Node("Name", place), TopLeft, new Vector2(12, -6), new Vector2(276, 22)), "Meydan", 16, Paper, TextAnchor.MiddleLeft, true);
-            view.info = Txt(At(Node("Info", place), TopLeft, new Vector2(12, -30), new Vector2(276, 20)), "", 13, Paper);
+            view.flag = Img(At(Node("Flag", place), TopLeft, new Vector2(12, -32), new Vector2(32, 22)), "flag_tr", Image.Type.Simple);
+            view.info = Txt(At(Node("Info", place), TopLeft, new Vector2(52, -31), new Vector2(236, 22)), "", 14, Paper);
 
             // Top right: score, coin, diamonds.
             var bal = At(Node("Balances", root), TopRight, new Vector2(-12, -12), new Vector2(350, 38));
@@ -329,7 +330,8 @@ namespace CollectionGame.EditorTools
             // Chat log above the chat line.
             var log = At(Node("ChatLog", root), BottomLeft, new Vector2(505, 84), new Vector2(450, 88));
             Img(log, "box_dark");
-            view.chatLog = Txt(Stretch(Node("Text", log), 10, 6, 10, 6), "", 13, Paper, TextAnchor.LowerLeft);
+            view.chatLog = Txt(Stretch(Node("Text", log), 12, 6, 12, 8), "", 14, Paper, TextAnchor.UpperLeft);
+            view.chatLog.lineSpacing = 1.55f;
             view.chatLog.horizontalOverflow = HorizontalWrapMode.Wrap;
             view.chatLog.verticalOverflow = VerticalWrapMode.Truncate;
             view.chatLog.supportRichText = true;
@@ -349,9 +351,9 @@ namespace CollectionGame.EditorTools
             xpFill.offsetMax = new Vector2(0, -1);
             Solid(xpFill, Xp);
             view.xpFill = xpFill;
-            var lv = At(Node("Level", root), BottomLeft, new Vector2(6, 64), new Vector2(56, 22));
-            Img(lv, "box_dark");
-            view.level = Txt(Stretch(Node("Text", lv)), "Lv 1", 13, Paper, TextAnchor.MiddleCenter, true);
+            var lv = At(Node("Level", root), BottomLeft, new Vector2(8, 58), new Vector2(54, 24));
+            Img(lv, "tag_level");
+            view.level = Txt(Stretch(Node("Text", lv), 0, 0, 0, 2), "Lv 1", 14, Color.white, TextAnchor.MiddleCenter, true);
             view.xpText = Txt(At(Node("XpText", root), BottomRight, new Vector2(-420, 64), new Vector2(220, 18), new Vector2(1, 0)), "", 12, Paper, TextAnchor.MiddleRight, true, true);
 
             // Bottom bar.
@@ -363,41 +365,44 @@ namespace CollectionGame.EditorTools
             bar.sizeDelta = new Vector2(0, 58);
             Img(bar, "hud_bar", Image.Type.Sliced, true);
 
-            Icon(bar, "EnergyIcon", BottomLeft, new Vector2(20, 36), Gold, 12);
-            view.energyFill = Bar(At(Node("Energy", bar), BottomLeft, new Vector2(40, 30), new Vector2(112, 14)), "bar_fill_yellow", out _);
-            view.energyText = Txt(At(Node("EnergyText", bar), BottomLeft, new Vector2(40, 8), new Vector2(150, 18)), "Enerji", 12, Paper);
+            // Measured on hud3: bars 16 high at y 32, squares 40x40 at y 12.
+            Icon(bar, "EnergyIcon", BottomLeft, new Vector2(24, 40), Gold, 12);
+            view.energyFill = Bar(At(Node("Energy", bar), BottomLeft, new Vector2(48, 32), new Vector2(112, 16)), "bar_fill_yellow", out _);
+            view.energyText = Txt(At(Node("EnergyText", bar), BottomLeft, new Vector2(48, 10), new Vector2(130, 20)), "Enerji", 13, Paper);
 
-            Icon(bar, "RodIcon", BottomLeft, new Vector2(200, 36), CoinColour, 12);
-            view.rodFill = Bar(At(Node("Rod", bar), BottomLeft, new Vector2(220, 30), new Vector2(90, 14)), "bar_fill_green", out view.rodFillImage);
+            Icon(bar, "RodIcon", BottomLeft, new Vector2(198, 40), CoinColour, 12);
+            view.rodFill = Bar(At(Node("Rod", bar), BottomLeft, new Vector2(220, 32), new Vector2(92, 16)), "bar_fill_green", out view.rodFillImage);
             view.rodGood = S("bar_fill_green");
             view.rodLow = S("bar_fill_red");
-            view.rodText = Txt(At(Node("RodText", bar), BottomLeft, new Vector2(220, 8), new Vector2(150, 18)), "Olta", 12, Paper);
+            view.rodText = Txt(At(Node("RodText", bar), BottomLeft, new Vector2(220, 10), new Vector2(100, 20)), "Olta", 13, Paper);
+            view.repair = Btn(bar, "Repair", "square_green", "Tamir", 10);
+            At((RectTransform)view.repair.transform, BottomLeft, new Vector2(320, 12), new Vector2(40, 40));
 
             view.bait = Slot(bar, "Bait");
-            At((RectTransform)view.bait.transform, BottomLeft, new Vector2(385, 9), new Vector2(40, 40));
-            view.baitText = Txt(At(Node("BaitText", bar), BottomLeft, new Vector2(431, 9), new Vector2(70, 40)), "Yem", 12, Paper);
+            view.bait.empty = S("button_flat_normal");
+            view.bait.frame.sprite = view.bait.empty;
+            view.bait.label.color = Paper;
+            At((RectTransform)view.bait.transform, BottomLeft, new Vector2(384, 12), new Vector2(40, 40));
+            view.baitText = Txt(At(Node("BaitText", bar), BottomLeft, new Vector2(432, 12), new Vector2(70, 40)), "Yem", 13, Paper);
 
-            // Chat line: stretches between the bait and the window buttons.
-            var chat = Node("Chat", bar);
-            chat.anchorMin = Vector2.zero;
-            chat.anchorMax = new Vector2(1, 0);
-            chat.pivot = new Vector2(0, 0);
-            chat.offsetMin = new Vector2(505, 12);
-            chat.offsetMax = new Vector2(-418, 46);
+            // Chat line 402x40 at x 504, send square beside it.
+            var chat = At(Node("Chat", bar), BottomLeft, new Vector2(504, 12), new Vector2(402, 40));
             var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
             field.characterLimit = 120;
             view.chat = field;
-            view.send = Btn(bar, "Send", "square_wood", "↵", 16);
-            At((RectTransform)view.send.transform, BottomRight, new Vector2(-372, 12), new Vector2(34, 34), BottomRight);
+            view.send = Btn(bar, "Send", "flat", "↵", 16);
+            view.send.GetComponentInChildren<Text>().color = Paper;
+            At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
 
-            // Window buttons, right aligned; settings set apart at the far right.
+            // Window buttons 40x40, 50 apart, ending at 1280; settings apart at 1350 (hud3).
             string[] names = { "Quests", "Market", "Friends", "Profile", "Book", "Bag" };
             string[] labels = { "Görev\n(G)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
             var buttons = new Button[names.Length];
             for (var i = 0; i < names.Length; i++)
             {
-                buttons[i] = Btn(bar, names[i], "flat", labels[i], 11);
-                At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(12 + 48 + 12 + (names.Length - 1 - i) * 48), 9), new Vector2(44, 40), BottomRight);
+                buttons[i] = Btn(bar, names[i], "flat", labels[i], 10);
+                buttons[i].GetComponentInChildren<Text>().color = Paper;
+                At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
             }
             view.quests = buttons[0];
             view.market = buttons[1];
@@ -409,8 +414,9 @@ namespace CollectionGame.EditorTools
             Solid(alert, Hex("e83b3b"));
             view.questsAlert = alert.gameObject;
             alert.gameObject.SetActive(false);
-            view.settings = Btn(bar, "Settings", "flat", "Ayar", 11);
-            At((RectTransform)view.settings.transform, BottomRight, new Vector2(-12, 9), new Vector2(44, 40), BottomRight);
+            view.settings = Btn(bar, "Settings", "flat", "Ayar", 10);
+            view.settings.GetComponentInChildren<Text>().color = Paper;
+            At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
             return root.gameObject;
         }
 

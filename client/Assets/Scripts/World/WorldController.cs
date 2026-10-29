@@ -144,6 +144,7 @@ namespace CollectionGame.World
                 if (fishing.BagOpen) fishing.RefreshBag();
             });
             WorldHud.On(v.settings, settings.Toggle);
+            WorldHud.On(v.repair, () => economy.Show(EconomyController.Tab.Shop));
             v.bait.Clicked = _ => fishing.CycleBait();
         }
 

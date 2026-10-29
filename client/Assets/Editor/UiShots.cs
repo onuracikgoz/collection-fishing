@@ -243,7 +243,7 @@ namespace CollectionGame.EditorTools
             h.rodFillImage.sprite = h.rodLow;
             h.rodText.text = "Olta %18";
             h.bait.SetItem("lake.bait.worm", "", 12, false);
-            h.baitText.text = "Yem: solucan";
+            h.baitText.text = "Yem";
             h.chatLog.text = "<color=#e6904e>Ece:</color> göl kenarı bugün çok kalabalık\n<color=#8fd3ff>Mert:</color> kristal setini bitirdin mi?\n<color=#f9c22b>Sistem:</color> Kaan bir Pristine Epic yakaladı!";
             h.questsAlert.SetActive(true);
         }

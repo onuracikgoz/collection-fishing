@@ -13,6 +13,7 @@ namespace CollectionGame.UI.Views
         [Header("Top")]
         public Text place;
         public Text info;
+        public Image flag;
         public Text score, coin, diamond;
 
         [Header("XP")]
@@ -27,6 +28,8 @@ namespace CollectionGame.UI.Views
         public Image rodFillImage;
         public Sprite rodGood, rodLow;
         public Text rodText;
+        /// <summary>Green square next to the rod bar: opens the shop (rod repair).</summary>
+        public Button repair;
         public SlotView bait;
         public Text baitText;
         public InputField chat;
