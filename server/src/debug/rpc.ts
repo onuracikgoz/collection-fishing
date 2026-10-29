@@ -74,6 +74,8 @@ function fail(message: string, code = 3): nkruntime.Error {
 }
 
 /** Every dev RPC starts with this: off unless DEV_TOOLS=true. */
+const SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
+
 function devOnly(ctx: nkruntime.Context): void {
   if (!isDevEnabled(ctx)) throw { message: JSON.stringify({ code: 'DEV_TOOLS_OFF', message: 'developer tools are off on this server' }), code: 7 } as nkruntime.Error;
 }
@@ -677,5 +679,35 @@ export function rpcDevCraftPreview(ctx: nkruntime.Context, _logger: nkruntime.Lo
     mergeDust: CRAFT.mergeDust,
     craftDust: CRAFT.craftDust,
     recipe,
+  });
+}
+
+/** A player's trade and stall log, newest first, plus reports about them and by them (moderation view). */
+export function rpcDevTrades(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  devOnly(ctx);
+  const body = parse(payload);
+  const userId = target(ctx, nk, body);
+  const limit = Math.max(1, Math.min(500, Math.floor(Number(body.limit) || 100)));
+  const all = (owner: string, collection: string, max: number) => {
+    const out: nkruntime.StorageObject[] = [];
+    let cursor: string | undefined = undefined;
+    for (let page = 0; page < 50 && out.length < max; page++) {
+      const res: nkruntime.StorageObjectList = nk.storageList(owner, collection, 100, cursor);
+      for (const o of res.objects || []) out.push(o);
+      cursor = res.cursor;
+      if (!cursor) break;
+    }
+    return out;
+  };
+  const trades = all(userId, 'trades', 5000)
+    .sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0))
+    .slice(0, limit)
+    .map((o) => o.value);
+  const reports = all(SYSTEM_USER, 'reports', 5000).map((o) => o.value as { target?: string; reporter?: string });
+  return JSON.stringify({
+    userId,
+    trades,
+    reportsAbout: reports.filter((r) => r.target === userId),
+    reportsBy: reports.filter((r) => r.reporter === userId),
   });
 }

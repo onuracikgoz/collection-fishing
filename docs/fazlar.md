@@ -4,7 +4,7 @@
 
 ## 24. Geliştirme Fazları
 
-**Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas, pet tezgahı, eşya kilidi, XP / level, taşıma kodu ve hesap silme sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
+**Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas ve takas kayıtları, pet tezgahı, eşya kilidi, XP / level, taşıma kodu, hesap silme, fısıltı, rapor / susturma ve RPC hız sınırı sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
 
 Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinden test edilir.
 
@@ -81,7 +81,7 @@ Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti
 Onur'un istediği kontroller (19.10.2026). Faz 5 (ticaret ve güvenlik) başlamadan bir test/review oturumu bunları inceler:
 
 - [ ] **Güvenlik açıkları:** sunucu otoritesi (client'tan gelen her alan doğrulanıyor mu), RPC girdileri, başka oyuncunun verisine erişim (defter / profil herkese açık, çanta değil), Nakama ayarları (`defaultkey`, konsol şifresi, yayın öncesi değişmeli), web build'de https/wss.
-- [ ] **DB'yi döngüye sokan istekler:** match içi mesajlar sınırlı (MOVE tick başına 4, chat 1/sn, emote 2 sn, ışınlanma 3 sn, defter işlemi tick başına 1) ama RPC'lerde (`get_book`, `get_profile`, `get_inventory`, `friends_status`, `set_profile`) oyuncu başına hız sınırı yok; döngüyle çağrılırsa her çağrı DB okur. Atış / toplama döngüsü her atışta enerji yazar. Oyuncu başına RPC ve atış hız sınırı eklenmeli.
+- [ ] **DB'yi döngüye sokan istekler:** match içi mesajlar sınırlı (MOVE tick başına 4, chat 1/sn, emote 2 sn, ışınlanma 3 sn, defter işlemi tick başına 1) ama RPC'lerde (`get_book`, `get_profile`, `get_inventory`, `friends_status`, `set_profile`) oyuncu başına hız sınırı yok; döngüyle çağrılırsa her çağrı DB okur. Atış / toplama döngüsü her atışta enerji yazar. Oyuncu başına RPC ve atış hız sınırı eklenmeli. **(29.10.2026)** RPC hız sınırı eklendi (`protokol.md` RPC hız sınırı, bellekte sayılır); atış başına enerji yazımı hâlâ açık.
 - [ ] **Cache:** match oyuncu durumunu (konum, enerji, çanta özeti, defter) bellekte tutar, DB'ye sadece değişince yazar. RPC'ler her çağrıda DB okur, client da pencere açılınca yeniden ister (arkadaş listesi açıkken 5 sn'de bir). Sık okunanlar (defter, profil) için kısa süreli cache ve client tarafında "değişmediyse tekrar isteme" değerlendirilmeli.
 - [ ] **Kod düzeni:** client'ta `WorldController` mesaj yönlendirmesi büyüyor; faz sayısı arttıkça op koduna göre dağıtan küçük bir mesaj yönlendiricisine bölünmeli.
 

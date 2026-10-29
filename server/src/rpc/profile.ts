@@ -6,6 +6,7 @@ import { ErrorCode, ItemInstance, ProfileResponse, SetProfileRequest, errorMessa
 import { scoreOf } from '../rules/book';
 import { levelOf } from '../rules/xp';
 import { checkHunting, checkShowcase, completedPages, visibleShowcase } from '../rules/profile';
+import { rpcLimit } from './limit';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -48,6 +49,7 @@ function buildProfile(nk: nkruntime.Nakama, userId: string): ProfileResponse {
 }
 
 export function rpcGetProfile(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  rpcLimit(nk, ctx.userId, 'get_profile');
   const body = parse(payload);
   let userId = ctx.userId;
   if (body.userId !== undefined) {
@@ -59,6 +61,7 @@ export function rpcGetProfile(ctx: nkruntime.Context, _logger: nkruntime.Logger,
 }
 
 export function rpcSetProfile(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  rpcLimit(nk, ctx.userId, 'set_profile');
   if (!ctx.userId) throw bad('no user', 16);
   const body = parse(payload) as SetProfileRequest;
   const doc = readProfile(nk, ctx.userId);

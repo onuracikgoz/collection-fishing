@@ -245,6 +245,11 @@ export const TRADE = {
   offerCooldownMs: 3000,
 };
 
+export interface RateLimit {
+  perWindow: number;
+  windowMs: number;
+}
+
 // Whisper and reports (docs/tasarim/10-sosyal.md 13.1.2). All Öneri.
 export const WHISPER: WhisperConfig = {
   strangerMinLevel: 10,
@@ -253,6 +258,27 @@ export const WHISPER: WhisperConfig = {
   phoneDigits: 10,
 };
 export const REPORTS = { perWindow: 10, windowMs: 60 * 60 * 1000 };
+// Per-player RPC limits (docs/protokol.md, RPC hız sınırı). All Öneri. A player who hits one gets
+// RATE_LIMITED; normal play stays far below. friends_status: the client asks every 5 s while the list is open.
+export const RPC_LIMITS: { default: RateLimit; rpcs: { [rpc: string]: RateLimit } } = {
+  default: { perWindow: 20, windowMs: 10 * 1000 },
+  rpcs: {
+    list_servers: { perWindow: 10, windowMs: 10 * 1000 },
+    get_inventory: { perWindow: 10, windowMs: 10 * 1000 },
+    get_book: { perWindow: 15, windowMs: 10 * 1000 },
+    get_profile: { perWindow: 15, windowMs: 10 * 1000 },
+    set_profile: { perWindow: 5, windowMs: 10 * 1000 },
+    friends_status: { perWindow: 5, windowMs: 10 * 1000 },
+    get_catalog: { perWindow: 5, windowMs: 10 * 1000 },
+    whisper_send: { perWindow: WHISPER.perWindow, windowMs: WHISPER.windowMs },
+    whisper_settings: { perWindow: 5, windowMs: 10 * 1000 },
+    account_delete_request: { perWindow: 5, windowMs: 60 * 1000 },
+    account_delete_cancel: { perWindow: 5, windowMs: 60 * 1000 },
+    account_delete_status: { perWindow: 10, windowMs: 60 * 1000 },
+    transfer_code_create: { perWindow: 5, windowMs: 60 * 1000 },
+  },
+};
+
 /** A mute written while the player is online takes hold within this time (Öneri). */
 export const MODERATION = { muteRecheckMs: 60 * 1000 };
 

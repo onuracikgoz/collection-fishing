@@ -63,6 +63,22 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
 
+### RPC hız sınırı
+
+Oyuncu başına, RPC başına sayılır (`server/src/rpc/limit.ts`, sayılar `config.ts` `RPC_LIMITS`, hepsi Öneri). Sınır aşılınca `RATE_LIMITED` (Nakama kodu 8) döner; client birkaç saniye bekleyip tekrar dener, kullanıcıya göstermesi gerekmez. Sayaç Nakama'nın bellek önbelleğindedir (`localcache`), veritabanına yazılmaz; sunucu yeniden başlayınca sıfırlanır.
+
+| RPC | Sınır |
+|---|---|
+| `friends_status` | 10 sn'de 5 (client liste açıkken 5 sn'de bir sorar) |
+| `get_book`, `get_profile` | 10 sn'de 15 |
+| `get_inventory`, `list_servers` | 10 sn'de 10 |
+| `set_profile`, `get_catalog`, `whisper_settings` | 10 sn'de 5 |
+| `whisper_send` | 10 sn'de 10 |
+| `account_delete_*`, `transfer_code_create` | 1 dk'da 5 (`status` 10); taşıma kodunun saatlik sınırı ayrıca geçerli |
+| Diğerleri | 10 sn'de 20 |
+
+`healthcheck`, `transfer_code_redeem` (oturumsuz, kendi sınırı var) ve `dev_*` sayılmaz.
+
 ### Taşıma kodu RPC'leri
 
 - **`transfer_code_create`** (web hesabı, oturumlu): 8 karakterlik tek kullanımlık kod üretir. Alfabe 32 karakter (I, O, 0, 1 yok), gösterimi `ABCD-EFGH`; yazarken büyük/küçük harf, boşluk ve tire fark etmez. 10 dk geçerli. Hesabın aynı anda tek geçerli kodu olur: yenisi eskisini siler. Saatte en fazla 5 kod (Öneri), aşılırsa `RATE_LIMITED`.
@@ -268,7 +284,7 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.1. Sunucu: `rules/trade.ts` (saf
 - **Kilit:** her iki taraf `TRADE_LOCK { locked: true }` der. Birinin içeriği değişirse (kendi `TRADE_SET`'i ya da karşı tarafınki) iki kilit de açılır ve onaylar sıfırlanır.
 - **Onay:** iki kilit kapandıktan **3 sn** (Öneri) sonra `TRADE_CONFIRM` kabul edilir; öncesinde gönderilen yok sayılır. İki taraf da onaylayınca takas **tek işlemde** (eşyalar, yığınlar, Coin, kayıt) gerçekleşir. Sunucu o an her şeyi yeniden doğrular: eşya hâlâ çantada mı, yığın ve Coin yeterli mi, iki tarafın çantasında yer var mı.
 - **Gelen eşya deftere işlenir:** ilk kopyaysa defter yuvasına gider ("Yeni keşif", çantada yer tutmaz), değilse çantaya. Çanta doluluğu hesabında her gelen Float eşya bir yuva sayılır (temkinli). `ItemInstance.source` = `trade`.
-- **Kayıt:** her başarılı takas iki tarafın `trades/<tradeId>` kaydına yazılır (kim, ne verdi, ne aldı, ne zaman). Sadece sunucu okur.
+- **Kayıt:** her başarılı takas, iki tarafın `trades` koleksiyonuna aynı işlemde yazılır (bkz. Takas kayıtları). Sadece sunucu okur.
 - **Level şartı:** iki taraf da en az level 10 olmalı (`TRADE.minLevel`, Öneri). Değilse teklif `LEVEL_TOO_LOW` (kendin) / `TARGET_LEVEL_TOO_LOW` (karşı taraf) ile reddedilir.
 - **Henüz yok (Öneri):** takas kısıtı (`acik-sorular.md` 4).
 
@@ -286,6 +302,15 @@ TradeEndMsg    = { tradeId, result, reason?, userId?,   // result: done | cancel
 ```
 
 `failed` nedenleri: `ITEM_GONE`, `NOT_ENOUGH`, `BAG_FULL` (`userId` ile hangi taraf), `ERROR`.
+
+## Takas kayıtları
+
+Dolandırıcılık şikayetleri için (`tasarim/07-kopya-envanter.md` 9.1). Client'a gösterilmez, mesaj değildir.
+
+- Her başarılı takas ve tezgah satışı, iki oyuncunun kendi `trades` koleksiyonuna birer kayıt olarak yazılır (okuma izni yok, sadece sunucu ve konsol). Anahtar `<zaman 15 hane>_<kind>_<ref>`, zamana göre sıralanır.
+- Kayıt: `{ kind, with, withName, at, serverId, ref, gave, got, fee? }`. `kind`: `trade`, `stall_buy`, `stall_sale`. `gave` / `got`: `{ items: [{ instanceId, defId, tier, float }], stacks: [{ defId, count }], coin }`; eşya sonra satılsa ya da parçalansa da o anki hali kayıtta kalır. `ref`: takas id'si ya da satışın kendi id'si. `fee`: satıcının ödediği pazar ücreti.
+- Geliştirici ve moderatör görünümü: `dev_trades { userId, limit? }` (yerel sunucu; oyuncunun kayıtları yeniden eskiye, hakkındaki ve verdiği raporlar). Canlı sunucuda Nakama konsolundan okunur; admin paneli Faz 6.
+- Saklama süresi şimdilik sınırsız (Öneri: 1 yıl, sonra temizlenir).
 
 ## Eşya kilidi
 
@@ -322,6 +347,7 @@ Kurallar: `docs/tasarim/09-ekonomi-pazar.md` 12.3. Sunucu: `rules/market.ts` (sa
 - **Tek sunucu:** oyuncunun aynı anda **tek** tezgahı olur ve tezgah açıldığı sunucuda durur. Başka sunucuda `STALL_OPEN` `ALREADY_OPEN` ile reddedilir. Oyuncu sunucu değiştirirse tezgah **kapanmaz**, açıldığı sunucuda satmaya devam eder; ama geri çağırmak için o sunucuya dönmesi gerekir (`STALL_RECALL` başka sunucuda `OTHER_SERVER`, tezgah yoksa `NOT_OPEN`).
 - **Kapanma:** tezgah `STALL_RECALL` ile, oyuncu **oyundan tamamen çıkınca** (hiçbir sunucuda değilse), satılacak her şey satılınca ya da 24 saat (Öneri) dolunca kalkar. Sunucu `player/session` kaydından oyuncunun hangi sunucuda olduğunu bilir: bir sunucudan çıkarken kayıt hâlâ o sunucuyu gösteriyorsa oyuncu oyundan çıkmıştır. Satılmayanlar çantaya döner (çanta dolu olsa da; çanta aşımı serbest, Öneri). Oyuncu tezgahın sunucusundayken kapanırsa eşyalar hemen döner (süre dolunca ona `STALL_RESULT { action: "recall", ok: true, reason: "EXPIRED", returned }` gider). Oyuncu başka sunucudayken ya da sunucu durdurulunca kapanırsa eşyalar tezgaha ayrılı kalır ve oyuncunun **bir sonraki girişinde** çantaya döner; tezgah pazardan hemen kalkar (`STALL_STATE.removed`).
 - **Bildirim:** satıcıya `notifications` ile gider: konu `stall_sold`, kod **103**, `{ defId, count, price, fee, buyer }`.
+- **Kayıt:** her satış alıcının (`stall_buy`) ve satıcının (`stall_sale`) `trades` koleksiyonuna, satın almayla aynı işlemde yazılır (bkz. Takas kayıtları).
 - **Henüz yok:** elmasla pano reklamı ve "alım ilanı" (`acik-sorular.md`).
 
 ```

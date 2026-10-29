@@ -5,6 +5,7 @@ import { ACCOUNT_DELETE } from '../config';
 import { readSessionDoc } from '../match/playerData';
 import { ErrorCode, errorMessage } from '../protocol';
 import { AccountIds, isBlocked, isDue, loginIds, loginKey, nameKey, nameMatches, parseDeleteRequest, runAtOf } from '../rules/accountDelete';
+import { rpcLimit } from './limit';
 
 const INVALID_ARGUMENT = 3;
 const UNAUTHENTICATED = 16;
@@ -28,6 +29,7 @@ function readRunAt(nk: nkruntime.Nakama, userId: string): number {
 
 /** account_delete_request: `{ name }` → `{ runAt }`. */
 export function rpcAccountDeleteRequest(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  rpcLimit(nk, ctx.userId, 'account_delete_request');
   if (!ctx.userId) throw fail(ErrorCode.BAD_REQUEST, 'no user', UNAUTHENTICATED);
   const req = parseDeleteRequest(payload);
   if (!req) throw fail(ErrorCode.BAD_REQUEST, 'bad request', INVALID_ARGUMENT);
@@ -43,6 +45,7 @@ export function rpcAccountDeleteRequest(ctx: nkruntime.Context, _logger: nkrunti
 
 /** account_delete_cancel: `{}` → `{ ok: true }`. */
 export function rpcAccountDeleteCancel(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+  rpcLimit(nk, ctx.userId, 'account_delete_cancel');
   if (!ctx.userId) throw fail(ErrorCode.BAD_REQUEST, 'no user', UNAUTHENTICATED);
   nk.storageDelete([{ collection: QUEUE, key: ctx.userId, userId: SYSTEM_USER }]);
   return JSON.stringify({ ok: true });
@@ -50,6 +53,7 @@ export function rpcAccountDeleteCancel(ctx: nkruntime.Context, _logger: nkruntim
 
 /** account_delete_status: `{}` → `{ pending, runAt }`. */
 export function rpcAccountDeleteStatus(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+  rpcLimit(nk, ctx.userId, 'account_delete_status');
   if (!ctx.userId) throw fail(ErrorCode.BAD_REQUEST, 'no user', UNAUTHENTICATED);
   const runAt = readRunAt(nk, ctx.userId);
   return JSON.stringify({ pending: runAt > 0, runAt });

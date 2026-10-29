@@ -17,7 +17,9 @@ function world(opts: { failMulti?: boolean } = {}) {
   const key = (c: string, k: string, u: string) => `${c}/${k}/${u}`;
   const sent: Msg[] = [];
   const notices: any[] = [];
+  let uuid = 0;
   const nk: any = {
+    uuidv4: () => `log-${++uuid}`,
     storageRead: (reqs: { collection: string; key: string; userId: string }[]) =>
       reqs.filter((r) => store.has(key(r.collection, r.key, r.userId))).map((r) => ({ ...r, value: store.get(key(r.collection, r.key, r.userId)) })),
     accountGetId: (userId: string) => ({ wallet: wallets[userId] || {} }),
@@ -215,6 +217,11 @@ describe('buying', () => {
     expect(w.notices[0][0]).toBe('S');
     expect(w.notices[0][3]).toBe(103);
     expect(w.notices[0][2]).toMatchObject({ defId: 'lake.fish.pike', count: 1, price: 250, fee: 13, buyer: 'B' });
+    // Both sides are logged, with what the item was.
+    const logOf = (u: string) => [...w.store.entries()].filter(([k]) => k.startsWith('trades/') && k.endsWith(`/${u}`)).map(([, v]) => v);
+    expect(logOf('B')).toEqual([expect.objectContaining({ kind: 'stall_buy', with: 'S', gave: { items: [], stacks: [], coin: 250 } })]);
+    expect(logOf('B')[0].got.items[0]).toMatchObject({ instanceId: 'i2', defId: 'lake.fish.pike' });
+    expect(logOf('S')).toEqual([expect.objectContaining({ kind: 'stall_sale', with: 'B', fee: 13, got: { items: [], stacks: [], coin: 237 } })]);
     // The buyer gets the shorter list, everyone the changed stall.
     const list = w.sent.filter((m) => m.op === OpCode.STALL_LIST).slice(-1)[0];
     expect(list.to).toEqual(['B']);

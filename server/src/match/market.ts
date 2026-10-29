@@ -26,7 +26,9 @@ import {
   stacksWrite,
   stallDelete,
   stallWrite,
+  tradeLogWrite,
 } from './playerData';
+import { snap, stallEntries } from '../rules/tradeLog';
 
 /** Notification code for "your stall sold something" (101 and 102 are login notices). */
 export const NOTIFY_STALL_SOLD = 103;
@@ -337,6 +339,13 @@ function handleBuy(env: MarketEnv, p: MarketPlayer, body: unknown): void {
   } else {
     writes.push(stallWrite(req.owner, doc));
   }
+  const logs = stallEntries(
+    { buyer, buyerName: p.name, seller: req.owner, sellerName: rec.doc.name, at: wall, serverId: env.serverId, key: env.nk.uuidv4() },
+    plan.kind === 'item' ? { item: snap(bought!) } : { stack: { defId: plan.defId, count: plan.count } },
+    plan.total,
+    fee,
+  );
+  writes.push(tradeLogWrite(buyer, logs.buyer), tradeLogWrite(req.owner, logs.seller));
   const wallets: nkruntime.WalletUpdate[] = [
     { userId: buyer, changeset: { coin: -plan.total }, metadata: { action: 'stall_buy', owner: req.owner } },
     { userId: req.owner, changeset: { coin: plan.total - fee }, metadata: { action: 'stall_sale', buyer, fee } },

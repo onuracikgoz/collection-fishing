@@ -60,7 +60,7 @@ describe('item lock (fake Nakama)', () => {
     const w = fake();
     w.put('i1', { locked: true });
     const b: TradePlayer = { ...w.f, presence: { userId: 'B', sessionId: 'sb', username: 'B', node: 'n' } as any, name: 'B' };
-    const env: TradeEnv = { nk: w.nk, logger: w.logger, dispatcher: w.dispatcher, fishing: {} as any, players: { A: w.f, B: b }, trades: {} as { [id: string]: TradeRec } };
+    const env: TradeEnv = { nk: w.nk, logger: w.logger, dispatcher: w.dispatcher, fishing: {} as any, serverId: 'mercan', players: { A: w.f, B: b }, trades: {} as { [id: string]: TradeRec } };
     handleTradeOp(env, w.f, OpCode.TRADE_OFFER, { userId: 'B' }, 0);
     handleTradeOp(env, b, OpCode.TRADE_REPLY, { accept: true }, 1);
     handleTradeOp(env, w.f, OpCode.TRADE_SET, { items: ['i1'] }, 2);

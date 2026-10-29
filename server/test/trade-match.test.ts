@@ -34,7 +34,7 @@ function world() {
   };
   const players: { [id: string]: TradePlayer } = {};
   const trades: { [id: string]: TradeRec } = {};
-  const env: TradeEnv = { nk, logger: { error: () => undefined } as any, dispatcher, fishing: {} as any, players, trades };
+  const env: TradeEnv = { nk, logger: { error: () => undefined } as any, dispatcher, fishing: {} as any, serverId: 'mercan', players, trades };
   const addPlayer = (userId: string, x: number, coin = 0, items: { id: string; defId: string; float?: number; inBook?: boolean }[] = [], stacks: { [d: string]: number } = {}, book: any = {}) => {
     const p: TradePlayer = {
       presence: { userId, sessionId: `s-${userId}`, username: userId, node: 'n' } as any,
@@ -222,8 +222,14 @@ describe('trade window (fake Nakama)', () => {
     expect(toA.book.filter((b: any) => b.instanceId === 'i2')[0].kind).toBe('discovered');
     expect(toA.got.coin).toBe(0);
     expect(toA.gave.coin).toBe(30);
-    expect(w.store.has(w.key('trades', 'trade-1', 'A'))).toBe(true);
-    expect(w.store.has(w.key('trades', 'trade-1', 'B'))).toBe(true);
+    const logOf = (u: string) => [...w.store.entries()].filter(([k]) => k.startsWith('trades/') && k.endsWith(`/${u}`)).map(([, v]) => v);
+    const logA = logOf('A');
+    expect(logA.length).toBe(1);
+    expect(logA[0]).toMatchObject({ kind: 'trade', with: 'B', ref: 'trade-1', serverId: 'mercan' });
+    expect(logA[0].got.items.map((i: any) => i.instanceId)).toEqual(['i2', 'i3']);
+    expect(typeof logA[0].got.items[0].float).toBe('number');
+    expect(logA[0].gave.coin).toBe(30);
+    expect(logOf('B')[0].got.coin).toBe(30);
     expect(w.players.A.tradeId).toBeUndefined();
     expect(Object.keys(w.env.trades).length).toBe(0);
   });

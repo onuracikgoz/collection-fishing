@@ -482,7 +482,7 @@ function handleEmoteStatus(
 }
 
 function tradeEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): TradeEnv {
-  return { nk, logger, dispatcher, fishing: fishingContext(nk, logger, dispatcher, state), players: state.players, trades: state.trades };
+  return { nk, logger, dispatcher, fishing: fishingContext(nk, logger, dispatcher, state), serverId: state.serverId, players: state.players, trades: state.trades };
 }
 
 function marketEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): MarketEnv {

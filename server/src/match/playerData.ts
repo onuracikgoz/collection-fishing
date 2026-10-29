@@ -26,6 +26,7 @@ import { canWear, normalizeOwned } from '../rules/emote';
 import { normalizeXp } from '../rules/xp';
 import { Listing } from '../rules/market';
 import { QuestState, normalizeQuests } from '../rules/quest';
+import { logKey, TradeLogEntry } from '../rules/tradeLog';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
@@ -313,4 +314,16 @@ export function readMutedUntil(nk: nkruntime.Nakama, userId: string): number {
   const objs = nk.storageRead([{ collection: 'player', key: 'mute', userId }]);
   const v = objs.length > 0 ? (objs[0].value as { until?: unknown }) : null;
   return v && typeof v.until === 'number' ? v.until : 0;
+}
+
+/** `trades/<logKey>` under the player: one side of a trade or stall sale. Only the server reads it. */
+export function tradeLogWrite(userId: string, entry: TradeLogEntry): nkruntime.StorageWriteRequest {
+  return {
+    collection: 'trades',
+    key: logKey(entry.at, entry.kind, entry.ref),
+    userId,
+    value: entry,
+    permissionRead: 0 as nkruntime.ReadPermissionValues,
+    permissionWrite: WRITE_SERVER,
+  };
 }

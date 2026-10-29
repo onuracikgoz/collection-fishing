@@ -7,6 +7,7 @@ import { ErrorCode, errorMessage } from '../protocol';
 import { recent, underLimit } from '../rules/transfer';
 import { maskPersonal, parseReport, parseWhisper, whisperRefusal } from '../rules/whisper';
 import { levelOf } from '../rules/xp';
+import { rpcLimit } from './limit';
 
 const INVALID_ARGUMENT = 3;
 const NOT_FOUND = 5;
@@ -60,6 +61,7 @@ function takeRate(nk: nkruntime.Nakama, key: string, userId: string, now: number
  * `text` in the answer is what the receiver got (personal info masked).
  */
 export function rpcWhisperSend(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  rpcLimit(nk, ctx.userId, 'whisper_send');
   if (!ctx.userId) throw fail(ErrorCode.BAD_REQUEST, 'no user', UNAUTHENTICATED);
   const from = ctx.userId;
   const req = parseWhisper(payload);
@@ -90,7 +92,6 @@ export function rpcWhisperSend(ctx: nkruntime.Context, _logger: nkruntime.Logger
 
   const session = readSessionDoc(nk, to);
   if (session.serverId === '' || now - session.at >= ACCOUNT_DELETE.staleSessionMs) throw fail(ErrorCode.OFFLINE, 'player is not online', FAILED_PRECONDITION);
-  if (!takeRate(nk, 'whisper_rate', from, now, WHISPER.windowMs, WHISPER.perWindow)) throw fail(ErrorCode.RATE_LIMITED, 'too many whispers', RESOURCE_EXHAUSTED);
 
   const clean = maskPersonal(req.text, WHISPER);
   const fromName = ctx.username || nk.usersGetId([from])[0].username;
@@ -100,6 +101,7 @@ export function rpcWhisperSend(ctx: nkruntime.Context, _logger: nkruntime.Logger
 
 /** whisper_settings: `{ pmOff? }` → `{ pmOff }`. An empty body only reads. */
 export function rpcWhisperSettings(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  rpcLimit(nk, ctx.userId, 'whisper_settings');
   if (!ctx.userId) throw fail(ErrorCode.BAD_REQUEST, 'no user', UNAUTHENTICATED);
   let body: Record<string, unknown> = {};
   try {

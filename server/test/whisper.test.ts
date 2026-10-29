@@ -65,7 +65,10 @@ function world() {
   const blocks: { [id: string]: string[] } = {};
   const notices: any[] = [];
   const list = (ids: string[]) => ({ friends: ids.map((id) => ({ user: { userId: id, username: users[id] } })), cursor: '' });
+  const cache = new Map<string, any>();
   const nk: any = {
+    localcacheGet: (k: string) => cache.get(k),
+    localcachePut: (k: string, v: any) => cache.set(k, v),
     storageRead: (reqs: any[]) => reqs.filter((q) => store.has(key(q.collection, q.key, q.userId))).map((q) => ({ ...q, value: store.get(key(q.collection, q.key, q.userId)) })),
     storageWrite: (writes: any[]) => writes.forEach((w) => store.set(key(w.collection, w.key, w.userId), w.value)),
     usersGetId: (ids: string[]) => ids.filter((id) => users[id]).map((id) => ({ userId: id, username: users[id] })),

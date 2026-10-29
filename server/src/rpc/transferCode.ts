@@ -5,6 +5,7 @@ import { TRANSFER } from '../config';
 import { tradeLockWrite } from '../match/playerData';
 import { ErrorCode, errorMessage } from '../protocol';
 import { CodeRecord, formatCode, generateCode, isLive, parseRedeem, recent, underLimit } from '../rules/transfer';
+import { rpcLimit } from './limit';
 
 // gRPC codes (nkruntime.Codes)
 const INVALID_ARGUMENT = 3;
@@ -63,6 +64,7 @@ function randomBytes(nk: nkruntime.Nakama, count: number): number[] {
 
 /** transfer_code_create: `{}` → `{ code, expiresInMs }`. Needs a session. One live code per account. */
 export function rpcTransferCodeCreate(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+  rpcLimit(nk, ctx.userId, 'transfer_code_create');
   if (!ctx.userId) throw fail(ErrorCode.BAD_REQUEST, 'no user', UNAUTHENTICATED);
   const userId = ctx.userId;
   const now = Date.now();

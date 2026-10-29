@@ -639,6 +639,11 @@ check(noteBody?.from === g.session.user_id && noteBody.text === 'kaça? ***' && 
 check((await client.rpc(f.session, 'whisper_settings', { pmOff: true })).payload?.pmOff === true, 'whisper_settings turns PM off');
 check((await rpcError(g, 'whisper_send', { userId: f.session.user_id, username: '', text: 'yine ben', context: 'stall' })) === 'NOT_ALLOWED', 'PM off stops strangers, stall or not');
 check((await client.rpc(f.session, 'report_player', { userId: g.session.user_id, reason: 'spam', note: '', text: 'yine ben' })).payload?.ok, 'report_player stores a report');
+// Trade log: the trade and the two stall sales are on record (only the server and the console read it).
+const fLogs = await consoleApi(`/v2/console/storage?user_id=${f.session.user_id}&collection=trades`, 'GET', undefined, admin);
+const fKinds = (fLogs.objects || []).map((o) => JSON.parse(o.value).kind);
+check(fKinds.filter((k) => k === 'trade').length === 1 && fKinds.filter((k) => k === 'stall_sale').length === 2, 'the trade and both stall sales are logged for the seller');
+if (fKinds.length !== 3) console.log('     log kinds:', JSON.stringify(fKinds));
 g.clear();
 f.socket.disconnect(false);
 await sleep(800);
@@ -652,6 +657,10 @@ const wbc = (await client.rpc(b.session, 'whisper_send', { userId: c.session.use
 check(wbc?.ok && wbc.text === 'göle gel' && !wbc.masked, 'a friend can always whisper');
 check((await rpcError(a, 'whisper_send', { userId: c.session.user_id, username: '', text: 'selam', context: 'stall' })) === 'NOT_ALLOWED', 'a stranger without a stall to write to is refused');
 check((await rpcError(b, 'whisper_send', { userId: '', username: 'nobody_' + run, text: 'x', context: '' })) === 'NOT_FOUND', 'whisper to an unknown name says NOT_FOUND');
+// RPC rate limit: friends_status allows 5 calls in 10 s (config RPC_LIMITS, Öneri).
+const limitCodes = [];
+for (let i = 0; i < 6; i++) limitCodes.push(await rpcError(a, 'friends_status', {}));
+check(limitCodes.slice(0, 5).every((x) => x === '') && limitCodes[5] === 'RATE_LIMITED', 'friends_status called in a loop gets RATE_LIMITED');
 for (const p of [a, a2, a3, b, c]) p.socket.disconnect(false);
 console.log(failed === 0 ? 'all good' : `${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

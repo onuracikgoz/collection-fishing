@@ -22,7 +22,8 @@ import { levelOf } from '../rules/xp';
 import { FishingContext, Fisher, cancelFishing } from './fishing';
 import { placeNewItem } from './items';
 import { trackQuest } from './quest';
-import { StoredItem, bookWrite, inBag, publicItem, readTradeLock, readWallet, stacksWrite } from './playerData';
+import { StoredItem, bookWrite, inBag, publicItem, readTradeLock, readWallet, stacksWrite, tradeLogWrite } from './playerData';
+import { ItemSnap, snap, TradeLogEntry } from '../rules/tradeLog';
 
 /** The part of a match player that trading needs. */
 export interface TradePlayer extends Fisher {
@@ -42,6 +43,8 @@ export interface TradeEnv {
   logger: nkruntime.Logger;
   dispatcher: nkruntime.MatchDispatcher;
   fishing: FishingContext;
+  /** For the trade log. */
+  serverId: string;
   players: { [userId: string]: TradePlayer };
   trades: { [tradeId: string]: TradeRec };
 }
@@ -258,15 +261,21 @@ function execute(env: TradeEnv, rec: TradeRec): void {
     if (side.getStacks.length > 0 || side.giveStacks.length > 0) writes.push(stacksWrite(side.userId, side.stacksAfter));
     if (newBook[side.userId] !== (side.userId === s.a ? pa.book : pb.book)) writes.push(bookWrite(side.userId, newBook[side.userId]));
   }
-  const log = (userId: string, other: string, side: typeof plan.a) => ({
-    collection: 'trades',
-    key: s.id,
-    userId,
-    value: { with: other, at: now, gave: { items: side.giveItems, stacks: side.giveStacks, coin: s.offers[userId].coin }, got: { items: gotItems[userId].map((i) => i.instanceId), stacks: side.getStacks, coin: s.offers[other].coin } },
-    permissionRead: 0 as nkruntime.ReadPermissionValues,
-    permissionWrite: 0 as nkruntime.WritePermissionValues,
+  const gaveItems: { [userId: string]: ItemSnap[] } = {
+    [s.a]: plan.a.giveItems.map((id) => snap(publicItem(stored[s.a][id]))),
+    [s.b]: plan.b.giveItems.map((id) => snap(publicItem(stored[s.b][id]))),
+  };
+  const log = (userId: string, other: string, side: typeof plan.a): TradeLogEntry => ({
+    kind: 'trade',
+    with: other,
+    withName: env.players[other] ? env.players[other].name : '',
+    at: now,
+    serverId: env.serverId,
+    ref: s.id,
+    gave: { items: gaveItems[userId], stacks: side.giveStacks, coin: s.offers[userId].coin },
+    got: { items: gaveItems[other], stacks: side.getStacks, coin: s.offers[other].coin },
   });
-  writes.push(log(s.a, s.b, plan.a), log(s.b, s.a, plan.b));
+  writes.push(tradeLogWrite(s.a, log(s.a, s.b, plan.a)), tradeLogWrite(s.b, log(s.b, s.a, plan.b)));
   const wallets: nkruntime.WalletUpdate[] = [];
   for (const side of [plan.a, plan.b]) {
     if (side.coinDelta !== 0) wallets.push({ userId: side.userId, changeset: { coin: side.coinDelta }, metadata: { action: 'trade', tradeId: s.id } });
