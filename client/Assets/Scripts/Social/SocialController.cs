@@ -70,12 +70,135 @@ namespace CollectionGame.Social
                 if (FriendsOpen) Refresh();
                 else GUIUtility.keyboardControl = 0;
             }
+            if (k.tKey.wasPressedThisFrame) EmoteMenuOpen = !EmoteMenuOpen;
             Key[] digits = { Key.Digit1, Key.Digit2, Key.Digit3, Key.Digit4, Key.Digit5, Key.Digit6 };
             for (var i = 0; i < digits.Length; i++)
                 if (k[digits[i]].wasPressedThisFrame) SendEmote(Emotes.All[i]);
         }
 
         public void SendEmote(string emote) => net.Send(OpCode.Emote, new EmoteMsg { emote = emote });
+
+        // ---------- status emotes (draft emote-menu; protokol.md, Durum emote'u) ----------
+
+        /// <summary>The free status emotes of the server's EMOTES.status list; the others show once owned (WELCOME.emotesOwned).</summary>
+        static readonly string[] FreeStatus = { "smile", "laugh", "zzz", "fish", "ask", "heart", "note", "coffee" };
+
+        public bool EmoteMenuOpen { get; set; }
+        public string MyStatus { get; private set; }
+        string[] owned = Array.Empty<string>();
+        /// <summary>Status emote worn by each player in view (and me).</summary>
+        public Dictionary<string, string> StatusOf { get; } = new Dictionary<string, string>();
+        EmoteView emoteView;
+        bool emoteDirty = true;
+
+        public static string StatusName(string id)
+        {
+            switch (id)
+            {
+                case "smile": return "Gülümse";
+                case "laugh": return "Kahkaha";
+                case "zzz": return "Uykulu";
+                case "fish": return "Balık";
+                case "ask": return "Soru";
+                case "heart": return "Kalp";
+                case "note": return "Müzik";
+                case "coffee": return "Kahve";
+                case "star": return "Yıldız";
+                case "cool": return "Havalı";
+                case "crown": return "Taç";
+                case "sparkle": return "Parıltı";
+                case "fire": return "Ateş";
+                case "rain": return "Yağmur";
+                case "comet": return "Kuyrukluyıldız";
+                case "goldfish": return "Altın balık";
+                default: return id;
+            }
+        }
+
+        static string GestureName(string id) =>
+            id == Emotes.Wave ? "el salla" : id == Emotes.Clap ? "alkış" : id == Emotes.Dance ? "dans" : id == Emotes.Sit ? "otur"
+            : id == Emotes.Laugh ? "gül" : id == Emotes.ShowFish ? "avı göster" : id;
+
+        public void OnWelcome(WelcomeMsg w, string myId)
+        {
+            MyStatus = string.IsNullOrEmpty(w.status) ? null : w.status;
+            owned = w.emotesOwned ?? Array.Empty<string>();
+            StatusOf[myId] = MyStatus;
+            emoteDirty = true;
+        }
+
+        public void OnPlayerEnter(PlayerEnterMsg e) => StatusOf[e.id] = string.IsNullOrEmpty(e.status) ? null : e.status;
+
+        public void OnStatus(EmoteStatusShowMsg m, string myId)
+        {
+            var emote = string.IsNullOrEmpty(m.emote) ? null : m.emote;
+            StatusOf[m.id] = emote;
+            if (m.id != myId) return;
+            MyStatus = emote;
+            emoteDirty = true;
+            if (!string.IsNullOrEmpty(m.reason))
+                UI.Toasts.Show(m.reason == "NOT_OWNED" ? "Bu emote sende yok" : m.reason == "RATE_LIMITED" ? "Biraz bekle" : $"Takılamadı ({m.reason})", true);
+        }
+
+        void Wear(string emote) => net.Send(OpCode.EmoteStatus, new EmoteStatusMsg { emote = emote ?? "" });
+
+        public void TickEmotes()
+        {
+            if (emoteView == null)
+            {
+                emoteView = UI.UiRoot.Get().Spawn<EmoteView>("Emote");
+                if (emoteView == null) return;
+                emoteView.window.Closed = () => EmoteMenuOpen = false;
+                emoteView.window.Open = false;
+                emoteView.remove.onClick.AddListener(() => Wear(null));
+                foreach (var slot in emoteView.status) slot.Clicked = s => { if (s.Data is string id) Wear(id); };
+                for (var i = 0; i < emoteView.gestures.Length; i++)
+                {
+                    var g = i < Emotes.All.Length ? Emotes.All[i] : null;
+                    var slot = emoteView.gestures[i];
+                    slot.gameObject.SetActive(g != null);
+                    if (g == null) continue;
+                    slot.SetEmpty();
+                    slot.label.text = GestureName(g);
+                    slot.Clicked = _ => SendEmote(g);
+                }
+            }
+            if (emoteView.window.Open != EmoteMenuOpen)
+            {
+                emoteView.window.Open = EmoteMenuOpen;
+                emoteDirty = true;
+            }
+            if (!EmoteMenuOpen || !emoteDirty) return;
+            emoteDirty = false;
+            var v = emoteView;
+            v.current.SetEmpty();
+            v.current.label.text = MyStatus != null ? StatusName(MyStatus) : "";
+            v.currentText.text = MyStatus != null
+                ? $"Üstünde duruyor: {StatusName(MyStatus)}\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>"
+                : "Üstünde emote yok\n<color=#7f708a>Aşağıdan birine tıkla, karakterinin üstünde kalır.</color>";
+            v.remove.interactable = MyStatus != null;
+            var list = FreeStatus.Concat(owned.Where(o => !FreeStatus.Contains(o))).ToList();
+            for (var i = 0; i < v.status.Length; i++)
+            {
+                var slot = v.status[i];
+                var id = i < list.Count ? list[i] : null;
+                slot.gameObject.SetActive(id != null || i < 8);
+                if (id == null)
+                {
+                    slot.SetEmpty();
+                    slot.Data = null;
+                    continue;
+                }
+                slot.SetItem("x." + id, "", 1, false, id == MyStatus);
+                slot.label.text = StatusName(id);
+                slot.Data = id;
+            }
+        }
+
+        public void DestroyEmotes()
+        {
+            if (emoteView != null) UnityEngine.Object.Destroy(emoteView.gameObject);
+        }
 
         public void GotoFriend(FriendStatus f)
         {

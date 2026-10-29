@@ -201,7 +201,9 @@ namespace CollectionGame.Social
         static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
 
         TradeView view;
-        PanelView invite;
+        InviteView invite;
+        /// <summary>Tiles to another player, if in view (the offer box says how far). Set by the world.</summary>
+        public Func<string, float?> DistanceTo { get; set; }
         CountView count;
         bool dirty = true;
         /// <summary>Tooltip / menu shared by the windows (set by the world).</summary>
@@ -243,10 +245,11 @@ namespace CollectionGame.Social
                     slot.Left = _ => Popup?.HideTooltip();
                 }
             }
-            if (invite == null && (invite = ui.Spawn<PanelView>("TradeInvite")) != null)
+            if (invite == null && (invite = ui.Spawn<InviteView>("TradeInvite")) != null)
             {
-                invite.window.Closed = () => Reply(false);
-                invite.Open = false;
+                invite.accept.onClick.AddListener(() => Reply(true));
+                invite.decline.onClick.AddListener(() => Reply(false));
+                invite.root.SetActive(false);
             }
             if (count == null && (count = ui.Spawn<CountView>("Count")) != null) count.Close();
             return view != null && invite != null && count != null;
@@ -308,17 +311,19 @@ namespace CollectionGame.Social
             // Invite box.
             var inviteLeft = Invite == null ? 0f : Invite.expiresInMs / 1000f - (Time.time - inviteAt);
             if (Invite != null && inviteLeft <= 0f) Invite = null;
-            if (invite.Open != (Invite != null))
+            if (invite.root.activeSelf != (Invite != null))
             {
-                invite.Open = Invite != null;
-                if (Invite != null)
-                {
-                    invite.ClearFooter();
-                    invite.FooterButton("Kabul", "green", () => Reply(true));
-                    invite.FooterButton("Reddet", "red", () => Reply(false));
-                }
+                invite.root.SetActive(Invite != null);
+                if (Invite != null) invite.transform.SetAsLastSibling();
             }
-            if (Invite != null) invite.header.text = $"{Invite.name} sana takas teklif ediyor ({Mathf.CeilToInt(inviteLeft)})";
+            if (Invite != null)
+            {
+                invite.title.text = $"{Invite.name} takas teklif ediyor";
+                var d = DistanceTo?.Invoke(Invite.from);
+                invite.sub.text = d.HasValue ? $"{d.Value:0} kare uzakta" : "";
+                HudView.Fill(invite.timer, Invite.expiresInMs > 0 ? inviteLeft * 1000f / Invite.expiresInMs : 0f);
+                invite.caption.text = $"{Mathf.CeilToInt(inviteLeft)} sn içinde cevap yoksa reddedilir";
+            }
 
             // Trade window.
             if (view.window.Open != Active)

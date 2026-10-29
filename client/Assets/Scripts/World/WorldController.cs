@@ -118,6 +118,11 @@ namespace CollectionGame.World
             bagPanel = new BagPanel(net, fishing, trade, () => economy.Prices, hud.Popup);
             fishingHud = new FishingHud();
             trade.Popup = hud.Popup;
+            trade.DistanceTo = id =>
+            {
+                var them = PositionOf(id);
+                return them.HasValue && mover != null ? Vector2.Distance(them.Value, mover.Position) : (float?)null;
+            };
             market.Popup = hud.Popup;
             collection.Popup = hud.Popup;
             social.Popup = hud.Popup;
@@ -132,6 +137,7 @@ namespace CollectionGame.World
             var v = hud.View;
             if (v == null) return;
             WorldHud.On(v.quests, () => quests.Open = !quests.Open);
+            WorldHud.On(v.emote, () => social.EmoteMenuOpen = !social.EmoteMenuOpen);
             WorldHud.On(v.market, () =>
             {
                 if (market.Open) market.Open = false;
@@ -170,6 +176,7 @@ namespace CollectionGame.World
             quests?.Destroy();
             collection?.Destroy();
             social?.Destroy();
+            social?.DestroyEmotes();
             economy?.Destroy();
             settings?.Destroy();
             trade?.Destroy();
@@ -234,6 +241,7 @@ namespace CollectionGame.World
                 quests.Tick();
                 collection.Tick();
                 social.Tick();
+                social.TickEmotes();
                 economy.Tick();
                 Toasts.Tick();
                 if (social.FriendsOpen && settings.PmNeedsLoad) settings.LoadPm();
@@ -280,6 +288,7 @@ namespace CollectionGame.World
                     mover = new LocalMover(start);
                     fishing.OnWelcome(w);
                     economy.OnWelcome();
+                    social.OnWelcome(w, net.UserId);
                     collection.LoadMine();
                     if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username);
                     me.SetState(start, mover.Facing, false);
@@ -299,6 +308,7 @@ namespace CollectionGame.World
                     view.SetState(remote.Position, remote.Facing, remote.Moving);
                     others[e.id] = (view, remote);
                     fishing.OnPlayerEnter(e);
+                    social.OnPlayerEnter(e);
                     break;
                 }
                 case OpCode.PlayerLeave:
@@ -383,6 +393,9 @@ namespace CollectionGame.World
                 }
                 case OpCode.ItemLockResult:
                     bagPanel.OnLockResult(JsonUtility.FromJson<ItemLockResultMsg>(m.Json));
+                    break;
+                case OpCode.EmoteStatusShow:
+                    social.OnStatus(JsonUtility.FromJson<EmoteStatusShowMsg>(m.Json), net.UserId);
                     break;
                 case OpCode.Announce:
                 {
@@ -489,6 +502,37 @@ namespace CollectionGame.World
             }
         }
 
+        /// <summary>Click on another player's name (oyuncu-kart): what can be done with them.</summary>
+        void PlayerMenu(string id, string name)
+        {
+            var friend = social.Friends.Any(f => f.UserId == id && f.State == Connection.FriendMutual);
+            hud.Popup.ShowMenu(name, new (string, Action)[]
+            {
+                ("Profil", () => collection.OpenProfile(id)),
+                ("Defterine bak", () => collection.OpenBook(id, name)),
+                (friend ? "Arkadaşın" : "<color=#91db69>Arkadaş ekle</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
+                ("Fısılda", () => whispers.OpenWith(id, name)),
+                ("Takas teklif et", () => trade.Offer(id, name)),
+                ("Engelle", () => Block(id, name)),
+                ("<color=#e83b3b>Şikayet et</color>", () => collection.ReportMenu(id)),
+            });
+        }
+
+        async void Block(string id, string name)
+        {
+            try
+            {
+                await net.BlockAsync(id);
+                Toasts.Show($"{name} engellendi");
+                social.Refresh();
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[World] block failed: {e.Message}");
+                Toasts.Show("Engellenemedi", true);
+            }
+        }
+
         static Vector2 ReadKeys()
         {
             var k = Keyboard.current;
@@ -543,7 +587,20 @@ namespace CollectionGame.World
             GUI.Label(nameRect, view.DisplayName, nameStyle);
             // Click a name to see that player's profile card.
             Gui.Block(nameRect);
-            if (GUI.Button(nameRect, GUIContent.none, GUIStyle.none)) collection.OpenProfile(isMe ? null : view.Id);
+            if (GUI.Button(nameRect, GUIContent.none, GUIStyle.none))
+            {
+                if (isMe) collection.OpenProfile(null);
+                else PlayerMenu(view.Id, view.DisplayName);
+            }
+
+            // Status emote (emote-dunya): a small sign above the name until removed.
+            if (social.StatusOf.TryGetValue(view.Id, out var status) && !string.IsNullOrEmpty(status))
+            {
+                var label = SocialController.StatusName(status);
+                var size = Gui.Bubble.CalcSize(new GUIContent(label)) + new Vector2(6f, 0f);
+                GUI.Box(new Rect(namePos.x - size.x / 2f, nameRect.y - size.y - 2f, size.x, size.y), label, Gui.Bubble);
+                namePos.y -= size.y + 2f; // a chat bubble goes above it
+            }
 
             if (view.EmoteText != null && Time.time < view.EmoteTextUntil)
             {

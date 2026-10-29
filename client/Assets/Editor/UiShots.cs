@@ -484,6 +484,46 @@ namespace CollectionGame.EditorTools
                     v.unlockSubs[i].text = sub[i];
                 }
             });
+            Shot(outDir, "emote-menu", Path.Combine(drafts, "emote-menu.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<EmoteView>(canvas, "Emote");
+                v.current.SetEmpty();
+                v.current.label.text = "Balık";
+                v.currentText.text = "Üstünde duruyor: Balık\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>";
+                string[] st = { "Gülümse", "Kahkaha", "Uykulu", "Balık", "Soru", "Kalp", "Müzik", "Kahve", "Yıldız", "Havalı", "Taç", "Parıltı" };
+                for (var i = 0; i < v.status.Length; i++)
+                {
+                    if (i < st.Length) v.status[i].SetItem("x.a", i >= 8 ? "legendary" : "", 1, false, i == 3);
+                    else v.status[i].SetEmpty();
+                    v.status[i].label.text = i < st.Length ? st[i] : "";
+                }
+                string[] g = { "el salla", "alkış", "dans", "otur", "gül", "avı göster" };
+                for (var i = 0; i < v.gestures.Length; i++)
+                {
+                    v.gestures[i].gameObject.SetActive(i < g.Length);
+                    v.gestures[i].SetEmpty();
+                    if (i < g.Length) v.gestures[i].label.text = g[i];
+                }
+            });
+            Shot(outDir, "oyuncu-teklif", Path.Combine(drafts, "oyuncu-teklif.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<InviteView>(canvas, "TradeInvite");
+                v.root.SetActive(true);
+                v.title.text = "Deniz takas teklif ediyor";
+                v.sub.text = "3 kare uzakta";
+                HudView.Fill(v.timer, 0.6f);
+                v.caption.text = "15 sn içinde cevap yoksa reddedilir";
+            });
+            Shot(outDir, "oyuncu-kart", Path.Combine(drafts, "oyuncu-kart.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var pop = Spawn<PopupView>(canvas, "Popup");
+                pop.SendMessage("Awake", SendMessageOptions.DontRequireReceiver);
+                pop.ShowMenu("Deniz", new (string, Action)[] { ("Profil", () => { }), ("Defterine bak", () => { }), ("Arkadaş ekle", () => { }), ("Fısılda", () => { }), ("Takas teklif et", () => { }), ("Engelle", () => { }), ("Şikayet et", () => { }) });
+                ((RectTransform)pop.menu).anchoredPosition = new Vector2(480, 896 - 318); // menu top-left on the draft
+            });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));

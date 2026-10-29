@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 23;
+        public const int Version = 25;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -82,7 +82,8 @@ namespace CollectionGame.EditorTools
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
-            Save(BuildPanel("TradeInvite", "Takas teklifi", new Vector2(400, 128), 1), "TradeInvite");
+            Save(BuildInvite(), "TradeInvite");
+            Save(BuildEmote(), "Emote");
             Save(BuildStallSetup(), "StallSetup");
             Save(BuildStallList(), "Stall");
             Save(BuildBoard(), "Board");
@@ -408,8 +409,8 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
 
             // Window buttons 40x40, 50 apart, ending at 1280; settings apart at 1350 (hud3).
-            string[] names = { "Quests", "Market", "Friends", "Profile", "Book", "Bag" };
-            string[] labels = { "Görev\n(G)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
+            string[] names = { "Emote", "Quests", "Market", "Friends", "Profile", "Book", "Bag" };
+            string[] labels = { "Emote\n(T)", "Görev\n(G)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
             var buttons = new Button[names.Length];
             for (var i = 0; i < names.Length; i++)
             {
@@ -417,12 +418,13 @@ namespace CollectionGame.EditorTools
                 buttons[i].GetComponentInChildren<Text>().color = Paper;
                 At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
             }
-            view.quests = buttons[0];
-            view.market = buttons[1];
-            view.friends = buttons[2];
-            view.profile = buttons[3];
-            view.book = buttons[4];
-            view.bag = buttons[5];
+            view.emote = buttons[0];
+            view.quests = buttons[1];
+            view.market = buttons[2];
+            view.friends = buttons[3];
+            view.profile = buttons[4];
+            view.book = buttons[5];
+            view.bag = buttons[6];
             var alert = At(Node("Alert", view.quests.transform), TopRight, new Vector2(-2, -2), new Vector2(8, 8));
             Solid(alert, Hex("e83b3b"));
             view.questsAlert = alert.gameObject;
@@ -518,152 +520,6 @@ namespace CollectionGame.EditorTools
             itemText.horizontalOverflow = HorizontalWrapMode.Overflow;
             view.itemTemplate = b;
             return root.gameObject;
-        }
-
-        // ================= Generic panel window (list screens) =================
-
-        /// <summary>
-        /// Window with header line, tabs (hidden until used), N scrolling columns of rows, footer line
-        /// and footer bar. Centered; the player can drag it by the title plate.
-        /// </summary>
-        static GameObject BuildPanel(string name, string title, Vector2 size, int columns, string[] columnTitles = null)
-        {
-            var wrap = Stretch(Node(name, null));
-            var view = wrap.gameObject.AddComponent<PanelView>();
-            view.window = Window(wrap, "Window", title, size);
-            At((RectTransform)view.window.transform, Center, new Vector2(0, 20), size, Center);
-            var body = view.window.body;
-            Layout<VerticalLayoutGroup>(body, 6).childForceExpandWidth = true;
-
-            var head = Node("Header", body);
-            Layout<HorizontalLayoutGroup>(head, 8, new RectOffset(0, 26, 0, 0), TextAnchor.MiddleLeft);
-            Size(head, minH: 22);
-            view.header = Label(head, "Text", "", 15, Ink, TextAnchor.MiddleLeft, true);
-            Size(view.header, flexW: 1);
-            view.headerRight = Label(head, "Right", "", 13, Ink, TextAnchor.MiddleRight, true);
-
-            var tabs = Node("Tabs", body);
-            Layout<HorizontalLayoutGroup>(tabs, 2, null, TextAnchor.LowerLeft);
-            Size(tabs, minH: 24);
-            view.tabs = tabs;
-            var tab = Node("TabTemplate", tabs);
-            var tabImg = Img(tab, "tab_inactive", Image.Type.Sliced, true);
-            var tb = tab.gameObject.AddComponent<Button>();
-            tb.targetGraphic = tabImg;
-            var tnav = tb.navigation;
-            tnav.mode = Navigation.Mode.None;
-            tb.navigation = tnav;
-            var ts = tab.gameObject.AddComponent<TabSprites>();
-            ts.active = S("tab_active");
-            ts.inactive = S("tab_inactive");
-            ts.activeText = Ink;   // tab_active is the light linen tab
-            ts.inactiveText = Paper; // tab_inactive is wood
-            Txt(Stretch(Node("Label", tab), 6, 2, 6, 2), "Sekme", 13, Paper, TextAnchor.MiddleCenter, true);
-            Size(tab, minH: 24, prefW: 130);
-            view.tabTemplate = tb;
-            tab.gameObject.SetActive(false);
-            tabs.gameObject.SetActive(false);
-
-            var cols = Node("Columns", body);
-            var cl = Layout<HorizontalLayoutGroup>(cols, 12);
-            cl.childForceExpandWidth = true;
-            cl.childForceExpandHeight = true;
-            Size(cols, flexH: 1);
-            view.columns = new RectTransform[columns];
-            view.columnTitles = new Text[columns];
-            for (var i = 0; i < columns; i++)
-            {
-                var col = Node("Column" + i, cols);
-                Layout<VerticalLayoutGroup>(col, 4).childForceExpandWidth = true;
-                Size(col, flexW: 1, flexH: 1);
-                if (columnTitles != null && i < columnTitles.Length)
-                {
-                    view.columnTitles[i] = Label(col, "Title", columnTitles[i], 14, Ink, TextAnchor.MiddleLeft, true);
-                    Size(view.columnTitles[i], minH: 20);
-                }
-                var scroll = Node("Scroll", col);
-                Size(scroll, flexH: 1, flexW: 1);
-                var sr = scroll.gameObject.AddComponent<ScrollRect>();
-                sr.horizontal = false;
-                sr.movementType = ScrollRect.MovementType.Clamped;
-                sr.scrollSensitivity = 24;
-                var viewport = Stretch(Node("Viewport", scroll));
-                viewport.gameObject.AddComponent<RectMask2D>();
-                var hit = viewport.gameObject.AddComponent<Image>();
-                hit.color = new Color(0, 0, 0, 0);
-                var content = Node("Content", viewport);
-                content.anchorMin = new Vector2(0, 1);
-                content.anchorMax = new Vector2(1, 1);
-                content.pivot = new Vector2(0.5f, 1);
-                content.offsetMin = content.offsetMax = Vector2.zero;
-                Layout<VerticalLayoutGroup>(content, 3).childForceExpandWidth = true;
-                content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
-                sr.viewport = viewport;
-                sr.content = content;
-                view.columns[i] = content;
-            }
-            view.rowTemplate = BuildRow(view.columns[0]);
-            view.rowTemplate.gameObject.SetActive(false);
-
-            view.footer = Label(body, "Footer", "", 12, Faint);
-            view.footer.horizontalOverflow = HorizontalWrapMode.Wrap;
-            Size(view.footer, minH: 16);
-            var bar = Node("FooterBar", body);
-            Layout<HorizontalLayoutGroup>(bar, 6, null, TextAnchor.MiddleRight);
-            Size(bar, minH: 28);
-            view.footerBar = bar;
-            view.wood = Templ(Btn(bar, "Wood", "wood", "Tamam"), 110, 28);
-            view.green = Templ(Btn(bar, "Green", "green", "Tamam"), 110, 28);
-            view.red = Templ(Btn(bar, "Red", "red", "Tamam"), 110, 28);
-            var input = Node("Input", bar);
-            view.input = Field(input, "");
-            Size(view.input, minH: 26, prefW: 120);
-            input.gameObject.SetActive(false);
-            return wrap.gameObject;
-        }
-
-        static Button Templ(Button b, float w, float h)
-        {
-            Size(b, minH: h, prefW: w);
-            b.gameObject.SetActive(false);
-            return b;
-        }
-
-        static RowView BuildRow(Transform parent)
-        {
-            var row = Node("RowTemplate", parent);
-            Img(row, "card");
-            Layout<HorizontalLayoutGroup>(row, 6, new RectOffset(6, 6, 4, 4), TextAnchor.MiddleLeft);
-            Size(row, minH: 32);
-            var view = row.gameObject.AddComponent<RowView>();
-            view.mark = Slot(row, "Mark", 26);
-            Size(view.mark, minW: 26, minH: 26, prefW: 26, prefH: 26);
-            view.mark.label.fontSize = 8;
-
-            var col = Node("Text", row);
-            Layout<VerticalLayoutGroup>(col, 1, null, TextAnchor.MiddleLeft).childForceExpandWidth = true;
-            Size(col, flexW: 1);
-            view.title = Label(col, "Title", "", 13, Ink);
-            view.title.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.sub = Label(col, "Sub", "", 11, Faint);
-            view.sub.horizontalOverflow = HorizontalWrapMode.Wrap;
-            var back = Node("Bar", col);
-            Size(back, minH: 8, prefH: 8);
-            view.barFill = Bar(back, "bar_fill_green", out _);
-            view.bar = back;
-
-            view.right = Label(row, "Right", "", 13, Ink, TextAnchor.MiddleRight, true);
-            var tail = Node("Tail", row);
-            Layout<HorizontalLayoutGroup>(tail, 3, null, TextAnchor.MiddleRight);
-            view.tail = tail;
-            view.wood = Templ(Btn(tail, "Wood", "wood", "", 12), 70, 22);
-            view.green = Templ(Btn(tail, "Green", "green", "", 12), 70, 22);
-            view.red = Templ(Btn(tail, "Red", "red", "", 12), 70, 22);
-            var input = Node("Input", tail);
-            view.input = Field(input, "", 12);
-            Size(view.input, minH: 22, prefW: 70);
-            input.gameObject.SetActive(false);
-            return view;
         }
 
         // ================= Settings (drafts ayarlar-genel, ayarlar-hesap) =================
@@ -1944,6 +1800,67 @@ namespace CollectionGame.EditorTools
             }
             view.levelUp.Open = false;
             return root.gameObject;
+        }
+
+        // ================= Trade offer box (draft oyuncu-teklif) =================
+
+        static GameObject BuildInvite()
+        {
+            var root = Stretch(Node("TradeInvite", null));
+            var view = root.gameObject.AddComponent<InviteView>();
+            // 390x92 at (508, 78), the caption under it.
+            var box = Abs(root, "Box", 508, 78, 390, 92);
+            Img(box, "box_dark", Image.Type.Sliced, true);
+            view.root = box.gameObject;
+            view.title = TextAt(box, "Title", "", 12, 22, 370, 16, Paper, TextAnchor.MiddleLeft, true);
+            view.sub = TextAt(box, "Sub", "", 12, 42, 370, 13, Paper);
+            var back = Abs(box, "Timer", 12, 60, 140, 10);
+            view.timer = Bar(back, "bar_fill_yellow", out _);
+            view.accept = SmallButton(box, "Accept", "green", "Kabul", 170, 50, 105, 30, 15);
+            view.decline = SmallButton(box, "Decline", "red", "Reddet", 280, 50, 105, 30, 15);
+            view.caption = Txt(At(Node("Caption", box), TopLeft, new Vector2(4, -98), new Vector2(380, 20)), "", 13, Color.white, TextAnchor.MiddleLeft, true, true);
+            box.gameObject.SetActive(false);
+            return root.gameObject;
+        }
+
+        // ================= Emote window (draft emote-menu) =================
+
+        static SlotView EmoteSlot(Transform w, string name, float x, float y)
+        {
+            var s = SlotAt(w, name, x, y, 48);
+            s.label.fontSize = 11;
+            return s;
+        }
+
+        static GameObject BuildEmote()
+        {
+            // emote-menu: window 538x415 at (842, 390); 48 px slots, 54 apart from x 30.
+            var wrap = Stretch(Node("Emote", null));
+            var view = wrap.gameObject.AddComponent<EmoteView>();
+            view.window = DraftWindow(wrap, "Emote", 842, 390, 538, 415);
+            var w = view.window.transform;
+            var card = Abs(w, "Current", 18, 25, 502, 50);
+            Img(card, "card");
+            Img(Stretch(Node("Outline", card)), "outline");
+            view.current = SlotAt(card, "Icon", 8, 6, 38);
+            view.current.label.fontSize = 10;
+            view.currentText = TextAt(card, "Text", "", 58, 25, 340, 14, Ink);
+            view.currentText.supportRichText = true;
+            ((RectTransform)view.currentText.transform).sizeDelta = new Vector2(340, 40);
+            view.remove = SmallButton(card, "Remove", "wood", "Kaldır", 395, 10, 98, 30, 15);
+            TextAt(w, "StatusLabel", "Durum emote'ları", 30, 95, 170, 16, Ink);
+            TextAt(w, "StatusHint", "tıkla: üstüne tak", 203, 95, 200, 13, Faint);
+            Img(Abs(w, "StatusLine", 30, 106, 478, 4), "divider");
+            view.status = new SlotView[16];
+            for (var i = 0; i < 16; i++) view.status[i] = EmoteSlot(w, "Status" + i, 30 + i % 8 * 54, 118 + i / 8 * 58);
+            TextAt(w, "GestureLabel", "Hareketler", 30, 252, 170, 16, Ink);
+            TextAt(w, "GestureHint", "tıkla: yap (1-6 tuşları)", 140, 252, 300, 13, Faint);
+            Img(Abs(w, "GestureLine", 30, 263, 478, 4), "divider");
+            view.gestures = new SlotView[8];
+            for (var i = 0; i < 8; i++) view.gestures[i] = EmoteSlot(w, "Gesture" + i, 30 + i * 54, 275);
+            var foot = TextAt(w, "Footer", "Bir tane takılı kalır. Sunucudaki herkes görür.\nYürürken de durur; Kaldır'a basana kadar kalır.", 30, 366, 480, 13, Hex("1e6f50"));
+            ((RectTransform)foot.transform).sizeDelta = new Vector2(480, 40);
+            return wrap.gameObject;
         }
 
         // ================= Whisper window =================

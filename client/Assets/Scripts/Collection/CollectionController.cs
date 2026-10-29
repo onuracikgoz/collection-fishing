@@ -536,9 +536,15 @@ namespace CollectionGame.Collection
 
         void ReportMenu()
         {
-            if (Popup == null || Profile == null || Profile.userId == net.UserId) return;
-            var who = Profile.userId;
-            Popup.ShowMenu("Raporla: neden?", ReportReasons.Select(r => (r.label, (Action)(() => Report(who, r.id)))));
+            if (Profile == null || Profile.userId == net.UserId) return;
+            ReportMenu(Profile.userId);
+        }
+
+        /// <summary>The report reasons as a menu (profile card, player menu).</summary>
+        public void ReportMenu(string userId)
+        {
+            if (Popup == null || string.IsNullOrEmpty(userId)) return;
+            Popup.ShowMenu("Şikayet et: neden?", ReportReasons.Select(r => (r.label, (Action)(() => Report(userId, r.id)))));
         }
 
         async void Report(string userId, string reason)

@@ -37,6 +37,7 @@ namespace CollectionGame.UI.Views
         public Text chatLog;
 
         [Header("Window buttons")]
+        public Button emote;
         public Button quests;
         public Button market;
         public Button friends;
