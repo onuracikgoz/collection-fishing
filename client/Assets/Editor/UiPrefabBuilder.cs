@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 16;
+        public const int Version = 17;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -72,6 +72,7 @@ namespace CollectionGame.EditorTools
             Save(BuildQuests(), "Quests");
             Save(BuildBook(), "Book");
             Save(BuildProfile(), "Profile");
+            Save(BuildFriends(), "Friends");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1383,6 +1384,105 @@ namespace CollectionGame.EditorTools
             view.report = LinkText(w, "Report", "Raporla", 378, 428, 60, Hex("e83b3b"), TextAnchor.MiddleRight);
             TextAt(w, "Dot", "·", 438, 428, 10, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
             view.block = LinkText(w, "Block", "Engelle", 448, 428, 50, Hex("e83b3b"));
+            return wrap.gameObject;
+        }
+
+        // ================= Friends (drafts arkadaslar-list, arkadaslar-requests) =================
+
+        static Button SmallButton(Transform parent, string name, string colour, string label, float x, float y, float w, float h, int size = 13)
+        {
+            var b = Btn(parent, name, colour, label, size);
+            At((RectTransform)b.transform, TopLeft, new Vector2(x, -y), new Vector2(w, h));
+            return b;
+        }
+
+        static GameObject BuildFriends()
+        {
+            // arkadaslar-list: window 516x510 at (302, 148); rows 476x46, 50 apart.
+            var wrap = Stretch(Node("Friends", null));
+            var view = wrap.gameObject.AddComponent<FriendsView>();
+            view.window = DraftWindow(wrap, "Arkadaşlar", 302, 148, 516, 510);
+            var w = view.window.transform;
+            view.tabOn = S("card");
+            view.tabOff = S("button_flat_normal");
+            float[] tx = { 23, 148, 233 }, tw = { 115, 77, 75 };
+            string[] tl = { "Arkadaşlar", "İstekler", "Engelli" };
+            view.tabs = new Button[3];
+            view.tabTexts = new Text[3];
+            for (var i = 0; i < 3; i++)
+            {
+                var b = SmallButton(w, "Tab" + i, "flat", tl[i], tx[i], 17, tw[i], 26, 14);
+                b.transition = Selectable.Transition.None;
+                view.tabs[i] = b;
+                view.tabTexts[i] = b.GetComponentInChildren<Text>();
+            }
+            var badge = At(Node("Badge", view.tabs[1].transform), TopRight, new Vector2(4, 8), new Vector2(16, 16));
+            Img(badge, "button_red_normal");
+            view.requestCount = Txt(Stretch(Node("Text", badge)), "0", 11, Color.white, TextAnchor.MiddleCenter, true);
+            view.requestBadge = badge.gameObject;
+            Img(Abs(w, "TabLine", 23, 43, 470, 4), "divider");
+            view.search = Field(Abs(w, "Search", 23, 57, 358, 30), "Oyuncu adı yaz...", 14);
+            view.search.characterLimit = 16;
+            view.add = SmallButton(w, "Add", "green", "Ekle", 391, 57, 102, 30, 15);
+
+            var scroll = Abs(w, "List", 21, 98, 476, 364);
+            var sr = scroll.gameObject.AddComponent<ScrollRect>();
+            sr.horizontal = false;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+            sr.scrollSensitivity = 30;
+            var viewport = Stretch(Node("Viewport", scroll));
+            viewport.gameObject.AddComponent<RectMask2D>();
+            viewport.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            var content = Node("Content", viewport);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.offsetMin = content.offsetMax = Vector2.zero;
+            Layout<VerticalLayoutGroup>(content, 4).childForceExpandWidth = true;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            sr.viewport = viewport;
+            sr.content = content;
+            view.list = content;
+
+            view.sectionTemplate = Label(content, "Section", "Çevrimiçi · 0", 14, Faint);
+            Size(view.sectionTemplate, minH: 20);
+            view.sectionTemplate.gameObject.SetActive(false);
+
+            var row = Node("RowTemplate", content);
+            Size(row, minH: 46, prefH: 46);
+            var fr = row.gameObject.AddComponent<FriendRow>();
+            fr.back = Img(row, "card");
+            Img(Stretch(Node("Outline", row)), "outline");
+            fr.avatar = SlotAt(row, "Avatar", 8, 7, 32);
+            fr.avatar.label.fontSize = 10;
+            var dot = At(Node("Dot", fr.avatar.transform), BottomRight, new Vector2(3, -3), new Vector2(10, 10), BottomRight);
+            fr.dot = Img(dot, "checkbox_on", Image.Type.Simple);
+            view.dotOnline = S("checkbox_on");
+            view.dotOffline = S("slot_locked");
+            fr.name = TextAt(row, "Name", "", 50, 14, 260, 16, Ink, TextAnchor.MiddleLeft, true);
+            fr.sub = TextAt(row, "Sub", "", 50, 34, 260, 13, Faint);
+            fr.sub.supportRichText = true;
+            fr.go = SmallButton(row, "Go", "green", "Yanına git", 314, 10, 82, 26);
+            fr.chat = SmallButton(row, "Chat", "square_wood", "✉", 405, 9, 28, 28, 13);
+            fr.menu = SmallButton(row, "Menu", "square_wood", "≡", 439, 9, 28, 28, 14);
+            fr.no = SmallButton(row, "No", "red", "Hayır", 330, 10, 63, 26);
+            fr.yes = SmallButton(row, "Yes", "green", "Kabul", 401, 10, 63, 26);
+            fr.cancel = SmallButton(row, "Cancel", "wood", "İptal", 401, 10, 63, 26);
+            fr.unblock = SmallButton(row, "Unblock", "wood", "Engeli kaldır", 364, 10, 100, 26);
+            view.rowTemplate = fr;
+            row.gameObject.SetActive(false);
+            view.rowOnline = S("card");
+            view.rowOffline = null;
+
+            view.empty = TextAt(w, "Empty", "", 23, 200, 470, 15, Faint, TextAnchor.MiddleCenter);
+            TextAt(w, "PmLabel", "Sadece arkadaşlardan mesaj al", 25, 481, 360, 14, Ink);
+            var toggle = Abs(w, "FriendsOnly", 469, 469, 24, 24);
+            var off = Img(toggle, "checkbox_off", Image.Type.Simple, true);
+            var on = Img(Stretch(Node("On", toggle)), "checkbox_on", Image.Type.Simple);
+            view.friendsOnly = toggle.gameObject.AddComponent<Toggle>();
+            view.friendsOnly.targetGraphic = off;
+            view.friendsOnly.graphic = on;
+            view.friendsOnly.transition = Selectable.Transition.None;
             return wrap.gameObject;
         }
 

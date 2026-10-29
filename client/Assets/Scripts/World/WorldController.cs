@@ -118,6 +118,12 @@ namespace CollectionGame.World
             trade.Popup = hud.Popup;
             market.Popup = hud.Popup;
             collection.Popup = hud.Popup;
+            social.Popup = hud.Popup;
+            social.Whisper = (id, name) => whispers.OpenWith(id, name);
+            social.OpenProfile = collection.OpenProfile;
+            social.OpenBook = collection.OpenBook;
+            social.PmOff = () => settings.PmOff;
+            social.SetPmOff = settings.SetPm;
             var v = hud.View;
             if (v == null) return;
             WorldHud.On(v.quests, () => quests.Open = !quests.Open);
@@ -157,6 +163,7 @@ namespace CollectionGame.World
             bagPanel?.Destroy();
             quests?.Destroy();
             collection?.Destroy();
+            social?.Destroy();
             settings?.Destroy();
             trade?.Destroy();
             market?.Destroy();
@@ -218,6 +225,8 @@ namespace CollectionGame.World
                 bagPanel.Update();
                 quests.Tick();
                 collection.Tick();
+                social.Tick();
+                if (social.FriendsOpen && settings.PmNeedsLoad) settings.LoadPm();
                 settings.Tick();
                 trade.Tick();
                 market.Tick();

@@ -206,6 +206,47 @@ namespace CollectionGame.EditorTools
                 v.stat3Value.text = "12";
                 v.footer.text = "";
             });
+            Shot(outDir, "arkadaslar", Path.Combine(drafts, "arkadaslar-list.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<FriendsView>(canvas, "Friends");
+                var ink = new Color32(0x45, 0x29, 0x3f, 255);
+                var paper = new Color32(0xf2, 0xe8, 0xd0, 255);
+                for (var i = 0; i < 3; i++)
+                {
+                    v.tabs[i].GetComponent<Image>().sprite = i == 0 ? v.tabOn : v.tabOff;
+                    v.tabTexts[i].color = i == 0 ? ink : paper;
+                }
+                v.tabTexts[0].text = "Arkadaşlar 5";
+                v.requestCount.text = "2";
+                void Section(string t)
+                {
+                    var x = UnityEngine.Object.Instantiate(v.sectionTemplate, v.list, false);
+                    x.gameObject.SetActive(true);
+                    x.text = t;
+                }
+                void Row(string name, string sub, bool online)
+                {
+                    var r = UnityEngine.Object.Instantiate(v.rowTemplate, v.list, false);
+                    r.gameObject.SetActive(true);
+                    r.back.enabled = online;
+                    r.avatar.SetEmpty();
+                    r.avatar.label.text = name.Substring(0, 1);
+                    r.dot.sprite = online ? v.dotOnline : v.dotOffline;
+                    r.name.text = name;
+                    r.sub.text = sub;
+                    foreach (var b in new[] { r.no, r.yes, r.cancel, r.unblock }) b.gameObject.SetActive(false);
+                    r.go.gameObject.SetActive(online);
+                }
+                Section("Çevrimiçi · 3");
+                Row("Ece", "Liman", true);
+                Row("Mert", "Liman", true);
+                Row("Deniz", "Mercan", true);
+                Section("Çevrimdışı · 2");
+                Row("Kaan", "çevrimdışı", false);
+                Row("Selin", "çevrimdışı", false);
+                v.friendsOnly.isOn = true;
+            });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));

@@ -24,6 +24,11 @@ namespace CollectionGame.UI
         public bool PmOff { get; private set; }
         public AccountDeleteStatus Deletion { get; private set; }
 
+        public bool PmLoaded => pmLoaded;
+        bool pmLoading;
+        float pmFailedAt = -100f;
+        /// <summary>Not loaded yet and not just failed (so callers may poll it).</summary>
+        public bool PmNeedsLoad => !pmLoaded && !pmLoading && Time.time - pmFailedAt > 10f;
         bool pmLoaded, busy, revealed, confirmDelete;
         string typedName = "";
         TransferCodeResponse code;
@@ -72,8 +77,11 @@ namespace CollectionGame.UI
 
         // ---------- RPCs ----------
 
-        async void LoadPm()
+        /// <summary>Reads "PM kapalı" once (the friends window shows it too).</summary>
+        public async void LoadPm()
         {
+            if (pmLoading) return;
+            pmLoading = true;
             try
             {
                 PmOff = await net.WhisperSettingsAsync(null);
@@ -83,10 +91,12 @@ namespace CollectionGame.UI
             catch (Exception e)
             {
                 Debug.LogWarning($"[Settings] whisper_settings failed: {e.Message}");
+                pmFailedAt = Time.time;
             }
+            pmLoading = false;
         }
 
-        async void SetPm(bool off)
+        public async void SetPm(bool off)
         {
             busy = true;
             try

@@ -4,6 +4,8 @@ using System.Linq;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
+using UnityEngine.UI;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -30,7 +32,6 @@ namespace CollectionGame.Social
         public TeleportMsg LastTeleport { get; private set; }
         public int EmotesSeen { get; private set; }
 
-        string addName = "";
         float nextRefresh;
         string note;
         float noteUntil;
@@ -121,6 +122,7 @@ namespace CollectionGame.Social
                 var status = await net.FriendsStatusAsync();
                 Status.Clear();
                 foreach (var f in status.friends ?? Array.Empty<FriendStatus>()) Status[f.userId] = f;
+                dirty = true;
             }
             catch (Exception ex)
             {
@@ -163,79 +165,219 @@ namespace CollectionGame.Social
             noteUntil = Time.time + 4f;
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: Resources/UI/Friends, drafts arkadaslar-list / -requests) ----------
 
+        public enum FriendsTab { Friends, Requests, Blocked }
+
+        static readonly Color Ink = new Color32(0x45, 0x29, 0x3f, 255);
+        static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
+        static readonly Color Paper = new Color32(0xf2, 0xe8, 0xd0, 255);
+
+        FriendsView view;
+        readonly List<GameObject> rows = new List<GameObject>();
+        FriendsTab tab;
+        bool dirty = true;
+
+        public PopupView Popup { get; set; }
+        /// <summary>Opening a whisper, a profile card, a book; blocking. Set by the world.</summary>
+        public Action<string, string> Whisper { get; set; }
+        public Action<string> OpenProfile { get; set; }
+        public Action<string, string> OpenBook { get; set; }
+        /// <summary>"Sadece arkadaşlardan mesaj al" is the server's PM off setting (Ayarlar has it too).</summary>
+        public Func<bool> PmOff { get; set; }
+        public Action<bool> SetPmOff { get; set; }
+
+        public void Destroy()
+        {
+            if (view != null) UnityEngine.Object.Destroy(view.gameObject);
+        }
+
+        FriendsView View
+        {
+            get
+            {
+                if (view != null) return view;
+                view = UI.UiRoot.Get().Spawn<FriendsView>("Friends");
+                if (view == null) return null;
+                view.window.Closed = () => FriendsOpen = false;
+                view.window.Open = false;
+                for (var i = 0; i < view.tabs.Length; i++)
+                {
+                    var t = (FriendsTab)i;
+                    view.tabs[i].onClick.AddListener(() =>
+                    {
+                        tab = t;
+                        dirty = true;
+                    });
+                }
+                view.add.onClick.AddListener(AddTyped);
+                view.search.onEndEdit.AddListener(_ =>
+                {
+                    var k = Keyboard.current;
+                    if (k != null && (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame)) AddTyped();
+                });
+                view.friendsOnly.onValueChanged.AddListener(x =>
+                {
+                    if (PmOff != null && x != PmOff()) SetPmOff?.Invoke(x);
+                });
+                return view;
+            }
+        }
+
+        void AddTyped()
+        {
+            var name = view.search.text.Trim();
+            if (name.Length == 0) return;
+            view.search.text = "";
+            AddFriend(null, name);
+        }
+
+        /// <summary>Call every frame.</summary>
+        public void Tick()
+        {
+            var v = View;
+            if (v == null) return;
+            if (v.window.Open != FriendsOpen)
+            {
+                v.window.Open = FriendsOpen;
+                dirty = true;
+            }
+            if (!FriendsOpen) return;
+            if (PmOff != null && v.friendsOnly.isOn != PmOff()) v.friendsOnly.SetIsOnWithoutNotify(PmOff());
+            if (dirty && !v.search.isFocused) Redraw(v);
+        }
+
+        void Redraw(FriendsView v)
+        {
+            dirty = false;
+            foreach (var r in rows) UnityEngine.Object.Destroy(r);
+            rows.Clear();
+            var mutual = Friends.Where(f => f.State == Connection.FriendMutual).ToList();
+            var incoming = Friends.Where(f => f.State == Connection.FriendInviteReceived).ToList();
+            var sent = Friends.Where(f => f.State == Connection.FriendInviteSent).ToList();
+            var blocked = Friends.Where(f => f.State == Connection.FriendBlocked).ToList();
+            v.tabTexts[0].text = $"Arkadaşlar {mutual.Count}";
+            v.requestBadge.SetActive(incoming.Count > 0);
+            v.requestCount.text = incoming.Count.ToString();
+            for (var i = 0; i < v.tabs.Length; i++)
+            {
+                v.tabs[i].GetComponent<Image>().sprite = i == (int)tab ? v.tabOn : v.tabOff;
+                v.tabTexts[i].color = i == (int)tab ? Ink : Paper;
+            }
+            v.empty.text = "";
+            switch (tab)
+            {
+                case FriendsTab.Friends:
+                    var online = mutual.Where(f => Status.TryGetValue(f.UserId, out var st) && st.online).OrderBy(f => f.Username).ToList();
+                    var offline = mutual.Except(online).OrderBy(f => f.Username).ToList();
+                    if (mutual.Count == 0) v.empty.text = "Henüz arkadaşın yok. Adını yaz ya da birinin kartından ekle.";
+                    if (online.Count > 0) Section(v, $"Çevrimiçi · {online.Count}");
+                    foreach (var f in online) FriendLine(v, f, true);
+                    if (offline.Count > 0) Section(v, $"Çevrimdışı · {offline.Count}");
+                    foreach (var f in offline) FriendLine(v, f, false);
+                    break;
+                case FriendsTab.Requests:
+                    if (incoming.Count + sent.Count == 0) v.empty.text = "Bekleyen istek yok.";
+                    if (incoming.Count > 0) Section(v, $"Gelen istekler · {incoming.Count}");
+                    foreach (var f in incoming)
+                    {
+                        var r = Row(v, f, IsOnline(f));
+                        r.sub.text = IsOnline(f) ? Where(f) : "çevrimdışı";
+                        Show(r.no, () => Remove(f.UserId));
+                        Show(r.yes, () => AddFriend(f.UserId, f.Username));
+                    }
+                    if (sent.Count > 0) Section(v, $"Gönderdiğin · {sent.Count}");
+                    foreach (var f in sent)
+                    {
+                        var r = Row(v, f, IsOnline(f));
+                        r.sub.text = "cevap bekleniyor";
+                        Show(r.cancel, () => Remove(f.UserId));
+                    }
+                    break;
+                default:
+                    if (blocked.Count == 0) v.empty.text = "Engellediğin kimse yok.";
+                    foreach (var f in blocked)
+                    {
+                        var r = Row(v, f, false);
+                        r.sub.text = "engelli: sana yazamaz, takas teklif edemez";
+                        Show(r.unblock, () => Remove(f.UserId));
+                    }
+                    break;
+            }
+        }
+
+        bool IsOnline(Connection.Friend f) => Status.TryGetValue(f.UserId, out var st) && st.online;
+
+        string Where(Connection.Friend f) =>
+            Status.TryGetValue(f.UserId, out var st) && st.online ? string.IsNullOrEmpty(st.serverName) ? "çevrimiçi" : st.serverName : "çevrimdışı";
+
+        void Section(FriendsView v, string text)
+        {
+            var t = UnityEngine.Object.Instantiate(v.sectionTemplate, v.list, false);
+            t.gameObject.SetActive(true);
+            t.text = text;
+            rows.Add(t.gameObject);
+        }
+
+        FriendRow Row(FriendsView v, Connection.Friend f, bool online)
+        {
+            var r = UnityEngine.Object.Instantiate(v.rowTemplate, v.list, false);
+            r.gameObject.SetActive(true);
+            r.back.enabled = online;
+            r.avatar.SetEmpty();
+            r.avatar.label.text = f.Username.Length > 0 ? f.Username.Substring(0, 1).ToUpperInvariant() : "?";
+            r.dot.sprite = online ? v.dotOnline : v.dotOffline;
+            r.name.text = f.Username;
+            r.name.color = online ? Ink : Faint;
+            foreach (var b in new[] { r.go, r.chat, r.menu, r.no, r.yes, r.cancel, r.unblock }) b.gameObject.SetActive(false);
+            rows.Add(r.gameObject);
+            return r;
+        }
+
+        static void Show(Button b, Action a)
+        {
+            b.gameObject.SetActive(true);
+            b.onClick.AddListener(() => a());
+        }
+
+        void FriendLine(FriendsView v, Connection.Friend f, bool online)
+        {
+            var r = Row(v, f, online);
+            r.sub.text = Where(f);
+            if (online && Status.TryGetValue(f.UserId, out var st) && !string.IsNullOrEmpty(st.matchId)) Show(r.go, () => GotoFriend(st));
+            Show(r.chat, () => Whisper?.Invoke(f.UserId, f.Username));
+            Show(r.menu, () => Popup?.ShowMenu(f.Username, new (string, Action)[]
+            {
+                ("Profil kartı", () => OpenProfile?.Invoke(f.UserId)),
+                ("Defterine bak", () => OpenBook?.Invoke(f.UserId, f.Username)),
+                ("Arkadaşlıktan çık", () => Remove(f.UserId)),
+                ("Engelle", () => Block(f.UserId, f.Username)),
+            }));
+        }
+
+        async void Block(string userId, string name)
+        {
+            try
+            {
+                await net.BlockAsync(userId);
+                UI.Toasts.Show($"{name} engellendi");
+                Refresh();
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Social] block failed: {ex.Message}");
+                UI.Toasts.Show("Engellenemedi", true);
+            }
+        }
+
+        /// <summary>The short note (teleport refusals, friend requests) as a toast.</summary>
         public void DrawGui()
         {
             if (note != null && Time.time < noteUntil)
             {
-                var size = Gui.Toast.CalcSize(new GUIContent(note)) + new Vector2(24f, 12f);
-                GUI.Box(new Rect((Gui.Width - size.x) / 2f, Gui.Height - Gui.CanvasToGui(230), size.x, size.y), note, Gui.Toast);
+                UI.Toasts.Show(note);
+                note = null;
             }
-            if (!FriendsOpen) return;
-
-            var r = new Rect((Gui.Width - 420) / 2f, 60, 420, Mathf.Min(440, Gui.Height - 140));
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Gui.Window);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Arkadaşlar", Gui.Header);
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Kapat", Gui.Button, GUILayout.Width(70)))
-            {
-                FriendsOpen = false;
-                GUIUtility.keyboardControl = 0;
-            }
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            addName = GUILayout.TextField(addName, 16, Gui.Input, GUILayout.Height(28));
-            if (GUILayout.Button("Ekle", Gui.Button, GUILayout.Width(70), GUILayout.Height(28)) && addName.Trim().Length > 0)
-            {
-                AddFriend(null, addName.Trim());
-                addName = "";
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(6);
-
-            if (Friends.Count == 0) GUILayout.Label("Henüz arkadaşın yok. Adını yaz ya da birinin profil kartından ekle.", Gui.Faint);
-            foreach (var f in Friends.OrderBy(f => f.State).ThenBy(f => f.Username))
-            {
-                GUILayout.BeginHorizontal(GUI.skin.box);
-                switch (f.State)
-                {
-                    case Connection.FriendMutual:
-                        Status.TryGetValue(f.UserId, out var st);
-                        var where = st == null || !st.online ? "çevrimdışı" : string.IsNullOrEmpty(st.serverName) ? "çevrimiçi" : st.serverName;
-                        GUILayout.Label(f.Username, Gui.Hud, GUILayout.Width(150));
-                        GUILayout.Label(where, st != null && st.online ? Gui.Hud : Gui.Faint);
-                        GUILayout.FlexibleSpace();
-                        GUI.enabled = st != null && st.online && !string.IsNullOrEmpty(st.matchId);
-                        if (GUILayout.Button("Yanına git", Gui.Button, GUILayout.Width(100))) GotoFriend(st);
-                        GUI.enabled = true;
-                        break;
-                    case Connection.FriendInviteReceived:
-                        GUILayout.Label(f.Username, Gui.Hud, GUILayout.Width(150));
-                        GUILayout.Label("seni eklemek istiyor", Gui.Faint);
-                        GUILayout.FlexibleSpace();
-                        if (GUILayout.Button("Kabul", Gui.Button, GUILayout.Width(70))) AddFriend(f.UserId, f.Username);
-                        if (GUILayout.Button("Hayır", Gui.Button, GUILayout.Width(60))) Remove(f.UserId);
-                        break;
-                    case Connection.FriendInviteSent:
-                        GUILayout.Label(f.Username, Gui.Hud, GUILayout.Width(150));
-                        GUILayout.Label("cevap bekleniyor", Gui.Faint);
-                        GUILayout.FlexibleSpace();
-                        if (GUILayout.Button("İptal", Gui.Button, GUILayout.Width(60))) Remove(f.UserId);
-                        break;
-                    default:
-                        GUILayout.Label(f.Username, Gui.Faint, GUILayout.Width(150));
-                        GUILayout.Label("engelli", Gui.Faint);
-                        break;
-                }
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.FlexibleSpace();
-            GUILayout.Label("Emote: 1 el salla · 2 alkış · 3 dans · 4 otur · 5 gül · 6 son avını göster", Gui.Faint);
-            GUILayout.EndArea();
         }
     }
 }
