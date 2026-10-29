@@ -70,6 +70,14 @@ export const ErrorCode = {
   RATE_LIMITED: 'RATE_LIMITED',
   ACCOUNT_RECENTLY_DELETED: 'ACCOUNT_RECENTLY_DELETED',
   NAME_RESERVED: 'NAME_RESERVED',
+  // Whisper and reports (docs/protokol.md, Fısıltı)
+  MUTED: 'MUTED',
+  NOT_FOUND: 'NOT_FOUND',
+  SELF: 'SELF',
+  NOT_ALLOWED: 'NOT_ALLOWED',
+  YOU_BLOCKED: 'YOU_BLOCKED',
+  LEVEL_TOO_LOW: 'LEVEL_TOO_LOW',
+  OFFLINE: 'OFFLINE',
 } as const;
 
 export interface HealthcheckResponse {
@@ -568,3 +576,39 @@ export interface StashResultMsg {
 
 /** get_catalog RPC (Faz 4): display-only prices and recipes, see rules/catalog.ts. */
 export type { CatalogResponse } from './rules/catalog';
+
+// --- Whisper and reports (docs/protokol.md, Fısıltı) ---
+
+export interface WhisperSendRequest {
+  /** One of userId or username; Unity sends the other as ''. */
+  userId?: string;
+  username?: string;
+  text: string;
+  /** 'stall' when written from a pet stall's window. */
+  context?: '' | 'stall';
+}
+
+export interface WhisperSendResponse {
+  ok: true;
+  to: string;
+  toName: string;
+  /** What the receiver got, personal info masked. */
+  text: string;
+  masked: boolean;
+}
+
+/** Content of the whisper notification (subject 'whisper', code 110, not persistent). */
+export interface WhisperNotice {
+  from: string;
+  fromName: string;
+  text: string;
+  context: '' | 'stall';
+  at: number;
+}
+
+export interface ReportPlayerRequest {
+  userId: string;
+  reason: 'spam' | 'abuse' | 'scam' | 'personal_info' | 'cheating' | 'other';
+  note?: string;
+  text?: string;
+}

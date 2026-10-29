@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, ROD, SERVERS, WATER, WORLD, XP } from '../config';
+import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, WATER, WHISPER, WORLD, XP } from '../config';
 import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
 import {
   BubbleMsg,
@@ -17,6 +17,7 @@ import {
   WelcomeMsg,
 } from '../protocol';
 import { canSpeak, sanitizeChat } from '../rules/chat';
+import { maskPersonal } from '../rules/whisper';
 import { checkJoin } from '../rules/join';
 import { buildSpots } from '../rules/market';
 import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
@@ -34,7 +35,7 @@ import { handleItemLock } from './lock';
 import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
 import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
-import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readMutedUntil, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
@@ -57,6 +58,9 @@ interface Player {
   moving: boolean;
   move: MoveState;
   lastSpokeAt?: number;
+  /** Muted (wall-clock ms) until; re-read from storage now and then while the player talks. */
+  mutedUntil: number;
+  muteCheckedAt: number;
   /** Ids this player currently sees. */
   visible: { [id: string]: true };
   /** Changed since the last SNAPSHOT. */
@@ -287,6 +291,8 @@ export function worldJoin(
       xp,
       status: emotes.status,
       emotesOwned: emotes.owned,
+      mutedUntil: old ? old.mutedUntil : readMutedUntil(nk, presence.userId),
+      muteCheckedAt: old ? old.muteCheckedAt : Date.now(),
       quest: old ? old.quest : loadQuestState(nk, logger, presence.userId, xp, Date.now()),
       tradeId: old ? old.tradeId : undefined,
       lastOfferAt: old ? old.lastOfferAt : undefined,
@@ -374,6 +380,7 @@ function fishingContext(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatch
 }
 
 function handleSay(
+  nk: nkruntime.Nakama,
   dispatcher: nkruntime.MatchDispatcher,
   state: WorldState,
   grid: SpatialGrid,
@@ -384,8 +391,18 @@ function handleSay(
   const text = sanitizeChat(typeof body === 'object' && body !== null ? (body as { text?: unknown }).text : null);
   if (text === null || !canSpeak(p.lastSpokeAt, now)) return;
   p.lastSpokeAt = now;
+  const wall = Date.now();
+  if (wall - p.muteCheckedAt >= MODERATION.muteRecheckMs) {
+    p.muteCheckedAt = wall;
+    try {
+      p.mutedUntil = readMutedUntil(nk, p.presence.userId);
+    } catch (_e) {
+      // Keep the cached value if storage is briefly unavailable.
+    }
+  }
+  if (p.mutedUntil > wall) return;
   const to = grid.near(p.move.x, p.move.y, WORLD.chatRadius).map((q) => state.players[q.id].presence);
-  const msg: BubbleMsg = { id: p.presence.userId, text };
+  const msg: BubbleMsg = { id: p.presence.userId, text: maskPersonal(text, WHISPER).text };
   send(dispatcher, OpCode.BUBBLE, msg, to);
 }
 
@@ -593,7 +610,7 @@ export function worldLoop(
 
   // Positions are final for this tick; chat and visibility use them.
   const grid = buildGrid(state);
-  for (const s of says) handleSay(dispatcher, state, grid, s.p, s.body, now);
+  for (const s of says) handleSay(nk, dispatcher, state, grid, s.p, s.body, now);
 
   for (const id in state.players) {
     const p = state.players[id];

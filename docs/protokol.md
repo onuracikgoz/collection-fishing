@@ -57,6 +57,9 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `account_delete_request` | `{ name }` (hesabın kullanıcı adı, aynen) | `{ runAt }` (ms; silinme zamanı) | 7 |
 | `account_delete_cancel` | `{}` | `{ ok: true }` | 7 |
 | `account_delete_status` | `{}` | `{ pending, runAt }` (`runAt` 0 = yok) | 7 |
+| `whisper_send` | `{ userId \| username, text, context? }` | `{ ok, to, toName, text, masked }`, bkz. Fısıltı | 5 |
+| `whisper_settings` | `{ pmOff? }` (boşsa sadece okur) | `{ pmOff }` | 5 |
+| `report_player` | `{ userId, reason, note?, text? }` | `{ ok: true }` | 5 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
 
@@ -80,6 +83,25 @@ Kurallar: "Hesap kuralları" (Giriş). Sunucu: `rules/accountDelete.ts` (saf kur
 - **Silme:** süre dolunca sunucu hesabı kalıcı siler (`accountDeleteId`: karakter, defter, eşya, Coin, arkadaşlar, her şey). Oyuncu o sırada hâlâ bir sunucudaysa silme sonraki taramaya kalır. Tarama sunucuda her 10 dk'da bir çalışır (Öneri), açık bir sunucunun match'i yapar.
 - **Silince:** hesabın bütün giriş yolları (cihaz, Google, Facebook, Steam, Discord) **7 gün** (Öneri) yeni hesap açamaz ve kullanıcı adı **30 gün** (Öneri) başkasına verilmez. Cihaz girişinde bu `ACCOUNT_RECENTLY_DELETED` / `NAME_RESERVED` ile reddedilir. Google, Facebook, Steam ve Discord'da kimlik giriş öncesi bilinmediği için kontrol girişten sonra yapılır: engelliyse yeni oluşan hesap hemen silinir, sonraki çağrı hata verir (client giriş sonrası ilk RPC'de `UNAUTHENTICATED` görürse "Bu hesapla şu an yeni hesap açılamaz" gösterir).
 - **Henüz yok:** Steam'in web hesabına tekrar bağlanması için 30 günlük bekleme (Giriş, "Steam hesabını silip web hesabını açmak").
+
+## Fısıltı (Faz 5)
+
+Kurallar: `docs/tasarim/10-sosyal.md` 13.1.1 ve 13.1.2. Sunucu: `rules/whisper.ts` (saf kurallar), `rpc/whisper.ts`. Hepsi oturumlu RPC'dir; fısıltı match mesajı **değildir**, böylece iki oyuncu farklı sunucularda olsa da ulaşır.
+
+- **`whisper_send { userId | username, text, context? }`:** alıcı `userId` ya da kullanıcı adıyla (`/w Nick mesaj`) verilir; Unity boş alanı `""` gönderir, boş olan yok sayılır. `text` chat kurallarıyla kırpılır (120 karakter), boşsa `BAD_REQUEST`. `context: "stall"` mesaj pazar tezgahının penceresinden ("Whisper at") yazıldıysa gönderilir.
+- **Kim kime yazabilir** (sırayla):
+  1. Gönderen alıcıyı engellediyse `YOU_BLOCKED`.
+  2. Alıcı göndereni engellediyse `NOT_ALLOWED` (engel belli edilmez).
+  3. Karşılıklı arkadaşlar her zaman yazabilir ("PM kapalı" arkadaşları etkilemez).
+  4. Yabancı ancak `context: "stall"` ile, alıcının **açık tezgahı** varken ve alıcının "PM kapalı" ayarı kapalıyken yazabilir; değilse `NOT_ALLOWED`.
+  5. Yabancı gönderen en az **level 10** (Öneri) olmalı, değilse `LEVEL_TOO_LOW`.
+- **Diğer hatalar:** `MUTED` (gönderen susturulmuş), `NOT_FOUND` (böyle oyuncu yok), `SELF`, `OFFLINE` (alıcı hiçbir sunucuda değil), `RATE_LIMITED` (10 sn'de 10 fısıltı, Öneri).
+- **Kişisel bilgi filtresi:** telefon (10 ve üstü rakam, Öneri), e-posta, link, alan adı, `@kullanıcı` ve sosyal medya adı (`insta: x`, `discord x`) `***` olur. Cevaptaki `text` alıcının gördüğü halidir, client kendi penceresine bunu yazar; `masked: true` ise "Kişisel bilgi gizlendi" notu gösterilebilir.
+- **Teslim:** alıcıya Nakama bildirimi gider: konu `whisper`, kod **110**, **kalıcı değil** (çevrimdışıyken birikmez, depoda tutulmaz). İçerik: `{ from, fromName, text, context, at }`. Client bildirimi socket'ten alır ve `from` için küçük pencereyi açar ya da yanıp söndürür (pencere: `docs/araclar/ui-uygulama.md`, Fısıltı penceresi).
+- **`whisper_settings { pmOff? }`:** "PM kapalı" düğmesi. `pmOff: true` yabancılardan fısıltıyı kapatır. Gövde boşsa sadece okur. Değer `player/settings.pmOff`'ta durur, varsayılan `false` (yabancı zaten sadece pazar bağlamında yazabilir, 13.1.1).
+- **Engelleme:** Nakama arkadaş API'siyle (`blockFriends` / `deleteFriends`), ayrı RPC yok.
+- **`report_player { userId, reason, note?, text? }`:** `reason`: `spam`, `abuse`, `scam`, `personal_info`, `cheating`, `other`. `note` oyuncunun açıklaması (300 karakter), `text` raporlanan mesaj (200 karakter; client fısıltı penceresinden ya da balondan doldurur). Rapor moderatörler için `reports` koleksiyonuna (sistem kullanıcısı) yazılır, oyunculara gösterilmez. Saatte en fazla 10 rapor (Öneri), sonra `RATE_LIMITED`. Hatalar: `SELF`, `NOT_FOUND`, `BAD_REQUEST`.
+- **Susturma:** moderatör `player/mute { until }` (ms) yazar. Susturulmuş oyuncu fısıltı gönderemez (`MUTED`) ve `SAY`'i düşer. Moderatör aracı henüz yok, kayıt Nakama konsolundan yazılır.
 
 ## Match (harita) mesajları
 
@@ -115,7 +137,9 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 - Hız sınırı: saniyede 1 mesaj, aşan mesaj sessizce düşer (Öneri).
 - `BUBBLE` gönderilmeden önce de sunucu metni kırpar; client gelen metni olduğu gibi gösterir.
 - `BUBBLE` sadece konuşanın **12 tile** (Öneri) yakınındakilere gider.
-- Küfür filtresi ve şikayet Faz 5'te.
+- **Kişisel bilgi filtresi** (Faz 5): telefon, e-posta, link, alan adı, `@kullanıcı` ve sosyal medya adı `***` ile maskelenir (Fısıltı'daki kural). Client gelen metni yine olduğu gibi gösterir.
+- **Susturma:** susturulmuş oyuncunun `SAY`'i sessizce düşer (kendisi de balon almaz). Kayıt `player/mute { until }` (ms), moderatör yazar; oyuncu çevrimiçiyken yazılırsa en geç **1 dk** (Öneri) içinde başlar.
+- Küfür filtresi henüz yok (kelime listesi gerekiyor, `acik-sorular.md`). Raporlama `report_player` ile (Fısıltı).
 
 ## Balık tutma (Faz 2)
 
@@ -478,4 +502,6 @@ Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe ba
 
 ## Hata kodları
 
-RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde).
+RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde). Fısıltı ve rapor: `MUTED`, `NOT_FOUND`, `SELF`, `NOT_ALLOWED`, `YOU_BLOCKED`, `LEVEL_TOO_LOW`, `OFFLINE`.
+
+Nakama bildirim kodları: 101 giriş yolu bağlandı, 102 giriş yolu kaldırıldı, 103 tezgahtan satış, 104 hesap silme iptal, 110 fısıltı.

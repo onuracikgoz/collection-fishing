@@ -84,6 +84,14 @@ namespace CollectionGame.Net
         public const string RateLimited = "RATE_LIMITED";
         public const string AccountRecentlyDeleted = "ACCOUNT_RECENTLY_DELETED";
         public const string NameReserved = "NAME_RESERVED";
+        // Whisper and reports (docs/protokol.md, Fısıltı)
+        public const string Muted = "MUTED";
+        public const string NotFound = "NOT_FOUND";
+        public const string Self = "SELF";
+        public const string NotAllowed = "NOT_ALLOWED";
+        public const string YouBlocked = "YOU_BLOCKED";
+        public const string LevelTooLow = "LEVEL_TOO_LOW";
+        public const string Offline = "OFFLINE";
     }
 
     /// <summary>"up", "down", "left" or "right". Server y grows downward, so "down" is +y.</summary>
@@ -790,6 +798,67 @@ namespace CollectionGame.Net
     {
         public bool pending;
         public long runAt;
+    }
+
+    // --- Whisper and reports (docs/protokol.md, Fısıltı) ---
+
+    /// <summary>Nakama notification code of a whisper (subject "whisper", content WhisperNotice).</summary>
+    public static class NotifyCode
+    {
+        public const int LoginLinked = 101;
+        public const int LoginUnlinked = 102;
+        public const int StallSold = 103;
+        public const int DeletionCancelled = 104;
+        public const int Whisper = 110;
+    }
+
+    /// <summary>whisper_send. Set userId or username (leave the other empty). context "stall" when written from a pet stall.</summary>
+    [Serializable]
+    public class WhisperSendRequest
+    {
+        public string userId;
+        public string username;
+        public string text;
+        public string context;
+    }
+
+    /// <summary>Answer of whisper_send. text is what the receiver got (personal info masked); show it in your own window.</summary>
+    [Serializable]
+    public class WhisperSendResponse
+    {
+        public bool ok;
+        public string to;
+        public string toName;
+        public string text;
+        public bool masked;
+    }
+
+    /// <summary>Content of a whisper notification (code 110).</summary>
+    [Serializable]
+    public class WhisperNotice
+    {
+        public string from;
+        public string fromName;
+        public string text;
+        public string context;
+        public long at;
+    }
+
+    /// <summary>whisper_settings request and answer. Send {} to only read.</summary>
+    [Serializable]
+    public class WhisperSettings
+    {
+        public bool pmOff;
+    }
+
+    /// <summary>report_player. reason: spam, abuse, scam, personal_info, cheating, other.</summary>
+    [Serializable]
+    public class ReportPlayerRequest
+    {
+        public string userId;
+        public string reason;
+        public string note;
+        public string text;
     }
 
     // --- Faz 6: daily quests (docs/protokol.md, Günlük görev) ---

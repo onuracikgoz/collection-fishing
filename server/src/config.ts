@@ -8,6 +8,7 @@ import type { RodConfig } from './rules/rod';
 import type { BaitConfig } from './rules/bait';
 import type { StashConfig } from './rules/stash';
 import type { QuestConfig } from './rules/quest';
+import type { WhisperConfig } from './rules/whisper';
 import { BANK_POINT } from './data/lake-map';
 
 export interface ServerDef {
@@ -210,6 +211,17 @@ export const TRADE = {
   openTimeoutMs: 300000,
   offerCooldownMs: 3000,
 };
+
+// Whisper and reports (docs/tasarim/10-sosyal.md 13.1.2). All Öneri.
+export const WHISPER: WhisperConfig = {
+  strangerMinLevel: 10,
+  perWindow: 10,
+  windowMs: 10 * 1000,
+  phoneDigits: 10,
+};
+export const REPORTS = { perWindow: 10, windowMs: 60 * 60 * 1000 };
+/** A mute written while the player is online takes hold within this time (Öneri). */
+export const MODERATION = { muteRecheckMs: 60 * 1000 };
 
 // Daily quests (docs/tasarim/03-balik-tutma.md 5.2). The list and chests are in data/quests.ts. All Öneri.
 export const QUESTS_CONFIG: QuestConfig = {

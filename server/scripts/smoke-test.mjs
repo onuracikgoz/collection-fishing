@@ -22,14 +22,30 @@ function check(ok, what) {
   if (!ok) failed++;
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Calls an RPC that should fail and returns our error code ('' if it did not fail). */
+async function rpcError(p, id, body) {
+  try {
+    await client.rpc(p.session, id, body);
+    return '';
+  } catch (e) {
+    try {
+      const j = typeof e.json === 'function' ? await e.json() : e;
+      return JSON.parse(j.message || j.error).code;
+    } catch (_x) {
+      return 'UNREADABLE';
+    }
+  }
+}
 
 async function player(name, deviceId = `smoke-${name}-${run}`) {
   const session = await client.authenticateDevice(deviceId, true, `${name}_${run}`.slice(0, 16));
   const socket = client.createSocket(false, false);
   const inbox = [];
   socket.onmatchdata = (m) => inbox.push({ op: m.op_code, body: JSON.parse(new TextDecoder().decode(m.data)) });
+  const notes = [];
+  socket.onnotification = (n) => notes.push(n);
   await socket.connect(session, true);
-  const p = { session, socket, inbox, seq: 0 };
+  const p = { session, socket, inbox, notes, seq: 0 };
   p.take = (op) => inbox.filter((m) => m.op === op).map((m) => m.body);
   p.clear = () => (inbox.length = 0);
   p.send = (op, body) => socket.sendMatchState(p.matchId, op, JSON.stringify(body));
@@ -611,6 +627,18 @@ const fAfterMarket = (await client.rpc(f.session, 'get_inventory', {})).payload;
 check(fAfterMarket.coin === 649 && fAfterMarket.stacks.find((x) => x.defId === 'lake.mat.scale')?.count === 2, 'the seller got the price minus the 5 % fee (47 + 2 Coin)');
 // Quitting the game closes the stall and returns what is on it.
 check((await opOf(f, OP.STALL_OPEN, { stacks: [{ defId: 'lake.mat.scale', count: 2, price: 9 }] }, OP.STALL_RESULT))?.ok, 'a second stall opens after the recall');
+// Whisper (docs/protokol.md, Fısıltı): a level 10 stranger may write from the stall only.
+f.notes.length = 0;
+check((await rpcError(g, 'whisper_send', { userId: f.session.user_id, username: '', text: 'selam', context: '' })) === 'NOT_ALLOWED', 'a stranger cannot whisper outside the market');
+const ws = (await client.rpc(g.session, 'whisper_send', { userId: '', username: f.session.username, text: 'kaça? 0532 123 45 67', context: 'stall' })).payload;
+check(ws?.ok && ws.to === f.session.user_id && ws.text === 'kaça? ***' && ws.masked, 'whisper from the stall goes through with the phone masked');
+await sleep(400);
+const note = f.notes.find((n) => n.code === 110);
+const noteBody = note && (typeof note.content === 'string' ? JSON.parse(note.content) : note.content);
+check(noteBody?.from === g.session.user_id && noteBody.text === 'kaça? ***' && noteBody.context === 'stall', 'the stall owner gets the whisper as a live notification');
+check((await client.rpc(f.session, 'whisper_settings', { pmOff: true })).payload?.pmOff === true, 'whisper_settings turns PM off');
+check((await rpcError(g, 'whisper_send', { userId: f.session.user_id, username: '', text: 'yine ben', context: 'stall' })) === 'NOT_ALLOWED', 'PM off stops strangers, stall or not');
+check((await client.rpc(f.session, 'report_player', { userId: g.session.user_id, reason: 'spam', note: '', text: 'yine ben' })).payload?.ok, 'report_player stores a report');
 g.clear();
 f.socket.disconnect(false);
 await sleep(800);
@@ -619,6 +647,11 @@ const fAfterQuit = (await client.rpc(f.session, 'get_inventory', {})).payload;
 check(fAfterQuit.stacks.find((x) => x.defId === 'lake.mat.scale')?.count === 2, 'what was on it is back in the bag');
 g.socket.disconnect(false);
 
+// Friends whisper across the map, and a stranger below level 10 cannot.
+const wbc = (await client.rpc(b.session, 'whisper_send', { userId: c.session.user_id, username: '', text: 'göle gel', context: '' })).payload;
+check(wbc?.ok && wbc.text === 'göle gel' && !wbc.masked, 'a friend can always whisper');
+check((await rpcError(a, 'whisper_send', { userId: c.session.user_id, username: '', text: 'selam', context: 'stall' })) === 'NOT_ALLOWED', 'a stranger without a stall to write to is refused');
+check((await rpcError(b, 'whisper_send', { userId: '', username: 'nobody_' + run, text: 'x', context: '' })) === 'NOT_FOUND', 'whisper to an unknown name says NOT_FOUND');
 for (const p of [a, a2, a3, b, c]) p.socket.disconnect(false);
 console.log(failed === 0 ? 'all good' : `${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

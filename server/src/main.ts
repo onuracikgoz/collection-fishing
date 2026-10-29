@@ -17,6 +17,7 @@ import {
   beforeLinkSteam,
 } from './hooks/auth';
 import { rpcAccountDeleteCancel, rpcAccountDeleteRequest, rpcAccountDeleteStatus } from './rpc/accountDelete';
+import { rpcReportPlayer, rpcWhisperSend, rpcWhisperSettings } from './rpc/whisper';
 import { rpcTransferCodeCreate, rpcTransferCodeRedeem } from './rpc/transferCode';
 import { ensureServers } from './match/servers';
 import {
@@ -85,6 +86,9 @@ function InitModule(
   initializer.registerRpc('account_delete_request', rpcAccountDeleteRequest);
   initializer.registerRpc('account_delete_cancel', rpcAccountDeleteCancel);
   initializer.registerRpc('account_delete_status', rpcAccountDeleteStatus);
+  initializer.registerRpc('whisper_send', rpcWhisperSend);
+  initializer.registerRpc('whisper_settings', rpcWhisperSettings);
+  initializer.registerRpc('report_player', rpcReportPlayer);
   initializer.registerBeforeLinkSteam(beforeLinkSteam);
   initializer.registerAfterLinkDevice(afterLinkDevice);
   initializer.registerAfterLinkGoogle(afterLinkGoogle);

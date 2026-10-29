@@ -307,3 +307,10 @@ export function readQuests(nk: nkruntime.Nakama, userId: string): QuestState {
 export function questWrite(userId: string, state: QuestState): nkruntime.StorageWriteRequest {
   return { collection: 'quest', key: 'daily', userId, value: state, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
+
+/** Moderation: `player/mute { until }` (wall-clock ms), written by a moderator. Muted players cannot chat or whisper. */
+export function readMutedUntil(nk: nkruntime.Nakama, userId: string): number {
+  const objs = nk.storageRead([{ collection: 'player', key: 'mute', userId }]);
+  const v = objs.length > 0 ? (objs[0].value as { until?: unknown }) : null;
+  return v && typeof v.until === 'number' ? v.until : 0;
+}
