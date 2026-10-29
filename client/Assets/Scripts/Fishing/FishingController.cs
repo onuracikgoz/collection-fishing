@@ -319,7 +319,6 @@ namespace CollectionGame.Fishing
             try
             {
                 Bag = await net.GetInventoryAsync();
-                Energy = Bag.energy;
                 EnergyMax = Bag.energyMax;
                 SetRod(Bag.rod);
                 if (SelectedBait != null && StackCount(SelectedBait) <= 0) SelectedBait = null;
