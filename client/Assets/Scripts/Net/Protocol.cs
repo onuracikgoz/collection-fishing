@@ -79,6 +79,8 @@ namespace CollectionGame.Net
         public const string ProtocolMismatch = "PROTOCOL_MISMATCH";
         public const string ServerFull = "SERVER_FULL";
         public const string RateLimited = "RATE_LIMITED";
+        public const string AccountRecentlyDeleted = "ACCOUNT_RECENTLY_DELETED";
+        public const string NameReserved = "NAME_RESERVED";
     }
 
     /// <summary>"up", "down", "left" or "right". Server y grows downward, so "down" is +y.</summary>
@@ -768,6 +770,23 @@ namespace CollectionGame.Net
         public int paid;
         public int coin;
         public FishBookMsg book;
+    }
+
+    // --- Account deletion RPCs (docs/protokol.md, Hesap silme RPC'leri) ---
+
+    /// <summary>account_delete_request: name must be the account's username exactly.</summary>
+    [Serializable]
+    public class AccountDeleteRequest
+    {
+        public string name;
+    }
+
+    /// <summary>Answer of account_delete_request (runAt) and account_delete_status (pending, runAt; runAt 0 = none).</summary>
+    [Serializable]
+    public class AccountDeleteStatus
+    {
+        public bool pending;
+        public long runAt;
     }
 
     [Serializable]

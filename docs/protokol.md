@@ -54,6 +54,9 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
 | `transfer_code_create` | `{}` (oturumlu) | `{ code, expiresInMs }` (`code`: `ABCD-EFGH`) | 5 |
 | `transfer_code_redeem` | `{ code, steamToken }` (**oturumsuz**, HTTP anahtarıyla) | `{ ok: true }` | 5 |
+| `account_delete_request` | `{ name }` (hesabın kullanıcı adı, aynen) | `{ runAt }` (ms; silinme zamanı) | 7 |
+| `account_delete_cancel` | `{}` | `{ ok: true }` | 7 |
+| `account_delete_status` | `{}` | `{ pending, runAt }` (`runAt` 0 = yok) | 7 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
 
@@ -66,6 +69,17 @@ Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; 
 - **Giriş yolu bildirimleri:** cihaz, Google, Facebook ve Discord (özel) bağlanınca bildirim kodu 101, herhangi bir yol (Steam dahil) kaldırılınca 102 gider; `{ provider }` içerir. Kalıcı bildirimdir, sonraki girişte gösterilir.
 - **Steam'i istemciden `linkSteam` ile bağlamak kapalıdır** (`PERMISSION_DENIED`): Steam sadece kodla bağlanır.
 - Sunucu ayarı: Steam yayıncı anahtarı ve app id `local.yml` / canlı ayar dosyasında (`social.steam`) gerekir; Faz 7'de girilecek. Ayarsız `linkSteam` hata verir ve `LINK_FAILED` döner.
+
+### Hesap silme RPC'leri
+
+Kurallar: "Hesap kuralları" (Giriş). Sunucu: `rules/accountDelete.ts` (saf kurallar), `rpc/accountDelete.ts`. Hepsi oturumludur.
+
+- **`account_delete_request`:** `name` hesabın kullanıcı adıyla **aynen** eşleşmezse `BAD_REQUEST` (client iki adımlı onayda adı yazdırır). Eşleşirse hesap silme kuyruğuna **14 gün** sonrasına (Öneri) yazılır, `{ runAt }` döner. Zaten kuyruktaysa mevcut `runAt` döner. Oyuncu oyundan çıkıp bekler; hesap bu sürede oynanabilir.
+- **`account_delete_cancel`:** kuyruktan çıkarır. Kuyrukta değilse de `{ ok: true }` döner.
+- **Girişle iptal:** silme beklerken hesaba **herhangi bir yoldan yeniden girilirse** (cihaz, Google, Facebook, Steam, Discord) silme iptal olur ve hesaba bildirim gider (kod **104**, `{}`). İsteği veren oturum bundan etkilenmez.
+- **Silme:** süre dolunca sunucu hesabı kalıcı siler (`accountDeleteId`: karakter, defter, eşya, Coin, arkadaşlar, her şey). Oyuncu o sırada hâlâ bir sunucudaysa silme sonraki taramaya kalır. Tarama sunucuda her 10 dk'da bir çalışır (Öneri), açık bir sunucunun match'i yapar.
+- **Silince:** hesabın bütün giriş yolları (cihaz, Google, Facebook, Steam, Discord) **7 gün** (Öneri) yeni hesap açamaz ve kullanıcı adı **30 gün** (Öneri) başkasına verilmez. Cihaz girişinde bu `ACCOUNT_RECENTLY_DELETED` / `NAME_RESERVED` ile reddedilir. Google, Facebook, Steam ve Discord'da kimlik giriş öncesi bilinmediği için kontrol girişten sonra yapılır: engelliyse yeni oluşan hesap hemen silinir, sonraki çağrı hata verir (client giriş sonrası ilk RPC'de `UNAUTHENTICATED` görürse "Bu hesapla şu an yeni hesap açılamaz" gösterir).
+- **Henüz yok:** Steam'in web hesabına tekrar bağlanması için 30 günlük bekleme (Giriş, "Steam hesabını silip web hesabını açmak").
 
 ## Match (harita) mesajları
 
@@ -438,4 +452,4 @@ Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe ba
 
 ## Hata kodları
 
-RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`.
+RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde).

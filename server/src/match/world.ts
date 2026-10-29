@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { EMOTES, ENERGY, FRIENDS, MARKET, ROD, SERVERS, WATER, WORLD, XP } from '../config';
+import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, ROD, SERVERS, WATER, WORLD, XP } from '../config';
 import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
 import {
   BubbleMsg,
@@ -42,6 +42,7 @@ import { Rod, rodView } from '../rules/rod';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 import { devSignal } from '../debug/signal';
+import { sweepDeletions } from '../rpc/accountDelete';
 
 export const POSITION_COLLECTION = 'player';
 export const POSITION_KEY = 'position';
@@ -101,6 +102,8 @@ export interface WorldState {
   trades: { [tradeId: string]: TradeRec };
   /** Pet stalls standing in this server. */
   market: MarketState;
+  /** Wall-clock ms of the last account deletion sweep (only the first server sweeps). */
+  sweptAt: number;
 }
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -179,6 +182,7 @@ export function worldInit(
       pending: {},
       trades: {},
       market: initMarket(nk, logger, serverId, spots),
+      sweptAt: 0,
     },
     tickRate: WORLD.tickRate,
     label: JSON.stringify(label),
@@ -565,6 +569,14 @@ export function worldLoop(
   }
   tickTrades(trade, now);
   tickMarket(market);
+  if (state.serverId === SERVERS[0].id && Date.now() - state.sweptAt >= ACCOUNT_DELETE.sweepEveryMs) {
+    state.sweptAt = Date.now();
+    try {
+      sweepDeletions(nk, logger, Date.now());
+    } catch (e) {
+      logger.error('Account deletion sweep failed: %s', String(e));
+    }
+  }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
 
   // Positions are final for this tick; chat and visibility use them.

@@ -1,5 +1,9 @@
 import {
+  afterAuthenticateCustom,
   afterAuthenticateDevice,
+  afterAuthenticateFacebook,
+  afterAuthenticateGoogle,
+  afterAuthenticateSteam,
   afterLinkCustom,
   afterLinkDevice,
   afterLinkFacebook,
@@ -12,6 +16,7 @@ import {
   beforeAuthenticateDevice,
   beforeLinkSteam,
 } from './hooks/auth';
+import { rpcAccountDeleteCancel, rpcAccountDeleteRequest, rpcAccountDeleteStatus } from './rpc/accountDelete';
 import { rpcTransferCodeCreate, rpcTransferCodeRedeem } from './rpc/transferCode';
 import { ensureServers } from './match/servers';
 import {
@@ -73,6 +78,13 @@ function InitModule(
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
   initializer.registerRpc('transfer_code_create', rpcTransferCodeCreate);
   initializer.registerRpc('transfer_code_redeem', rpcTransferCodeRedeem);
+  initializer.registerAfterAuthenticateGoogle(afterAuthenticateGoogle);
+  initializer.registerAfterAuthenticateFacebook(afterAuthenticateFacebook);
+  initializer.registerAfterAuthenticateSteam(afterAuthenticateSteam);
+  initializer.registerAfterAuthenticateCustom(afterAuthenticateCustom);
+  initializer.registerRpc('account_delete_request', rpcAccountDeleteRequest);
+  initializer.registerRpc('account_delete_cancel', rpcAccountDeleteCancel);
+  initializer.registerRpc('account_delete_status', rpcAccountDeleteStatus);
   initializer.registerBeforeLinkSteam(beforeLinkSteam);
   initializer.registerAfterLinkDevice(afterLinkDevice);
   initializer.registerAfterLinkGoogle(afterLinkGoogle);

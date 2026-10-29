@@ -5,7 +5,7 @@
 //   player/rod  { level, durability }
 //   player/status_emote  { emote }         (worn status emote; absent = none)
 //   player/trade_lock  { until }           (ms since epoch; a newly linked Steam account cannot trade until then)
-//   player/session  { serverId }           (world server the player is in; '' = not in any; each server's match writes it on join / leave)
+//   player/session  { serverId, at }       (world server the player is in; '' = not in any; each server's match writes it on join / leave)
 //   player/xp  { total }                   (total XP; level comes from it; public: the level shows on the profile)
 //   player/emotes_owned  { ids: [] }       (non-free status emotes owned; written by shop / supporter / book systems)
 //   stall/state  StallDoc                  (the owner's pet stall; only the owner's world match writes it)
@@ -194,15 +194,18 @@ export function statusEmoteWrite(userId: string, emote: string | null): nkruntim
   return { collection: 'player', key: 'status_emote', userId, value: { emote }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
-/** The world server the player is in right now ('' = none). */
-export function readSession(nk: nkruntime.Nakama, userId: string): string {
+/** Where the player is: a world server id ('' = none) and when that was written. */
+export function readSessionDoc(nk: nkruntime.Nakama, userId: string): { serverId: string; at: number } {
   const objs = nk.storageRead([{ collection: 'player', key: 'session', userId }]);
-  const v = objs.length > 0 ? (objs[0].value as { serverId?: unknown }).serverId : '';
-  return typeof v === 'string' ? v : '';
+  const v = objs.length > 0 ? (objs[0].value as { serverId?: unknown; at?: unknown }) : {};
+  return { serverId: typeof v.serverId === 'string' ? v.serverId : '', at: typeof v.at === 'number' ? v.at : 0 };
 }
 
+/** The world server the player is in right now ('' = none). */
+export const readSession = (nk: nkruntime.Nakama, userId: string): string => readSessionDoc(nk, userId).serverId;
+
 export function sessionWrite(userId: string, serverId: string): nkruntime.StorageWriteRequest {
-  return { collection: 'player', key: 'session', userId, value: { serverId }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
+  return { collection: 'player', key: 'session', userId, value: { serverId, at: Date.now() }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
 /** Total XP (0 for a new account). */

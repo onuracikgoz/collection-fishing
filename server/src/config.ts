@@ -210,6 +210,18 @@ export const TRADE = {
   offerCooldownMs: 3000,
 };
 
+// Account deletion (docs/protokol.md, Hesap silme RPC'leri). All Öneri.
+export const ACCOUNT_DELETE = {
+  waitMs: 14 * 24 * 60 * 60 * 1000,
+  /** A deleted account's login methods cannot open a new account for this long. */
+  loginBlockMs: 7 * 24 * 60 * 60 * 1000,
+  /** Its username is not given to anyone else for this long. */
+  nameBlockMs: 30 * 24 * 60 * 60 * 1000,
+  sweepEveryMs: 10 * 60 * 1000,
+  /** A session record older than this counts as gone (the server crashed without clearing it). */
+  staleSessionMs: 2 * 24 * 60 * 60 * 1000,
+};
+
 // Account transfer code (docs/protokol.md, Giriş). All Öneri.
 export const TRANSFER = {
   codeLength: 8,

@@ -4,7 +4,7 @@
 
 ## 24. Geliştirme Fazları
 
-**Şu anki faz: 0 (Hazırlık)**
+**Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas, pet tezgahı, eşya kilidi, XP / level, taşıma kodu ve hesap silme sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
 
 Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinden test edilir.
 
@@ -15,7 +15,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 | **2. Balık tutma** | Atış / bekleme / sahte kıpırdama / vuruş / çekme, sunucu tarafı drop, item instance + Tier + Float, çanta, enerji, temel yem | Balık tutulup eşya kazanılıyor |
 | **3. Collection** | Collection Book (yuvalar, 3 durum, "Yeni keşif!"), şans bonusu, Collection Score, profil kartı, showcase, arkadaşlar, ışınlanma, emote | Statü ve koleksiyon döngüsü çalışıyor |
 | **4. Ekonomi** | Coin, NPC satış, toz, birleştirme, recipe + craft, olta tamiri, özel yemler, depo | Kopyalar anlamlı, craft yapılıyor |
-| **5. Ticaret ve güvenlik** | Takas penceresi, pazar panosu, alım ilanı, whisper, moderasyon, bot önlemleri, takas kayıtları | Oyuncular arası ekonomi açık |
+| **5. Ticaret ve güvenlik** | Takas penceresi, pet tezgahı (pazar), alım ilanı (açık soru), whisper, moderasyon, bot önlemleri, takas kayıtları | Oyuncular arası ekonomi açık |
 | **6. İçerik ve araçlar** | Günlük görev, sandık, seri; admin paneli; Item Art Studio JSON / şeffaf arka plan; ilk 3 set | Canlı oyun yönetilebiliyor |
 | **7. Yayın** | Tutorial / ilk deneyim, Steam sayfası, Steam Playtest, kozmetik mağaza, hukuki kontrol | Steam'de açık test |
 

@@ -319,7 +319,7 @@ describe('recall and expiry', () => {
     delete w.players.S;
     const before = w.sent.length;
     ownerLeft(w.env, owner);
-    expect(w.store.get(w.key('player', 'session', 'S'))).toEqual({ serverId: '' });
+    expect(w.store.get(w.key('player', 'session', 'S')).serverId).toBe('');
     expect(w.env.market.stalls.S).toBeUndefined();
     expect(w.store.has(w.key('stall', 'state', 'S'))).toBe(false);
     expect(w.store.get(w.key('items', 'i1', 'S')).inStall).toBeUndefined();
@@ -342,7 +342,7 @@ describe('recall and expiry', () => {
     delete w.players.S;
     ownerLeft(w.env, owner);
     expect(w.env.market.stalls.S).toBeDefined();
-    expect(w.store.get(w.key('player', 'session', 'S'))).toEqual({ serverId: 's2' });
+    expect(w.store.get(w.key('player', 'session', 'S')).serverId).toBe('s2');
     expect(w.store.get(w.key('items', 'i1', 'S')).inStall).toBe(true);
     // The owner cannot open a second stall there, and cannot recall this one from there.
     w.addPlayer('S2', {});
