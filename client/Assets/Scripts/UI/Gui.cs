@@ -95,6 +95,9 @@ namespace CollectionGame.UI
             return false;
         }
 
+        /// <summary>Scaled GUI coordinates (origin top-left) → screen pixels (origin bottom-left).</summary>
+        public static Vector2 ToScreen(Vector2 gui) => new Vector2(gui.x * Scale, Screen.height - gui.y * Scale);
+
         /// <summary>Screen pixels (origin bottom-left) → scaled GUI coordinates (origin top-left).</summary>
         public static Vector2 ToGui(Vector3 screen) => new Vector2(screen.x / Scale, (Screen.height - screen.y) / Scale);
 

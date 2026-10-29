@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -21,6 +22,8 @@ namespace CollectionGame.UI
         static UiRoot instance;
 
         public Canvas Canvas { get; private set; }
+        GraphicRaycaster raycaster;
+        static readonly List<RaycastResult> hits = new List<RaycastResult>();
         public RectTransform Rect { get; private set; }
         CanvasScaler scaler;
 
@@ -46,7 +49,7 @@ namespace CollectionGame.UI
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
             scaler.referencePixelsPerUnit = PixelsPerUnit;
             scaler.scaleFactor = ScaleFor(Screen.width, Screen.height);
-            gameObject.AddComponent<GraphicRaycaster>();
+            raycaster = gameObject.AddComponent<GraphicRaycaster>();
             Rect = (RectTransform)transform;
 
             if (FindAnyObjectByType<EventSystem>() == null)
@@ -84,6 +87,18 @@ namespace CollectionGame.UI
                 var es = EventSystem.current;
                 return es != null && es.IsPointerOverGameObject();
             }
+        }
+
+        /// <summary>
+        /// A uGUI window or bar covers this screen point (pixels, origin bottom left). IMGUI labels in
+        /// the world (names, bubbles, stall tags) skip such points so they never sit on a window.
+        /// </summary>
+        public static bool Covers(Vector2 screen)
+        {
+            if (instance == null || instance.raycaster == null || EventSystem.current == null) return false;
+            hits.Clear();
+            instance.raycaster.Raycast(new PointerEventData(EventSystem.current) { position = screen }, hits);
+            return hits.Count > 0;
         }
 
         /// <summary>A uGUI text field has the keyboard: game keys are off.</summary>
