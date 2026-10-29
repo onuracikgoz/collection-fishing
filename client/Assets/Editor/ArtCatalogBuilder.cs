@@ -11,7 +11,7 @@ namespace CollectionGame.EditorTools
 {
     /// <summary>
     /// Keeps Assets/Resources/ArtCatalog.asset listing every texture under
-    /// Assets/Art/LPC/. Runs when the editor loads, when art is imported and
+    /// Assets/Art/LPC/ and the UI kit in Assets/Art/UI/ (as "ui/&lt;name&gt;"). Runs when the editor loads, when art is imported and
     /// before a build. Menu: CollectionGame → Refresh Art Catalog.
     /// </summary>
     [InitializeOnLoad]
@@ -30,7 +30,7 @@ namespace CollectionGame.EditorTools
 
         static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
         {
-            bool Touches(string[] paths) => paths.Any(p => p.StartsWith(ArtCatalog.Root));
+            bool Touches(string[] paths) => paths.Any(p => p.StartsWith(ArtCatalog.Root) || p.StartsWith(ArtCatalog.UiRoot));
             if (Touches(imported) || Touches(deleted) || Touches(moved) || Touches(movedFrom))
                 EditorApplication.delayCall += () => Refresh();
         }
@@ -53,6 +53,15 @@ namespace CollectionGame.EditorTools
                     path = p.Substring(ArtCatalog.Root.Length),
                     texture = AssetDatabase.LoadAssetAtPath<Texture2D>(p),
                 })
+                .Concat(AssetDatabase.FindAssets("t:Texture2D", new[] { ArtCatalog.UiRoot.TrimEnd('/') })
+                    .Select(AssetDatabase.GUIDToAssetPath)
+                    .Where(p => p.EndsWith(".png") && !Path.GetFileName(p).StartsWith("cursor_"))
+                    .OrderBy(p => p, System.StringComparer.Ordinal)
+                    .Select(p => new ArtCatalog.Entry
+                    {
+                        path = ArtCatalog.UiPrefix + Path.GetFileNameWithoutExtension(p),
+                        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(p),
+                    }))
                 .Where(e => e.texture != null)
                 .ToList();
 
