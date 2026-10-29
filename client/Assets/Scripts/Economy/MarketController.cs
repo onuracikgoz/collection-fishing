@@ -35,7 +35,10 @@ namespace CollectionGame.Economy
         readonly Func<Prices> prices;
         readonly Func<Vector2?> myPosition;
 
+        /// <summary>The "Tezgah kur" / my stall window.</summary>
         public bool Open { get; set; }
+        /// <summary>The Pazar Panosu window.</summary>
+        public bool BoardOpen { get; set; }
         public Tab Current { get; set; }
         public Dictionary<string, StallView> Stalls { get; } = new Dictionary<string, StallView>();
         public List<BoardAd> Ads { get; } = new List<BoardAd>();
@@ -53,17 +56,23 @@ namespace CollectionGame.Economy
         public bool MyAd => Ads.Any(a => a.userId == net.UserId);
         public long Diamond => fishing.Bag?.diamond ?? 0;
 
-        // Stall setup.
+        // Stall setup (tezgah-kur): what goes on the stall, in order.
+        sealed class Pick
+        {
+            public ItemInstance Item;
+            public string DefId;
+            public int Count;
+            public int Price;
+        }
+
         string title = "";
-        readonly Dictionary<string, string> itemPrice = new Dictionary<string, string>();
-        readonly Dictionary<string, string> stackCount = new Dictionary<string, string>();
-        readonly Dictionary<string, string> stackPrice = new Dictionary<string, string>();
-        /// <summary>What I put in my last stall (for ad highlights): Float items by instanceId, stacks by defId.</summary>
-        readonly List<BoardHighlight> offered = new List<BoardHighlight>();
-        readonly HashSet<int> highlightPick = new HashSet<int>();
-        bool adPanel;
-        // Buying.
-        readonly Dictionary<string, int> buyCount = new Dictionary<string, int>();
+        readonly List<Pick> picks = new List<Pick>();
+        /// <summary>The item in the dark panel: a pick being edited, or a bag entry not put yet.</summary>
+        Pick editing;
+        bool editingNew;
+        // Buying (tezgah-tezgah).
+        int selected;
+        int buyCount = 1;
         string armedBuy;
         float gotoAt = -10f;
         bool hadStall;
@@ -92,9 +101,9 @@ namespace CollectionGame.Economy
 
         public void Show(Tab tab)
         {
-            Open = true;
             Current = tab;
-            adPanel = false;
+            if (tab == Tab.Board) BoardOpen = true;
+            else Open = true;
             dirty = true;
             fishing.RefreshBag();
         }
@@ -119,7 +128,8 @@ namespace CollectionGame.Economy
             }
             foreach (var s in m.stalls ?? Array.Empty<StallView>()) Stalls[s.userId] = s;
             // The setup form only needs a rebuild when my own stall came or went.
-            if (Current == Tab.Board || MyStall != null || hadStall) Dirty();
+            if (MyStall != null || hadStall) Dirty();
+            boardDirty = true;
             hadStall = MyStall != null;
         }
 
@@ -130,7 +140,8 @@ namespace CollectionGame.Economy
             stallDirty = true;
             if (opening)
             {
-                buyCount.Clear();
+                selected = 0;
+                buyCount = 1;
                 armedBuy = null;
             }
         }
@@ -149,14 +160,12 @@ namespace CollectionGame.Economy
             {
                 case "open":
                     Toasts.Show("Tezgah açıldı: petin senin yerine satıyor");
-                    itemPrice.Clear();
-                    stackCount.Clear();
-                    stackPrice.Clear();
+                    picks.Clear();
+                    editing = null;
                     break;
                 case "recall":
                     var back = (r.returned?.items?.Length ?? 0) + (r.returned?.stacks?.Length ?? 0);
                     Toasts.Show(r.reason == "EXPIRED" ? $"Tezgahın süresi doldu, {back} kalem çantana döndü" : $"Pet geri geldi, {back} kalem çantana döndü");
-                    offered.Clear();
                     break;
                 case "buy":
                     var what = r.item != null && !string.IsNullOrEmpty(r.item.instanceId)
@@ -180,7 +189,8 @@ namespace CollectionGame.Economy
             Ads.RemoveAll(a => removed.Contains(a.userId));
             Ads.AddRange(m.ads ?? Array.Empty<BoardAd>());
             Ads.Sort((a, b) => a.startedAt.CompareTo(b.startedAt)); // oldest first, as the server lists them
-            if (Current == Tab.Board || MyStall != null) dirty = true;
+            boardDirty = true;
+            dirty = true;
         }
 
         public void OnBoardResult(BoardResultMsg r)
@@ -195,7 +205,6 @@ namespace CollectionGame.Economy
             }
             if (r.diamond > 0 && fishing.Bag != null) fishing.Bag.diamond = r.diamond;
             Toasts.Show(r.action == "remove" ? "İlan panodan kaldırıldı" : "İlanın panoda");
-            adPanel = false;
             if (r.action == "set") fishing.RefreshBag(); // the diamond balance when it came back 0
         }
 
@@ -304,319 +313,471 @@ namespace CollectionGame.Economy
             }
         }
 
-        // ---------- UI (uGUI: Resources/UI/Market and Stall, PanelViews) ----------
+        // ---------- UI (uGUI after tezgah-kur, tezgah-tezgah, tezgah-pano) ----------
 
-        PanelView view, stallView;
-        bool dirty = true, stallDirty = true;
-        UnityEngine.UI.Text setupCount;
-        UnityEngine.UI.Button openButton;
+        static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
+        const float AdPageSeconds = 8f;
 
-        PanelView Spawn(string name, Action closed)
-        {
-            var v = UiRoot.Get().Spawn<PanelView>(name);
-            if (v == null) return null;
-            v.window.Closed = closed;
-            v.Open = false;
-            return v;
-        }
+        StallSetupView setup;
+        StallListView list;
+        BoardView board;
+        bool dirty = true, stallDirty = true, boardDirty = true;
+        readonly List<SlotView> bagSlots = new List<SlotView>();
+        int adPage;
+        float adPageAt;
+        /// <summary>Tooltip shared by the windows (set by the world).</summary>
+        public PopupView Popup { get; set; }
 
         public void Destroy()
         {
-            if (view != null) UnityEngine.Object.Destroy(view.gameObject);
-            if (stallView != null) UnityEngine.Object.Destroy(stallView.gameObject);
+            if (setup != null) UnityEngine.Object.Destroy(setup.gameObject);
+            if (list != null) UnityEngine.Object.Destroy(list.gameObject);
+            if (board != null) UnityEngine.Object.Destroy(board.gameObject);
         }
 
         void Dirty()
         {
             dirty = true;
             stallDirty = true;
+            boardDirty = true;
+        }
+
+        bool Ensure()
+        {
+            var ui = UiRoot.Get();
+            if (setup == null && (setup = ui.Spawn<StallSetupView>("StallSetup")) != null) WireSetup(setup);
+            if (list == null && (list = ui.Spawn<StallListView>("Stall")) != null) WireList(list);
+            if (board == null && (board = ui.Spawn<BoardView>("Board")) != null) WireBoard(board);
+            return setup != null && list != null && board != null;
         }
 
         public void Tick()
         {
-            if (view == null) view = Spawn("Market", Close);
-            if (stallView == null) stallView = Spawn("Stall", () => Viewing = null);
-            if (view == null || stallView == null) return;
-            if (view.Open != Open)
+            if (!Ensure()) return;
+            if (setup.window.Open != Open)
             {
-                view.Open = Open;
+                setup.window.Open = Open;
                 dirty = true;
             }
-            if (stallView.Open != (Viewing != null))
+            if (list.window.Open != (Viewing != null))
             {
-                stallView.Open = Viewing != null;
+                list.window.Open = Viewing != null;
                 stallDirty = true;
+            }
+            if (board.window.Open != BoardOpen)
+            {
+                board.window.Open = BoardOpen;
+                boardDirty = true;
+            }
+            if (BoardOpen && Ads.Count > board.cards.Length && Time.time - adPageAt > AdPageSeconds)
+            {
+                adPage++;
+                boardDirty = true;
             }
             // A rebuild would drop the field being typed in; wait until it is left.
             if (UiRoot.Typing) return;
-            if (Open && dirty) Redraw(view);
-            if (Viewing != null && stallDirty) RedrawStall(stallView);
+            if (Open && dirty) RedrawSetup();
+            if (Viewing != null && stallDirty) RedrawList();
+            if (BoardOpen && boardDirty) RedrawBoard();
         }
 
-        void Redraw(PanelView v)
+        void HoverTip(SlotView slot)
         {
-            dirty = false;
-            setupCount = null;
-            openButton = null;
-            v.ClearRows();
-            v.ClearFooter();
-            v.Tabs(new[] { "Tezgahım", $"Pazar Panosu ({Ads.Count})" }, (int)Current, i =>
+            if (Popup == null) return;
+            switch (slot.Data)
             {
-                Current = (Tab)i;
-                adPanel = false;
-                dirty = true;
-            });
-            v.headerRight.text = $"{Kit.Num(fishing.Bag?.coin ?? 0)} Coin · {Kit.Num(Diamond)} elmas";
-            v.footer.text = "";
-            if (Current == Tab.Stall)
-            {
-                if (MyStall != null) DrawMyStall(v, MyStall);
-                else DrawSetup(v);
+                case ItemInstance it:
+                    var p = prices();
+                    var cond = p != null ? $" · {Prices.ConditionName(p.ConditionOf(it.@float))}" : "";
+                    Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}{cond}\nFloat {it.@float:0.0000}");
+                    break;
+                case ItemStack st:
+                    Popup.ShowTooltip($"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet");
+                    break;
+                case StallEntry e:
+                    Popup.ShowTooltip($"<b>{ItemText.Entry(e)}</b>\n{Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}");
+                    break;
             }
-            else DrawBoard(v);
+        }
+
+        void Hoverable(SlotView slot)
+        {
+            slot.Hovered = HoverTip;
+            slot.Left = _ => Popup?.HideTooltip();
         }
 
         // ----- Tezgah kur -----
 
-        void DrawSetup(PanelView v)
+        void WireSetup(StallSetupView v)
         {
-            v.header.text = "Tezgah kur";
-            var bag = fishing.Bag;
-            if (bag == null)
+            v.window.Closed = Close;
+            v.window.Open = false;
+            v.title.onValueChanged.AddListener(t => title = t);
+            for (var i = 0; i < v.stall.Length; i++)
             {
-                v.Line("Yükleniyor...");
+                var index = i;
+                Hoverable(v.stall[i]);
+                v.stall[i].Clicked = _ =>
+                {
+                    if (MyStall != null || index >= picks.Count) return;
+                    editing = picks[index];
+                    editingNew = false;
+                    dirty = true;
+                };
+            }
+            v.put.onClick.AddListener(PutEditing);
+            v.takeBack.onClick.AddListener(() =>
+            {
+                if (editing != null && !editingNew) picks.Remove(editing);
+                editing = null;
+                dirty = true;
+            });
+            v.open.onClick.AddListener(OpenStall);
+            v.recall.onClick.AddListener(() => net.Send(OpCode.StallRecall, new EmptyMsg()));
+            v.board.onClick.AddListener(() =>
+            {
+                BoardOpen = true;
+                boardDirty = true;
+            });
+        }
+
+        void PutEditing()
+        {
+            if (editing == null || setup == null) return;
+            editing.Price = int.TryParse(setup.price.text, out var price) ? price : 0;
+            if (editing.DefId != null)
+                editing.Count = Mathf.Clamp(int.TryParse(setup.count.text, out var n) ? n : 1, 1, Mathf.Max(1, fishing.StackCount(editing.DefId)));
+            if (editing.Price <= 0)
+            {
+                Toasts.Show("Önce bir fiyat yaz", true);
                 return;
             }
-            var p = prices();
-            v.Row().Title("Başlık").Input(title, 300, t => title = t, 40, false);
-            v.Line("Satmak istediğine fiyat yaz (yığında adet başı). Kilitli eşya konamaz.");
-            foreach (var it in (bag.items ?? Array.Empty<ItemInstance>()).OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId))
+            if (editingNew)
             {
-                var id = it.instanceId;
-                itemPrice.TryGetValue(id, out var price);
-                var row = v.Row().Mark(it.defId, it.tier, 1, it.locked).Title(FishingController.ItemName(it.defId)).Sub(ItemText.Long(it, p));
-                if (it.locked) row.Note("kilitli");
-                else
+                if (picks.Count >= setup.stall.Length)
                 {
-                    row.Input(price, 90, t => SetPick(itemPrice, id, t), 10);
-                    row.Note("Coin");
+                    Toasts.Show("Tezgah dolu", true);
+                    return;
+                }
+                picks.Add(editing);
+            }
+            editing = null;
+            dirty = true;
+        }
+
+        void PickFromBag(object data)
+        {
+            if (MyStall != null) return;
+            switch (data)
+            {
+                case ItemInstance it when !it.locked:
+                    editing = picks.FirstOrDefault(x => x.Item == it) ?? new Pick { Item = it, Count = 1 };
+                    break;
+                case ItemStack st:
+                    editing = picks.FirstOrDefault(x => x.DefId == st.defId) ?? new Pick { DefId = st.defId, Count = st.count };
+                    break;
+                default:
+                    return;
+            }
+            editingNew = !picks.Contains(editing);
+            dirty = true;
+        }
+
+        void RedrawSetup()
+        {
+            dirty = false;
+            var v = setup;
+            var mine = MyStall;
+            var open = mine != null;
+            v.window.title.text = open ? "Tezgahım" : "Tezgah kur";
+            v.title.interactable = !open;
+            v.title.SetTextWithoutNotify(open ? mine.title : title);
+            v.open.gameObject.SetActive(!open);
+            v.recall.gameObject.SetActive(open);
+            v.stallHint.text = open ? $"kalan süre {(mine.expiresInMs >= 3600000 ? $"{mine.expiresInMs / 3600000f:0.#} saat" : $"{mine.expiresInMs / 60000} dk")}" : "Çantadan tıkla, fiyat yaz, Koy";
+            v.bagHint.text = open ? "tezgah açıkken eklenemez" : "kilitli eşya konamaz";
+            v.place.text = $"Yer: Pazar alanı, {Stalls.Count} tezgah açık";
+
+            // Stall slots: my open stall's first entries, or the picks.
+            if (open)
+            {
+                var top = mine.top ?? Array.Empty<StallEntry>();
+                v.stallHeader.text = $"Tezgah · {mine.total} kalem";
+                for (var i = 0; i < v.stall.Length; i++)
+                {
+                    var e = i < top.Length ? top[i] : null;
+                    if (e == null) v.stall[i].SetEmpty();
+                    else v.stall[i].SetItem(e.defId, e.tier, e.count, false);
+                    v.stall[i].Data = e;
+                    v.tags[i].Set(e?.price ?? 0);
+                }
+                v.picked.SetActive(false);
+            }
+            else
+            {
+                v.stallHeader.text = $"Tezgah · {picks.Count} / {v.stall.Length}";
+                for (var i = 0; i < v.stall.Length; i++)
+                {
+                    var pk = i < picks.Count ? picks[i] : null;
+                    if (pk == null) v.stall[i].SetEmpty();
+                    else if (pk.Item != null) v.stall[i].SetItem(pk.Item.defId, pk.Item.tier, 1, false, pk == editing);
+                    else v.stall[i].SetItem(pk.DefId, "", pk.Count, false, pk == editing);
+                    v.stall[i].Data = pk?.Item != null ? (object)pk.Item : pk != null ? new ItemStack { defId = pk.DefId, count = pk.Count } : null;
+                    v.tags[i].Set(pk?.Price ?? 0);
+                }
+                v.picked.SetActive(editing != null);
+                if (editing != null)
+                {
+                    var p = prices();
+                    var stack = editing.DefId != null;
+                    v.pickedName.text = stack ? FishingController.ItemName(editing.DefId) : $"{FishingController.ItemName(editing.Item.defId)} · {editing.Item.@float:0.0000}";
+                    v.pickedCondition.text = stack ? $"çantada {fishing.StackCount(editing.DefId)}" : p != null ? Prices.ConditionName(p.ConditionOf(editing.Item.@float)) : editing.Item.tier;
+                    v.countLabel.gameObject.SetActive(stack);
+                    v.count.gameObject.SetActive(stack);
+                    v.count.SetTextWithoutNotify(editing.Count.ToString());
+                    v.price.SetTextWithoutNotify(editing.Price > 0 ? editing.Price.ToString() : "");
+                    v.put.GetComponentInChildren<UnityEngine.UI.Text>().text = editingNew ? "Koy" : "Güncelle";
+                    v.takeBack.GetComponentInChildren<UnityEngine.UI.Text>().text = editingNew ? "Vazgeç" : "Geri al";
                 }
             }
-            foreach (var st in bag.stacks ?? Array.Empty<ItemStack>())
-            {
-                var def = st.defId;
-                stackCount.TryGetValue(def, out var n);
-                stackPrice.TryGetValue(def, out var sp);
-                var row = v.Row().Mark(def, "", st.count).Title(FishingController.ItemName(def)).Sub($"çantada {st.count}");
-                row.Note("adet");
-                row.Input(n, 50, t => SetPick(stackCount, def, t), 6);
-                row.Note("tanesi");
-                row.Input(sp, 80, t => SetPick(stackPrice, def, t), 10);
-            }
-            if ((bag.items?.Length ?? 0) + (bag.stacks?.Length ?? 0) == 0) v.Line("Çanta boş");
+            v.open.interactable = picks.Count > 0;
 
-            v.footer.text = "Pet sen oyundan çıkana kadar satar; satıştan pazar ücreti kesilir, satılmayanlar çantana döner.";
-            setupCount = v.Line("", 0, false);
-            setupCount.transform.SetParent(v.footerBar, false);
-            v.FooterSpace();
-            openButton = v.FooterButton("Tezgahı aç", "green", OpenStall, 140);
-            UpdateSetupCount();
-        }
-
-        void SetPick(Dictionary<string, string> picks, string key, string value)
-        {
-            value = Digits(value);
-            if (value.Length > 0) picks[key] = value;
-            else picks.Remove(key);
-            UpdateSetupCount();
-        }
-
-        (StallOpenItem[] items, StallOpenStack[] stacks) Picks()
-        {
+            // Bag: what can still go on the stall.
             var bag = fishing.Bag;
-            var bagItems = bag?.items ?? Array.Empty<ItemInstance>();
-            var items = itemPrice.Where(x => int.TryParse(x.Value, out var v) && v > 0 && bagItems.Any(i => i.instanceId == x.Key && !i.locked))
-                .Select(x => new StallOpenItem { instanceId = x.Key, price = int.Parse(x.Value) }).ToArray();
-            var stacks = stackPrice.Where(x => int.TryParse(x.Value, out var v) && v > 0 && stackCount.TryGetValue(x.Key, out var c) && int.TryParse(c, out var cn) && cn > 0)
-                .Select(x => new StallOpenStack { defId = x.Key, count = Mathf.Min(int.Parse(stackCount[x.Key]), fishing.StackCount(x.Key)), price = int.Parse(x.Value) })
-                .Where(st => st.count > 0).ToArray();
-            return (items, stacks);
-        }
-
-        void UpdateSetupCount()
-        {
-            var (items, stacks) = Picks();
-            if (setupCount != null) setupCount.text = $"Tezgahta {items.Length + stacks.Length} kalem";
-            if (openButton != null) openButton.interactable = items.Length + stacks.Length > 0;
+            var entries = new List<object>();
+            if (bag != null && !open)
+            {
+                entries.AddRange((bag.items ?? Array.Empty<ItemInstance>()).Where(i => picks.All(x => x.Item != i)).OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId));
+                entries.AddRange((bag.stacks ?? Array.Empty<ItemStack>()).Where(st => picks.All(x => x.DefId != st.defId)));
+            }
+            var cells = Mathf.Max(20, Mathf.CeilToInt(entries.Count / 10f) * 10);
+            while (bagSlots.Count < cells)
+            {
+                var slot = UnityEngine.Object.Instantiate(v.bagTemplate, v.bagGrid, false);
+                slot.gameObject.SetActive(true);
+                Hoverable(slot);
+                slot.Clicked = sv => PickFromBag(sv.Data);
+                bagSlots.Add(slot);
+            }
+            for (var i = 0; i < bagSlots.Count; i++)
+            {
+                var slot = bagSlots[i];
+                slot.gameObject.SetActive(i < cells);
+                var e = i < entries.Count ? entries[i] : null;
+                if (e is ItemInstance it) slot.SetItem(it.defId, it.tier, 1, it.locked);
+                else if (e is ItemStack st) slot.SetItem(st.defId, "", st.count, false);
+                else slot.SetEmpty();
+                slot.Data = e;
+            }
         }
 
         void OpenStall()
         {
-            var (items, stacks) = Picks();
+            var items = picks.Where(x => x.Item != null).Select(x => new StallOpenItem { instanceId = x.Item.instanceId, price = x.Price }).ToArray();
+            var stacks = picks.Where(x => x.DefId != null).Select(x => new StallOpenStack { defId = x.DefId, count = x.Count, price = x.Price }).ToArray();
             if (items.Length + stacks.Length == 0) return;
             net.Send(OpCode.StallOpen, new StallOpenMsg { title = (title ?? "").Trim(), items = items, stacks = stacks });
-            offered.Clear();
-            offered.AddRange(items.Select(i => new BoardHighlight { instanceId = i.instanceId, defId = "" }));
-            offered.AddRange(stacks.Select(st => new BoardHighlight { instanceId = "", defId = st.defId }));
-            highlightPick.Clear();
-        }
-
-        static string Digits(string s) => new string((s ?? "").Where(char.IsDigit).ToArray());
-
-        void DrawMyStall(PanelView v, StallView s)
-        {
-            v.header.text = string.IsNullOrEmpty(s.title) ? "Tezgahın açık" : $"\"{s.title}\"";
-            var hours = s.expiresInMs / 3600000f;
-            v.Line($"Yer {s.spot} · {s.total} kalem · kalan süre {(hours >= 1f ? $"{hours:0.#} saat" : $"{s.expiresInMs / 60000} dk")}", 0, false);
-            foreach (var e in s.top ?? Array.Empty<StallEntry>())
-                v.Row().Mark(e.defId, e.tier, e.count).Title(ItemText.Entry(e)).Right($"{Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}");
-            if (s.total > (s.top?.Length ?? 0)) v.Line($"+{s.total - s.top.Length} kalem daha");
-            DrawAdControls(v);
-            v.FooterButton("Tam liste", "wood", () => ViewStall(s.userId));
-            v.FooterSpace();
-            v.FooterButton("Peti geri çağır", "red", () => net.Send(OpCode.StallRecall, new EmptyMsg()), 140);
-        }
-
-        // ----- Pano -----
-
-        void DrawAdControls(PanelView v)
-        {
-            if (MyStall == null)
-            {
-                v.Line("Tezgahın açıkken kendini panoda ilan edebilirsin (elmasla).");
-                return;
-            }
-            var row = v.Row();
-            if (MyAd)
-            {
-                row.Title("İlanın panoda").Sub("Öne çıkanları değiştirmek ücretsizdir.");
-                row.Button("Öne çıkanlar", "wood", () =>
-                {
-                    adPanel = !adPanel;
-                    dirty = true;
-                }, 110);
-                row.Button("İlanı kaldır", "red", () => net.Send(OpCode.BoardAd, new BoardAdMsg { action = "remove", highlights = Array.Empty<BoardHighlight>() }), 100);
-            }
-            else
-            {
-                row.Title("Panoya ilan ver").Sub($"Elmasla ödenir, tezgah kapanınca ilan da kalkar. Elmasın: {Kit.Num(Diamond)}");
-                row.Button("Reklam ver", "wood", () =>
-                {
-                    adPanel = !adPanel;
-                    dirty = true;
-                }, 100);
-            }
-            if (!adPanel) return;
-            if (offered.Count == 0) v.Line("Öne çıkacak kalemi seçmezsen ilan tezgahın ilk kalemlerini gösterir.");
-            else v.Line("Öne çıkacak en fazla 3 kalem seç (boş bırakırsan ilk kalemler):");
-            for (var i = 0; i < offered.Count; i++)
-            {
-                var h = offered[i];
-                var index = i;
-                var on = highlightPick.Contains(i);
-                var name = !string.IsNullOrEmpty(h.defId) ? FishingController.ItemName(h.defId) : DescribeOffered(h.instanceId);
-                v.Row().Title(name).Button(on ? "Seçili" : "Seç", on ? "green" : "wood", () =>
-                {
-                    if (highlightPick.Contains(index)) highlightPick.Remove(index);
-                    else if (highlightPick.Count < 3) highlightPick.Add(index);
-                    dirty = true;
-                }, 70);
-            }
-            v.Row().Title(MyAd ? "Öne çıkanları güncelle" : "İlanı ver").Button(MyAd ? "Güncelle" : "İlanı ver (elmas)", "green",
-                () => net.Send(OpCode.BoardAd, new BoardAdMsg { action = "set", highlights = highlightPick.OrderBy(x => x).Select(x => offered[x]).ToArray() }), 140);
-        }
-
-        string DescribeOffered(string instanceId)
-        {
-            // The item left the bag for the stall; the last full list of my stall may still name it.
-            var it = Viewing != null && Viewing.userId == net.UserId ? Viewing.items?.FirstOrDefault(x => x.item.instanceId == instanceId)?.item : null;
-            return it != null ? ItemText.Short(it, prices()) : "Float'lı eşya";
-        }
-
-        void DrawBoard(PanelView v)
-        {
-            v.header.text = "İlanlar (eskiden yeniye)";
-            if (Ads.Count == 0) v.Line("Panoda ilan yok.", 0, false);
-            foreach (var a in Ads)
-            {
-                var id = a.userId;
-                var top = a.top ?? Array.Empty<StallEntry>();
-                var row = v.Row().Title(string.IsNullOrEmpty(a.title) ? $"{a.name} tezgahı" : $"\"{a.title}\"")
-                    .Sub($"{a.name} tezgahı · {a.total} kalem   " + string.Join("   ", top.Select(e => $"{ItemText.Entry(e)} {Kit.Num(e.price)}")));
-                if (top.Length > 0) row.Mark(top[0].defId, top[0].tier, top[0].count);
-                row.Button("Yanına git", "green", a.userId == net.UserId ? (Action)null : () =>
-                {
-                    net.Send(OpCode.BoardGoto, new GotoFriendMsg { userId = id });
-                    gotoAt = Time.time;
-                }, 100);
-            }
-            DrawAdControls(v);
-            v.footer.text = "İlan eşya miktarını ya da kalitesini değiştirmez. Alım ilanı yok.";
         }
 
         // ----- Bir tezgahın tam listesi -----
 
-        void RedrawStall(PanelView v)
+        void WireList(StallListView v)
+        {
+            v.window.Closed = () => Viewing = null;
+            v.window.Open = false;
+            for (var i = 0; i < v.slots.Length; i++)
+            {
+                var index = i;
+                Hoverable(v.slots[i]);
+                v.slots[i].Clicked = _ =>
+                {
+                    selected = index;
+                    buyCount = 1;
+                    armedBuy = null;
+                    stallDirty = true;
+                };
+            }
+            v.profile.onClick.AddListener(() => OpenProfile?.Invoke(Viewing?.userId));
+            v.whisper.onClick.AddListener(() => Whisper?.Invoke(Viewing?.userId, Viewing?.name, "stall"));
+            v.friend.onClick.AddListener(() => AddFriend?.Invoke(Viewing?.userId, Viewing?.name));
+            v.minus.onClick.AddListener(() => SetBuyCount(buyCount - 1));
+            v.plus.onClick.AddListener(() => SetBuyCount(buyCount + 1));
+            v.max.onClick.AddListener(() => SetBuyCount(int.MaxValue));
+            v.count.onEndEdit.AddListener(t => SetBuyCount(int.TryParse(t, out var n) ? n : 1));
+            v.buy.onClick.AddListener(Buy);
+        }
+
+        List<object> ListEntries()
+        {
+            var e = new List<object>();
+            if (Viewing == null) return e;
+            e.AddRange((Viewing.items ?? Array.Empty<StallListItem>()).Where(x => x.item != null));
+            e.AddRange(Viewing.stacks ?? Array.Empty<StallOpenStack>());
+            return e;
+        }
+
+        void SetBuyCount(int n)
+        {
+            var entries = ListEntries();
+            var max = selected < entries.Count && entries[selected] is StallOpenStack st ? st.count : 1;
+            buyCount = Mathf.Clamp(n, 1, Mathf.Max(1, max));
+            armedBuy = null;
+            stallDirty = true;
+        }
+
+        void Buy()
+        {
+            var entries = ListEntries();
+            if (Viewing == null || selected >= entries.Count) return;
+            var key = $"{selected}:{buyCount}";
+            if (armedBuy != key)
+            {
+                armedBuy = key;
+                stallDirty = true;
+                return;
+            }
+            if (entries[selected] is StallListItem li)
+                net.Send(OpCode.StallBuy, new StallBuyMsg { userId = Viewing.userId, instanceId = li.item.instanceId, defId = "", count = 0 });
+            else if (entries[selected] is StallOpenStack st)
+                net.Send(OpCode.StallBuy, new StallBuyMsg { userId = Viewing.userId, instanceId = "", defId = st.defId, count = buyCount });
+            armedBuy = null;
+        }
+
+        void RedrawList()
         {
             stallDirty = false;
+            var v = list;
             var s = Viewing;
             var mine = s.userId == net.UserId;
             v.window.title.text = $"{s.name} tezgahı";
-            v.header.text = string.IsNullOrEmpty(s.title) ? s.name : $"\"{s.title}\"  ·  {s.name}";
-            var coin = fishing.Bag?.coin ?? 0;
-            v.headerRight.text = $"Coin'in: {Kit.Num(coin)}";
-            v.ClearRows();
-            v.ClearFooter();
-            var p = prices();
-            foreach (var li in s.items ?? Array.Empty<StallListItem>())
+            v.title.text = string.IsNullOrEmpty(s.title) ? $"{s.name} tezgahı" : $"\"{s.title}\"";
+            v.owner.text = $"{s.name} · pet satıyor";
+            v.pet.SetEmpty();
+            v.profile.gameObject.SetActive(!mine);
+            v.whisper.gameObject.SetActive(!mine);
+            v.friend.gameObject.SetActive(!mine);
+            var entries = ListEntries();
+            if (selected >= entries.Count) selected = 0;
+            for (var i = 0; i < v.slots.Length; i++)
             {
-                if (li.item == null) continue;
-                var key = "i:" + li.item.instanceId;
-                var id = li.item.instanceId;
-                var row = v.Row().Mark(li.item.defId, li.item.tier).Title(FishingController.ItemName(li.item.defId)).Sub(ItemText.Long(li.item, p))
-                    .Right($"{Kit.Num(li.price)} Coin");
-                row.Button(armedBuy == key ? "Emin misin?" : "Satın al", "green", mine || coin < li.price ? (Action)null : () =>
+                var e = i < entries.Count ? entries[i] : null;
+                var slot = v.slots[i];
+                switch (e)
                 {
-                    if (armedBuy == key) net.Send(OpCode.StallBuy, new StallBuyMsg { userId = s.userId, instanceId = id, defId = "", count = 0 });
-                    else armedBuy = key;
-                    stallDirty = true;
-                }, 100);
-            }
-            foreach (var st in s.stacks ?? Array.Empty<StallOpenStack>())
-            {
-                if (!buyCount.TryGetValue(st.defId, out var n)) n = 1;
-                n = Mathf.Clamp(n, 1, Mathf.Max(1, st.count));
-                var def = st.defId;
-                var max = st.count;
-                var price = st.price;
-                var total = (long)n * price;
-                var key = $"s:{def}:{n}";
-                var row = v.Row().Mark(def, "", st.count).Title(FishingController.ItemName(def)).Sub($"{st.count} adet · tanesi {Kit.Num(price)} Coin");
-                void Count(int value)
-                {
-                    buyCount[def] = Mathf.Clamp(value, 1, Mathf.Max(1, max));
-                    stallDirty = true;
+                    case StallListItem li:
+                        slot.SetItem(li.item.defId, li.item.tier, 1, false, i == selected);
+                        slot.Data = li.item;
+                        v.tags[i].Set(li.price);
+                        break;
+                    case StallOpenStack st:
+                        slot.SetItem(st.defId, "", st.count, false, i == selected);
+                        slot.Data = new StallEntry { defId = st.defId, tier = "", count = st.count, price = st.price };
+                        v.tags[i].Set(st.price);
+                        break;
+                    default:
+                        slot.SetEmpty();
+                        slot.Data = null;
+                        v.tags[i].Set(0);
+                        break;
                 }
-                row.Button("-", "wood", () => Count(n - 1), 22);
-                row.Note(n.ToString());
-                row.Button("+", "wood", () => Count(n + 1), 22);
-                row.Button("max", "wood", () => Count(max), 40);
-                row.Button(armedBuy == key ? "Emin misin?" : $"Al ({Kit.Num(total)})", "green", mine || coin < total ? (Action)null : () =>
-                {
-                    if (armedBuy == key) net.Send(OpCode.StallBuy, new StallBuyMsg { userId = s.userId, instanceId = "", defId = def, count = n });
-                    else armedBuy = key;
-                    stallDirty = true;
-                }, 100);
             }
-            if ((s.items?.Length ?? 0) + (s.stacks?.Length ?? 0) == 0) v.Line("Tezgah boş");
-            v.footer.text = mine ? "Kendi tezgahın." : $"Coin {s.name}'e gider, çevrimdışı olsa da. Float'lı eşyada Float ve kondisyon yazar.";
-            if (!mine)
+
+            var coin = fishing.Bag?.coin ?? 0;
+            v.detail.SetActive(entries.Count > 0);
+            if (entries.Count > 0)
             {
-                v.FooterButton("Profil", "wood", () => OpenProfile?.Invoke(s.userId), 80);
-                v.FooterButton("Fısılda", "wood", () => Whisper?.Invoke(s.userId, s.name, "stall"), 80);
-                v.FooterButton("Arkadaş ekle", "green", () => AddFriend?.Invoke(s.userId, s.name), 110);
+                var p = prices();
+                long unit, total;
+                switch (entries[selected])
+                {
+                    case StallListItem li:
+                        v.detailSlot.SetItem(li.item.defId, li.item.tier, 1, false);
+                        v.detailName.text = FishingController.ItemName(li.item.defId);
+                        v.detailSub.text = $"{li.item.tier} · {(p != null ? Prices.ConditionName(p.ConditionOf(li.item.@float)) + " · " : "")}Float {li.item.@float:0.0000}";
+                        v.countRow.SetActive(false);
+                        unit = total = li.price;
+                        break;
+                    case StallOpenStack st:
+                        v.detailSlot.SetItem(st.defId, "", st.count, false);
+                        v.detailName.text = FishingController.ItemName(st.defId);
+                        v.detailSub.text = $"{st.count} adet";
+                        v.countRow.SetActive(true);
+                        v.count.SetTextWithoutNotify(buyCount.ToString());
+                        unit = st.price;
+                        total = (long)st.price * buyCount;
+                        break;
+                    default:
+                        unit = total = 0;
+                        break;
+                }
+                v.unitPrice.text = Kit.Num(unit);
+                v.total.text = Kit.Num(total);
+                v.buy.interactable = !mine && coin >= total;
+                v.buyText.text = mine ? "Kendi tezgahın" : coin < total ? "Coin yetmiyor" : armedBuy == $"{selected}:{buyCount}" ? "Emin misin? Tekrar bas" : "Satın al";
             }
-            v.FooterSpace();
+            v.footer.text = $"{entries.Count} kalem · Coin {s.name}'e gider, çevrimdışı olsa da";
+        }
+
+        // ----- Pano -----
+
+        void WireBoard(BoardView v)
+        {
+            v.window.Closed = () => BoardOpen = false;
+            v.window.Open = false;
+            for (var i = 0; i < v.cards.Length; i++)
+            {
+                var index = i;
+                foreach (var slot in v.cards[i].slots) Hoverable(slot);
+                v.cards[i].go.onClick.AddListener(() => GoTo(index));
+            }
+            v.advertise.onClick.AddListener(() =>
+            {
+                if (MyAd) net.Send(OpCode.BoardAd, new BoardAdMsg { action = "remove", highlights = Array.Empty<BoardHighlight>() });
+                else net.Send(OpCode.BoardAd, new BoardAdMsg { action = "set", highlights = Array.Empty<BoardHighlight>() });
+            });
+        }
+
+        int PageStart => Ads.Count <= board.cards.Length ? 0 : adPage * board.cards.Length % Ads.Count;
+
+        void GoTo(int card)
+        {
+            var i = PageStart + card;
+            if (i >= Ads.Count) return;
+            var ad = Ads[i];
+            if (ad.userId == net.UserId) return;
+            net.Send(OpCode.BoardGoto, new GotoFriendMsg { userId = ad.userId });
+            gotoAt = Time.time;
+        }
+
+        void RedrawBoard()
+        {
+            boardDirty = false;
+            adPageAt = Time.time;
+            var v = board;
+            var start = PageStart;
+            for (var i = 0; i < v.cards.Length; i++)
+            {
+                var c = v.cards[i];
+                var ad = i < Ads.Count ? Ads[(start + i) % Ads.Count] : null;
+                c.root.SetActive(ad != null);
+                if (ad == null) continue;
+                c.pet.SetEmpty();
+                c.title.text = string.IsNullOrEmpty(ad.title) ? $"{ad.name} tezgahı" : $"\"{ad.title}\"";
+                c.owner.text = $"{ad.name}'in tezgahı · {ad.total} kalem";
+                var top = ad.top ?? Array.Empty<StallEntry>();
+                for (var j = 0; j < c.slots.Length; j++)
+                {
+                    var e = j < top.Length ? top[j] : null;
+                    if (e == null) c.slots[j].SetEmpty();
+                    else c.slots[j].SetItem(e.defId, e.tier, e.count, false);
+                    c.slots[j].Data = e;
+                    c.tags[j].Set(e?.price ?? 0);
+                }
+                c.go.interactable = ad.userId != net.UserId;
+            }
+            v.empty.gameObject.SetActive(Ads.Count == 0);
+            v.advertise.interactable = MyStall != null;
+            v.advertiseText.text = MyAd ? "İlanı kaldır" : "Reklam ver";
         }
     }
 }

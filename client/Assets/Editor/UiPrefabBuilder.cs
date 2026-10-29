@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 11;
+        public const int Version = 13;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -74,8 +74,9 @@ namespace CollectionGame.EditorTools
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
             Save(BuildPanel("TradeInvite", "Takas teklifi", new Vector2(400, 128), 1), "TradeInvite");
-            Save(BuildPanel("Market", "Pazar", new Vector2(760, 520), 1), "Market");
-            Save(BuildPanel("Stall", "Tezgah", new Vector2(660, 450), 1), "Stall");
+            Save(BuildStallSetup(), "StallSetup");
+            Save(BuildStallList(), "Stall");
+            Save(BuildBoard(), "Board");
             Save(BuildWhisper(), "Whisper");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
@@ -980,6 +981,222 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.ok.transform, TopLeft, new Vector2(34, -100), new Vector2(106, 34));
             view.cancel = Btn(w, "Cancel", "wood", "Vazgeç", 15);
             At((RectTransform)view.cancel.transform, TopLeft, new Vector2(154, -100), new Vector2(106, 34));
+            return wrap.gameObject;
+        }
+
+        // ================= Market (drafts tezgah-kur, tezgah-tezgah, tezgah-pano) =================
+
+        /// <summary>A window placed at its draft rectangle (x, y, w, h on the 1408x896 draft), with no body: children use draft coordinates.</summary>
+        static WindowView DraftWindow(Transform wrap, string title, float x, float y, float w, float h)
+        {
+            var view = Window(wrap, "Window", title, new Vector2(w, h));
+            At((RectTransform)view.transform, Center, new Vector2(x + w / 2f - 704f, 448f - (y + h / 2f)), new Vector2(w, h), Center);
+            Object.DestroyImmediate(view.body.gameObject);
+            view.body = (RectTransform)view.transform;
+            return view;
+        }
+
+        static PriceTag Tag(Transform parent, float x, float y, float w = 48)
+        {
+            var rt = Abs(parent, "Price", x, y, w, 16);
+            Img(rt, "box_dark");
+            Icon(rt, "Coin", new Vector2(0, 0.5f), new Vector2(4, 0), Gold, 8);
+            var tag = rt.gameObject.AddComponent<PriceTag>();
+            tag.text = Txt(Stretch(Node("Text", rt), 14, 0, 2, 0), "0", 12, Paper, TextAnchor.MiddleLeft, true);
+            return tag;
+        }
+
+        static SlotView SlotAt(Transform parent, string name, float x, float y, float size = 40)
+        {
+            var slot = Slot(parent, name, size);
+            At((RectTransform)slot.transform, TopLeft, new Vector2(x, -y), new Vector2(size, size));
+            return slot;
+        }
+
+        static GameObject BuildStallSetup()
+        {
+            // tezgah-kur: window 756x496 at (324, 128).
+            var wrap = Stretch(Node("StallSetup", null));
+            var view = wrap.gameObject.AddComponent<StallSetupView>();
+            view.window = DraftWindow(wrap, "Tezgah kur", 324, 128, 756, 496);
+            var w = view.window.transform;
+            TextAt(w, "TitleLabel", "Başlık", 28, 47, 70, 15, Ink);
+            view.title = Field(Abs(w, "Title", 96, 32, 300, 31), "Tezgahına bir başlık yaz", 15);
+            view.title.characterLimit = 40;
+            Img(Abs(w, "Divider", 28, 75, 700, 4), "divider");
+            view.stallHeader = TextAt(w, "StallHeader", "Tezgah · 0 / 12", 28, 96, 180, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.stallHint = TextAt(w, "StallHint", "Çantadan tıkla, fiyat yaz, Koy", 214, 96, 260, 14, Faint);
+            view.stall = new SlotView[12];
+            view.tags = new PriceTag[12];
+            for (var i = 0; i < 12; i++)
+            {
+                var x = 28 + i % 6 * 68;
+                var y = 112 + i / 6 * 68;
+                view.stall[i] = SlotAt(w, "Stall" + i, x, y);
+                view.tags[i] = Tag(w, x - 2, y + 44);
+            }
+
+            var picked = Abs(w, "Picked", 448, 105, 218, 129);
+            Img(picked, "box_dark");
+            view.picked = picked.gameObject;
+            view.pickedName = TextAt(picked, "Name", "", 12, 16, 150, 15, Paper, TextAnchor.MiddleLeft, true);
+            view.pickedCondition = TextAt(picked, "Condition", "", 12, 35, 190, 14, DiamondColour);
+            view.countLabel = TextAt(picked, "CountLabel", "Adet", 120, 35, 40, 13, Paper);
+            view.count = Field(Abs(picked, "Count", 158, 24, 48, 24), "1", 14);
+            view.count.contentType = InputField.ContentType.IntegerNumber;
+            view.count.characterLimit = 6;
+            TextAt(picked, "PriceLabel", "Fiyat", 12, 61, 50, 15, Paper);
+            var priceField = Abs(picked, "Price", 61, 47, 98, 27);
+            view.price = Field(priceField, "0", 15);
+            priceField.GetComponent<Image>().sprite = S("input_focus");
+            view.price.contentType = InputField.ContentType.IntegerNumber;
+            view.price.characterLimit = 10;
+            Icon(picked, "Coin", new Vector2(0, 1), new Vector2(166, -61), Gold, 12);
+            view.put = Btn(picked, "Put", "green", "Koy", 15);
+            At((RectTransform)view.put.transform, TopLeft, new Vector2(13, -87), new Vector2(93, 30));
+            view.takeBack = Btn(picked, "TakeBack", "wood", "Geri al", 15);
+            At((RectTransform)view.takeBack.transform, TopLeft, new Vector2(113, -87), new Vector2(93, 30));
+
+            TextAt(w, "BagLabel", "Çanta", 28, 274, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.bagHint = TextAt(w, "BagHint", "kilitli eşya konamaz", 96, 274, 200, 14, Faint);
+            view.place = TextAt(w, "Place", "", 499, 272, 230, 14, Faint);
+            // Bag: 10 a row, two rows in sight, the rest scrolls.
+            var scroll = Abs(w, "Bag", 28, 287, 462, 86);
+            var sr = scroll.gameObject.AddComponent<ScrollRect>();
+            sr.horizontal = false;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+            sr.scrollSensitivity = 30;
+            var viewport = Stretch(Node("Viewport", scroll));
+            viewport.gameObject.AddComponent<RectMask2D>();
+            viewport.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            var content = Node("Content", viewport);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.offsetMin = content.offsetMax = Vector2.zero;
+            var grid = content.gameObject.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(40, 40);
+            grid.spacing = new Vector2(6, 6);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 10;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            sr.viewport = viewport;
+            sr.content = content;
+            view.bagGrid = content;
+            view.bagTemplate = Slot(content, "SlotTemplate");
+            view.bagTemplate.gameObject.SetActive(false);
+
+            view.footer = TextAt(w, "Footer", "Pet sen oyundan çıkana kadar satar, sen balık tutarken de.\nSatıştan pazar ücreti kesilir · satılmayanlar çantana döner.", 28, 437, 500, 14, Faint);
+            view.footer.horizontalOverflow = HorizontalWrapMode.Wrap;
+            ((RectTransform)view.footer.transform).sizeDelta = new Vector2(500, 40);
+            view.open = Btn(w, "Open", "green", "Tezgahı aç", 16);
+            At((RectTransform)view.open.transform, TopLeft, new Vector2(553, -417), new Vector2(178, 37));
+            view.recall = Btn(w, "Recall", "red", "Peti geri çağır", 15);
+            At((RectTransform)view.recall.transform, TopLeft, new Vector2(553, -417), new Vector2(178, 37));
+            view.board = Btn(w, "Board", "wood", "Pazar Panosu", 15);
+            At((RectTransform)view.board.transform, TopLeft, new Vector2(553, -372), new Vector2(178, 34));
+            return wrap.gameObject;
+        }
+
+        static GameObject BuildStallList()
+        {
+            // tezgah-tezgah: window 750x420 at (325, 140).
+            var wrap = Stretch(Node("Stall", null));
+            var view = wrap.gameObject.AddComponent<StallListView>();
+            view.window = DraftWindow(wrap, "Tezgah", 325, 140, 750, 420);
+            var w = view.window.transform;
+            view.pet = SlotAt(w, "Pet", 27, 32, 54);
+            view.title = TextAt(w, "Title", "", 95, 44, 360, 18, Ink, TextAnchor.MiddleLeft, true);
+            view.owner = TextAt(w, "Owner", "", 95, 66, 360, 14, Faint);
+            view.profile = Btn(w, "Profile", "wood", "Profil", 15);
+            At((RectTransform)view.profile.transform, TopLeft, new Vector2(460, -37), new Vector2(85, 30));
+            view.whisper = Btn(w, "Whisper", "wood", "Fısılda", 15);
+            At((RectTransform)view.whisper.transform, TopLeft, new Vector2(552, -37), new Vector2(86, 30));
+            view.friend = Btn(w, "Friend", "green", "Arkadaş", 15);
+            At((RectTransform)view.friend.transform, TopLeft, new Vector2(644, -37), new Vector2(86, 30));
+            view.slots = new SlotView[12];
+            view.tags = new PriceTag[12];
+            for (var i = 0; i < 12; i++)
+            {
+                var x = 27 + i % 4 * 68;
+                var y = 112 + i / 4 * 72;
+                view.slots[i] = SlotAt(w, "Slot" + i, x, y);
+                view.tags[i] = Tag(w, x - 2, y + 44);
+            }
+
+            var card = Abs(w, "Detail", 320, 113, 410, 207);
+            Img(card, "card");
+            view.detail = card.gameObject;
+            view.detailSlot = SlotAt(card, "Item", 15, 15);
+            view.detailName = TextAt(card, "Name", "", 68, 25, 320, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.detailSub = TextAt(card, "Sub", "", 68, 45, 330, 14, Faint);
+            TextAt(card, "UnitLabel", "Tanesi", 15, 80, 60, 15, Ink);
+            Icon(card, "UnitCoin", new Vector2(0, 1), new Vector2(75, -80), Gold, 12);
+            view.unitPrice = TextAt(card, "Unit", "", 92, 80, 200, 16, Ink, TextAnchor.MiddleLeft, true);
+            var row = Abs(card, "CountRow", 0, 100, 410, 30);
+            view.countRow = row.gameObject;
+            view.countLabel = TextAt(row, "Label", "Kaç tane?", 15, 15, 75, 15, Ink);
+            view.minus = Btn(row, "Minus", "wood", "-", 16);
+            At((RectTransform)view.minus.transform, TopLeft, new Vector2(92, -2), new Vector2(30, 26));
+            view.count = Field(Abs(row, "Count", 127, 2, 64, 26), "1", 15);
+            view.count.contentType = InputField.ContentType.IntegerNumber;
+            view.count.characterLimit = 6;
+            view.plus = Btn(row, "Plus", "wood", "+", 16);
+            At((RectTransform)view.plus.transform, TopLeft, new Vector2(196, -2), new Vector2(30, 26));
+            var max = Abs(row, "Max", 234, 4, 40, 22);
+            var maxText = Txt(max, "max", 14, Hex("4d65b4"));
+            maxText.raycastTarget = true;
+            view.max = max.gameObject.AddComponent<Button>();
+            view.max.targetGraphic = maxText;
+            TextAt(card, "TotalLabel", "Toplam", 15, 151, 60, 15, Ink);
+            Icon(card, "TotalCoin", new Vector2(0, 1), new Vector2(75, -151), Gold, 12);
+            view.total = TextAt(card, "Total", "", 92, 151, 200, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.buy = Btn(card, "Buy", "green", "Satın al", 16);
+            At((RectTransform)view.buy.transform, TopLeft, new Vector2(15, -167), new Vector2(380, 32));
+            view.buyText = view.buy.GetComponentInChildren<Text>();
+            view.note = TextAt(w, "Note", "Float'lı eşyada Float ve\nkondisyon burada yazar.", 320, 349, 400, 14, Faint);
+            ((RectTransform)view.note.transform).sizeDelta = new Vector2(400, 40);
+            view.footer = TextAt(w, "Footer", "", 27, 388, 600, 14, Faint);
+            return wrap.gameObject;
+        }
+
+        static GameObject BuildBoard()
+        {
+            // tezgah-pano: window 835x586 at (285, 112).
+            var wrap = Stretch(Node("Board", null));
+            var view = wrap.gameObject.AddComponent<BoardView>();
+            view.window = DraftWindow(wrap, "Pazar Panosu", 285, 112, 835, 586);
+            var w = view.window.transform;
+            Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(30, -43), DiamondColour, 10);
+            view.hint = TextAt(w, "Hint", "Reklamlar sırayla döner · tıkla, tezgahın yanına git", 50, 43, 600, 14, Faint);
+            view.cards = new BoardView.Card[4];
+            for (var i = 0; i < 4; i++)
+            {
+                var c = new BoardView.Card();
+                var rt = Abs(w, "Card" + i, 28 + i % 2 * 400, 66 + i / 2 * 184, 384, 170);
+                Img(rt, "card");
+                c.root = rt.gameObject;
+                c.pet = SlotAt(rt, "Pet", 15, 10, 30);
+                c.title = TextAt(rt, "Title", "", 52, 20, 320, 16, Ink, TextAnchor.MiddleLeft, true);
+                c.owner = TextAt(rt, "Owner", "", 52, 40, 320, 14, Faint);
+                c.slots = new SlotView[3];
+                c.tags = new PriceTag[3];
+                for (var j = 0; j < 3; j++)
+                {
+                    c.slots[j] = SlotAt(rt, "Slot" + j, 15 + j * 72, 62);
+                    c.tags[j] = Tag(rt, 13 + j * 72, 108, 52);
+                }
+                c.go = Btn(rt, "Go", "green", "Yanına git", 15);
+                At((RectTransform)c.go.transform, TopLeft, new Vector2(232, -127), new Vector2(135, 31));
+                view.cards[i] = c;
+            }
+            view.empty = TextAt(w, "Empty", "Panoda ilan yok.", 28, 160, 780, 16, Ink, TextAnchor.MiddleCenter);
+            var foot = TextAt(w, "Footer", "Tezgahın açıkken kendini burada ilan edebilirsin.\n<color=#7f708a>İlan tezgah kalkınca kalkar. Eşya miktarı ya da kalitesi değişmez.</color>", 28, 520, 560, 14, Ink);
+            foot.supportRichText = true;
+            ((RectTransform)foot.transform).sizeDelta = new Vector2(560, 40);
+            view.advertise = Btn(w, "Advertise", "wood", "Reklam ver", 16);
+            At((RectTransform)view.advertise.transform, TopLeft, new Vector2(620, -510), new Vector2(190, 36));
+            view.advertiseText = view.advertise.GetComponentInChildren<Text>();
             return wrap.gameObject;
         }
 

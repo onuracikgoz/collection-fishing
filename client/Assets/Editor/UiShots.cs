@@ -76,56 +76,73 @@ namespace CollectionGame.EditorTools
             Shot(outDir, "tezgah-kur", Path.Combine(drafts, "tezgah-kur.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
-                var p = Spawn<PanelView>(canvas, "Market");
-                p.Tabs(new[] { "Tezgahım", "Pazar Panosu (4)" }, 0, _ => { });
-                p.header.text = "Tezgah kur";
-                p.headerRight.text = "1.240 Coin · 85 elmas";
-                p.Row().Title("Başlık").Input("Taze sazan, ucuz!", 300, null, 40, false);
-                p.Line("Satmak istediğine fiyat yaz (yığında adet başı). Kilitli eşya konamaz.");
-                var a1 = p.Row().Mark("lake.fish.tunek", "rare").Title("tunek").Sub("rare · Excellent · Float 0.0870");
-                a1.Input("320", 90, null);
-                a1.Note("Coin");
-                p.Row().Mark("lake.fish.levrek", "common", 1, true).Title("levrek").Sub("common · Temiz · Float 0.2100").Note("kilitli");
-                var a2 = p.Row().Mark("lake.mat.scale", "", 20).Title("scale").Sub("çantada 20");
-                a2.Note("adet");
-                a2.Input("10", 50, null, 6);
-                a2.Note("tanesi");
-                a2.Input("12", 80, null);
-                p.footer.text = "Pet sen oyundan çıkana kadar satar; satıştan pazar ücreti kesilir, satılmayanlar çantana döner.";
-                p.FooterSpace();
-                p.FooterButton("Tezgahı aç", "green", () => { }, 140);
-            });
-            Shot(outDir, "pano", Path.Combine(drafts, "tezgah-pano.png"), canvas =>
-            {
-                FillHud(Spawn<HudView>(canvas, "Hud"));
-                var p = Spawn<PanelView>(canvas, "Market");
-                p.Tabs(new[] { "Tezgahım", "Pazar Panosu (4)" }, 1, _ => { });
-                p.header.text = "İlanlar (eskiden yeniye)";
-                p.headerRight.text = "1.240 Coin · 85 elmas";
-                p.Row().Mark("lake.gem.kristal", "epic").Title("\"Kristal var\"").Sub("Mert tezgahı · 12 kalem   kristal (epic) 1.900   kristal (epic) 2.300").Button("Yanına git", "green", () => { }, 100);
-                p.Row().Mark("lake.fish.tunek", "rare").Title("\"Pristine Tünek burada\"").Sub("Ayse_k tezgahı · 5 kalem   tunek (rare) 900   tunek (rare) 300").Button("Yanına git", "green", () => { }, 100);
-                p.Row().Title("Panoya ilan ver").Sub("Elmasla ödenir, tezgah kapanınca ilan da kalkar. Elmasın: 85").Button("Reklam ver", "wood", () => { }, 100);
-                p.footer.text = "İlan eşya miktarını ya da kalitesini değiştirmez. Alım ilanı yok.";
+                var v = Spawn<StallSetupView>(canvas, "StallSetup");
+                v.title.text = "Taze sazan, ucuz!";
+                v.stallHeader.text = "Tezgah · 5 / 12";
+                (string, string, int, long)[] stall = { ("lake.fish.sazan", "", 10, 12), ("lake.fish.levrek", "rare", 1, 320), ("lake.mat.scale", "rare", 1, 250), ("lake.bait.worm", "", 20, 8), ("lake.fish.altin", "epic", 1, 850) };
+                for (var i = 0; i < v.stall.Length; i++)
+                {
+                    if (i < stall.Length) v.stall[i].SetItem(stall[i].Item1, stall[i].Item2, stall[i].Item3, false);
+                    else v.stall[i].SetEmpty();
+                    v.tags[i].Set(i < stall.Length ? stall[i].Item4 : 0);
+                }
+                v.pickedName.text = "Tünek · 0.0870";
+                v.pickedCondition.text = "Excellent";
+                v.countLabel.gameObject.SetActive(false);
+                v.count.gameObject.SetActive(false);
+                v.price.text = "320";
+                v.place.text = "Yer: Pazar alanı, 31 tezgah açık";
+                v.recall.gameObject.SetActive(false);
+                for (var i = 0; i < 20; i++)
+                {
+                    var s2 = UnityEngine.Object.Instantiate(v.bagTemplate, v.bagGrid, false);
+                    s2.gameObject.SetActive(true);
+                    if (i < 16) s2.SetItem(i % 2 == 0 ? "lake.fish.sazan" : "lake.junk.boot", i % 3 == 0 ? "rare" : "", 1, i == 10);
+                    else s2.SetEmpty();
+                }
             });
             Shot(outDir, "tezgah", Path.Combine(drafts, "tezgah-tezgah.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
-                var p = Spawn<PanelView>(canvas, "Stall");
-                p.window.title.text = "Mert tezgahı";
-                p.header.text = "\"Kristal var\"  ·  Mert";
-                p.headerRight.text = "Coin'in: 1.240";
-                p.Row().Mark("lake.gem.kristal", "epic").Title("kristal").Sub("epic · Pristine · Float 0.0412").Right("1.900 Coin").Button("Satın al", "green", null, 100);
-                var r = p.Row().Mark("lake.fish.sazan", "", 10).Title("sazan").Sub("10 adet · tanesi 12 Coin");
-                r.Button("-", "wood", () => { }, 22);
-                r.Note("3");
-                r.Button("+", "wood", () => { }, 22);
-                r.Button("max", "wood", () => { }, 40);
-                r.Button("Emin misin?", "green", () => { }, 100);
-                p.footer.text = "Coin Mert'e gider, çevrimdışı olsa da. Float'lı eşyada Float ve kondisyon yazar.";
-                p.FooterButton("Profil", "wood", () => { }, 80);
-                p.FooterButton("Fısılda", "wood", () => { }, 80);
-                p.FooterButton("Arkadaş ekle", "green", () => { }, 110);
-                p.FooterSpace();
+                var v = Spawn<StallListView>(canvas, "Stall");
+                v.window.title.text = "Mert'in tezgahı";
+                v.title.text = "\"Kristal var\"";
+                v.owner.text = "Mert · pet satıyor";
+                v.pet.SetEmpty();
+                long[] prices = { 1900, 240, 300, 12, 800, 900, 15, 8, 260, 290, 2300, 14 };
+                for (var i = 0; i < 12; i++)
+                {
+                    v.slots[i].SetItem(i % 4 == 3 ? "lake.fish.sazan" : "lake.gem.kristal", i % 4 == 3 ? "" : i % 2 == 0 ? "legendary" : "rare", i % 4 == 3 ? 10 : 1, false, i == 3);
+                    v.tags[i].Set(prices[i]);
+                }
+                v.detailSlot.SetItem("lake.fish.sazan", "", 10, false);
+                v.detailName.text = "Sazan";
+                v.detailSub.text = "sıradan balık · 10 adet";
+                v.unitPrice.text = "12";
+                v.count.text = "3";
+                v.total.text = "36";
+                v.footer.text = "12 / 12 kalem · Coin Mert'e gider, çevrimdışı olsa da";
+            });
+            Shot(outDir, "pano", Path.Combine(drafts, "tezgah-pano.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<BoardView>(canvas, "Board");
+                string[] titles = { "\"Kristal var\"", "\"Pristine Tünek burada\"", "\"Recipe satıyorum\"", "\"Taze sazan, ucuz!\"" };
+                string[] owners = { "Mert'in tezgahı", "Ayse_k'in tezgahı", "derinci'in tezgahı", "Ece'in tezgahı" };
+                long[][] prices = { new long[] { 1900, 2300, 240 }, new long[] { 900, 300, 15 }, new long[] { 900, 1100, 8 }, new long[] { 10, 12, 800 } };
+                for (var i = 0; i < 4; i++)
+                {
+                    var c = v.cards[i];
+                    c.pet.SetEmpty();
+                    c.title.text = titles[i];
+                    c.owner.text = owners[i];
+                    for (var j = 0; j < 3; j++)
+                    {
+                        c.slots[j].SetItem("lake.fish.sazan", j == 0 ? "epic" : "rare", 1, false);
+                        c.tags[j].Set(prices[i][j]);
+                    }
+                }
+                v.empty.gameObject.SetActive(false);
             });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {

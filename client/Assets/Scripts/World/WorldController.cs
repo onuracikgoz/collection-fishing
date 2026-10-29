@@ -116,6 +116,7 @@ namespace CollectionGame.World
             };
             bagPanel = new BagPanel(net, fishing, trade, () => economy.Prices, hud.Popup);
             trade.Popup = hud.Popup;
+            market.Popup = hud.Popup;
             var v = hud.View;
             if (v == null) return;
             WorldHud.On(v.quests, () => quests.Open = !quests.Open);
