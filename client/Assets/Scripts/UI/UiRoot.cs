@@ -16,8 +16,11 @@ namespace CollectionGame.UI
     {
         public const float RefWidth = 1408f;
         public const float RefHeight = 896f;
-        /// <summary>Same as the kit sprites: one sprite pixel is one canvas unit.</summary>
-        public const float PixelsPerUnit = 32f;
+        /// <summary>
+        /// Canvas units are draft pixels; the drafts show the kit at 2x (704x448 logical screen),
+        /// so one kit pixel (sprites are 32 per unit) is two canvas units.
+        /// </summary>
+        public const float PixelsPerUnit = 16f;
 
         static UiRoot instance;
 
@@ -60,8 +63,14 @@ namespace CollectionGame.UI
         }
 
         /// <summary>Whole-number scale that fits the 1408x896 layout, at least 1.</summary>
+        /// <summary>Kit pixel size in screen pixels: the largest whole number that fits the 704x448 logical screen.</summary>
+        public static float AutoScale(int width, int height) =>
+            Mathf.Max(1f, Mathf.Floor(Mathf.Min(height / (RefHeight / 2f), width / (RefWidth / 2f)) + 0.0001f));
+
+        /// <summary>The player's choice (Ayarlar > Arayüz boyutu), or <see cref="AutoScale"/>.</summary>
+        /// <summary>Canvas scale factor: half the kit pixel size, since a canvas unit is half a kit pixel.</summary>
         public static float ScaleFor(int width, int height) =>
-            Mathf.Max(1f, Mathf.Floor(Mathf.Min(height / RefHeight, width / RefWidth) + 0.0001f));
+            (ClientSettings.UiScale > 0 ? ClientSettings.UiScale : AutoScale(width, height)) / 2f;
 
         void Update() => scaler.scaleFactor = ScaleFor(Screen.width, Screen.height);
 
