@@ -4,6 +4,7 @@ using System.Linq;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -136,10 +137,13 @@ namespace CollectionGame.Collection
             bookOwnerName = ownerName;
             BookOpen = true;
             Book = null;
+            bookDirty = true;
             PageIndex = 0;
             try
             {
                 Book = await net.GetBookAsync(bookIsMine ? null : userId);
+                spread = 0;
+                bookDirty = true;
                 if (bookIsMine && MyProfile == null) MyProfile = await net.GetProfileAsync();
             }
             catch (Exception ex)
@@ -153,9 +157,11 @@ namespace CollectionGame.Collection
         {
             ProfileOpen = true;
             Profile = null;
+            profileDirty = true;
             try
             {
                 Profile = await net.GetProfileAsync(userId);
+                profileDirty = true;
                 if (Profile.userId == net.UserId) MyProfile = Profile;
             }
             catch (Exception ex)
@@ -186,6 +192,7 @@ namespace CollectionGame.Collection
             try
             {
                 Book = await net.GetBookAsync();
+                bookDirty = true;
             }
             catch (Exception ex)
             {
@@ -202,6 +209,7 @@ namespace CollectionGame.Collection
             try
             {
                 MyProfile = await net.SetProfileAsync(showcase, hunting, clear);
+                profileDirty = true;
                 if (Profile != null && Profile.userId == MyProfile.userId) Profile = MyProfile;
                 ShowNote("Profil güncellendi");
             }
@@ -246,8 +254,7 @@ namespace CollectionGame.Collection
                 GUI.Box(new Rect((Gui.Width - size.x) / 2f, Gui.Height - 110, size.x, size.y), note, Gui.Toast);
             }
             if (SwapOffer != null) DrawSwap();
-            if (BookOpen) DrawBook();
-            if (ProfileOpen) DrawProfile();
+
         }
 
         void DrawSwap()
@@ -265,126 +272,314 @@ namespace CollectionGame.Collection
             GUILayout.EndArea();
         }
 
-        void DrawBook()
+        // ---------- uGUI: Resources/UI/Book (defter-v2), Resources/UI/Profile (profil-v3) ----------
+
+        static readonly Color Ink = new Color32(0x45, 0x29, 0x3f, 255);
+        static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
+        const int SpreadSize = 12;
+
+        BookView bookView;
+        ProfileView profileView;
+        bool bookDirty = true, profileDirty = true;
+        int spread;
+        /// <summary>Tooltip and menu shared by the windows (set by the world).</summary>
+        public PopupView Popup { get; set; }
+
+        public void Destroy()
         {
-            var r = new Rect(20, 60, Mathf.Min(560, Gui.Width - 40), Mathf.Min(460, Gui.Height - 120));
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Gui.Window);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(bookIsMine ? "Defterim" : $"{bookOwnerName} defteri", Gui.Header);
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Kapat", Gui.Button, GUILayout.Width(70))) BookOpen = false;
-            GUILayout.EndHorizontal();
-
-            if (Book == null || Book.pages == null)
-            {
-                GUILayout.Label("Yükleniyor...", Gui.Hud);
-                GUILayout.EndArea();
-                return;
-            }
-
-            GUILayout.Label($"Collection Score {Book.score} · Şans +%{Book.luck * 100f:0.#}", Gui.Hud);
-            GUILayout.BeginHorizontal();
-            for (var i = 0; i < Book.pages.Length; i++)
-            {
-                var p = Book.pages[i];
-                var label = $"{PageName(p.id)} {p.found}/{p.total}";
-                if (GUILayout.Toggle(i == PageIndex, label, Gui.Button)) PageIndex = i;
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.Space(6);
-
-            PageIndex = Mathf.Clamp(PageIndex, 0, Book.pages.Length - 1);
-            var page = Book.pages[PageIndex];
-            var showcase = ShowcaseIds();
-            bookScroll = GUILayout.BeginScrollView(bookScroll);
-            foreach (var rec in page.records ?? Array.Empty<BookRecord>())
-            {
-                GUILayout.BeginHorizontal(GUI.skin.box);
-                if (rec.state == RecordState.Unknown)
-                {
-                    GUILayout.Label("??", Gui.Faint, GUILayout.Width(150));
-                    GUILayout.Label("henüz bulunmadı", Gui.Faint);
-                }
-                else if (rec.state == RecordState.Found)
-                {
-                    GUILayout.Label(FishingController.ItemName(rec.defId), Gui.Faint, GUILayout.Width(150));
-                    GUILayout.Label("bulundu, yuva boş", Gui.Faint);
-                }
-                else
-                {
-                    GUILayout.Label(FishingController.ItemName(rec.defId), Gui.Hud, GUILayout.Width(150));
-                    GUILayout.Label(rec.item != null ? $"{rec.item.tier} · Float {rec.item.@float:0.0000}" : "", Gui.Hud);
-                }
-                GUILayout.FlexibleSpace();
-                if (bookIsMine && rec.state != RecordState.Unknown) DrawRecordButtons(rec, showcase);
-                GUILayout.EndHorizontal();
-            }
-            GUILayout.EndScrollView();
-            GUILayout.EndArea();
+            if (bookView != null) UnityEngine.Object.Destroy(bookView.gameObject);
+            if (profileView != null) UnityEngine.Object.Destroy(profileView.gameObject);
         }
 
-        void DrawRecordButtons(BookRecord rec, string[] showcase)
+        bool Ensure()
         {
+            var ui = UiRoot.Get();
+            if (bookView == null && (bookView = ui.Spawn<BookView>("Book")) != null) WireBook(bookView);
+            if (profileView == null && (profileView = ui.Spawn<ProfileView>("Profile")) != null) WireProfile(profileView);
+            return bookView != null && profileView != null;
+        }
+
+        public void Tick()
+        {
+            if (!Ensure()) return;
+            if (bookView.window.Open != BookOpen)
+            {
+                bookView.window.Open = BookOpen;
+                bookDirty = true;
+            }
+            if (profileView.window.Open != ProfileOpen)
+            {
+                profileView.window.Open = ProfileOpen;
+                profileDirty = true;
+            }
+            if (BookOpen && bookDirty) RedrawBook();
+            if (ProfileOpen && profileDirty) RedrawProfile();
+        }
+
+        // ----- Defter -----
+
+        void WireBook(BookView v)
+        {
+            v.window.Closed = () => BookOpen = false;
+            v.window.Open = false;
+            v.prev.onClick.AddListener(() => Turn(-1));
+            v.next.onClick.AddListener(() => Turn(1));
+            for (var p = 0; p < v.pages.Length; p++)
+                for (var i = 0; i < v.pages[p].cards.Length; i++)
+                {
+                    var index = p * v.pages[p].cards.Length + i;
+                    var hover = v.pages[p].cards[i].hover;
+                    hover.Entered = () => HoverRecord(index);
+                    hover.Exited = () => Popup?.HideTooltip();
+                    hover.Clicked = hover.RightClicked = () => RecordMenu(index);
+                }
+        }
+
+        BookRecord[] Records => Book?.pages != null && Book.pages.Length > 0 ? Book.pages[Mathf.Clamp(PageIndex, 0, Book.pages.Length - 1)].records ?? Array.Empty<BookRecord>() : Array.Empty<BookRecord>();
+        int Spreads => Mathf.Max(1, Mathf.CeilToInt(Records.Length / (float)SpreadSize));
+
+        void Turn(int step)
+        {
+            if (Book?.pages == null || Book.pages.Length == 0) return;
+            spread += step;
+            if (spread < 0)
+            {
+                PageIndex = (PageIndex - 1 + Book.pages.Length) % Book.pages.Length;
+                spread = Spreads - 1;
+            }
+            else if (spread >= Spreads)
+            {
+                PageIndex = (PageIndex + 1) % Book.pages.Length;
+                spread = 0;
+            }
+            bookDirty = true;
+        }
+
+        BookRecord RecordAt(int index)
+        {
+            var i = spread * SpreadSize + index;
+            var recs = Records;
+            return i < recs.Length ? recs[i] : null;
+        }
+
+        void RedrawBook()
+        {
+            bookDirty = false;
+            var v = bookView;
+            v.owner.text = bookIsMine ? "Defter" : $"{bookOwnerName} defteri";
+            if (Book?.pages == null || Book.pages.Length == 0)
+            {
+                v.totalText.text = "...";
+                foreach (var pg in v.pages)
+                {
+                    pg.title.text = "Yükleniyor...";
+                    pg.count.text = "";
+                    foreach (var c in pg.cards) SetCard(c, null);
+                }
+                return;
+            }
+            PageIndex = Mathf.Clamp(PageIndex, 0, Book.pages.Length - 1);
+            spread = Mathf.Clamp(spread, 0, Spreads - 1);
+            var found = Book.pages.Sum(p => p.found);
+            var total = Book.pages.Sum(p => p.total);
+            HudView.Fill(v.totalFill, total > 0 ? (float)found / total : 0f);
+            v.totalText.text = $"{found} / {total}";
+            v.luck.text = $"Şans +%{Book.luck * 100f:0.#}";
+            v.score.text = Kit.Num(Book.score);
+            var page = Book.pages[PageIndex];
+            var name = PageName(page.id);
+            v.pages[0].title.text = name;
+            v.pages[0].count.text = $"{page.found}/{page.total}";
+            v.pages[1].title.text = name;
+            v.pages[1].count.text = $"sayfa {spread + 1}/{Spreads}";
+            for (var p = 0; p < v.pages.Length; p++)
+                for (var i = 0; i < v.pages[p].cards.Length; i++)
+                    SetCard(v.pages[p].cards[i], RecordAt(p * v.pages[p].cards.Length + i), i + p * v.pages[p].cards.Length < Records.Length - spread * SpreadSize);
+            var nextPage = Book.pages[(PageIndex + 1) % Book.pages.Length];
+            v.nav.text = Book.pages.Length > 1 ? $"{name} · {PageName(nextPage.id)}" : name;
+        }
+
+        void SetCard(BookView.Card c, BookRecord rec, bool exists = true)
+        {
+            var v = bookView;
+            c.frame.gameObject.SetActive(exists && rec != null);
+            c.name.gameObject.SetActive(exists && rec != null);
+            c.newBadge.SetActive(false);
+            if (rec == null) return;
+            switch (rec.state)
+            {
+                case RecordState.Filled:
+                    var rank = Tiers.Rank(rec.item?.tier);
+                    c.frame.sprite = rank >= 0 ? v.tierFrames[rank] : v.found;
+                    c.mark.text = SlotView.Short(rec.defId);
+                    c.mark.color = Ink;
+                    c.name.text = FishingController.ItemName(rec.defId);
+                    c.name.color = Ink;
+                    break;
+                case RecordState.Found:
+                    c.frame.sprite = v.found;
+                    c.mark.text = SlotView.Short(rec.defId);
+                    c.mark.color = Faint;
+                    c.name.text = FishingController.ItemName(rec.defId);
+                    c.name.color = Faint;
+                    break;
+                default:
+                    c.frame.sprite = v.unknown;
+                    c.mark.text = "??";
+                    c.mark.color = new Color32(0x9b, 0xab, 0xb2, 255);
+                    c.name.text = "???";
+                    c.name.color = Faint;
+                    break;
+            }
+        }
+
+        void HoverRecord(int index)
+        {
+            var rec = RecordAt(index);
+            if (Popup == null || rec == null || rec.state == RecordState.Unknown) return;
+            var name = FishingController.ItemName(rec.defId);
+            if (rec.state == RecordState.Found)
+            {
+                Popup.ShowTooltip($"<b>{name}</b>\nBulundu, yuva boş{(bookIsMine ? "\nTıkla: seçenekler" : "")}");
+                return;
+            }
+            var it = rec.item;
+            var actions = bookIsMine ? "\n<color=#f9c22b>Vitrine koy</color>   <color=#e83b3b>Arıyorum</color>\nTıkla: seçenekler" : "";
+            Popup.ShowTooltip($"<b>{name}</b>\n{it?.tier}\nFloat {it?.@float:0.0000}{actions}");
+        }
+
+        void RecordMenu(int index)
+        {
+            var rec = RecordAt(index);
+            if (Popup == null || rec == null || !bookIsMine || rec.state == RecordState.Unknown) return;
+            var showcase = ShowcaseIds();
+            var entries = new List<(string, Action)>();
             if (rec.state == RecordState.Filled)
             {
                 var inShowcase = showcase.Contains(rec.defId);
-                if (GUILayout.Button(inShowcase ? "Vitrinden al" : "Vitrine koy", Gui.Button, GUILayout.Width(110)))
-                {
-                    var next = inShowcase ? showcase.Where(d => d != rec.defId).ToArray() : showcase.Append(rec.defId).ToArray();
-                    SetShowcase(next);
-                }
+                entries.Add((inShowcase ? "Vitrinden al" : "Vitrine koy", () =>
+                    SetShowcase(inShowcase ? showcase.Where(d => d != rec.defId).ToArray() : showcase.Append(rec.defId).ToArray())));
             }
             var hunting = MyProfile?.hunting == rec.defId;
-            if (GUILayout.Button(hunting ? "Aramayı bırak" : "Arıyorum", Gui.Button, GUILayout.Width(110)))
-                SetHunting(hunting ? null : rec.defId);
+            entries.Add((hunting ? "Aramayı bırak" : "Arıyorum", () => SetHunting(hunting ? null : rec.defId)));
+            Popup.ShowMenu(FishingController.ItemName(rec.defId), entries);
         }
 
-        void DrawProfile()
-        {
-            var r = new Rect(Gui.Width - 340, 60, 320, 280);
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Gui.Window);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(Profile == null ? "Profil" : Profile.username, Gui.Header);
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Kapat", Gui.Button, GUILayout.Width(70))) ProfileOpen = false;
-            GUILayout.EndHorizontal();
+        // ----- Profil -----
 
-            if (Profile == null)
+        void WireProfile(ProfileView v)
+        {
+            v.window.Closed = () => ProfileOpen = false;
+            v.window.Open = false;
+            v.book.onClick.AddListener(() =>
             {
-                GUILayout.Label("Yükleniyor...", Gui.Hud);
-                GUILayout.EndArea();
+                if (Profile == null) return;
+                var mine = Profile.userId == net.UserId;
+                OpenBook(mine ? null : Profile.userId, Profile.username);
+            });
+            v.whisper.onClick.AddListener(() => { if (Profile != null) Whisper?.Invoke(Profile.userId, Profile.username); });
+            v.friend.onClick.AddListener(() => { if (Profile != null) AddFriend?.Invoke(Profile.userId, Profile.username); });
+            v.trade.onClick.AddListener(() => { if (Profile != null) OfferTrade?.Invoke(Profile.userId, Profile.username); });
+            v.report.onClick.AddListener(ReportMenu);
+            v.block.onClick.AddListener(BlockProfile);
+            for (var i = 0; i < v.showcase.Length; i++)
+            {
+                v.showcase[i].Hovered = s =>
+                {
+                    if (Popup != null && s.Data is ItemInstance it)
+                        Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}\nFloat {it.@float:0.0000}");
+                };
+                v.showcase[i].Left = _ => Popup?.HideTooltip();
+            }
+        }
+
+        static readonly (string id, string label)[] ReportReasons =
+        {
+            ("spam", "Spam"), ("abuse", "Hakaret"), ("scam", "Dolandırıcılık"),
+            ("personal_info", "Kişisel bilgi"), ("cheating", "Hile"), ("other", "Diğer"),
+        };
+
+        void ReportMenu()
+        {
+            if (Popup == null || Profile == null || Profile.userId == net.UserId) return;
+            var who = Profile.userId;
+            Popup.ShowMenu("Raporla: neden?", ReportReasons.Select(r => (r.label, (Action)(() => Report(who, r.id)))));
+        }
+
+        async void Report(string userId, string reason)
+        {
+            try
+            {
+                await net.ReportAsync(userId, reason, null, null);
+                Toasts.Show("Raporun alındı. Teşekkürler.");
+            }
+            catch (Exception e)
+            {
+                Toasts.Show(Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Çok fazla rapor gönderdin, sonra tekrar dene" : "Rapor gönderilemedi", true);
+            }
+        }
+
+        async void BlockProfile()
+        {
+            if (Profile == null || Profile.userId == net.UserId) return;
+            var name = Profile.username;
+            try
+            {
+                await net.BlockAsync(Profile.userId);
+                Toasts.Show($"{name} engellendi");
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Book] block failed: {e.Message}");
+                Toasts.Show("Engellenemedi", true);
+            }
+        }
+
+        void RedrawProfile()
+        {
+            profileDirty = false;
+            var v = profileView;
+            var p = Profile;
+            v.portrait.SetEmpty();
+            v.portrait.label.text = p != null ? p.username : "";
+            if (p == null)
+            {
+                v.name.text = "Yükleniyor...";
+                v.levelTag.SetActive(false);
+                v.hunt.SetActive(false);
                 return;
             }
-
-            GUILayout.Label($"Collection Score: {Profile.score}", Gui.Hud);
-            var pages = Profile.pagesComplete != null && Profile.pagesComplete.Length > 0
-                ? string.Join(", ", Profile.pagesComplete.Select(PageName))
-                : "yok";
-            GUILayout.Label($"Tamamlanan sayfalar: {pages}", Gui.Hud);
-            GUILayout.Space(6);
-            GUILayout.Label("Vitrin", Gui.Header);
-            if (Profile.showcase == null || Profile.showcase.Length == 0) GUILayout.Label("boş", Gui.Faint);
-            else
-                foreach (var it in Profile.showcase)
-                    GUILayout.Label($"{FishingController.ItemName(it.defId)} · {it.tier} · Float {it.@float:0.0000}", Gui.Hud);
-            GUILayout.Space(6);
-            GUILayout.Label($"Arıyorum: {(string.IsNullOrEmpty(Profile.hunting) ? "-" : FishingController.ItemName(Profile.hunting))}", Gui.Hud);
-            GUILayout.FlexibleSpace();
-            var mine = Profile.userId == net.UserId;
-            if (!mine && AddFriend != null && GUILayout.Button("Arkadaş ekle", Gui.Button, GUILayout.Height(28)))
-                AddFriend(Profile.userId, Profile.username);
-            if (!mine)
+            var mine = p.userId == net.UserId;
+            v.name.text = p.username;
+            v.levelTag.SetActive(true);
+            v.level.text = $"Lv {Mathf.Max(1, p.level)}";
+            v.sub.text = "";
+            v.score.text = Kit.Num(p.score);
+            v.hunt.SetActive(!string.IsNullOrEmpty(p.hunting));
+            v.huntText.text = $"Arıyorum: {FishingController.ItemName(p.hunting)}";
+            var show = p.showcase ?? Array.Empty<ItemInstance>();
+            for (var i = 0; i < v.showcase.Length; i++)
             {
-                GUILayout.BeginHorizontal();
-                if (Whisper != null && GUILayout.Button("Fısılda", Gui.Button, GUILayout.Height(28))) Whisper(Profile.userId, Profile.username);
-                if (OfferTrade != null && GUILayout.Button("Takas teklif et", Gui.Button, GUILayout.Height(28))) OfferTrade(Profile.userId, Profile.username);
-                GUILayout.EndHorizontal();
+                var it = i < show.Length ? show[i] : null;
+                if (it == null) v.showcase[i].SetEmpty();
+                else v.showcase[i].SetItem(it.defId, it.tier, 1, false);
+                v.showcase[i].Data = it;
             }
-            if (GUILayout.Button(mine ? "Defterimi aç (K)" : "Defterini gör", Gui.Button, GUILayout.Height(28)))
-                OpenBook(mine ? null : Profile.userId, Profile.username);
-            GUILayout.EndArea();
+            var pages = p.pagesComplete?.Length ?? 0;
+            v.stat1Label.text = "Tamamlanan sayfa";
+            v.stat1Value.text = $"{pages}/{PageNames.Count}";
+            HudView.Fill(v.stat1Fill, PageNames.Count > 0 ? (float)pages / PageNames.Count : 0f);
+            v.stat2Label.text = "Vitrin";
+            v.stat2Value.text = $"{show.Length}/{ShowcaseMax}";
+            v.stat3Label.text = "Level";
+            v.stat3Value.text = Mathf.Max(1, p.level).ToString();
+            v.bookText.text = mine ? "Defterimi aç (K)" : "Defterine bak";
+            v.whisper.gameObject.SetActive(!mine);
+            v.friend.gameObject.SetActive(!mine);
+            v.trade.gameObject.SetActive(!mine);
+            v.report.gameObject.SetActive(!mine);
+            v.block.gameObject.SetActive(!mine);
+            v.footer.text = mine ? "Vitrin ve Arıyorum defterden seçilir (K)" : "";
         }
     }
 }

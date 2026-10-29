@@ -158,6 +158,54 @@ namespace CollectionGame.EditorTools
                 }
                 v.empty.gameObject.SetActive(false);
             });
+            Shot(outDir, "defter", Path.Combine(drafts, "defter-v2.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<BookView>(canvas, "Book");
+                v.owner.text = "Defter";
+                HudView.Fill(v.totalFill, 10f / 36f);
+                v.totalText.text = "10 / 36";
+                v.luck.text = "Şans +%3";
+                v.score.text = "1.820";
+                v.pages[0].title.text = "Göl Balıkları";
+                v.pages[0].count.text = "7/12";
+                v.pages[1].title.text = "Göl Balıkları";
+                v.pages[1].count.text = "sayfa 2/2";
+                string[] names = { "Gökkuşağı Alabalığı", "Sazan", "Göl Levreği", "Altın Balık", "Eski Çizme", "Yeşil Şişe", "Göl Levreği", "???", "Göl Kristali", "Paslı Kutu", "???", "???" };
+                int[] state = { 2, 2, 2, 2, 1, 2, 2, 0, 1, 2, 0, 0 };
+                int[] tier = { 0, 0, 1, 2, 0, 0, 1, 0, 0, 0, 0, 0 };
+                for (var i = 0; i < 12; i++)
+                {
+                    var c = v.pages[i / 6].cards[i % 6];
+                    c.frame.sprite = state[i] == 2 ? v.tierFrames[tier[i]] : state[i] == 1 ? v.found : v.unknown;
+                    c.mark.text = state[i] == 0 ? "??" : names[i].Substring(0, 4).ToLowerInvariant();
+                    c.name.text = names[i];
+                    c.newBadge.SetActive(i == 2);
+                }
+                v.nav.text = "Göl Balıkları · Derin Su";
+            });
+            Shot(outDir, "profil", Path.Combine(drafts, "profil-v3.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<ProfileView>(canvas, "Profile");
+                v.portrait.SetEmpty();
+                v.portrait.label.text = "Ece";
+                v.name.text = "Ece";
+                v.level.text = "Lv 12";
+                v.score.text = "2.340";
+                v.huntText.text = "Arıyorum: Mağara Kristali";
+                v.showcase[0].SetItem("lake.fish.altin", "epic", 1, false);
+                v.showcase[1].SetItem("lake.gem.kristal", "legendary", 1, false);
+                v.showcase[2].SetItem("lake.mat.scale", "rare", 1, false);
+                v.stat1Label.text = "Tamamlanan sayfa";
+                v.stat1Value.text = "1/3";
+                HudView.Fill(v.stat1Fill, 0.33f);
+                v.stat2Label.text = "Vitrin";
+                v.stat2Value.text = "3/3";
+                v.stat3Label.text = "Level";
+                v.stat3Value.text = "12";
+                v.footer.text = "";
+            });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));

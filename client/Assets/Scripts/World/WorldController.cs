@@ -117,6 +117,7 @@ namespace CollectionGame.World
             bagPanel = new BagPanel(net, fishing, trade, () => economy.Prices, hud.Popup);
             trade.Popup = hud.Popup;
             market.Popup = hud.Popup;
+            collection.Popup = hud.Popup;
             var v = hud.View;
             if (v == null) return;
             WorldHud.On(v.quests, () => quests.Open = !quests.Open);
@@ -155,6 +156,7 @@ namespace CollectionGame.World
             hud?.Destroy();
             bagPanel?.Destroy();
             quests?.Destroy();
+            collection?.Destroy();
             settings?.Destroy();
             trade?.Destroy();
             market?.Destroy();
@@ -215,6 +217,7 @@ namespace CollectionGame.World
                 quests.Update(Typing);
                 bagPanel.Update();
                 quests.Tick();
+                collection.Tick();
                 settings.Tick();
                 trade.Tick();
                 market.Tick();

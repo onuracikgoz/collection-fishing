@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 15;
+        public const int Version = 16;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -70,6 +70,8 @@ namespace CollectionGame.EditorTools
             Save(BuildBag(), "Bag");
             Save(BuildPopup(), "Popup");
             Save(BuildQuests(), "Quests");
+            Save(BuildBook(), "Book");
+            Save(BuildProfile(), "Profile");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1247,6 +1249,140 @@ namespace CollectionGame.EditorTools
             view.barGoing = S("bar_fill_yellow");
             view.footer = TextAt(w, "Footer", "Görevler gece yarısı yenilenir. Sandık üç görev bitince açılır; içinden Coin, toz, yem ya da recipe çıkar.\nSeri: her gün sandığı alırsan büyür, bir gün kaçırırsan biraz geri düşer.", 29, 535, 900, 14, Faint);
             ((RectTransform)view.footer.transform).sizeDelta = new Vector2(900, 40);
+            return wrap.gameObject;
+        }
+
+        // ================= Collection Book (draft defter-v2) =================
+
+        static Button LinkText(Transform parent, string name, string text, float x, float yc, float w, Color colour, TextAnchor align = TextAnchor.MiddleLeft)
+        {
+            var t = TextAt(parent, name, text, x, yc, w, 15, colour, align);
+            t.raycastTarget = true;
+            var b = t.gameObject.AddComponent<Button>();
+            b.targetGraphic = t;
+            var nav = b.navigation;
+            nav.mode = Navigation.Mode.None;
+            b.navigation = nav;
+            return b;
+        }
+
+        static GameObject BuildBook()
+        {
+            // defter-v2: window 676x408 at (192, 104); pages 305x278 at x 26 / 349, y 58; cards 80x80, 100 apart.
+            var wrap = Stretch(Node("Book", null));
+            var view = wrap.gameObject.AddComponent<BookView>();
+            view.window = DraftWindow(wrap, "Koleksiyon", 192, 104, 676, 408);
+            var w = view.window.transform;
+            view.owner = TextAt(w, "Owner", "Defter", 30, 37, 160, 20, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(w, "TotalLabel", "toplam", 113, 37, 70, 14, Faint);
+            view.totalFill = Bar(Abs(w, "Total", 193, 30, 158, 15), "bar_fill_green", out _);
+            view.totalText = TextAt(w, "TotalText", "", 361, 37, 70, 14, Ink);
+            view.luck = TextAt(w, "Luck", "", 429, 37, 90, 14, Hex("1e6f50"));
+            Icon(w, "ScoreIcon", new Vector2(0, 1), new Vector2(525, -37), Gold, 14);
+            view.score = TextAt(w, "Score", "", 545, 37, 100, 15, Hex("e83b3b"), TextAnchor.MiddleLeft, true);
+            view.tierFrames = new[] { S("record_common"), S("record_rare"), S("record_epic"), S("record_legendary"), S("record_mythic") };
+            view.found = S("record_found");
+            view.unknown = S("record_unknown");
+            Img(Abs(w, "Spine", 331, 58, 18, 278), "box_dark");
+            view.pages = new BookView.Page[2];
+            for (var p = 0; p < 2; p++)
+            {
+                var pg = Abs(w, "Page" + p, 26 + p * 323, 58, 305, 278);
+                Img(pg, "card");
+                Img(Stretch(Node("Outline", pg)), "outline");
+                var page = new BookView.Page
+                {
+                    title = TextAt(pg, "Title", "", 12, 16, 200, 16, Ink),
+                    count = TextAt(pg, "Count", "", 190, 16, 103, 14, Ink, TextAnchor.MiddleRight),
+                    cards = new BookView.Card[6],
+                };
+                Img(Abs(pg, "Divider", 10, 30, 285, 4), "divider");
+                for (var i = 0; i < 6; i++)
+                {
+                    var x = 10 + i % 3 * 100;
+                    var y = 38 + i / 3 * 116;
+                    var cardRt = Abs(pg, "Card" + i, x, y, 80, 80);
+                    var card = new BookView.Card { frame = Img(cardRt, "record_unknown", Image.Type.Sliced, true) };
+                    card.mark = Txt(Stretch(Node("Mark", cardRt), 4, 4, 4, 4), "??", 15, Ink, TextAnchor.MiddleCenter, true);
+                    card.name = TextAt(pg, "Name" + i, "", x - 10, y + 96, 100, 13, Ink, TextAnchor.MiddleCenter);
+                    card.name.horizontalOverflow = HorizontalWrapMode.Wrap;
+                    var badge = At(Node("New", cardRt), TopRight, new Vector2(4, 6), new Vector2(36, 16));
+                    Img(badge, "button_red_normal");
+                    Txt(Stretch(Node("Text", badge)), "Yeni", 11, Color.white, TextAnchor.MiddleCenter, true);
+                    card.newBadge = badge.gameObject;
+                    badge.gameObject.SetActive(false);
+                    card.hover = cardRt.gameObject.AddComponent<CardHover>();
+                    page.cards[i] = card;
+                }
+                view.pages[p] = page;
+            }
+            view.prev = LinkText(w, "Prev", "◂", 250, 349, 20, Ink, TextAnchor.MiddleCenter);
+            view.nav = TextAt(w, "Nav", "", 270, 349, 136, 14, Faint, TextAnchor.MiddleCenter);
+            view.next = LinkText(w, "Next", "▸", 406, 349, 20, Ink, TextAnchor.MiddleCenter);
+            return wrap.gameObject;
+        }
+
+        // ================= Profile card (draft profil-v3) =================
+
+        static void Stat(Transform w, int i, out Text label, out Text value)
+        {
+            var rt = Abs(w, "Stat" + i, 29 + i * 160, 315, 146, 44);
+            Img(rt, "card");
+            Img(Stretch(Node("Outline", rt)), "outline");
+            label = TextAt(rt, "Label", "", 10, 11, 130, 14, Ink);
+            value = TextAt(rt, "Value", "", 10, 30, 70, 15, Ink, TextAnchor.MiddleLeft, true);
+        }
+
+        static GameObject BuildProfile()
+        {
+            // profil-v3: window 520x460 at (300, 128).
+            var wrap = Stretch(Node("Profile", null));
+            var view = wrap.gameObject.AddComponent<ProfileView>();
+            view.window = DraftWindow(wrap, "Profil", 300, 128, 520, 460);
+            var w = view.window.transform;
+            view.portrait = SlotAt(w, "Portrait", 28, 28, 104);
+            view.portrait.frame.pixelsPerUnitMultiplier = 1;
+            view.portrait.label.fontSize = 14;
+            view.name = TextAt(w, "Name", "", 145, 42, 200, 21, Ink, TextAnchor.MiddleLeft, true);
+            var tag = Abs(w, "LevelTag", 197, 35, 38, 16);
+            Img(tag, "tag_level");
+            view.levelTag = tag.gameObject;
+            view.level = Txt(Stretch(Node("Text", tag)), "Lv 1", 11, Color.white, TextAnchor.MiddleCenter, true);
+            view.sub = TextAt(w, "Sub", "", 145, 73, 330, 14, Faint);
+            Icon(w, "ScoreIcon", new Vector2(0, 1), new Vector2(147, -106), Gold, 16);
+            view.score = TextAt(w, "Score", "0", 172, 106, 80, 19, Hex("e83b3b"), TextAnchor.MiddleLeft, true);
+            TextAt(w, "ScoreLabel", "Collection Score", 245, 106, 200, 15, Ink);
+            var hunt = Abs(w, "Hunt", 144, 126, 351, 26);
+            Img(hunt, "panel_alert");
+            view.hunt = hunt.gameObject;
+            view.huntText = Txt(Stretch(Node("Text", hunt), 10, 0, 8, 0), "", 14, Hex("ae2334"));
+            TextAt(w, "ShowcaseLabel", "Vitrin", 29, 176, 100, 14, Ink);
+            Img(Abs(w, "ShowcaseLine", 29, 186, 466, 4), "divider");
+            view.showcase = new SlotView[3];
+            for (var i = 0; i < 3; i++)
+            {
+                view.showcase[i] = SlotAt(w, "Showcase" + i, 110 + i * 112, 192, 80);
+                view.showcase[i].frame.pixelsPerUnitMultiplier = 1;
+                view.showcase[i].label.fontSize = 14;
+            }
+            TextAt(w, "CollectionLabel", "Koleksiyon", 29, 300, 120, 14, Ink);
+            Stat(w, 0, out view.stat1Label, out view.stat1Value);
+            view.stat1Fill = Bar(Abs(w.Find("Stat0"), "Bar", 76, 24, 60, 12), "bar_fill_green", out _);
+            Stat(w, 1, out view.stat2Label, out view.stat2Value);
+            Stat(w, 2, out view.stat3Label, out view.stat3Value);
+            view.book = Btn(w, "Book", "wood", "Defterine bak", 14);
+            At((RectTransform)view.book.transform, TopLeft, new Vector2(29, -384), new Vector2(141, 30));
+            view.bookText = view.book.GetComponentInChildren<Text>();
+            view.whisper = Btn(w, "Whisper", "wood", "Fısılda", 14);
+            At((RectTransform)view.whisper.transform, TopLeft, new Vector2(177, -384), new Vector2(101, 30));
+            view.friend = Btn(w, "Friend", "green", "Arkadaş ekle", 14);
+            At((RectTransform)view.friend.transform, TopLeft, new Vector2(289, -384), new Vector2(121, 30));
+            view.trade = Btn(w, "Trade", "wood", "Takas", 14);
+            At((RectTransform)view.trade.transform, TopLeft, new Vector2(421, -384), new Vector2(70, 30));
+            view.footer = TextAt(w, "Footer", "", 29, 428, 300, 13, Faint);
+            view.report = LinkText(w, "Report", "Raporla", 378, 428, 60, Hex("e83b3b"), TextAnchor.MiddleRight);
+            TextAt(w, "Dot", "·", 438, 428, 10, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
+            view.block = LinkText(w, "Block", "Engelle", 448, 428, 50, Hex("e83b3b"));
             return wrap.gameObject;
         }
 
