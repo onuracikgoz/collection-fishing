@@ -704,10 +704,31 @@ export function rpcDevTrades(ctx: nkruntime.Context, _logger: nkruntime.Logger, 
     .slice(0, limit)
     .map((o) => o.value);
   const reports = all(SYSTEM_USER, 'reports', 5000).map((o) => o.value as { target?: string; reporter?: string });
+  const flagObj = nk.storageRead([{ collection: 'bot_flags', key: userId, userId: SYSTEM_USER }]);
   return JSON.stringify({
     userId,
+    botFlags: flagObj.length > 0 ? (flagObj[0].value as { flags?: unknown }).flags || {} : {},
     trades,
     reportsAbout: reports.filter((r) => r.target === userId),
     reportsBy: reports.filter((r) => r.reporter === userId),
   });
+}
+
+/** Every player with a bot flag, most recently flagged first. */
+export function rpcDevFlags(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+  devOnly(ctx);
+  const out: { userId: string; name: string; flags: { [f: string]: { at: number } }; lastAt: number }[] = [];
+  let cursor: string | undefined = undefined;
+  for (let page = 0; page < 50; page++) {
+    const res: nkruntime.StorageObjectList = nk.storageList(SYSTEM_USER, 'bot_flags', 100, cursor);
+    for (const o of res.objects || []) {
+      const v = o.value as { userId: string; name: string; flags: { [f: string]: { at: number } } };
+      const lastAt = Math.max(0, ...Object.keys(v.flags || {}).map((k) => v.flags[k].at || 0));
+      out.push({ userId: v.userId, name: v.name, flags: v.flags || {}, lastAt });
+    }
+    cursor = res.cursor;
+    if (!cursor) break;
+  }
+  out.sort((a, b) => b.lastAt - a.lastAt);
+  return JSON.stringify({ players: out });
 }

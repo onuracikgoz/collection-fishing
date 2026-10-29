@@ -2,7 +2,7 @@
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
 import { QuestState } from '../rules/quest';
 import { trackQuest } from './quest';
-import { ANNOUNCE, BAG, BAIT, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
+import { ANNOUNCE, BAG, BAIT, BOT_CHECK, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
@@ -18,13 +18,18 @@ import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
 import { placeNewItem } from './items';
 import { addXp, levelOf, xpForCatch } from '../rules/xp';
-import { energyWrite, rodWrite, stacksWrite, xpWrite } from './playerData';
+import { activityWrite, energyWrite, flagBot, rodWrite, stacksWrite, xpWrite } from './playerData';
+import { ActivityDoc, BotFlag, addActive, dayNumber, hookTooRegular, pushSample, stdev, tooLong } from '../rules/botCheck';
 
 /** The part of a match player that fishing needs. */
 export interface Fisher {
   presence: nkruntime.Presence;
   move: { x: number; y: number };
   energy: number;
+  /** Energy changed since it was last saved (see ENERGY.saveEveryMs). */
+  energyDirty?: boolean;
+  /** Bot signals; absent until loaded at join. */
+  bot?: BotState;
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
@@ -34,6 +39,51 @@ export interface Fisher {
   lastCatch?: string;
   /** Today's quests; absent until loaded at join. */
   quest?: QuestState;
+}
+
+export interface BotState {
+  /** Newest hook reaction times (ms). */
+  hookTimes: number[];
+  /** Wall-clock ms of the last cast. */
+  lastCastAt?: number;
+  activity: ActivityDoc | null;
+  activityDirty: boolean;
+  /** Flag -> the day it was last raised in this match, so it is written once a day. */
+  flaggedDay: { [flag: string]: number };
+}
+
+export const newBotState = (activity: ActivityDoc | null): BotState => ({ hookTimes: [], activity, activityDirty: false, flaggedDay: {} });
+
+function raiseFlag(ctx: FishingContext, f: Fisher, flag: BotFlag, day: number, detail: Record<string, unknown>): void {
+  const bot = f.bot!;
+  if (bot.flaggedDay[flag] === day) return;
+  bot.flaggedDay[flag] = day;
+  try {
+    flagBot(ctx.nk, f.presence.userId, f.presence.username, flag, day, detail);
+  } catch (e) {
+    ctx.logger.warn('Bot flag %s for %s not saved: %s', flag, f.presence.userId, String(e));
+  }
+}
+
+/** Counts fishing time at each cast and flags very long days. */
+function noteCast(ctx: FishingContext, f: Fisher): void {
+  if (!f.bot) return;
+  const wall = Date.now();
+  const bot = f.bot;
+  bot.activity = addActive(bot.activity, bot.lastCastAt, wall, BOT_CHECK);
+  bot.lastCastAt = wall;
+  bot.activityDirty = true;
+  if (tooLong(bot.activity, BOT_CHECK)) raiseFlag(ctx, f, 'long_hours', bot.activity.day, { ms: bot.activity.ms });
+}
+
+/** Keeps the hook reaction time and flags a set that is too even. */
+function noteHook(ctx: FishingContext, f: Fisher, reactionMs: number): void {
+  if (!f.bot) return;
+  const bot = f.bot;
+  bot.hookTimes = pushSample(bot.hookTimes, reactionMs, BOT_CHECK.hookSamples);
+  if (hookTooRegular(bot.hookTimes, BOT_CHECK)) {
+    raiseFlag(ctx, f, 'regular_hook', dayNumber(Date.now(), BOT_CHECK), { samples: bot.hookTimes.slice(), stdevMs: Math.round(stdev(bot.hookTimes) * 10) / 10 });
+  }
 }
 
 export interface FishingContext {
@@ -93,7 +143,6 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
   }
   const writes: nkruntime.StorageWriteRequest[] = [];
   const stacks = { ...f.bag.stacks };
-  if (spent.hasEnergy) writes.push(energyWrite(f.presence.userId, spent.value, true));
   if (target.bait) {
     // One special bait per cast, gone whatever happens next (03-balik-tutma.md 5.0.0.1).
     if (stacks[target.bait] > 1) stacks[target.bait]--;
@@ -109,6 +158,8 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
       if (target.bait) return end(ctx, f, 'rejected', { reason: 'NO_BAIT' });
     }
   }
+  if (spent.hasEnergy) f.energyDirty = true;
+  noteCast(ctx, f);
   f.energy = spent.value;
   f.bag.stacks = stacks;
   const wait = planWait(now, check.band, FISHING, Math.random);
@@ -133,6 +184,7 @@ export function handleHook(ctx: FishingContext, f: Fisher, now: number): void {
   if (action === 'missed') return end(ctx, f, 'missed');
   if (action !== 'reel') return;
   const fs = f.fish;
+  if (fs.bitAt !== undefined) noteHook(ctx, f, now - fs.bitAt);
   const params = reelParamsFor(REEL_PARAMS[fs.roll!.tier || 'common'], fs.band, FISHING);
   fs.phase = 'reeling';
   fs.seed = Math.floor(Math.random() * 4294967296);
@@ -196,12 +248,16 @@ function give(ctx: FishingContext, f: Fisher): void {
   }
   const xpResult = addXp(f.xp, xpForCatch(roll.def.category, f.fish!.hasEnergy, XP), XP);
   if (xpResult.gain.gained > 0) writes.push(xpWrite(userId, xpResult.total));
+  // The cast's energy rides along with the catch instead of costing a write of its own.
+  const energySaved = !!f.energyDirty;
+  if (energySaved) writes.push(energyWrite(userId, f.energy, true));
   try {
     ctx.nk.storageWrite(writes);
   } catch (e) {
     ctx.logger.error('Saving catch failed: %s', String(e));
     return end(ctx, f, 'escaped');
   }
+  if (energySaved) f.energyDirty = false;
   if (book) f.book = book;
   else if (extra.item) f.bag.items++;
   if (rod) f.rod = rod;
@@ -212,6 +268,33 @@ function give(ctx: FishingContext, f: Fisher): void {
   end(ctx, f, 'caught', extra);
   trackQuest(ctx.nk, ctx.logger, ctx.dispatcher, f, { event: 'catch', tier: roll.tier || undefined });
   if (announce) send(ctx, OpCode.ANNOUNCE, announce, ctx.everyone());
+}
+
+/**
+ * Saves what the match keeps unsaved: cast energy and today's fishing time. Runs every ENERGY.saveEveryMs
+ * and at leave (`energy: false` there, the leave saves energy itself).
+ */
+export function flushPlayers(nk: nkruntime.Nakama, logger: nkruntime.Logger, fishers: Fisher[], opts = { energy: true }): void {
+  const writes: nkruntime.StorageWriteRequest[] = [];
+  const done: (() => void)[] = [];
+  for (const f of fishers) {
+    if (opts.energy && f.energyDirty) {
+      writes.push(energyWrite(f.presence.userId, f.energy, true));
+      done.push(() => (f.energyDirty = false));
+    }
+    const bot = f.bot;
+    if (bot && bot.activityDirty && bot.activity) {
+      writes.push(activityWrite(f.presence.userId, bot.activity));
+      done.push(() => (bot.activityDirty = false));
+    }
+  }
+  if (writes.length === 0) return;
+  try {
+    nk.storageWrite(writes);
+    for (const d of done) d();
+  } catch (e) {
+    logger.error('Saving player state failed: %s', String(e));
+  }
 }
 
 /** Runs timers once per tick: twitches, the bite, missed hooks and reel timeouts. */
@@ -232,6 +315,7 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
       if (!roll) return end(ctx, f, 'escaped');
       fs.roll = roll;
       fs.phase = 'bite';
+      fs.bitAt = now;
       fs.hookDeadline = now + hookWindow(roll, FISHING) + FISHING.hookGraceMs;
       bobber(ctx, f, 'bite');
     }

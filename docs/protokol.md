@@ -46,7 +46,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4) | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4; oyuncu bir sunucudayken `energy` 1 dk'ya kadar geride kalabilir, client maçtaki değeri kullanır: `WELCOME`, `BOBBER`, `FISH_END`) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
 | `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
@@ -311,6 +311,16 @@ Dolandırıcılık şikayetleri için (`tasarim/07-kopya-envanter.md` 9.1). Clie
 - Kayıt: `{ kind, with, withName, at, serverId, ref, gave, got, fee? }`. `kind`: `trade`, `stall_buy`, `stall_sale`. `gave` / `got`: `{ items: [{ instanceId, defId, tier, float }], stacks: [{ defId, count }], coin }`; eşya sonra satılsa ya da parçalansa da o anki hali kayıtta kalır. `ref`: takas id'si ya da satışın kendi id'si. `fee`: satıcının ödediği pazar ücreti.
 - Geliştirici ve moderatör görünümü: `dev_trades { userId, limit? }` (yerel sunucu; oyuncunun kayıtları yeniden eskiye, hakkındaki ve verdiği raporlar). Canlı sunucuda Nakama konsolundan okunur; admin paneli Faz 6.
 - Saklama süresi şimdilik sınırsız (Öneri: 1 yıl, sonra temizlenir).
+
+## Bot işaretleri
+
+Kurallar: `tasarim/03-balik-tutma.md` 5.1.1. Client'a mesaj yoktur, oyuncu bir şey görmez; sadece moderatör için işaret konur, otomatik ceza yok. Sayılar `config.ts` `BOT_CHECK` (Öneri).
+
+- **Düzenli vuruş (`regular_hook`):** ısırmanın gösterildiği tick ile `HOOK` arası süre oyuncu başına son **30** atış için tutulur (bellekte). Standart sapma **30 ms**'nin altındaysa işaret konur. Maç 10 Hz çalıştığı için süreler 100 ms adımlıdır; insan birkaç adıma yayılır, sabit gecikmeli bot hep aynı adıma düşer.
+- **Uzun gün (`long_hours`):** iki atış arası **2 dk**'dan kısaysa aradaki süre balık tutma sayılır. Bir günde (00:00 Türkiye saati) **16 saati** geçerse işaret konur. Süre `player/activity { day, ms }`'te durur, dakikada bir ve çıkışta yazılır.
+- İşaretler `bot_flags/<userId>` (sistem kullanıcısı) kaydında: `{ userId, name, flags: { <işaret>: { at, day, days, detail } } }`. Aynı işaret günde bir kez yazılır, `days` kaç farklı günde konduğunu sayar.
+- Görmek için: `dev_flags` (işaretli herkes), `dev_trades { userId }` (oyuncunun işaretleri, kayıtları ve raporları). Canlıda admin paneli Faz 6.
+- **Henüz yok:** kısıtlı olmayan Steam hesabı şartı (Faz 7, Steam girişiyle), oyun süresi şartı (şimdilik level 10 bunun yerine geçer).
 
 ## Eşya kilidi
 

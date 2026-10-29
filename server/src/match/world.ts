@@ -30,12 +30,12 @@ import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
 import { QuestState } from '../rules/quest';
 import { FishState } from '../rules/fishing';
-import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
+import { BotState, Fisher, FishingContext, cancelFishing, flushPlayers, handleCast, newBotState, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
 import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
 import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
-import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readMutedUntil, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, readActivity, readEmotes, readMutedUntil, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
@@ -66,6 +66,9 @@ interface Player {
   /** Changed since the last SNAPSHOT. */
   dirty: boolean;
   energy: number;
+  /** Cast energy not saved yet. */
+  energyDirty?: boolean;
+  bot?: BotState;
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
@@ -112,6 +115,8 @@ export interface WorldState {
   market: MarketState;
   /** Wall-clock ms of the last account deletion sweep (only the first server sweeps). */
   sweptAt: number;
+  /** Wall-clock ms of the last energy save (ENERGY.saveEveryMs). */
+  energySavedAt: number;
 }
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -191,6 +196,7 @@ export function worldInit(
       trades: {},
       market: initMarket(nk, logger, serverId, spots),
       sweptAt: 0,
+      energySavedAt: Date.now(),
     },
     tickRate: WORLD.tickRate,
     label: JSON.stringify(label),
@@ -285,6 +291,8 @@ export function worldJoin(
       visible: {},
       dirty: true,
       energy,
+      energyDirty: old ? old.energyDirty : false,
+      bot: old ? old.bot : newBotState(readActivity(nk, presence.userId)),
       bag,
       book,
       rod,
@@ -327,6 +335,7 @@ export function worldLeave(
     delete state.players[presence.userId];
     cancelTradeOf(tradeEnv(nk, logger, dispatcher, state), presence.userId);
     ownerLeft(marketEnv(nk, logger, dispatcher, state), p);
+    flushPlayers(nk, logger, [p], { energy: false });
     saveEnergy(nk, logger, presence.userId, p.energy, false);
     const msg: PlayerLeaveMsg = { id: presence.userId };
     const watchers: nkruntime.Presence[] = [];
@@ -606,6 +615,10 @@ export function worldLoop(
   }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
   const wall = Date.now();
+  if (wall - state.energySavedAt >= ENERGY.saveEveryMs) {
+    state.energySavedAt = wall;
+    flushPlayers(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
+  }
   for (const id in state.players) rollQuestDay(nk, logger, dispatcher, state.players[id], wall);
 
   // Positions are final for this tick; chat and visibility use them.
@@ -654,6 +667,7 @@ export function worldTerminate(
   const market = marketEnv(nk, logger, dispatcher, state);
   for (const id in state.players) ownerLeft(market, state.players[id], true);
   savePositions(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
+  flushPlayers(nk, logger, Object.keys(state.players).map((id) => state.players[id]), { energy: false });
   for (const id in state.players) saveEnergy(nk, logger, id, state.players[id].energy, false);
   return { state };
 }
