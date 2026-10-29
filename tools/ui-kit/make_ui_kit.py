@@ -219,6 +219,10 @@ im = new(12, 12); r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 11, c("6b3e75")); r(
 im.putpixel((0, 0), CLR); im.putpixel((11, 0), CLR)
 put("tag_level", im, (3, 3, 3, 1))
 
+# locked side of the trade window (takas-a/c): gold outline, pale yellow inside
+im = new(8, 8); r(im, 0, 0, 7, 7, NAIL); r(im, 1, 1, 6, 6, c("e4e2a0"))
+put("panel_locked", im, 1)
+
 # ---------- item slots (40x40 holds a 32 px icon) ----------
 TIERS = {"common": "9babb2", "rare": "4d9be6", "epic": "a884f3", "legendary": "f79617", "mythic": "e83b3b"}
 def slot(outline=WM, fill=SAGE_L, inner=SAGE):
