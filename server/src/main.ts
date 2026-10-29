@@ -1,4 +1,18 @@
-import { afterAuthenticateDevice, beforeAuthenticateDevice } from './hooks/auth';
+import {
+  afterAuthenticateDevice,
+  afterLinkCustom,
+  afterLinkDevice,
+  afterLinkFacebook,
+  afterLinkGoogle,
+  afterUnlinkCustom,
+  afterUnlinkDevice,
+  afterUnlinkFacebook,
+  afterUnlinkGoogle,
+  afterUnlinkSteam,
+  beforeAuthenticateDevice,
+  beforeLinkSteam,
+} from './hooks/auth';
+import { rpcTransferCodeCreate, rpcTransferCodeRedeem } from './rpc/transferCode';
 import { ensureServers } from './match/servers';
 import {
   worldInit,
@@ -56,6 +70,18 @@ function InitModule(
   initializer.registerRpc('get_catalog', rpcGetCatalog);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
+  initializer.registerRpc('transfer_code_create', rpcTransferCodeCreate);
+  initializer.registerRpc('transfer_code_redeem', rpcTransferCodeRedeem);
+  initializer.registerBeforeLinkSteam(beforeLinkSteam);
+  initializer.registerAfterLinkDevice(afterLinkDevice);
+  initializer.registerAfterLinkGoogle(afterLinkGoogle);
+  initializer.registerAfterLinkFacebook(afterLinkFacebook);
+  initializer.registerAfterLinkCustom(afterLinkCustom);
+  initializer.registerAfterUnlinkDevice(afterUnlinkDevice);
+  initializer.registerAfterUnlinkGoogle(afterUnlinkGoogle);
+  initializer.registerAfterUnlinkFacebook(afterUnlinkFacebook);
+  initializer.registerAfterUnlinkSteam(afterUnlinkSteam);
+  initializer.registerAfterUnlinkCustom(afterUnlinkCustom);
   initializer.registerMatch('world', {
     matchInit: worldInit,
     matchJoinAttempt: worldJoinAttempt,

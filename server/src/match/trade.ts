@@ -20,7 +20,7 @@ import {
 } from '../rules/trade';
 import { FishingContext, Fisher, cancelFishing } from './fishing';
 import { placeNewItem } from './items';
-import { StoredItem, bookWrite, inBag, publicItem, readWallet, stacksWrite } from './playerData';
+import { StoredItem, bookWrite, inBag, publicItem, readTradeLock, readWallet, stacksWrite } from './playerData';
 
 /** The part of a match player that trading needs. */
 export interface TradePlayer extends Fisher {
@@ -100,6 +100,13 @@ function refuse(env: TradeEnv, p: TradePlayer, reason: string): void {
   send(env, OpCode.TRADE_END, msg, [p.presence]);
 }
 
+/** The first of these players whose account may not trade yet (a newly linked Steam account), or null. */
+function tradeLocked(env: TradeEnv, ids: string[]): string | null {
+  const now = Date.now();
+  for (const id of ids) if (readTradeLock(env.nk, id) > now) return id;
+  return null;
+}
+
 const distance = (a: TradePlayer, b: TradePlayer) => Math.hypot(a.move.x - b.move.x, a.move.y - b.move.y);
 
 function recOf(env: TradeEnv, p: TradePlayer): TradeRec | null {
@@ -116,6 +123,8 @@ function handleOffer(env: TradeEnv, p: TradePlayer, body: unknown, now: number):
   if (!target) return refuse(env, p, 'NOT_HERE');
   if (p.tradeId || target.tradeId) return refuse(env, p, 'BUSY');
   if (distance(p, target) > TRADE.maxDistance) return refuse(env, p, 'TOO_FAR');
+  const held = tradeLocked(env, [p.presence.userId, targetId]);
+  if (held !== null) return refuse(env, p, held === p.presence.userId ? 'TRADE_LOCKED' : 'TARGET_TRADE_LOCKED');
   cancelFishing(env.fishing, p);
   const s = newSession(env.nk.uuidv4(), p.presence.userId, targetId, now, TRADE);
   env.trades[s.id] = { s, views: { [s.a]: [], [s.b]: [] } };
@@ -133,6 +142,7 @@ function handleReply(env: TradeEnv, p: TradePlayer, body: unknown, now: number):
   const a = env.players[rec.s.a];
   if (!a) return end(env, rec, 'cancelled', 'NOT_HERE');
   if (distance(a, p) > TRADE.maxDistance) return end(env, rec, 'cancelled', 'TOO_FAR');
+  if (tradeLocked(env, [a.presence.userId, p.presence.userId]) !== null) return end(env, rec, 'cancelled', 'TRADE_LOCKED');
   cancelFishing(env.fishing, p);
   accept(rec.s, now, TRADE);
   pushState(env, rec, now);
@@ -186,6 +196,8 @@ function execute(env: TradeEnv, rec: TradeRec): void {
   const pa = env.players[s.a];
   const pb = env.players[s.b];
   if (!pa || !pb) return end(env, rec, 'cancelled', 'NOT_HERE');
+  const held = tradeLocked(env, [s.a, s.b]);
+  if (held !== null) return end(env, rec, 'failed', 'TRADE_LOCKED', {}, held);
 
   // Read the offered items fresh: anything that left the bag since TRADE_SET is gone.
   const stored: { [userId: string]: { [id: string]: StoredItem } } = { [s.a]: {}, [s.b]: {} };

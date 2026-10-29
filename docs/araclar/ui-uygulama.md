@@ -17,13 +17,13 @@ Bulut oturumu Unity'yi derleyemediği için bu pencerelerin hiçbiri Unity'de ya
 
 | Pencere | Taslak | Sunucu | Not |
 |---|---|---|---|
-| Giriş akışı (başlık, web giriş, Steam, karakter, sunucu, yükleniyor) | `akis-*` | Cihaz girişi, sunucu listesi hazır. Google/Facebook/Discord ve taşıma kodu (`transfer_code_create/redeem`) **yok** | Marka ikonları yer tutucu, resmi logo kullanılacak (`acik-sorular.md` 21) |
+| Giriş akışı (başlık, web giriş, Steam, karakter, sunucu, yükleniyor) | `akis-*` | Cihaz girişi, sunucu listesi hazır. Taşıma kodu hazır (`transfer_code_create/redeem`, Steam yayıncı ayarı Faz 7'de). Google/Facebook/Discord girişi için sunucu işi **yok** (Nakama'nın kendi `authenticate*` çağrıları, Discord için özel doğrulama yazılacak) | Marka ikonları yer tutucu, resmi logo kullanılacak (`acik-sorular.md` 21) |
 | HUD (alt bar, sol/sağ üst) | `hud3` | Hazır | Alt bar düz adaçayı, XP şeridi üstte |
 | Çanta, Defter, Profil | `canta-v2`, `defter-v2`, `profil-v3` | `get_inventory`, `get_book`, `get_profile` hazır | Eşya kilidi hazır (`ITEM_LOCK`). "Sohbette göster" için sunucu **yok** |
 | Arkadaşlar | `arkadaslar-*` | `friends_status` hazır; `lastSeen` **yok** | Çevrimiçi/çevrimdışı grupları, son görülme |
 | Oyuncu menüsü, takas teklifi | `oyuncu-*` | Arkadaş ekle ve Yanına git hazır. Takas teklifi hazır (`TRADE_OFFER`), fısıltı **yok** | Menü sağ tık listesi gibi, kart yok |
 | Takas penceresi | `takas-a/b/c` | Hazır (`TRADE_*`, `protokol.md` Takas; level şartı yok) | 2 kilit + 3 sn geri sayım + Onayla; kilitli eşya konamaz |
-| Ayarlar (Genel, Hesap) | `ayarlar-*` | Genel client; Hesap için link/unlink/kod/silme **yok** | Hesap sayfası bulanık açılır, uyarı onaylanınca görünür |
+| Ayarlar (Genel, Hesap) | `ayarlar-*` | Genel client; Hesap: kod üret hazır, link/unlink Nakama'nın kendi çağrıları, hesap silme **yok** | Hesap sayfası bulanık açılır, uyarı onaylanınca görünür |
 | Balık tutma anları | `balik-*` | Hazır | Sürpriz av, keşif bandı |
 | NPC: sat, parçala, birleştir, craft, depo, günlük görev | `npc-*` | Satış/parçala/birleştir/craft/depo hazır (`get_catalog` ile fiyatlar). Günlük görev **yok** (Faz 6) | Craft sadece Zanaatkar'da |
 | Pazar: tezgah alanı, kurma, pano | `tezgah-*` | **Yok** (Faz 5, evcil hayvan tezgahı, ayrı branch tasarımı) | Genel arama ve fiyat sıralaması yok |

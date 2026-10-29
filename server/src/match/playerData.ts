@@ -4,6 +4,7 @@
 //   bag/stacks  { stacks: { defId: count } }
 //   player/rod  { level, durability }
 //   player/status_emote  { emote }         (worn status emote; absent = none)
+//   player/trade_lock  { until }           (ms since epoch; a newly linked Steam account cannot trade until then)
 //   player/emotes_owned  { ids: [] }       (non-free status emotes owned; written by shop / supporter / book systems)
 //   stash/state  { level, stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
@@ -184,6 +185,17 @@ export function readEmotes(nk: nkruntime.Nakama, userId: string): EmoteData {
 
 export function statusEmoteWrite(userId: string, emote: string | null): nkruntime.StorageWriteRequest {
   return { collection: 'player', key: 'status_emote', userId, value: { emote }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
+}
+
+/** Time until which this account may not trade (0 = free). */
+export function readTradeLock(nk: nkruntime.Nakama, userId: string): number {
+  const objs = nk.storageRead([{ collection: 'player', key: 'trade_lock', userId }]);
+  const v = objs.length > 0 ? (objs[0].value as { until?: unknown }).until : 0;
+  return typeof v === 'number' ? v : 0;
+}
+
+export function tradeLockWrite(userId: string, until: number): nkruntime.StorageWriteRequest {
+  return { collection: 'player', key: 'trade_lock', userId, value: { until }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
 export interface StashState {

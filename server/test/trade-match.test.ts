@@ -98,6 +98,21 @@ describe('trade window (fake Nakama)', () => {
     expect(reasons().slice(-1)).toEqual(['RATE_LIMITED']);
   });
 
+  it('keeps a newly linked account out of trades, on both sides', () => {
+    const w = world();
+    w.addPlayer('A', 10);
+    w.addPlayer('B', 12);
+    w.store.set(w.key('player', 'trade_lock', 'A'), { until: Date.now() + 60000 });
+    handleTradeOp(w.env, w.players.A, OpCode.TRADE_OFFER, { userId: 'B' }, 0);
+    handleTradeOp(w.env, w.players.B, OpCode.TRADE_OFFER, { userId: 'A' }, 0);
+    expect(w.take(OpCode.TRADE_END).map((m) => [m.to[0], m.body.reason])).toEqual([['A', 'TRADE_LOCKED'], ['B', 'TARGET_TRADE_LOCKED']]);
+    expect(w.players.A.tradeId).toBeUndefined();
+    // A lock that ran out no longer counts.
+    w.store.set(w.key('player', 'trade_lock', 'A'), { until: Date.now() - 1 });
+    handleTradeOp(w.env, w.players.A, OpCode.TRADE_OFFER, { userId: 'B' }, 10000);
+    expect(w.take(OpCode.TRADE_INVITE).length).toBe(1);
+  });
+
   it('declines, expires and cancels cleanly', () => {
     const w = world();
     w.addPlayer('A', 10);

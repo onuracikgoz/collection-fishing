@@ -25,7 +25,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 - **Misafir hesap:** kimlik tarayıcıda (localStorage) durur; sekme / tarayıcı kapanınca silinmez. Tarayıcı verisi silinirse, gizli sekmede veya başka cihazda erişim kaybolur. Bu yüzden (Öneri): ilk Rare / level 5 / ilk sayfa gibi anlarda "Hesabını koru" hatırlatması; gizli sekmede uyarı; hiçbir yola bağlanmamış ve 90 gün girilmemiş misafir hesaplar sunucudan temizlenir.
 - **Steam ilk açılış:** önce `authenticateSteam` hesap oluşturmadan denenir. Bağlı hesap yoksa oyuncu seçer:
   - **Yeni başla:** Steam hesabıyla yeni hesap ve karakter oluşturma.
-  - **Web hesabım var:** webde Ayarlar > Hesap > "Kod üret" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir ve Steam o hesaba bağlanır (`linkSteam`). Masaüstünde Google / Facebook / Discord girişi tarayıcı yönlendirmesi istediği için Steam'de tek yol koddur. Yeni RPC'ler gerekir (`transfer_code_create`, `transfer_code_redeem`), adları ve gövdeleri yazılırken bu tabloya eklenecek.
+  - **Web hesabım var:** webde Ayarlar > Hesap > "Kod üret" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir ve Steam o hesaba bağlanır (`linkSteam`). Masaüstünde Google / Facebook / Discord girişi tarayıcı yönlendirmesi istediği için Steam'de tek yol koddur. RPC'ler: `transfer_code_create`, `transfer_code_redeem` (aşağıda, "Taşıma kodu RPC'leri").
 - **Taşıma kodu güvenliği:** kod webde Ayarlar > Hesap > "Kod üret" ile üretilir ve Steam'de girilince bağlama hemen olur (ayrı onay yok, kodu üretmek onaydır). Kodu ele geçiren biri kendi Steam'ini bu hesaba bağlayıp karakteri alabilir (ör. "kodunu ver, eşya vereyim" kandırması). Bu yüzden:
   - Ayarlar > Hesap sayfası her açılışta bulanık gelir; "Hesap bilgilerin gizlendi" uyarısı onaylanınca açılır (yayın / omuz üstünden bakma için).
   - Kodun yanında sabit uyarı: "Bu kodu kimseyle paylaşma. Yetkililer asla istemez."
@@ -52,8 +52,20 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
+| `transfer_code_create` | `{}` (oturumlu) | `{ code, expiresInMs }` (`code`: `ABCD-EFGH`) | 5 |
+| `transfer_code_redeem` | `{ code, steamToken }` (**oturumsuz**, HTTP anahtarıyla) | `{ ok: true }` | 5 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
+
+### Taşıma kodu RPC'leri
+
+- **`transfer_code_create`** (web hesabı, oturumlu): 8 karakterlik tek kullanımlık kod üretir. Alfabe 32 karakter (I, O, 0, 1 yok), gösterimi `ABCD-EFGH`; yazarken büyük/küçük harf, boşluk ve tire fark etmez. 10 dk geçerli. Hesabın aynı anda tek geçerli kodu olur: yenisi eskisini siler. Saatte en fazla 5 kod (Öneri), aşılırsa `RATE_LIMITED`.
+- **`transfer_code_redeem`** (Steam): Steam oyuncusunun henüz Nakama hesabı olmadığı için **oturumsuz** çağrılır (HTTP anahtarı). `steamToken` Steam oturum bileti. Sunucu kodu tek kullanımlık siler, Steam'i **sunucuda** o hesaba bağlar (`nk.linkSteam`; bilet Steam'de doğrulanır) ve `{ ok: true }` döner. Sonra client `authenticateSteam(create: false)` ile girer, bağlı hesap açılır.
+  - Hatalar: `CODE_INVALID` (yanlış, kullanılmış ya da süresi dolmuş; hangisi olduğu söylenmez), `RATE_LIMITED` (aynı adresten 10 dk'da 10 yanlış kod, Öneri), `LINK_FAILED` (Steam bileti reddedildi ya da bu Steam başka hesapta; kod geri verilir, tekrar denenebilir), `BAD_REQUEST`.
+  - Başarıda: hesaba **72 saat takas kilidi** konur (`TRADE_*` teklifi `TRADE_LOCKED` / karşı taraf için `TARGET_TRADE_LOCKED` ile reddedilir; pazar gelince aynı kilit satışı da kapatır), hesaba "giriş yolu bağlandı" bildirimi gider (Nakama bildirimi, kod 101, `{ provider: "steam" }`).
+- **Giriş yolu bildirimleri:** cihaz, Google, Facebook ve Discord (özel) bağlanınca bildirim kodu 101, herhangi bir yol (Steam dahil) kaldırılınca 102 gider; `{ provider }` içerir. Kalıcı bildirimdir, sonraki girişte gösterilir.
+- **Steam'i istemciden `linkSteam` ile bağlamak kapalıdır** (`PERMISSION_DENIED`): Steam sadece kodla bağlanır.
+- Sunucu ayarı: Steam yayıncı anahtarı ve app id `local.yml` / canlı ayar dosyasında (`social.steam`) gerekir; Faz 7'de girilecek. Ayarsız `linkSteam` hata verir ve `LINK_FAILED` döner.
 
 ## Match (harita) mesajları
 
@@ -212,14 +224,14 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.1. Sunucu: `rules/trade.ts` (saf
 | 47 | S → C | `TRADE_END` | `TradeEndMsg` (iki tarafa) |
 
 - **Akış:** `TRADE_OFFER` → karşı taraf `TRADE_INVITE` alır → `TRADE_REPLY { accept }`. Kabul edilince iki tarafa `TRADE_STATE` gider ve pencere açılır. Reddedilirse, 15 sn cevap gelmezse (Öneri) ya da teklif eden iptal ederse `TRADE_END` gider.
-- **Teklif koşulları:** iki oyuncu aynı sunucuda ve en fazla 5 tile (Öneri) uzakta, ikisi de başka bir takasta değil. Teklif edenin olta atması iptal olur. Aynı oyuncu 3 sn'de bir teklif edebilir (Öneri). `TRADE_END.reason`: `NOT_HERE`, `TOO_FAR`, `BUSY` (taraflardan biri başka takasta), `SELF`, `RATE_LIMITED`.
+- **Teklif koşulları:** iki oyuncu aynı sunucuda ve en fazla 5 tile (Öneri) uzakta, ikisi de başka bir takasta değil. Teklif edenin olta atması iptal olur. Aynı oyuncu 3 sn'de bir teklif edebilir (Öneri). `TRADE_END.reason`: `NOT_HERE`, `TOO_FAR`, `BUSY` (taraflardan biri başka takasta), `SELF`, `RATE_LIMITED`, `TRADE_LOCKED` (kendi hesabın yeni bağlanmış Steam'den dolayı kilitli), `TARGET_TRADE_LOCKED` (karşı taraf kilitli).
 - **Pencere açıkken** iki taraf yürüyemez ve olta atamaz (sunucu `MOVE` ve `CAST` mesajlarını yok sayar). Mesafe 5 tile'ı aşarsa, biri bağlantıyı keserse ya da pencere 5 dk (Öneri) açık kalırsa takas iptal olur.
 - **İçerik:** `TRADE_SET` bir tarafın tüm içeriğini değiştirir. Eşya kalemleri (`items` + `stacks`) toplamı en fazla **8** (Öneri); `coin` o anki bakiyeyi aşamaz. Sadece **çantadaki** Float eşyalar (defter yuvasındakiler ve depodakiler değil) ve yığınlar konabilir. Toz takas edilemez. Reddedilirse içerik değişmez, isteyene `TRADE_STATE` içinde `reason` döner: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED`, `NOT_ENOUGH`, `LOCKED` (kilitli eşya).
 - **Kilit:** her iki taraf `TRADE_LOCK { locked: true }` der. Birinin içeriği değişirse (kendi `TRADE_SET`'i ya da karşı tarafınki) iki kilit de açılır ve onaylar sıfırlanır.
 - **Onay:** iki kilit kapandıktan **3 sn** (Öneri) sonra `TRADE_CONFIRM` kabul edilir; öncesinde gönderilen yok sayılır. İki taraf da onaylayınca takas **tek işlemde** (eşyalar, yığınlar, Coin, kayıt) gerçekleşir. Sunucu o an her şeyi yeniden doğrular: eşya hâlâ çantada mı, yığın ve Coin yeterli mi, iki tarafın çantasında yer var mı.
 - **Gelen eşya deftere işlenir:** ilk kopyaysa defter yuvasına gider ("Yeni keşif", çantada yer tutmaz), değilse çantaya. Çanta doluluğu hesabında her gelen Float eşya bir yuva sayılır (temkinli). `ItemInstance.source` = `trade`.
 - **Kayıt:** her başarılı takas iki tarafın `trades/<tradeId>` kaydına yazılır (kim, ne verdi, ne aldı, ne zaman). Sadece sunucu okur.
-- **Henüz yok (Öneri):** level 10 şartı ve hesap kısıtları (XP sistemi gelince), takas kısıtı (`acik-sorular.md` 4).
+- **Henüz yok (Öneri):** level 10 şartı (XP sistemi gelince), takas kısıtı (`acik-sorular.md` 4).
 
 ```
 TradeOfferView = { items: ItemInstance[], stacks: [{ defId, count }], coin }

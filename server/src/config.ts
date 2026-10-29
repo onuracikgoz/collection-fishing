@@ -174,6 +174,18 @@ export const TRADE = {
   offerCooldownMs: 3000,
 };
 
+// Account transfer code (docs/protokol.md, Giriş). All Öneri.
+export const TRANSFER = {
+  codeLength: 8,
+  ttlMs: 10 * 60 * 1000,
+  createPerHour: 5,
+  /** Wrong codes allowed per client address in the window. */
+  maxFails: 10,
+  failWindowMs: 10 * 60 * 1000,
+  /** A newly linked Steam account cannot trade or sell on the market for this long. */
+  steamTradeLockMs: 72 * 60 * 60 * 1000,
+};
+
 // Friends: "Yanına git" (10-sosyal.md 13.2.1).
 export const FRIENDS = {
   teleportCooldownMs: 3000, // (Öneri)
