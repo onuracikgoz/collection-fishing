@@ -43,3 +43,19 @@ Hazır paket yerine kodla çizilen kendi kitimiz: `tools/ui-kit/make_ui_kit.py` 
 - Henüz yok: pixel font (Türkçe harfli), HUD ve emote ikonları (Perchance), logo.
 
 Örnek ekran: `docs/gorsel/ornek-ekran.png`.
+
+## Bildirimler (Öneri, 29.10.2026)
+
+Mockup'lar: sağ üstte yığın ve ekran ortasında bannerlar. Hepsi `box_dark` kutusu, solda renkli ikon karesi, altta süre çubuğu.
+
+- **Yığın (sağ üst, HUD'un altı):** aynı anda en fazla 4 kutu görünür, yenisi üste girer, fazlası "+N bildirim daha" olur. Üstüne gelince süre durur, tıklayınca kapanır.
+- **Renk = önem:**
+  - Kırmızı: bir şey engelleniyor (çanta dolu, bağlantı koptu). Süre yok, durum düzelince kendi kapanır.
+  - Sarı: dikkat (enerji az, olta yıpranıyor). 5 sn.
+  - Altın: para veya ödül (tezgahta satış). 5 sn.
+  - Yeşil: bilgi (arkadaş isteği, defter ilerlemesi). 4 sn. Butonlu olanlar (Kabul) tıklanana kadar kalır.
+- **Seviye atlama:** ekran ortasında pencere, 5 sn sonra kapanır, oyun durmaz. Açılan ödülleri (enerji sınırı, olta, alan) gösterir.
+- **Nadir av duyurusu:** üst ortada şerit, **herkese** gider. Sadece Epic ve üstü, item'ın tier rengiyle. Aynı oyuncu için art arda duyuru birleşir. Sohbet kutusundaki Sistem satırı da düşer.
+- **Defter kaydı:** ilk kez tutulan item için, sadece oyuncuya.
+- **Bağlantı koptu:** kırmızı şerit, yeniden bağlanma sayacı; bu sürede istek gönderilmez.
+- Bildirim metinleri sunucu mesajıdır, client kod tabanlı çevirir. Bildirimler drop, Float veya fiyat bilgisi sızdırmaz.
