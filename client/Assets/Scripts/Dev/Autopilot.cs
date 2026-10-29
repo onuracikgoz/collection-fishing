@@ -13,6 +13,7 @@ namespace CollectionGame.Dev
     /// <summary>
     /// Test driver for builds, started from the command line (see client/README.md):
     ///   -cgUser NAME -cgServer Mercan [-cgBot fish|walk] [-cgSay TEXT] [-cgShot FILE.png] [-cgQuit SECONDS]
+    ///   [-cgOpen bag,quests,market,settings] (windows open in the screenshot)
     /// Logs in, joins, walks to the pier, optionally fishes once, chats, takes a
     /// screenshot and quits, writing "[Autopilot]" lines to the player log. It only
     /// sends what a player could send; the server still decides everything.
@@ -112,6 +113,7 @@ namespace CollectionGame.Dev
             }
             else yield return LookAtOthers();
 
+            OpenWindows();
             yield return new WaitForSeconds(1.5f);
             var shot = Arg("-cgShot");
             if (!string.IsNullOrEmpty(shot))
@@ -402,6 +404,27 @@ namespace CollectionGame.Dev
             yield return new WaitForSeconds(seconds);
             Log("quit");
             Application.Quit();
+        }
+
+        /// <summary>-cgOpen bag,quests,market,settings,friends: windows to have open in the screenshot.</summary>
+        void OpenWindows()
+        {
+            var open = Arg("-cgOpen");
+            if (string.IsNullOrEmpty(open)) return;
+            foreach (var w in open.Split(','))
+                switch (w.Trim())
+                {
+                    case "bag":
+                        world.Fishing.BagOpen = true;
+                        world.Fishing.RefreshBag();
+                        break;
+                    case "quests": world.Quests.Open = true; break;
+                    case "market": world.Market.Show(Economy.MarketController.Tab.Stall); break;
+                    case "board": world.Market.Show(Economy.MarketController.Tab.Board); break;
+                    case "settings": world.Settings.Toggle(); break;
+                    case "friends": world.Social.FriendsOpen = true; break;
+                }
+            Log($"opened {open}");
         }
     }
 }
