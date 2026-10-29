@@ -42,6 +42,7 @@ namespace CollectionGame.World
         WhisperController whispers;
         SettingsController settings;
         WorldHud hud;
+        FishingHud fishingHud;
         BagPanel bagPanel;
         bool inputLatched;
 
@@ -115,6 +116,7 @@ namespace CollectionGame.World
                 },
             };
             bagPanel = new BagPanel(net, fishing, trade, () => economy.Prices, hud.Popup);
+            fishingHud = new FishingHud();
             trade.Popup = hud.Popup;
             market.Popup = hud.Popup;
             collection.Popup = hud.Popup;
@@ -163,6 +165,7 @@ namespace CollectionGame.World
         void OnDestroy()
         {
             hud?.Destroy();
+            fishingHud?.Destroy();
             bagPanel?.Destroy();
             quests?.Destroy();
             collection?.Destroy();
@@ -221,6 +224,7 @@ namespace CollectionGame.World
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
                 fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, cam);
+                fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
                 social.Update(Typing);
                 economy.Update(Typing);

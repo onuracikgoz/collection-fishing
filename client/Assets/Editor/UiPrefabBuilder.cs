@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 20;
+        public const int Version = 22;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -76,6 +76,8 @@ namespace CollectionGame.EditorTools
             Save(BuildMerchant(), "Merchant");
             Save(BuildCrafter(), "Crafter");
             Save(BuildBank(), "Bank");
+            Save(BuildFishing(), "Fishing");
+            Save(BuildCatch(), "Catch");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1326,9 +1328,9 @@ namespace CollectionGame.EditorTools
                 }
                 view.pages[p] = page;
             }
-            view.prev = LinkText(w, "Prev", "◂", 250, 349, 20, Ink, TextAnchor.MiddleCenter);
+            view.prev = LinkText(w, "Prev", "<", 250, 349, 20, Ink, TextAnchor.MiddleCenter);
             view.nav = TextAt(w, "Nav", "", 270, 349, 136, 14, Faint, TextAnchor.MiddleCenter);
-            view.next = LinkText(w, "Next", "▸", 406, 349, 20, Ink, TextAnchor.MiddleCenter);
+            view.next = LinkText(w, "Next", ">", 406, 349, 20, Ink, TextAnchor.MiddleCenter);
             return wrap.gameObject;
         }
 
@@ -1755,6 +1757,122 @@ namespace CollectionGame.EditorTools
             view.expandPrice = TextAt(expand, "Price", "", 140, 40, 120, 14, Ink, TextAnchor.MiddleLeft, true);
             view.expandButton = SmallButton(expand, "Expand", "green", "Genişlet", 352, 11, 118, 38, 15);
             view.expandText = view.expandButton.GetComponentInChildren<Text>();
+            return wrap.gameObject;
+        }
+
+        // ================= Fishing moments (drafts balik-*) =================
+
+        static GameObject BuildFishing()
+        {
+            // Pieces are placed by World/FishingHud.cs around the player; sizes are from the drafts.
+            var root = Stretch(Node("Fishing", null));
+            var view = root.gameObject.AddComponent<FishingView>();
+
+            // balik-at: 212x64 dark box, band labels, yellow fill with a white marker, a small line under it.
+            var charge = At(Node("Charge", root), BottomLeft, Vector2.zero, new Vector2(212, 64), new Vector2(0.5f, 0));
+            Img(charge, "box_dark");
+            TextAt(charge, "Shore", "Kıyı", 18, 15, 60, 13, Paper);
+            TextAt(charge, "Mid", "Orta", 82, 15, 60, 13, Paper, TextAnchor.MiddleCenter);
+            TextAt(charge, "Deep", "Derin", 140, 15, 60, 13, Paper, TextAnchor.MiddleRight);
+            var back = Abs(charge, "Bar", 11, 32, 190, 14);
+            view.chargeFill = Bar(back, "bar_fill_yellow", out _);
+            var marker = Node("Marker", back);
+            marker.anchorMin = marker.anchorMax = new Vector2(0.6f, 0.5f);
+            marker.sizeDelta = new Vector2(4, 18);
+            Solid(marker, Color.white);
+            view.chargeMarker = marker;
+            view.chargeSub = TextAt(charge, "Sub", "atış mesafesi", 0, 56, 212, 12, Paper, TextAnchor.MiddleCenter);
+            view.charge = charge;
+
+            // balik-vurus: "!" over the head and "Şimdi tıkla!" in a bubble beside it.
+            var bite = At(Node("Bite", root), BottomLeft, Vector2.zero, new Vector2(220, 40), new Vector2(0.5f, 0));
+            Txt(At(Node("Mark", bite), new Vector2(0.5f, 0.5f), new Vector2(-50, 0), new Vector2(30, 40), Center), "!", 30, Gold, TextAnchor.MiddleCenter, true, true);
+            var bubble = At(Node("Bubble", bite), new Vector2(0.5f, 0.5f), new Vector2(40, 0), new Vector2(120, 26), Center);
+            Img(bubble, "box_dark");
+            Txt(Stretch(Node("Text", bubble)), "Şimdi tıkla!", 14, Gold, TextAnchor.MiddleCenter, true);
+            view.bite = bite;
+
+            // balik-cekme: framed column 120x262: water with the green bar and the fish, progress on the right.
+            var reel = At(Node("Reel", root), BottomLeft, Vector2.zero, new Vector2(120, 262), new Vector2(0.5f, 0));
+            Img(reel, "window", Image.Type.Tiled, true);
+            var water = Abs(reel, "Water", 18, 18, 56, 226);
+            Solid(water, Hex("2e222f"));
+            Img(Stretch(Node("Deep", water), 2, 2, 2, 2), "box_dark");
+            view.water = water;
+            var barRt = Node("Bar", water);
+            barRt.anchorMin = new Vector2(0, 0);
+            barRt.anchorMax = new Vector2(1, 0);
+            barRt.pivot = new Vector2(0.5f, 0);
+            barRt.sizeDelta = new Vector2(-4, 60);
+            Img(barRt, "button_green_normal");
+            view.bar = barRt;
+            var fish = Node("Fish", water);
+            fish.anchorMin = fish.anchorMax = new Vector2(0.5f, 0);
+            fish.sizeDelta = new Vector2(40, 18);
+            Img(fish, "button_flat_normal");
+            Txt(Stretch(Node("Text", fish)), "balık", 9, Paper, TextAnchor.MiddleCenter, true);
+            view.fish = fish;
+            var prog = Abs(reel, "Progress", 80, 18, 22, 226);
+            Img(prog, "bar_back");
+            var pf = Node("Fill", prog);
+            pf.anchorMin = Vector2.zero;
+            pf.anchorMax = new Vector2(1, 0.3f);
+            pf.offsetMin = pf.offsetMax = Vector2.zero;
+            Img(pf, "bar_fill_yellow");
+            view.progressFill = pf;
+            view.reel = reel;
+
+            // Hint line under the meter / reel ("basılı tut, bırak", "Space / fare basılı tut").
+            var hint = At(Node("Hint", root), BottomLeft, Vector2.zero, new Vector2(420, 22), new Vector2(0.5f, 1));
+            view.hintText = Txt(Stretch(Node("Text", hint)), "", 14, Color.white, TextAnchor.MiddleCenter, true, true);
+            view.hint = hint;
+            foreach (var go in new[] { charge, bite, reel, hint }) go.gameObject.SetActive(false);
+            return root.gameObject;
+        }
+
+        static GameObject BuildCatch()
+        {
+            var wrap = Stretch(Node("Catch", null));
+            var view = wrap.gameObject.AddComponent<CatchView>();
+
+            // balik-kesif: 385x140 at (510, 120).
+            var holder = Stretch(Node("Discover", wrap));
+            view.discover = DraftWindow(holder, "Yeni keşif!", 510, 120, 385, 140);
+            var d = view.discover.transform;
+            view.discover.close.gameObject.SetActive(false);
+            view.discoverSlot = SlotAt(d, "Slot", 27, 37, 72);
+            view.discoverSlot.frame.pixelsPerUnitMultiplier = 1;
+            view.discoverSlot.label.fontSize = 13;
+            view.discoverName = TextAt(d, "Name", "", 115, 46, 260, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.discoverTier = TextAt(d, "Tier", "", 115, 69, 260, 14, Hex("a884f3"));
+            view.discoverFloat = TextAt(d, "Float", "", 115, 89, 260, 14, Hex("1e6f50"));
+            view.discoverPage = TextAt(d, "Page", "", 115, 111, 260, 13, Faint);
+            view.discoverFill = Bar(Abs(d, "PageBar", 115, 121, 100, 8), "bar_fill_green", out _);
+            view.discoverNote = TextAt(d, "Note", "Deftere kondu", 235, 125, 140, 13, Faint);
+
+            // balik-temiz: 390x200 at (505, 105).
+            var holder2 = Stretch(Node("Swap", wrap));
+            view.swap = DraftWindow(holder2, "Daha temiz kopya!", 505, 105, 390, 200);
+            var w = view.swap.transform;
+            view.swap.close.gameObject.SetActive(false);
+            TextAt(w, "OldLabel", "Defterde", 68, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
+            view.oldSlot = SlotAt(w, "Old", 68, 47, 72);
+            view.oldSlot.frame.pixelsPerUnitMultiplier = 1;
+            view.oldSlot.label.fontSize = 13;
+            view.oldFloat = TextAt(w, "OldFloat", "", 58, 132, 92, 15, Faint, TextAnchor.MiddleCenter);
+            view.oldCondition = TextAt(w, "OldCond", "", 58, 149, 92, 13, Faint, TextAnchor.MiddleCenter);
+            TextAt(w, "Arrow", ">", 180, 83, 30, 20, Ink, TextAnchor.MiddleCenter, true);
+            TextAt(w, "NewLabel", "Yeni", 248, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
+            view.newSlot = SlotAt(w, "New", 248, 47, 72);
+            view.newSlot.frame.pixelsPerUnitMultiplier = 1;
+            view.newSlot.label.fontSize = 13;
+            view.newFloat = TextAt(w, "NewFloat", "", 238, 132, 92, 15, Hex("1e6f50"), TextAnchor.MiddleCenter);
+            view.newCondition = TextAt(w, "NewCond", "", 238, 149, 92, 13, Hex("1e6f50"), TextAnchor.MiddleCenter);
+            view.swapYes = SmallButton(w, "Yes", "green", "Değiştir", 35, 163, 158, 30, 15);
+            view.swapNo = SmallButton(w, "No", "wood", "Çantada kalsın", 205, 163, 158, 30, 15);
+            var cap = Abs(w, "Caption", 0, 206, 390, 20);
+            Img(cap, "box_dark");
+            view.swapCaption = Txt(Stretch(Node("Text", cap)), "", 12, Paper, TextAnchor.MiddleCenter);
             return wrap.gameObject;
         }
 

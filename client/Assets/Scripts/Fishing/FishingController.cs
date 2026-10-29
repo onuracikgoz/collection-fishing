@@ -62,6 +62,8 @@ namespace CollectionGame.Fishing
         public bool BlocksMovement => State != Phase.Idle && State != Phase.Waiting;
 
         float charge;
+        /// <summary>Cast power 0..1 while F is held (the meter of balik-at).</summary>
+        public float Charge => charge;
         bool hookedEarly;
         Vector2? pendingCast;
         float stateSince;
@@ -415,18 +417,8 @@ namespace CollectionGame.Fishing
 
         public void DrawGui(Vector2 me)
         {
-            // Energy, rod and bait are on the uGUI HUD (World/WorldHud.cs); the bag is UI/BagPanel.cs.
-            var hint = Hint(me);
-            if (hint != null) GUI.Label(new Rect(10, Gui.Height - Gui.CanvasToGui(184) - 30, 700, 28), hint, State == Phase.Bite ? Gui.Alert : Gui.HudBold);
-
-            if (State == Phase.Charging)
-            {
-                var r = new Rect(Gui.Width / 2f - 100, Gui.Height - Gui.CanvasToGui(200), 200, 14);
-                GUI.Box(r, GUIContent.none);
-                GUI.Box(new Rect(r.x, r.y, r.width * charge, r.height), GUIContent.none, Gui.Fill);
-            }
-
-            if (Reel != null && (State == Phase.Reeling || State == Phase.Judging)) DrawReel();
+            // Energy, rod and bait are on the uGUI HUD (World/WorldHud.cs); the hint, the cast meter,
+            // the bite mark and the reel are drawn next to the player by World/FishingHud.cs.
 
             if (toast != null && Time.time < toastUntil)
             {
@@ -436,7 +428,7 @@ namespace CollectionGame.Fishing
 
         }
 
-        string Hint(Vector2 me)
+        public string Hint(Vector2 me)
         {
             switch (State)
             {
@@ -450,23 +442,5 @@ namespace CollectionGame.Fishing
             }
         }
 
-        void DrawReel()
-        {
-            const float w = 40f, h = 300f;
-            var x = Gui.Width - 120f;
-            var y = Gui.Height / 2f - h / 2f;
-            GUI.Box(new Rect(x - 6, y - 6, w + 40, h + 12), GUIContent.none);
-            GUI.Box(new Rect(x, y, w, h), GUIContent.none, Gui.Water);
-
-            float ToY(int v) => y + h - v / (float)ReelModel.Field * h;
-            var p = Reel.Params;
-            var barTop = ToY(Reel.Bar + p.barSize);
-            GUI.Box(new Rect(x + 2, barTop, w - 4, ToY(Reel.Bar) - barTop), GUIContent.none, Gui.Fill);
-            GUI.Box(new Rect(x + 8, ToY(Reel.Fish) - 5, w - 16, 10), GUIContent.none, Gui.FishMark);
-
-            var progress = Mathf.Clamp01(Reel.Progress / (float)ReelModel.Field);
-            GUI.Box(new Rect(x + w + 10, y, 14, h), GUIContent.none);
-            GUI.Box(new Rect(x + w + 10, y + h * (1 - progress), 14, h * progress), GUIContent.none, Gui.Fill);
-        }
     }
 }

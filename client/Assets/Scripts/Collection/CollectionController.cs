@@ -49,9 +49,6 @@ namespace CollectionGame.Collection
 
         string bookOwnerName;
         bool bookIsMine = true;
-        string banner;
-        bool bannerBig;
-        float bannerUntil;
         string note;
         float noteUntil;
         Vector2 bookScroll;
@@ -94,8 +91,10 @@ namespace CollectionGame.Collection
             var name = FishingController.ItemName(e.defId);
             if (e.book.kind == BookKind.Discovered)
             {
-                if (e.book.pageComplete) ShowBanner($"Sayfa tamamlandı: {PageName(e.book.page)}!  ({name})", true);
-                else ShowBanner($"Yeni keşif! {name} · {PageName(e.book.page)}", false);
+                discovered = e;
+                discoveredUntil = Time.time + (e.book.pageComplete ? BigBannerSeconds : BannerSeconds);
+                catchDirty = true;
+                if (e.book.pageComplete) Toasts.Show($"Sayfa tamamlandı: {PageName(e.book.page)}!");
                 Debug.Log($"[Book] discovered {e.defId} on {e.book.page}, complete {e.book.pageComplete}, luck {e.book.luck}, score {e.book.score}");
                 if (MyProfile != null && e.book.score > 0) MyProfile.score = e.book.score;
                 if (BookOpen && bookIsMine) Refresh();
@@ -103,6 +102,8 @@ namespace CollectionGame.Collection
             else if (e.book.kind == BookKind.Copy && e.book.better && e.item != null && !string.IsNullOrEmpty(e.item.instanceId))
             {
                 SwapOffer = e;
+                catchDirty = true;
+                if (Book == null) Refresh(); // the copy in the slot, for the comparison
                 Debug.Log($"[Book] better copy of {e.defId}, asking to swap");
             }
         }
@@ -125,9 +126,14 @@ namespace CollectionGame.Collection
             if (SwapOffer == null) return;
             net.Send(OpCode.BookPlace, new BookPlaceMsg { instanceId = SwapOffer.item.instanceId });
             SwapOffer = null;
+            catchDirty = true;
         }
 
-        public void DeclineSwap() => SwapOffer = null;
+        public void DeclineSwap()
+        {
+            SwapOffer = null;
+            catchDirty = true;
+        }
 
         // ---------- RPCs ----------
 
@@ -193,6 +199,7 @@ namespace CollectionGame.Collection
             {
                 Book = await net.GetBookAsync();
                 bookDirty = true;
+                catchDirty = true;
             }
             catch (Exception ex)
             {
@@ -225,13 +232,6 @@ namespace CollectionGame.Collection
 
         string[] ShowcaseIds() => MyProfile?.showcase?.Select(i => i.defId).ToArray() ?? Array.Empty<string>();
 
-        void ShowBanner(string text, bool big)
-        {
-            banner = text;
-            bannerBig = big;
-            bannerUntil = Time.time + (big ? BigBannerSeconds : BannerSeconds);
-        }
-
         void ShowNote(string text)
         {
             note = text;
@@ -240,36 +240,14 @@ namespace CollectionGame.Collection
 
         // ---------- UI ----------
 
+        /// <summary>Old IMGUI hook: notes are toasts, the banners and the swap question are uGUI (CatchView).</summary>
         public void DrawGui()
         {
-            if (banner != null && Time.time < bannerUntil)
-            {
-                var style = bannerBig ? Gui.Celebrate : Gui.Discover;
-                var size = style.CalcSize(new GUIContent(banner)) + new Vector2(16f, 4f);
-                GUI.Box(new Rect((Gui.Width - size.x) / 2f, 100, size.x, size.y), banner, style);
-            }
             if (note != null && Time.time < noteUntil)
             {
-                var size = Gui.Toast.CalcSize(new GUIContent(note)) + new Vector2(24f, 12f);
-                GUI.Box(new Rect((Gui.Width - size.x) / 2f, Gui.Height - 110, size.x, size.y), note, Gui.Toast);
+                Toasts.Show(note);
+                note = null;
             }
-            if (SwapOffer != null) DrawSwap();
-
-        }
-
-        void DrawSwap()
-        {
-            var r = new Rect((Gui.Width - 340) / 2f, Gui.Height / 2f - 60, 340, 110);
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Gui.Window);
-            var it = SwapOffer.item;
-            GUILayout.Label($"Daha temiz bir {FishingController.ItemName(it.defId)} (Float {it.@float:0.0000}). Defterdekiyle değiştir?", Gui.Hud);
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Değiştir", Gui.Button, GUILayout.Height(30))) AcceptSwap();
-            if (GUILayout.Button("Hayır", Gui.Button, GUILayout.Height(30))) DeclineSwap();
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
         }
 
         // ---------- uGUI: Resources/UI/Book (defter-v2), Resources/UI/Profile (profil-v3) ----------
@@ -279,6 +257,10 @@ namespace CollectionGame.Collection
         const int SpreadSize = 12;
 
         BookView bookView;
+        CatchView catchView;
+        FishEndMsg discovered;
+        float discoveredUntil;
+        bool catchDirty;
         ProfileView profileView;
         bool bookDirty = true, profileDirty = true;
         int spread;
@@ -289,6 +271,7 @@ namespace CollectionGame.Collection
         {
             if (bookView != null) UnityEngine.Object.Destroy(bookView.gameObject);
             if (profileView != null) UnityEngine.Object.Destroy(profileView.gameObject);
+            if (catchView != null) UnityEngine.Object.Destroy(catchView.gameObject);
         }
 
         bool Ensure()
@@ -296,7 +279,14 @@ namespace CollectionGame.Collection
             var ui = UiRoot.Get();
             if (bookView == null && (bookView = ui.Spawn<BookView>("Book")) != null) WireBook(bookView);
             if (profileView == null && (profileView = ui.Spawn<ProfileView>("Profile")) != null) WireProfile(profileView);
-            return bookView != null && profileView != null;
+            if (catchView == null && (catchView = ui.Spawn<CatchView>("Catch")) != null)
+            {
+                catchView.discover.Open = false;
+                catchView.swap.Open = false;
+                catchView.swapYes.onClick.AddListener(AcceptSwap);
+                catchView.swapNo.onClick.AddListener(DeclineSwap);
+            }
+            return bookView != null && profileView != null && catchView != null;
         }
 
         public void Tick()
@@ -314,6 +304,7 @@ namespace CollectionGame.Collection
             }
             if (BookOpen && bookDirty) RedrawBook();
             if (ProfileOpen && profileDirty) RedrawProfile();
+            TickCatch();
         }
 
         // ----- Defter -----
@@ -463,6 +454,50 @@ namespace CollectionGame.Collection
             var hunting = MyProfile?.hunting == rec.defId;
             entries.Add((hunting ? "Aramayı bırak" : "Arıyorum", () => SetHunting(hunting ? null : rec.defId)));
             Popup.ShowMenu(FishingController.ItemName(rec.defId), entries);
+        }
+
+        // ----- Yeni keşif / Daha temiz kopya (balik-kesif, balik-temiz) -----
+
+        void TickCatch()
+        {
+            var v = catchView;
+            var showDiscover = discovered != null && Time.time < discoveredUntil;
+            if (v.discover.Open != showDiscover) v.discover.Open = showDiscover;
+            if (v.swap.Open != (SwapOffer != null)) v.swap.Open = SwapOffer != null;
+            if (!catchDirty) return;
+            catchDirty = false;
+            if (discovered != null)
+            {
+                var it = discovered.item;
+                v.discover.title.text = discovered.book.pageComplete ? "Sayfa tamamlandı!" : "Yeni keşif!";
+                v.discoverSlot.SetItem(discovered.defId, it?.tier, 1, false);
+                v.discoverName.text = FishingController.ItemName(discovered.defId);
+                v.discoverTier.text = it?.tier ?? "";
+                v.discoverFloat.text = it != null ? $"Float {it.@float:0.0000}" : "";
+                var page = Book?.pages?.FirstOrDefault(p => p.id == discovered.book.page);
+                v.discoverPage.text = page != null ? $"{PageName(page.id)} {Mathf.Min(page.total, page.found + 1)} / {page.total}" : PageName(discovered.book.page);
+                HudView.Fill(v.discoverFill, page != null && page.total > 0 ? Mathf.Min(1f, (page.found + 1f) / page.total) : 0f);
+            }
+            if (SwapOffer != null)
+            {
+                var it = SwapOffer.item;
+                var old = Book?.pages?.SelectMany(p => p.records ?? Array.Empty<BookRecord>()).FirstOrDefault(r => r.defId == it.defId)?.item;
+                v.newSlot.SetItem(it.defId, it.tier, 1, false);
+                v.newFloat.text = $"{it.@float:0.0000}";
+                v.newCondition.text = "";
+                if (old != null)
+                {
+                    v.oldSlot.SetItem(old.defId, old.tier, 1, false);
+                    v.oldFloat.text = $"{old.@float:0.0000}";
+                }
+                else
+                {
+                    v.oldSlot.SetEmpty();
+                    v.oldFloat.text = "?";
+                }
+                v.oldCondition.text = "";
+                v.swapCaption.text = $"{FishingController.ItemName(it.defId)} · {it.tier} · eski kopya çantaya düşer";
+            }
         }
 
         // ----- Profil -----

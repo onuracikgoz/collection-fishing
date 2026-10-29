@@ -380,6 +380,68 @@ namespace CollectionGame.EditorTools
                 v.expandSlots.text = "+20 yuva";
                 v.expandPrice.text = "2.000";
             });
+            Shot(outDir, "balik-at", Path.Combine(drafts, "balik-at.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<FishingView>(canvas, "Fishing");
+                var feet = new Vector2(945, 896 - 455);
+                v.charge.gameObject.SetActive(true);
+                v.charge.anchoredPosition = feet + new Vector2(0, 64);
+                HudView.Fill(v.chargeFill, 0.6f);
+                v.chargeMarker.anchorMin = v.chargeMarker.anchorMax = new Vector2(0.6f, 0.5f);
+                v.hint.gameObject.SetActive(true);
+                v.hint.anchoredPosition = feet + new Vector2(110, -8);
+                v.hintText.text = "basılı tut, bırak";
+            });
+            Shot(outDir, "balik-vurus", Path.Combine(drafts, "balik-vurus.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<FishingView>(canvas, "Fishing");
+                v.bite.gameObject.SetActive(true);
+                v.bite.anchoredPosition = new Vector2(944, 896 - 460 + 76);
+            });
+            Shot(outDir, "balik-cekme", Path.Combine(drafts, "balik-cekme.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<FishingView>(canvas, "Fishing");
+                var feet = new Vector2(945, 896 - 467);
+                v.reel.gameObject.SetActive(true);
+                v.reel.anchoredPosition = feet + new Vector2(-90, 0);
+                Canvas.ForceUpdateCanvases();
+                var h = v.water.rect.height;
+                v.bar.sizeDelta = new Vector2(v.bar.sizeDelta.x, 0.2f * h);
+                v.bar.anchoredPosition = new Vector2(0, 0.42f * h);
+                v.fish.anchoredPosition = new Vector2(0, 0.5f * h - 9);
+                v.progressFill.anchorMax = new Vector2(1, 0.6f);
+                v.hint.gameObject.SetActive(true);
+                v.hint.anchoredPosition = feet + new Vector2(-90, -4);
+                v.hintText.text = "Space / fare basılı tut";
+            });
+            Shot(outDir, "balik-kesif", Path.Combine(drafts, "balik-kesif.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<CatchView>(canvas, "Catch");
+                v.swap.gameObject.SetActive(false);
+                v.discoverSlot.SetItem("lake.fish.altin", "epic", 1, false);
+                v.discoverName.text = "Altın Balık";
+                v.discoverTier.text = "Epic";
+                v.discoverFloat.text = "Float 0.0312 · Pristine";
+                v.discoverPage.text = "Göl Balıkları 8 / 12";
+                HudView.Fill(v.discoverFill, 8f / 12f);
+            });
+            Shot(outDir, "balik-temiz", Path.Combine(drafts, "balik-temiz.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<CatchView>(canvas, "Catch");
+                v.discover.gameObject.SetActive(false);
+                v.oldSlot.SetItem("lake.fish.tunek", "rare", 1, false);
+                v.newSlot.SetItem("lake.fish.tunek", "rare", 1, false);
+                v.oldFloat.text = "0.4410";
+                v.oldCondition.text = "Normal";
+                v.newFloat.text = "0.0870";
+                v.newCondition.text = "Excellent";
+                v.swapCaption.text = "Tünek · Rare · eski kopya çantaya düşer";
+            });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
