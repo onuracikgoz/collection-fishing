@@ -39,7 +39,15 @@ Bir oyuncuya tıklanınca: profil kartı, Collection Book'u incele, arkadaş ekl
 ### 13.2.2. Emote'lar
 
 - Arkadaşça, genel kitleye uygun: el sallama, alkış, dans, oturma, gülme, **balık gösterme** (son avı havaya kaldırma).
-- Ekstra emote'lar kozmetik olarak satılabilir.
+- **Durum emote'u (karar 29.10.2026):** emote artık sadece anlık bir hareket değil. Oyuncu bir **durum emote'u** seçer; karakterinin üstünde **kalıcı** bir balon olarak durur (yürürken, balık tutarken, hatta oyundan çıkana kadar), sunucudaki herkes görür. Aynı anda **bir** tane takılır; "Kaldır" ile veya başkasını seçerek değişir. Örnek: uyuyor (zzz), balık, soru, müzik, kahve.
+- **Hareketler** (el sallama, alkış, dans) kısa süren animasyondur, bitince kaybolur.
+- **Kimler alabilir:**
+  - **Herkese açık:** ücretsiz, temel set.
+  - **Destekçi:** destekçi paketiyle gelen emote'lar (altın çerçeve, taç işareti).
+  - **Elmasla alınır:** tek tek satın alınır, **takas edilmez** (kural 2).
+  - **Defter ödülü:** set tamamlayınca açılır (`06-defter.md` prestij ödülleri).
+- Emote'lar yalnızca görünümdür, drop ya da Float'ı etkilemez. Flört içeriği yok (kalp vb.): genel kitle 13+.
+- Sunucu emote kimliğini ve sahipliğini doğrular; sohbet filtresi gerekmez (metin yok). Protokol: `docs/protokol.md` Emote bölümüne durum emote'u eklenecek (sözleşme önce).
 
 ### 13.3. Profil Kartı ve Showcase
 
