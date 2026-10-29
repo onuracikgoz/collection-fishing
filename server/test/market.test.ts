@@ -117,6 +117,22 @@ describe('parseBuy and planBuy', () => {
     expect(planBuy(listing, { owner: 'o', defId: 'worm', count: 11 })).toEqual({ ok: false, reason: 'NOT_ENOUGH' });
     expect(planBuy(listing, { owner: 'o', defId: 'gold', count: 1 })).toEqual({ ok: false, reason: 'NOT_FOUND' });
   });
+
+  it('works when every read of the listing gives fresh objects, as Nakama match state does', () => {
+    const fresh = {
+      get items() {
+        return listing.items.map((i) => ({ ...i }));
+      },
+      get stacks() {
+        return listing.stacks.map((st) => ({ ...st }));
+      },
+    } as Listing;
+    const item = planBuy(fresh, { owner: 'o', instanceId: 'i2' });
+    if (item.ok) expect(item.rest.items.map((i) => i.instanceId)).toEqual(['i1']);
+    const part = planBuy(fresh, { owner: 'o', defId: 'worm', count: 4 });
+    if (part.ok) expect(part.rest.stacks).toEqual([{ defId: 'worm', count: 6, price: 3 }]);
+    expect(item.ok && part.ok).toBe(true);
+  });
 });
 
 describe('topEntries', () => {

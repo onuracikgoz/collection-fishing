@@ -144,13 +144,14 @@ export function planBuy(listing: Listing, req: BuyRequest): BuyPlan {
   if (req.instanceId !== undefined) {
     const it = listing.items.filter((x) => x.instanceId === req.instanceId)[0];
     if (!it) return { ok: false, reason: 'NOT_FOUND' };
-    return { ok: true, kind: 'item', instanceId: it.instanceId, total: it.price, rest: { ...listing, items: listing.items.filter((x) => x !== it) } };
+    return { ok: true, kind: 'item', instanceId: it.instanceId, total: it.price, rest: { ...listing, items: listing.items.filter((x) => x.instanceId !== it.instanceId) } };
   }
   const st = listing.stacks.filter((x) => x.defId === req.defId)[0];
   if (!st) return { ok: false, reason: 'NOT_FOUND' };
   const count = req.count || 0;
   if (count > st.count) return { ok: false, reason: 'NOT_ENOUGH' };
-  const stacks = listing.stacks.map((x) => (x === st ? { ...x, count: x.count - count } : x)).filter((x) => x.count > 0);
+  // Match by key, not by object: Nakama hands the match state back as fresh objects, so identity checks fail there.
+  const stacks = listing.stacks.map((x) => (x.defId === st.defId ? { ...x, count: x.count - count } : x)).filter((x) => x.count > 0);
   return { ok: true, kind: 'stack', defId: st.defId, count, total: st.price * count, rest: { ...listing, stacks } };
 }
 

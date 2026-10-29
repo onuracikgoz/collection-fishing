@@ -656,7 +656,8 @@ check((await rpcError(g, 'whisper_send', { userId: f.session.user_id, username: 
 check((await client.rpc(f.session, 'report_player', { userId: g.session.user_id, reason: 'spam', note: '', text: 'yine ben' })).payload?.ok, 'report_player stores a report');
 // Trade log: the trade and the two stall sales are on record (only the server and the console read it).
 const fLogs = await consoleApi(`/v2/console/storage?user_id=${f.session.user_id}&collection=trades`, 'GET', undefined, admin);
-const fKinds = (fLogs.objects || []).map((o) => JSON.parse(o.value).kind);
+// The console list leaves out values; the kind is in the key (<time>_<kind>_<ref>).
+const fKinds = (fLogs.objects || []).map((o) => o.key.replace(/^\d+_/, '').replace(/_[0-9a-f-]{36}$/, ''));
 check(fKinds.filter((k) => k === 'trade').length === 1 && fKinds.filter((k) => k === 'stall_sale').length === 2, 'the trade and both stall sales are logged for the seller');
 if (fKinds.length !== 3) console.log('     log kinds:', JSON.stringify(fKinds));
 g.clear();
