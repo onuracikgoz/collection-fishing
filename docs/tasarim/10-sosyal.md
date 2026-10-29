@@ -46,7 +46,7 @@ Bir oyuncuya tıklanınca: profil kartı, Collection Book'u incele, arkadaş ekl
   - **Destekçi:** destekçi paketiyle gelen emote'lar (altın çerçeve, taç işareti).
   - **Elmasla alınır:** tek tek satın alınır, **takas edilmez** (kural 2).
   - **Defter ödülü:** set tamamlayınca açılır (`06-defter.md` prestij ödülleri).
-- Emote'lar yalnızca görünümdür, drop ya da Float'ı etkilemez. Flört içeriği yok (kalp vb.): genel kitle 13+.
+- Emote'lar yalnızca görünümdür, drop ya da Float'ı etkilemez. **Düz kalp ("sevgi") ücretsiz sette kalır** (karar 29.10.2026); öpücük, göz kırpma, çift/romantik emote'lar yoktur: genel kitle 13+.
 - Sunucu emote kimliğini ve sahipliğini doğrular; sohbet filtresi gerekmez (metin yok). Protokol: `docs/protokol.md` Emote bölümüne durum emote'u eklenecek (sözleşme önce).
 
 ### 13.3. Profil Kartı ve Showcase
