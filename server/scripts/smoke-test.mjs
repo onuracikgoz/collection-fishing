@@ -474,6 +474,9 @@ const st1 = b.take(OP.EMOTE_STATUS_SHOW);
 check(st1.length === 1 && st1[0].id === c.session.user_id && st1[0].emote === 'heart' && !st1[0].reason, 'nearby friend sees the status emote');
 check(c.take(OP.EMOTE_STATUS_SHOW)[0]?.emote === 'heart', 'the wearer gets it too');
 await sleep(1600);
+// take() only reads the inbox; clear it so the next steps see only the new answers.
+b.clear();
+c.clear();
 c.send(OP.EMOTE_STATUS, { emote: 'star' });
 await sleep(500);
 const st2 = c.take(OP.EMOTE_STATUS_SHOW)[0];
@@ -481,6 +484,8 @@ const st2b = b.take(OP.EMOTE_STATUS_SHOW);
 check(st2?.reason === 'NOT_OWNED' && st2.emote === 'heart' && st2b.length === 0, 'an emote that is not owned is refused and only the sender hears');
 if (st2?.reason !== 'NOT_OWNED' || st2b.length > 0) console.log('     sender got:', JSON.stringify(st2), ' friend got:', JSON.stringify(st2b));
 await sleep(1600);
+b.clear();
+c.clear();
 c.send(OP.EMOTE_STATUS, { emote: null });
 await sleep(500);
 const st3 = b.take(OP.EMOTE_STATUS_SHOW);
