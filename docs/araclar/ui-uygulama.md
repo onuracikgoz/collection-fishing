@@ -38,10 +38,18 @@ Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencerele
 | HUD (hud3): yer kutusu, Score/Coin/elmas, XP şeridi + level, enerji, olta, yem yuvası, sohbet satırı ve geçmişi, pencere butonları | `Hud.prefab`, `Views/HudView.cs`, `World/WorldHud.cs` | Enter sohbeti açar; `/w` fısıltı. Yem yuvasına tıkla: yem değiştir (Y) |
 | Çanta (canta-v2) | `Bag.prefab`, `Views/BagView.cs`, `UI/BagPanel.cs` | Üstüne gel: ayrıntı. Tıkla / sağ tık: Deftere koy, Kilitle, Takasa ekle, yem seç |
 | İpucu ve sağ tık menüsü | `Popup.prefab`, `Views/PopupView.cs` | Bütün pencereler ortak kullanır |
+| Takas (davet kutusu + Çanta / Sen / Karşı taraf) | `Trade.prefab`, `TradeInvite.prefab`, `Social/TradeController.cs` | Coin alanı, Kilitle, geri sayımlı Onayla |
+| Pazar: tezgah kur, tezgahım, Pazar Panosu, reklam | `Market.prefab`, `Economy/MarketController.cs` | Sekmeli |
+| Bir tezgahın tam listesi | `Stall.prefab` | Satın al (ikinci tıkla onay), Profil / Fısılda / Arkadaş |
+| Günlük görev | `Quests.prefab`, `Economy/QuestController.cs` | |
+| Ayarlar (Genel, Hesap) | `Settings.prefab`, `UI/SettingsController.cs` | Hesap sekmesi gizli açılır |
+| Fısıltı pencereleri | `Whisper.prefab`, `Views/WhisperView.cs`, `Social/WhisperController.cs` | Konuşma başına bir pencere; `_` alt kenarda şerit |
+
+Liste ekranları ortak bir şablondan üretilir: `PanelView` (başlık, sekmeler, 1-3 kaydırılan sütun, alt bilgi ve butonlar) ve `RowView` (yuva, başlık, alt satır, ilerleme çubuğu, giriş alanları, butonlar). Yeni bir liste penceresi = builder'da `BuildPanel(...)` satırı + satırları dolduran kod. Bir satıra yazı yazılırken pencere yeniden kurulmaz (odak kaybolmasın). Dünyadaki IMGUI etiketleri (isim, balon, tezgah etiketi) uGUI penceresinin altında kalınca çizilmez.
 
 ### Hâlâ IMGUI (sırayla taşınacak)
 
-Takas, Pazar (tezgah + pano + tezgah listesi), Günlük görev, Fısıltı pencereleri, Ayarlar (bunlar kit görünümlü IMGUI: `UI/Kit.cs`); Defter, Profil, Arkadaşlar, NPC pencereleri (sat, parçala, birleştir, craft, depo, dükkan), balık tutma (ipucu, şarj, çekme oyunu), bildirim kutuları (`UI/Toasts.cs`), dünyadaki isim etiketleri ve balonlar. Taslağı olup hiç yapılmayanlar: emote menüsü, oyuncu sağ tık menüsü, giriş akışı.
+Defter, Profil, Arkadaşlar, NPC pencereleri (sat, parçala, birleştir, craft, depo, dükkan), balık tutma (ipucu, şarj, çekme oyunu), bildirim kutuları (`UI/Toasts.cs`), dünyadaki isim etiketleri ve balonlar. Taslağı olup hiç yapılmayanlar: emote menüsü, oyuncu sağ tık menüsü, giriş akışı.
 
 **Sunucudan eksik (client uydurmadı):** `get_catalog` pano fiyatını (`BOARD.priceDiamonds`), tezgaha bakma yarıçapını (`MARKET.interactRadius`) ve pazar noktasını vermiyor. Client "Reklam ver (elmas)" yazıyor, fiyat göstermiyor; harita etiketi 7 tile'dan yakında ilk kalemleri gösteriyor (sadece görüntü, karar sunucuda). Kataloğa eklenirse client oradan okur.
 
