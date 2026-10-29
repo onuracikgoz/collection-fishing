@@ -33,12 +33,21 @@ namespace CollectionGame.UI.Views
             get => gameObject.activeSelf;
             set
             {
-                if (value && !gameObject.activeSelf) transform.SetAsLastSibling();
+                if (value && !gameObject.activeSelf) Raise();
                 gameObject.SetActive(value);
             }
         }
 
-        public void OnPointerDown(PointerEventData e) => transform.SetAsLastSibling();
+        public void OnPointerDown(PointerEventData e) => Raise();
+
+        /// <summary>Brings this window (and the prefab it sits in) in front of the other windows.</summary>
+        public void Raise()
+        {
+            transform.SetAsLastSibling();
+            var t = transform;
+            while (t.parent != null && t.parent.GetComponent<Canvas>() == null) t = t.parent;
+            t.SetAsLastSibling();
+        }
 
         public void OnBeginDrag(PointerEventData e) =>
             dragging = plate != null && RectTransformUtility.RectangleContainsScreenPoint(plate, e.pressPosition, e.pressEventCamera);
