@@ -214,12 +214,12 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.1. Sunucu: `rules/trade.ts` (saf
 - **Akış:** `TRADE_OFFER` → karşı taraf `TRADE_INVITE` alır → `TRADE_REPLY { accept }`. Kabul edilince iki tarafa `TRADE_STATE` gider ve pencere açılır. Reddedilirse, 15 sn cevap gelmezse (Öneri) ya da teklif eden iptal ederse `TRADE_END` gider.
 - **Teklif koşulları:** iki oyuncu aynı sunucuda ve en fazla 5 tile (Öneri) uzakta, ikisi de başka bir takasta değil. Teklif edenin olta atması iptal olur. Aynı oyuncu 3 sn'de bir teklif edebilir (Öneri). `TRADE_END.reason`: `NOT_HERE`, `TOO_FAR`, `BUSY` (taraflardan biri başka takasta), `SELF`, `RATE_LIMITED`.
 - **Pencere açıkken** iki taraf yürüyemez ve olta atamaz (sunucu `MOVE` ve `CAST` mesajlarını yok sayar). Mesafe 5 tile'ı aşarsa, biri bağlantıyı keserse ya da pencere 5 dk (Öneri) açık kalırsa takas iptal olur.
-- **İçerik:** `TRADE_SET` bir tarafın tüm içeriğini değiştirir. Eşya kalemleri (`items` + `stacks`) toplamı en fazla **8** (Öneri); `coin` o anki bakiyeyi aşamaz. Sadece **çantadaki** Float eşyalar (defter yuvasındakiler ve depodakiler değil) ve yığınlar konabilir. Toz takas edilemez. Reddedilirse içerik değişmez, isteyene `TRADE_STATE` içinde `reason` döner: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED`, `NOT_ENOUGH`.
+- **İçerik:** `TRADE_SET` bir tarafın tüm içeriğini değiştirir. Eşya kalemleri (`items` + `stacks`) toplamı en fazla **8** (Öneri); `coin` o anki bakiyeyi aşamaz. Sadece **çantadaki** Float eşyalar (defter yuvasındakiler ve depodakiler değil) ve yığınlar konabilir. Toz takas edilemez. Reddedilirse içerik değişmez, isteyene `TRADE_STATE` içinde `reason` döner: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED`, `NOT_ENOUGH`, `LOCKED` (kilitli eşya).
 - **Kilit:** her iki taraf `TRADE_LOCK { locked: true }` der. Birinin içeriği değişirse (kendi `TRADE_SET`'i ya da karşı tarafınki) iki kilit de açılır ve onaylar sıfırlanır.
 - **Onay:** iki kilit kapandıktan **3 sn** (Öneri) sonra `TRADE_CONFIRM` kabul edilir; öncesinde gönderilen yok sayılır. İki taraf da onaylayınca takas **tek işlemde** (eşyalar, yığınlar, Coin, kayıt) gerçekleşir. Sunucu o an her şeyi yeniden doğrular: eşya hâlâ çantada mı, yığın ve Coin yeterli mi, iki tarafın çantasında yer var mı.
 - **Gelen eşya deftere işlenir:** ilk kopyaysa defter yuvasına gider ("Yeni keşif", çantada yer tutmaz), değilse çantaya. Çanta doluluğu hesabında her gelen Float eşya bir yuva sayılır (temkinli). `ItemInstance.source` = `trade`.
 - **Kayıt:** her başarılı takas iki tarafın `trades/<tradeId>` kaydına yazılır (kim, ne verdi, ne aldı, ne zaman). Sadece sunucu okur.
-- **Henüz yok (Öneri):** level 10 şartı ve hesap kısıtları (XP sistemi gelince), eşya kilidi (kilitli eşya konamaz; kilit alanı gelince), takas kısıtı (`acik-sorular.md` 4).
+- **Henüz yok (Öneri):** level 10 şartı ve hesap kısıtları (XP sistemi gelince), takas kısıtı (`acik-sorular.md` 4).
 
 ```
 TradeOfferView = { items: ItemInstance[], stacks: [{ defId, count }], coin }
@@ -235,6 +235,19 @@ TradeEndMsg    = { tradeId, result, reason?, userId?,   // result: done | cancel
 ```
 
 `failed` nedenleri: `ITEM_GONE`, `NOT_ENOUGH`, `BAG_FULL` (`userId` ile hangi taraf), `ERROR`.
+
+## Eşya kilidi
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 48 | C → S | `ITEM_LOCK` | `{ instanceId, locked }` |
+| 49 | S → C | `ITEM_LOCK_RESULT` | `{ instanceId, locked, ok, reason? }` (sadece isteyene) |
+
+- Sadece **çantadaki** Float eşya kilitlenir (defter yuvası ve depo hariç). Aynı duruma tekrar istek `ok` döner. `reason`: `BAD_REQUEST`, `NOT_OWNED`.
+- Kilit eşyanın kendisinde durur: `ItemInstance.locked?: true` (`get_inventory`, takas görünümü). Kilitli eşya **satılamaz** (`SELL`), **parçalanamaz** (`SALVAGE`), `MERGE` ve `CRAFT` girdisi olamaz, takasa konamaz: bu işlemler `reason: "LOCKED"` ile reddedilir. Depoya ve deftere konabilir, kilit korunur. Önce kilit açılır.
+- Yeni eşyalar (av, craft, birleştirme, takas) kilitsiz gelir.
 
 ## Ekonomi: Coin, NPC satış, toz (Faz 4)
 

@@ -153,6 +153,7 @@ function handleSet(env: TradeEnv, p: TradePlayer, body: unknown, now: number): v
     for (const o of env.nk.storageRead(offer.items.map((key) => ({ collection: 'items', key, userId })))) found[o.key] = o.value as StoredItem;
     for (const id of offer.items) {
       if (!found[id] || !inBag(found[id])) return reject('NOT_OWNED');
+      if (found[id].locked) return reject('LOCKED');
       views.push(publicItem(found[id]));
     }
   }
@@ -195,7 +196,8 @@ function execute(env: TradeEnv, rec: TradeRec): void {
     if (offer.items.length > 0) {
       for (const o of env.nk.storageRead(offer.items.map((key) => ({ collection: 'items', key, userId })))) {
         const item = o.value as StoredItem;
-        if (inBag(item)) {
+        // An item locked after TRADE_SET counts as gone.
+        if (inBag(item) && !item.locked) {
           items[o.key] = true;
           stored[userId][o.key] = item;
         }

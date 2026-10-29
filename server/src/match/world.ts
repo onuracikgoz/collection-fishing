@@ -27,6 +27,7 @@ import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
+import { handleItemLock } from './lock';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
 import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
@@ -503,6 +504,9 @@ export function worldLoop(
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(dispatcher, state, p, body, now);
+    } else if (m.opCode === OpCode.ITEM_LOCK && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleItemLock(nk, logger, dispatcher, p, body);
     } else if (TRADE_OPS[m.opCode] && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleTradeOp(trade, p, m.opCode, body, now);

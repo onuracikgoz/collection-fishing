@@ -62,6 +62,8 @@ namespace CollectionGame.Net
         public const long TradeInvite = 45;
         public const long TradeState = 46;
         public const long TradeEnd = 47;
+        public const long ItemLock = 48;
+        public const long ItemLockResult = 49;
     }
 
     public static class ErrorCode
@@ -314,6 +316,8 @@ namespace CollectionGame.Net
         public float @float;
         public string source;
         public long obtainedAt;
+        /// <summary>Protected by its owner: cannot be sold, salvaged, merged, crafted or traded.</summary>
+        public bool locked;
     }
 
     [Serializable]
@@ -501,6 +505,24 @@ namespace CollectionGame.Net
         public string defId;
         public string tier;
         public string condition;
+    }
+
+    /// <summary>C → S, op 48.</summary>
+    [Serializable]
+    public class ItemLockMsg
+    {
+        public string instanceId;
+        public bool locked;
+    }
+
+    /// <summary>S → C, op 49. Only to the asker. reason: BAD_REQUEST, NOT_OWNED.</summary>
+    [Serializable]
+    public class ItemLockResultMsg
+    {
+        public string instanceId;
+        public bool locked;
+        public bool ok;
+        public string reason;
     }
 
     // --- Faz 5: trade (docs/protokol.md, Takas) ---

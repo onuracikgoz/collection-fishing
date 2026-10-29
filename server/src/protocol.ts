@@ -49,6 +49,8 @@ export const OpCode = {
   TRADE_INVITE: 45,
   TRADE_STATE: 46,
   TRADE_END: 47,
+  ITEM_LOCK: 48,
+  ITEM_LOCK_RESULT: 49,
 } as const;
 
 export const ErrorCode = {
@@ -175,6 +177,8 @@ export interface ItemInstance {
   tier: Tier;
   float: number;
   source: 'fishing' | 'craft' | 'merge' | 'trade';
+  /** Protected by its owner: cannot be sold, salvaged, merged, crafted or traded. */
+  locked?: true;
   obtainedAt: number;
 }
 
@@ -376,6 +380,14 @@ export interface TradeEndMsg {
   gave?: { items: string[]; stacks: { defId: string; count: number }[]; coin: number };
   /** What the book did with each received item. */
   book?: (FishBookMsg & { instanceId: string })[];
+}
+
+/** S → C, op 49: answer to ITEM_LOCK. */
+export interface ItemLockResultMsg {
+  instanceId: string;
+  locked: boolean;
+  ok: boolean;
+  reason?: string;
 }
 
 export interface FriendStatus {

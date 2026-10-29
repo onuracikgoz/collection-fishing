@@ -46,7 +46,10 @@ export function handleEconomy(
     const objs = nk.storageRead(req.items.map((key) => ({ collection: 'items', key, userId })));
     for (const o of objs) {
       const item = o.value as StoredItem;
-      if (inBag(item)) owned[o.key] = { instanceId: item.instanceId, tier: item.tier, float: item.float };
+      if (inBag(item)) {
+        if (item.locked) return fail('LOCKED');
+        owned[o.key] = { instanceId: item.instanceId, tier: item.tier, float: item.float };
+      }
     }
   }
 

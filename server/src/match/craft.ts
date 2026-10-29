@@ -15,15 +15,18 @@ function reply(dispatcher: nkruntime.MatchDispatcher, f: Fisher, msg: CraftResul
   dispatcher.broadcastMessage(OpCode.CRAFT_RESULT, JSON.stringify(msg), [f.presence], null, true);
 }
 
-/** Reads the picked items; book slot items and ones the player does not own are left out. */
-function readPicked(nk: nkruntime.Nakama, userId: string, ids: string[]): CraftItem[] {
-  if (ids.length === 0) return [];
+/** Reads the picked items; book slot items and ones the player does not own are left out. `locked` is true if any is locked. */
+function readPicked(nk: nkruntime.Nakama, userId: string, ids: string[]): { items: CraftItem[]; locked: boolean } {
   const out: CraftItem[] = [];
+  let locked = false;
+  if (ids.length === 0) return { items: out, locked };
   for (const o of nk.storageRead(ids.map((key) => ({ collection: 'items', key, userId })))) {
     const item = o.value as StoredItem;
-    if (inBag(item)) out.push({ instanceId: item.instanceId, defId: item.defId, tier: item.tier, float: item.float });
+    if (!inBag(item)) continue;
+    if (item.locked) locked = true;
+    out.push({ instanceId: item.instanceId, defId: item.defId, tier: item.tier, float: item.float });
   }
-  return out;
+  return { items: out, locked };
 }
 
 export function handleCraft(
@@ -43,13 +46,15 @@ export function handleCraft(
     const ids = parseMerge(body, CRAFT);
     if (!ids) return fail('BAD_REQUEST');
     const picked = readPicked(nk, userId, ids);
-    plan = picked.length === ids.length ? planMerge(picked, dust, CRAFT) : { ok: false, reason: 'NOT_OWNED' };
+    if (picked.locked) return fail('LOCKED');
+    plan = picked.items.length === ids.length ? planMerge(picked.items, dust, CRAFT) : { ok: false, reason: 'NOT_OWNED' };
   } else {
     const req = parseCraft(body, BAG.slots);
     if (!req) return fail('BAD_REQUEST');
     const picked = readPicked(nk, userId, req.items);
-    if (picked.length !== req.items.length) return fail('NOT_OWNED');
-    plan = planCraft(recipeById(req.recipeId), picked, f.bag, dust, BAG, CRAFT);
+    if (picked.locked) return fail('LOCKED');
+    if (picked.items.length !== req.items.length) return fail('NOT_OWNED');
+    plan = planCraft(recipeById(req.recipeId), picked.items, f.bag, dust, BAG, CRAFT);
   }
   if (!plan.ok) return fail(plan.reason);
 
