@@ -348,7 +348,7 @@ Kurallar: `docs/tasarim/09-ekonomi-pazar.md` 12.3. Sunucu: `rules/market.ts` (sa
 - **Kapanma:** tezgah `STALL_RECALL` ile, oyuncu **oyundan tamamen çıkınca** (hiçbir sunucuda değilse), satılacak her şey satılınca ya da 24 saat (Öneri) dolunca kalkar. Sunucu `player/session` kaydından oyuncunun hangi sunucuda olduğunu bilir: bir sunucudan çıkarken kayıt hâlâ o sunucuyu gösteriyorsa oyuncu oyundan çıkmıştır. Satılmayanlar çantaya döner (çanta dolu olsa da; çanta aşımı serbest, Öneri). Oyuncu tezgahın sunucusundayken kapanırsa eşyalar hemen döner (süre dolunca ona `STALL_RESULT { action: "recall", ok: true, reason: "EXPIRED", returned }` gider). Oyuncu başka sunucudayken ya da sunucu durdurulunca kapanırsa eşyalar tezgaha ayrılı kalır ve oyuncunun **bir sonraki girişinde** çantaya döner; tezgah pazardan hemen kalkar (`STALL_STATE.removed`).
 - **Bildirim:** satıcıya `notifications` ile gider: konu `stall_sold`, kod **103**, `{ defId, count, price, fee, buyer }`.
 - **Kayıt:** her satış alıcının (`stall_buy`) ve satıcının (`stall_sale`) `trades` koleksiyonuna, satın almayla aynı işlemde yazılır (bkz. Takas kayıtları).
-- **Henüz yok:** elmasla pano reklamı ve "alım ilanı" (`acik-sorular.md`).
+- **Pano reklamı** aşağıda (Pazar Panosu). **Alım ilanı yok** (karar 29.10.2026).
 
 ```
 StallEntry     = { defId, tier, count, price }   // tier: yığında ""; price: yığında adet başı
@@ -359,6 +359,31 @@ StallResultMsg = { action, ok, reason?,            // action: open | recall | vi
                    spot?,                          // open
                    returned?: { items: ItemInstance[], stacks: [{ defId, count }] },  // recall
                    item?, defId?, count?, paid?, coin?, book? }                       // buy
+```
+
+### Pazar Panosu (elmasla reklam)
+
+Kurallar: `docs/tasarim/09-ekonomi-pazar.md` (Pazar Panosu). Sunucu: `rules/board.ts` (saf kurallar), `match/market.ts`. Açık tezgahı olan oyuncu **elmas** öder, tezgahı meydandaki panoya girer; başkaları panodan tıklayıp tezgahın yanına gider. Reklam eşya miktarını ya da kalitesini etkilemez (kural 2).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 60 | C → S | `BOARD_AD` | `{ action: "set", highlights: [{ instanceId, defId }] }` ya da `{ action: "remove" }` |
+| 61 | S → C | `BOARD_STATE` | `BoardStateMsg` (sunucudaki herkese: girişte tam liste, sonra her değişimde) |
+| 62 | S → C | `BOARD_RESULT` | `BoardResultMsg` (sadece isteyene) |
+| 63 | C → S | `BOARD_GOTO` | `{ userId }` (panodaki ilana tıkla, tezgahın yanına git) |
+
+- **Kurma:** `set`. Oyuncunun bu sunucuda **açık tezgahı** olmalı (`NO_STALL`). `highlights`: ilanda öne çıkacak en fazla 3 kalem (`BOARD.maxHighlights`); Float'lı eşya `instanceId` ile, yığın `defId` ile verilir (Unity ikisini de gönderir, dolu olan geçer). Kalem tezgahta yoksa `NOT_IN_STALL`. Boş liste verilirse ilan tezgahın ilk kalemlerini gösterir.
+- **Ücret:** yeni ilan **10 elmas** (`BOARD.priceDiamonds`, Öneri, config'den ayarlanır) öder; elmas yetmezse `NOT_ENOUGH_DIAMOND`. Elmas cüzdandan düşülür (`BOARD_RESULT.diamond` kalan bakiye). Çalışan ilanda `set` tekrar gönderilirse sadece öne çıkan kalemler değişir, **ücret alınmaz** ve ilanın sırası/süresi korunur.
+- **Yer:** panoda aynı anda sunucu başına en fazla 8 ilan (`BOARD.slots`, Öneri), doluysa `BOARD_FULL`. İlanlar başlama sırasına göre (eskiden yeniye) listelenir; panoda sırayla dönmesi client işidir. Arama ve fiyat sıralaması yok.
+- **Süre:** ilan en fazla 24 saat (`BOARD.ttlMs`) ve **tezgah açık kaldığı sürece** durur: tezgah kapanır, geri çağrılır ya da her şey satılırsa ilan da kalkar. `remove` ilanı kaldırır. İlan erken kalkarsa **elmas iade edilmez** (Öneri). İlanlar sunucu bellekte tutulur, sunucu yeniden başlayınca tezgahla birlikte gider.
+- **Tıklama:** `BOARD_GOTO { userId }`: ilan hâlâ bu sunucudaysa oyuncu tezgahın yanındaki boş bir yere `TELEPORT` ile gider ("Yanına git" kurallarıyla aynı: 3 sn'de bir, balık tutuyorsa olta toplanır). Hata `TELEPORT.reason` ile gelir: `NOT_HERE` (ilan ya da tezgah yok), `NO_SPOT`, `RATE_LIMITED`. Arkadaş olmak gerekmez.
+- **Hatalar (`BOARD_RESULT.reason`):** `NO_STALL`, `BAD_REQUEST`, `NOT_IN_STALL`, `BOARD_FULL`, `NOT_ENOUGH_DIAMOND`.
+
+```
+BoardAd        = { userId, name, title, spot, x, y, top: StallEntry[], total, startedAt, expiresInMs }
+                 // top: seçilen kalemler (tezgahta kalanlar), seçilmemişse tezgahın ilk kalemleri
+BoardStateMsg  = { full, ads: BoardAd[], removed: [userId] }
+BoardResultMsg = { action: "set" | "remove", ok, reason?, diamond? }
 ```
 
 ## Günlük görev (Faz 6)
@@ -531,6 +556,6 @@ Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe ba
 
 ## Hata kodları
 
-RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde). Fısıltı ve rapor: `MUTED`, `NOT_FOUND`, `SELF`, `NOT_ALLOWED`, `YOU_BLOCKED`, `LEVEL_TOO_LOW`, `OFFLINE`.
+RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde). Pano: `NO_STALL`, `NOT_IN_STALL`, `BOARD_FULL`, `NOT_ENOUGH_DIAMOND`. Fısıltı ve rapor: `MUTED`, `NOT_FOUND`, `SELF`, `NOT_ALLOWED`, `YOU_BLOCKED`, `LEVEL_TOO_LOW`, `OFFLINE`.
 
 Nakama bildirim kodları: 101 giriş yolu bağlandı, 102 giriş yolu kaldırıldı, 103 tezgahtan satış, 104 hesap silme iptal, 110 fısıltı.

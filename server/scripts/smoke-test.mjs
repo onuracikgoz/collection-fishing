@@ -12,6 +12,7 @@ const OP = {
   ITEM_LOCK: 48, ITEM_LOCK_RESULT: 49,
   STALL_OPEN: 50, STALL_RECALL: 51, STALL_VIEW: 52, STALL_BUY: 53, STALL_LIST: 54, STALL_STATE: 55, STALL_RESULT: 56,
   QUEST_STATE: 57, QUEST_CLAIM: 58, QUEST_CLAIM_RESULT: 59,
+  BOARD_AD: 60, BOARD_STATE: 61, BOARD_RESULT: 62, BOARD_GOTO: 63,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -533,7 +534,7 @@ for (const who of [f, g]) await seedFor(who)('player', 'xp', { total: LEVEL_10_X
 await seedFor(f)('items', fCarp.instanceId, fCarp);
 await seedFor(f)('items', fPerch.instanceId, fPerch);
 await seedFor(f)('bag', 'stacks', { stacks: { 'lake.mat.scale': 5 } });
-await consoleApi(`/v2/console/account/${f.session.user_id}`, 'POST', { wallet: JSON.stringify({ coin: 500 }) }, admin);
+await consoleApi(`/v2/console/account/${f.session.user_id}`, 'POST', { wallet: JSON.stringify({ coin: 500, diamond: 15 }) }, admin);
 await consoleApi(`/v2/console/account/${g.session.user_id}`, 'POST', { wallet: JSON.stringify({ coin: 1000 }) }, admin);
 await f.join(target.matchId);
 await g.join(target.matchId);
@@ -627,6 +628,20 @@ const fAfterMarket = (await client.rpc(f.session, 'get_inventory', {})).payload;
 check(fAfterMarket.coin === 649 && fAfterMarket.stacks.find((x) => x.defId === 'lake.mat.scale')?.count === 2, 'the seller got the price minus the 5 % fee (47 + 2 Coin)');
 // Quitting the game closes the stall and returns what is on it.
 check((await opOf(f, OP.STALL_OPEN, { stacks: [{ defId: 'lake.mat.scale', count: 2, price: 9 }] }, OP.STALL_RESULT))?.ok, 'a second stall opens after the recall');
+// Market board: a diamond-paid ad, and a click on it takes the viewer next to the stall.
+check((await opOf(g, OP.BOARD_AD, { action: 'set', highlights: [] }, OP.BOARD_RESULT))?.reason === 'NO_STALL', 'no ad without a stall');
+g.clear();
+const adRes = await opOf(f, OP.BOARD_AD, { action: 'set', highlights: [{ instanceId: '', defId: 'lake.mat.scale' }] }, OP.BOARD_RESULT);
+check(adRes?.ok && adRes.diamond === 5, 'the board ad costs 10 diamonds (15 -> 5)');
+await sleep(300);
+const board = g.take(OP.BOARD_STATE).flatMap((m) => m.ads);
+check(board.some((a) => a.userId === f.session.user_id && a.top[0]?.defId === 'lake.mat.scale'), 'everyone sees the ad with its picked entry');
+check((await opOf(f, OP.BOARD_AD, { action: 'set', highlights: [{ instanceId: 'nope', defId: '' }] }, OP.BOARD_RESULT))?.reason === 'NOT_IN_STALL', 'an ad can only pick entries of its stall');
+g.clear();
+g.send(OP.BOARD_GOTO, { userId: f.session.user_id });
+await sleep(400);
+const gt = g.take(OP.TELEPORT)[0];
+check(gt && !gt.reason, 'BOARD_GOTO lands next to the advertised stall');
 // Whisper (docs/protokol.md, Fısıltı): a level 10 stranger may write from the stall only.
 f.notes.length = 0;
 check((await rpcError(g, 'whisper_send', { userId: f.session.user_id, username: '', text: 'selam', context: '' })) === 'NOT_ALLOWED', 'a stranger cannot whisper outside the market');

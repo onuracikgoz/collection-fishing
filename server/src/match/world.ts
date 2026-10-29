@@ -33,7 +33,7 @@ import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, flushEnergy, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
 import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
-import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendStalls, settleEnded, tickMarket } from './market';
+import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendBoard, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
 import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readMutedUntil, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
@@ -309,6 +309,7 @@ export function worldJoin(
     if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
     sendStalls(marketEnv(nk, logger, dispatcher, state), presence);
+    sendBoard(marketEnv(nk, logger, dispatcher, state), presence);
     sendQuests(dispatcher, state.players[presence.userId], Date.now());
   }
   return { state };
@@ -443,6 +444,28 @@ function handleGotoFriend(
   send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
 }
 
+/** BOARD_GOTO: a click on an ad moves the player next to the advertised stall (this server only). */
+function handleBoardGoto(dispatcher: nkruntime.MatchDispatcher, fishing: FishingContext, state: WorldState, p: Player, body: unknown, now: number): void {
+  const refuse = (reason: string) => {
+    const msg: TeleportMsg = { x: p.move.x, y: p.move.y, reason };
+    send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+  };
+  const owner = typeof body === 'object' && body !== null ? (body as { userId?: unknown }).userId : undefined;
+  if (typeof owner !== 'string') return;
+  if (p.lastTeleportAt !== undefined && now - p.lastTeleportAt < FRIENDS.teleportCooldownMs) return refuse('RATE_LIMITED');
+  p.lastTeleportAt = now;
+  const stall = state.market.stalls[owner];
+  if (!stall || !state.market.ads[owner]) return refuse('NOT_HERE');
+  const spot = spotNear(state.map, stall.doc.x, stall.doc.y, FRIENDS.landRadius, FRIENDS.landMinDistance);
+  if (!spot) return refuse('NO_SPOT');
+  cancelFishing(fishing, p);
+  p.move = newMoveState(spot.x, spot.y, now, moveCfg);
+  p.moving = false;
+  p.dirty = true;
+  const msg: TeleportMsg = { x: spot.x, y: spot.y };
+  send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+}
+
 function handleEmote(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
   const emote = parseEmote(body, EMOTES);
   if (emote === null || !canEmote(p.lastEmoteAt, now, EMOTES)) return;
@@ -500,6 +523,7 @@ const STALL_OPS: { [op: number]: true } = {
   [OpCode.STALL_RECALL]: true,
   [OpCode.STALL_VIEW]: true,
   [OpCode.STALL_BUY]: true,
+  [OpCode.BOARD_AD]: true,
 };
 
 const TRADE_OPS: { [op: number]: true } = {
@@ -580,6 +604,8 @@ export function worldLoop(
       handleStash(nk, logger, dispatcher, p, STASH_OPS[m.opCode], body);
     } else if (m.opCode === OpCode.GOTO_FRIEND) {
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
+    } else if (m.opCode === OpCode.BOARD_GOTO) {
+      handleBoardGoto(dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(nk, logger, dispatcher, state, p, body, now);
     } else if (m.opCode === OpCode.ITEM_LOCK && !storageActions[m.sender.userId]) {

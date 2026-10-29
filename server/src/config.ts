@@ -3,6 +3,7 @@
 import type { Tier } from './protocol';
 import type { CatchConfig, Category } from './rules/catch';
 import type { FishingConfig } from './rules/fishing';
+import type { BoardConfig } from './rules/board';
 import type { DiamondConfig } from './rules/diamond';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
@@ -244,6 +245,15 @@ export const MARKET = {
   interactRadius: 7,
   /** First entries shown beside the pet. */
   topCount: 4,
+};
+
+// The market board: ads for a stall, paid in diamonds (09-ekonomi-pazar.md). The price is the one number
+// to tune: diamonds drop about DIAMOND.perDay a day, so 10 is a couple of days of play. All Öneri.
+export const BOARD: BoardConfig = {
+  priceDiamonds: 10,
+  ttlMs: MARKET.ttlMs,
+  slots: 8,
+  maxHighlights: 3,
 };
 
 // Safe trade window (docs/tasarim/07-kopya-envanter.md 9.1, docs/protokol.md Takas). All Öneri.

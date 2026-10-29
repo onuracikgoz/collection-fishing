@@ -1,10 +1,11 @@
 // Pet stalls inside the world match (docs/protokol.md, Pazar). Rules are in rules/market.ts.
 // A stall's items stay in the owner's `items` records with inStall set, so they leave the bag in one write;
 // the match is the only writer of a stall, so its in-memory copy below stays true.
-import { BAG, MARKET, XP } from '../config';
+import { BAG, BOARD, MARKET, XP } from '../config';
 import { MARKET_POINT } from '../data/lake-map';
-import { FishBookMsg, ItemInstance, OpCode, StallListMsg, StallResultMsg, StallView, StallsMsg } from '../protocol';
+import { BoardAd, BoardResultMsg, BoardStateMsg, FishBookMsg, ItemInstance, OpCode, StallListMsg, StallResultMsg, StallView, StallsMsg } from '../protocol';
 import { canAdd, slotsUsed } from '../rules/bag';
+import { liveHighlights, parseAdRequest, planAd } from '../rules/board';
 import { Listing, Spot, feeOf, nearestFreeSpot, parseBuy, parseListing, planBuy, topEntries } from '../rules/market';
 import { levelOf } from '../rules/xp';
 import { Fisher } from './fishing';
@@ -44,8 +45,17 @@ export interface StallRec {
   items: { [instanceId: string]: ItemInstance };
 }
 
+/** An ad on the board: picked entries, and when it started and ends. */
+export interface AdRec {
+  highlights: string[];
+  startedAt: number;
+  until: number;
+}
+
 export interface MarketState {
   spots: Spot[];
+  /** Board ads by stall owner; an ad lives only as long as its stall. */
+  ads: { [owner: string]: AdRec };
   /** Wall-clock ms of the last check on owners who are away. */
   lastAwayCheck: number;
   stalls: { [owner: string]: StallRec };
@@ -78,7 +88,7 @@ export function initMarket(nk: nkruntime.Nakama, logger: nkruntime.Logger, serve
   } catch (e) {
     logger.error('Ending leftover stalls of %s failed: %s', serverId, String(e));
   }
-  return { spots, stalls: {}, lastAwayCheck: 0 };
+  return { spots, ads: {}, stalls: {}, lastAwayCheck: 0 };
 }
 
 function send(env: MarketEnv, op: number, body: unknown, to: nkruntime.Presence[]): void {
@@ -111,10 +121,56 @@ export function sendStalls(env: MarketEnv, to: nkruntime.Presence): void {
   send(env, OpCode.STALL_STATE, msg, [to]);
 }
 
+function adView(owner: string, rec: StallRec, ad: AdRec): BoardAd {
+  const view = viewOf(owner, rec);
+  const picked = liveHighlights(ad.highlights, rec.doc.items, rec.doc.stacks);
+  let top = view.top;
+  if (picked.length > 0) {
+    const info: { [id: string]: { defId: string; tier: string } } = {};
+    for (const id in rec.items) info[id] = { defId: rec.items[id].defId, tier: rec.items[id].tier };
+    const pick: StallDoc = {
+      ...rec.doc,
+      items: rec.doc.items.filter((i) => picked.indexOf(i.instanceId) >= 0),
+      stacks: rec.doc.stacks.filter((st) => picked.indexOf(st.defId) >= 0),
+    };
+    top = topEntries(pick, info, BOARD.maxHighlights);
+  }
+  return {
+    userId: owner,
+    name: view.name,
+    title: view.title,
+    spot: view.spot,
+    x: view.x,
+    y: view.y,
+    top,
+    total: view.total,
+    startedAt: ad.startedAt,
+    expiresInMs: Math.max(0, Math.min(ad.until, rec.doc.expiresAt) - Date.now()),
+  };
+}
+
+/** Every ad, oldest first, for a player who just joined. */
+export function sendBoard(env: MarketEnv, to: nkruntime.Presence): void {
+  const owners = Object.keys(env.market.ads).filter((o) => env.market.stalls[o]).sort((a, b) => env.market.ads[a].startedAt - env.market.ads[b].startedAt);
+  const msg: BoardStateMsg = { full: true, ads: owners.map((o) => adView(o, env.market.stalls[o], env.market.ads[o])), removed: [] };
+  send(env, OpCode.BOARD_STATE, msg, [to]);
+}
+
+function announceBoard(env: MarketEnv, changed: string[], removed: string[]): void {
+  const ads = changed.filter((o) => env.market.ads[o] && env.market.stalls[o]).map((o) => adView(o, env.market.stalls[o], env.market.ads[o]));
+  if (ads.length === 0 && removed.length === 0) return;
+  const msg: BoardStateMsg = { full: false, ads, removed };
+  send(env, OpCode.BOARD_STATE, msg, everyone(env));
+}
+
+/** Tells everyone about changed and gone stalls; an ad follows its stall. */
 function announce(env: MarketEnv, changed: string[], removed: string[]): void {
   const stalls = changed.filter((o) => env.market.stalls[o]).map((o) => viewOf(o, env.market.stalls[o]));
   const msg: StallsMsg = { full: false, stalls, removed };
   send(env, OpCode.STALL_STATE, msg, everyone(env));
+  const adsGone = removed.filter((o) => env.market.ads[o]);
+  for (const o of adsGone) delete env.market.ads[o];
+  announceBoard(env, changed, adsGone);
 }
 
 function listOf(owner: string, rec: StallRec): StallListMsg {
@@ -403,7 +459,48 @@ export function ownerLeft(env: MarketEnv, p: MarketPlayer, force = false): void 
   if (env.market.stalls[owner]) closeStall(env, owner, p, undefined, true);
 }
 
+function handleAd(env: MarketEnv, p: MarketPlayer, body: unknown): void {
+  const owner = p.presence.userId;
+  const req = parseAdRequest(body, BOARD);
+  const action = req ? req.action : 'set';
+  const reply = (r: Partial<BoardResultMsg>) => send(env, OpCode.BOARD_RESULT, { action, ok: false, ...r } as BoardResultMsg, [p.presence]);
+  if (!req) return reply({ reason: 'BAD_REQUEST' });
+  const rec = env.market.stalls[owner];
+  if (!rec) return reply({ reason: 'NO_STALL' });
+  const had = env.market.ads[owner];
+  if (req.action === 'remove') {
+    if (had) {
+      delete env.market.ads[owner];
+      announceBoard(env, [], [owner]);
+    }
+    return reply({ ok: true });
+  }
+  if (liveHighlights(req.highlights, rec.doc.items, rec.doc.stacks).length !== req.highlights.length) return reply({ reason: 'NOT_IN_STALL' });
+  const wall = Date.now();
+  let live = 0;
+  for (const o in env.market.ads) if (env.market.stalls[o]) live++;
+  let diamond: number | undefined;
+  const plan = planAd(!!had, live, had ? 0 : readWallet(env.nk, owner).diamond, BOARD);
+  if (!plan.ok) return reply({ reason: plan.reason });
+  if (plan.charge > 0) {
+    try {
+      diamond = env.nk.walletUpdate(owner, { diamond: -plan.charge }, { action: 'board_ad', spot: rec.doc.spot }, true).updated.diamond || 0;
+    } catch (e) {
+      env.logger.error('Charging the board ad of %s failed: %s', owner, String(e));
+      return reply({ reason: 'NOT_ENOUGH_DIAMOND' });
+    }
+  }
+  env.market.ads[owner] = {
+    highlights: req.highlights,
+    startedAt: had ? had.startedAt : wall,
+    until: had ? had.until : Math.min(rec.doc.expiresAt, wall + BOARD.ttlMs),
+  };
+  reply(diamond === undefined ? { ok: true } : { ok: true, diamond });
+  announceBoard(env, [owner], []);
+}
+
 export function handleStallOp(env: MarketEnv, p: MarketPlayer, op: number, body: unknown): void {
+  if (op === OpCode.BOARD_AD) return handleAd(env, p, body);
   if (op === OpCode.STALL_OPEN) handleOpen(env, p, body);
   else if (op === OpCode.STALL_RECALL) handleRecall(env, p);
   else if (op === OpCode.STALL_VIEW) handleView(env, p, body);
@@ -428,6 +525,9 @@ export function tickMarket(env: MarketEnv): void {
   const wall = Date.now();
   const check = wall - env.market.lastAwayCheck >= MARKET.awayCheckMs;
   if (check) env.market.lastAwayCheck = wall;
+  const over = Object.keys(env.market.ads).filter((o) => wall >= env.market.ads[o].until);
+  for (const o of over) delete env.market.ads[o];
+  if (over.length > 0) announceBoard(env, [], over);
   for (const owner in env.market.stalls) {
     const rec = env.market.stalls[owner];
     const p = env.players[owner];

@@ -74,6 +74,10 @@ namespace CollectionGame.Net
         public const long QuestState = 57;
         public const long QuestClaim = 58;
         public const long QuestClaimResult = 59;
+        public const long BoardAd = 60;
+        public const long BoardState = 61;
+        public const long BoardResult = 62;
+        public const long BoardGoto = 63;
     }
 
     public static class ErrorCode
@@ -92,6 +96,11 @@ namespace CollectionGame.Net
         public const string YouBlocked = "YOU_BLOCKED";
         public const string LevelTooLow = "LEVEL_TOO_LOW";
         public const string Offline = "OFFLINE";
+        // Market board
+        public const string NoStall = "NO_STALL";
+        public const string NotInStall = "NOT_IN_STALL";
+        public const string BoardFull = "BOARD_FULL";
+        public const string NotEnoughDiamond = "NOT_ENOUGH_DIAMOND";
     }
 
     /// <summary>"up", "down", "left" or "right". Server y grows downward, so "down" is +y.</summary>
@@ -790,6 +799,58 @@ namespace CollectionGame.Net
         public int paid;
         public int coin;
         public FishBookMsg book;
+    }
+
+    // --- Market board (docs/protokol.md, Pazar Panosu) ---
+
+    [Serializable]
+    public class BoardHighlight
+    {
+        /// <summary>A Float item by instanceId, or leave empty and set defId for a stack.</summary>
+        public string instanceId;
+        public string defId;
+    }
+
+    /// <summary>C → S, op 60. action: "set" (new ad, or change a running one for free) or "remove".</summary>
+    [Serializable]
+    public class BoardAdMsg
+    {
+        public string action;
+        public BoardHighlight[] highlights;
+    }
+
+    [Serializable]
+    public class BoardAd
+    {
+        public string userId;
+        public string name;
+        public string title;
+        public int spot;
+        public float x;
+        public float y;
+        public StallEntry[] top;
+        public int total;
+        public long startedAt;
+        public long expiresInMs;
+    }
+
+    /// <summary>S → C, op 61. full: replace the whole list. Ads come oldest first.</summary>
+    [Serializable]
+    public class BoardStateMsg
+    {
+        public bool full;
+        public BoardAd[] ads;
+        public string[] removed;
+    }
+
+    /// <summary>S → C, op 62. reason: NO_STALL, BAD_REQUEST, NOT_IN_STALL, BOARD_FULL, NOT_ENOUGH_DIAMOND, ERROR. diamond is the balance after a charge (0 when absent).</summary>
+    [Serializable]
+    public class BoardResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public long diamond;
     }
 
     // --- Account deletion RPCs (docs/protokol.md, Hesap silme RPC'leri) ---

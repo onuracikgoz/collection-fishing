@@ -61,6 +61,10 @@ export const OpCode = {
   QUEST_STATE: 57,
   QUEST_CLAIM: 58,
   QUEST_CLAIM_RESULT: 59,
+  BOARD_AD: 60,
+  BOARD_STATE: 61,
+  BOARD_RESULT: 62,
+  BOARD_GOTO: 63,
 } as const;
 
 export const ErrorCode = {
@@ -342,7 +346,7 @@ export interface GotoFriendMsg {
 export interface TeleportMsg {
   x: number;
   y: number;
-  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED. */
+  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED (NOT_FRIEND does not apply to BOARD_GOTO). */
   reason?: string;
 }
 
@@ -615,4 +619,45 @@ export interface ReportPlayerRequest {
   reason: 'spam' | 'abuse' | 'scam' | 'personal_info' | 'cheating' | 'other';
   note?: string;
   text?: string;
+}
+
+// --- Market board (docs/protokol.md, Pazar Panosu) ---
+
+/** C → S, op 60: put the stall on the board for diamonds (or change the ad, or take it down). */
+export interface BoardAdMsg {
+  action: 'set' | 'remove';
+  /** Up to BOARD.maxHighlights entries of the stall: a Float item by instanceId, a stack by defId. */
+  highlights?: { instanceId: string; defId: string }[];
+}
+
+export interface BoardAd {
+  userId: string;
+  name: string;
+  title: string;
+  spot: number;
+  x: number;
+  y: number;
+  /** The picked entries that are still on the stall (or the stall's first entries if none were picked). */
+  top: StallEntry[];
+  total: number;
+  /** When the ad started (ms, server time): the board lists ads by this, oldest first. */
+  startedAt: number;
+  expiresInMs: number;
+}
+
+/** S → C, op 61: every ad of the server on join (`full`), then changes. */
+export interface BoardStateMsg {
+  full: boolean;
+  ads: BoardAd[];
+  removed: string[];
+}
+
+/** S → C, op 62: reply to BOARD_AD, only to the player. */
+export interface BoardResultMsg {
+  action: 'set' | 'remove';
+  ok: boolean;
+  /** NO_STALL, BAD_REQUEST, NOT_IN_STALL, BOARD_FULL, NOT_ENOUGH_DIAMOND, ERROR */
+  reason?: string;
+  /** Diamonds after the charge. */
+  diamond?: number;
 }
