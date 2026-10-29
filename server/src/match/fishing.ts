@@ -2,7 +2,7 @@
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
 import { QuestState } from '../rules/quest';
 import { trackQuest } from './quest';
-import { ANNOUNCE, BAG, BAIT, DIAMOND, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
+import { ANNOUNCE, BAG, BAIT, DIAMOND, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, WATCH, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
@@ -16,6 +16,7 @@ import { spendCast } from '../rules/energy';
 import { FishState, checkBait, checkCast, hookWindow, judgeReel, onHook, parseCast, planWait, reelParamsFor, reelTimedOut } from '../rules/fishing';
 import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
+import { WatchStats, recordCast, recordHook, recordReel } from '../rules/watch';
 import { placeNewItem } from './items';
 import { addXp, levelOf, xpForCatch } from '../rules/xp';
 import { energyWrite, rodWrite, stacksWrite, xpWrite } from './playerData';
@@ -37,6 +38,8 @@ export interface Fisher {
   lastCatch?: string;
   /** Today's quests; absent until loaded at join. */
   quest?: QuestState;
+  /** Bot signals, saved by the world match now and then. */
+  watch: WatchStats;
 }
 
 export interface FishingContext {
@@ -127,6 +130,7 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
     twitches: wait.twitches,
     hookDeadline: 0,
   };
+  recordCast(f.watch, f.move.x, f.move.y, Date.now(), WATCH);
   bobber(ctx, f, 'cast');
 }
 
@@ -136,6 +140,7 @@ export function handleHook(ctx: FishingContext, f: Fisher, now: number): void {
   if (action === 'missed') return end(ctx, f, 'missed');
   if (action !== 'reel') return;
   const fs = f.fish;
+  if (fs.biteShownAt !== undefined) recordHook(f.watch, now - fs.biteShownAt, WATCH);
   const params = reelParamsFor(REEL_PARAMS[fs.roll!.tier || 'common'], fs.band, FISHING);
   fs.phase = 'reeling';
   fs.seed = Math.floor(Math.random() * 4294967296);
@@ -150,8 +155,11 @@ export function handleReelDone(ctx: FishingContext, f: Fisher, body: unknown, no
   if (!fs || fs.phase !== 'reeling' || !fs.params || fs.seed === undefined) return;
   const inputs = parseInputs(body, fs.params.maxMs);
   if (!inputs) return end(ctx, f, 'escaped');
-  const result = simulateReel(fs.seed, fs.params, inputs);
-  if (judgeReel(fs, result, now, FISHING) === 'escaped') return end(ctx, f, 'escaped');
+  const track = { inside: 0 };
+  const result = simulateReel(fs.seed, fs.params, inputs, track);
+  const verdict = judgeReel(fs, result, now, FISHING);
+  recordReel(f.watch, track.inside, result.steps, verdict === 'caught', WATCH);
+  if (verdict === 'escaped') return end(ctx, f, 'escaped');
   give(ctx, f);
 }
 
@@ -259,6 +267,7 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
       fs.roll = roll;
       fs.phase = 'bite';
       fs.hookDeadline = now + hookWindow(roll, FISHING) + FISHING.hookGraceMs;
+      fs.biteShownAt = now;
       bobber(ctx, f, 'bite');
     }
   } else if (fs.phase === 'bite') {

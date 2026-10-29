@@ -69,6 +69,14 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [ ] Haritaya Zanaatkar, Banka ve dükkan NPC'leri; mesafe şartları (şimdilik sadece depo Banka'ya bağlı). Client Banka noktasını haritada yazıyla işaretliyor (bina yok)
 - [ ] Elle oynanış onayı (Onur) ve web build ile arkadaş testi
 - [ ] Harita editörü: Unity'de çizilen harita oyunun haritası olur, çarpışma sunucuya dışa aktarılır (`docs/araclar/harita-editoru.md`). Kod yazıldı, Unity'de denenmedi
+## Faz 5: bitti sayılma şartları (erken başlananlar)
+
+- [x] Bot ve çoklu hesap işaretleri: sunucu vuruş tepkisi, çekme isabeti, saatlik aktivite, atış yeri, chat ve giriş IP'sini toplar (`rules/watch.ts`, eşikler `config.ts` `WATCH`). Geliştirici dashboard'unda Şüpheliler sekmesi. Otomatik ban yok
+- [ ] Takas kayıtları yazılınca her takas / pazar satışı `recordTransfer` ile tek yönlü akış sinyaline girmeli
+- [ ] Takas kapıları: level 10 + e-posta, misafir hesaba takas yok, ilk 7 gün takas sınırı (`tasarim/03-balik-tutma.md` 5.1.1)
+- [ ] Hesap açma: tarayıcı başına bir misafir hesap (cihaz kimliğinden kullanıcı adı çıkar), IP başına günde 10 yeni hesap (Öneri)
+- [ ] Canlı ortamda işaretleri görmek için admin paneli (Faz 6); dev dashboard canlıda kapalıdır
+
 ## Sürekli: mekanik önce, asset sonra
 
 Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti, kodla çizilen harita, IMGUI pencereler, kodla çizilen şamandıra). Assetler sonradan tamamen değişecek, bu yüzden:

@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, WATER, WHISPER, WORLD, XP } from '../config';
+import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
 import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
 import {
   BubbleMsg,
@@ -46,6 +46,8 @@ import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 import { devSignal } from '../debug/signal';
 import { sweepDeletions } from '../rpc/accountDelete';
+import { WatchStats, changeMark, recordChat } from '../rules/watch';
+import { readWatch, saveWatch } from './watch';
 
 export const POSITION_COLLECTION = 'player';
 export const POSITION_KEY = 'position';
@@ -90,6 +92,10 @@ interface Player {
   tradeId?: string;
   lastOfferAt?: number;
   lastTeleportAt?: number;
+  /** Bot signals (rules/watch.ts), saved every WATCH.flushMs and on leave. */
+  watch: WatchStats;
+  watchSavedAt: number;
+  watchMark?: string;
 }
 
 /** Join metadata accepted in matchJoinAttempt. */
@@ -271,6 +277,7 @@ export function worldJoin(
     const rod = old ? old.rod : readRod(nk, presence.userId);
     const xp = old ? old.xp : readXp(nk, presence.userId);
     const emotes = old ? { status: old.status, owned: old.emotesOwned } : readEmotes(nk, presence.userId);
+    const watch = old ? old.watch : readWatch(nk, presence.userId);
     if (!old) {
       saveEnergy(nk, logger, presence.userId, energy, true);
       try {
@@ -303,6 +310,10 @@ export function worldJoin(
       tradeId: old ? old.tradeId : undefined,
       lastOfferAt: old ? old.lastOfferAt : undefined,
       stash: old ? old.stash : undefined,
+      watch,
+      watchSavedAt: old ? old.watchSavedAt : now,
+      // What storage already holds, so a player who only stands around never writes.
+      watchMark: old ? old.watchMark : changeMark(watch),
     };
     const lv = levelOf(xp, XP);
     const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned, level: lv.level, xp: lv.xp, xpNext: lv.xpNext };
@@ -320,7 +331,7 @@ export function worldLeave(
   logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
   dispatcher: nkruntime.MatchDispatcher,
-  _tick: number,
+  tick: number,
   state: WorldState,
   presences: nkruntime.Presence[],
 ): { state: WorldState } | null {
@@ -347,6 +358,7 @@ export function worldLeave(
     send(dispatcher, OpCode.PLAYER_LEAVE, msg, watchers);
   }
   savePositions(nk, logger, gone);
+  saveWatch(nk, logger, gone, tick * tickMs);
   return { state };
 }
 
@@ -398,6 +410,7 @@ function handleSay(
   const text = sanitizeChat(typeof body === 'object' && body !== null ? (body as { text?: unknown }).text : null);
   if (text === null || !canSpeak(p.lastSpokeAt, now)) return;
   p.lastSpokeAt = now;
+  recordChat(p.watch);
   const wall = Date.now();
   if (wall - p.muteCheckedAt >= MODERATION.muteRecheckMs) {
     p.muteCheckedAt = wall;
@@ -675,6 +688,9 @@ export function worldLoop(
     }
   }
   for (const id in state.players) state.players[id].dirty = false;
+  const due: Player[] = [];
+  for (const id in state.players) if (now - state.players[id].watchSavedAt >= WATCH.flushMs) due.push(state.players[id]);
+  saveWatch(nk, logger, due, now);
   return { state };
 }
 
@@ -683,7 +699,7 @@ export function worldTerminate(
   logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
   dispatcher: nkruntime.MatchDispatcher,
-  _tick: number,
+  tick: number,
   state: WorldState,
   _graceSeconds: number,
 ): { state: WorldState } | null {
@@ -691,6 +707,7 @@ export function worldTerminate(
   for (const id in state.players) ownerLeft(market, state.players[id], true);
   savePositions(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
   for (const id in state.players) saveEnergy(nk, logger, id, state.players[id].energy, false);
+  saveWatch(nk, logger, Object.keys(state.players).map((id) => state.players[id]), tick * tickMs);
   return { state };
 }
 

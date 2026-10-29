@@ -128,13 +128,40 @@ Her balık tutma aksiyonu sunucu tarafından doğrulanır. Client'ın "yakaladı
 
 ### 5.1.1. Bot Önlemleri
 
-Eşyalar dış sitelerde gerçek para edeceği için bot koruması zorunludur. Tam koruma yoktur, amaç bot maliyetini artırmaktır:
+Eşyalar dış sitelerde gerçek para edeceği için bot koruması zorunludur. Tam koruma yoktur, amaç bot ve çoklu hesap maliyetini artırmaktır:
 
 - Vuruş zamanı, şamandıra hareketi ve mini oyun her seferinde farklıdır.
-- Sunucu, tepki süresi aşırı düzenli olanları ve 7/24 oynayanları işaretler.
 - **Enerji** (bkz. 5.0.0.3) günlük av sayısını sınırlar. Enerji **satılmaz**.
-- Takas ve pazar belli bir level'dan (ör. level 10) sonra açılır.
-- Takas ve pazar için **kısıtlı olmayan Steam hesabı** (Steam'de harcama yapmış hesap) ve belli bir oyun süresi şartı aranır. Ücretsiz oyunda bot hesabı açmayı pahalılaştırır.
+- Takas ve pazar için **kısıtlı olmayan Steam hesabı** (Steam'de harcama yapmış hesap) ve belli bir oyun süresi şartı aranır (Faz 7, Steam girişiyle). Ücretsiz oyunda bot hesabı açmayı pahalılaştırır.
+
+**Takas kapıları (Faz 5):**
+
+- Takas ve pazar **level 10** (Öneri) ve **e-posta eklenmiş hesap** ister. İkisi birden yoksa takas penceresi ve pazar açılmaz.
+- **Misafir hesap** (sadece cihaz kimliğiyle giriş) e-posta eklemeden takas ve pazar kullanamaz; balık tutar, koleksiyon yapar, craft eder.
+- **Yeni hesaplara takas sınırı:** hesap açıldıktan sonraki ilk **7 gün** (Öneri) takas ve pazar satışı günlük adet ve değerle sınırlıdır (sayılar Öneri, playtest sonrası). Botla açılıp hemen ana hesaba boşaltılan hesapları yavaşlatır.
+
+**Hesap açma (Faz 5):**
+
+- **Tarayıcı / cihaz başına bir misafir hesap.** Cihaz kimliği artık kullanıcı adını içermez; aynı tarayıcıdan farklı adla yeni misafir hesap açılmaz, eski hesaba girilir. Yeni hesap için e-postalı kayıt gerekir. (Bugün client `DeviceIds.For(username)` ile adı kimliğe katıyor; Faz 5'te değişecek.)
+- **IP başına gevşek sınır:** bir IP'den günde en çok **10 yeni hesap** (Öneri). Mobil ağlarda (CGNAT) yüzlerce kişi aynı IP'yi paylaşır; bu yüzden sınır gevşek tutulur ve IP tek başına hiçbir zaman ban sebebi değildir, sadece ek sinyaldir.
+
+**İzleme: önce işaretle, sonra insan baksın.**
+
+Sunucu otomatik ban vermez. Şüpheli davranışı **işaretler**, bir insan inceleyip karar verir. Bütün eşikler sunucu config'indedir (`server/src/config.ts`, `WATCH`, hepsi Öneri). Bugün işaretler geliştirici dashboard'unun **Şüpheliler** sekmesinde görülür (sadece geliştirme sunucusu, `DEV_TOOLS`); canlı oyunda aynı veri Faz 6 admin paneline taşınır.
+
+| İşaret | Ne zaman | Güç |
+|---|---|---|
+| Vuruş çok düzenli | Son 30+ ısırmada vuruş tepkisinin sapması çok küçük (≤ 40 ms) | Güçlü |
+| Vuruş çok hızlı | Ortalama tepki insan sınırının altında (< 150 ms) | Orta |
+| Çekme kusursuz | Son 30+ çekmede balık neredeyse hiç çubuktan çıkmıyor (‰985+) ve kaçırma ≤ %2 | Güçlü |
+| 7/24 oynuyor | 20+ saat aralıksız atış ya da haftanın 140+ saatinde aktif | Güçlü |
+| Hiç konuşmuyor | 500+ atış, hiç chat | Zayıf |
+| Hep aynı yer | 200+ atışın %90'ı aynı tile'dan | Zayıf |
+| Tek yönlü akış | Bir hesaba 3+ takasla 1000+ değer gidiyor, verdiğinin %80'i o hesaba, geri gelen ≤ %10 (Faz 5 takas kayıtlarından) | Güçlü |
+| Aynı IP'den çok hesap | Bir IP'den son 24 saatte 10'dan fazla hesap açılmış | Zayıf |
+| Aynı IP'den çok oturum | Bir IP'den aynı anda 10'dan fazla oyuncu oyunda | Zayıf |
+
+Her işaretin ağırlığı vardır; inceleme listesi ağırlık toplamına göre sıralanır. Zayıf işaretler tek başına bir şey söylemez, güçlülerle birlikte anlam kazanır. Sunucu bunları zaten aldığı mesajlardan çıkarır (ısırma ve HOOK zamanı, REEL_DONE girdileri, atış yeri, chat, giriş IP'si); client'a yeni bir şey sorulmaz.
 
 ### 5.2. Günlük Görevler ve Sandık
 

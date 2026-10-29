@@ -6,6 +6,7 @@ import { ErrorCode, errorMessage } from '../protocol';
 import { isValidUsername } from '../rules/join';
 import { blockedReason, cancelPendingDeletion, nameBlockedReason } from '../rpc/accountDelete';
 import { isBlocked, loginKey } from '../rules/accountDelete';
+import { recordLogin } from '../match/watch';
 
 const INVALID_ARGUMENT = 3; // nkruntime.Codes.INVALID_ARGUMENT
 const PERMISSION_DENIED = 7;
@@ -39,6 +40,7 @@ export function beforeAuthenticateDevice(
 /**
  * After any login: a new account whose login method or name was recently deleted is deleted again at once
  * (the client sees errors on its next call); an existing account cancels its pending deletion.
+ * Every login that stays also stores its IP for the multi-account signals (rules/watch.ts).
  * Returns false if the account was removed.
  */
 function afterLogin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, session: nkruntime.Session): boolean {
@@ -54,6 +56,11 @@ function afterLogin(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkrunt
     }
   } catch (e) {
     logger.warn('Login checks failed for %s: %s', ctx.userId, String(e));
+  }
+  try {
+    recordLogin(nk, ctx.userId, ctx.clientIp || '', !!session.created, Date.now());
+  } catch (e) {
+    logger.warn('Login IP not saved for %s: %s', ctx.userId, String(e));
   }
   return true;
 }

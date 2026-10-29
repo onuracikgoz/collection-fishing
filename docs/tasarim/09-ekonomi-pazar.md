@@ -42,7 +42,7 @@ Knight Online pazarı gibi gezilen bir pazar, ama satıcı başında beklemez: *
 
 - Her oyuncunun **bedava bir başlangıç peti** vardır; pazar herkese açıktır.
 - Başka pet türleri Coin veya elmasla alınır. Petlerin hepsi **aynı işi yapar**, fark sadece görünümdür (kural 2: kozmetik). Elmasla alınan pet takas edilemez.
-- Pet sistemi ve pet listesi ayrı tasarlanacak (`acik-sorular.md` 22).
+- Pet sistemi ve pet listesi ayrı tasarlanacak (`acik-sorular.md` 23).
 
 #### Pazar Panosu (reklam)
 

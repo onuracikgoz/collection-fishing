@@ -1,4 +1,5 @@
 // Cast energy is kept in the match and saved with the catch or by the periodic flush, not per cast.
+import { emptyStats } from '../src/rules/watch';
 import { describe, expect, it } from 'vitest';
 import { ENERGY, WATER } from '../src/config';
 import { LAKE_MAP } from '../src/data/lake-map';
@@ -31,6 +32,7 @@ function setup() {
     move: { ...pier },
     energy: ENERGY.max,
     bag: { items: 0, stacks: {} },
+    watch: emptyStats(),
     book: {},
     rod: { level: 1, durability: 100 } as any,
     xp: 0,

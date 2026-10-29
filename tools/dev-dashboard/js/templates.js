@@ -98,5 +98,7 @@ export function rpcTemplates(ctx) {
     dev_sim_catch: { n: 10000, band: 'deep', hasEnergy: true, luck: 0 },
     dev_reel: { tier: 'mythic', seed: 42 },
     dev_craft_preview: { recipeId: 'recipe.pike_trophy', average: 0.03 },
+    dev_suspects: { limit: 500 },
+    dev_watch: { userId, action: 'transfer', to: ctx.otherId || '', value: 500, n: 4 },
   };
 }
