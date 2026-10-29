@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 7;
+        public const int Version = 9;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -274,6 +274,7 @@ namespace CollectionGame.EditorTools
             rt.sizeDelta = new Vector2(size, size);
             var view = rt.gameObject.AddComponent<SlotView>();
             view.frame = Img(rt, "slot_empty", Image.Type.Sliced, true);
+            view.frame.pixelsPerUnitMultiplier = 2; // the drafts draw item slots at 1x (40x40, thin frame)
             view.empty = S("slot_empty");
             view.selected = S("slot_selected");
             view.locked = S("slot_locked");
@@ -380,6 +381,7 @@ namespace CollectionGame.EditorTools
 
             view.bait = Slot(bar, "Bait");
             view.bait.empty = S("button_flat_normal");
+            view.bait.frame.pixelsPerUnitMultiplier = 1;
             view.bait.frame.sprite = view.bait.empty;
             view.bait.label.color = Paper;
             At((RectTransform)view.bait.transform, BottomLeft, new Vector2(384, 12), new Vector2(40, 40));
@@ -426,27 +428,30 @@ namespace CollectionGame.EditorTools
         {
             var wrap = Stretch(Node("Bag", null));
             var view = wrap.gameObject.AddComponent<BagView>();
-            view.window = Window(wrap, "Window", "Çanta", new Vector2(390, 300));
-            At((RectTransform)view.window.transform, BottomRight, new Vector2(-14, 80), new Vector2(390, 300), BottomRight);
-            var body = view.window.body;
-            view.capacity = Txt(At(Node("Capacity", body), TopLeft, new Vector2(2, 0), new Vector2(120, 20)), "0 / 40", 14, Ink, TextAnchor.MiddleLeft, true);
-            view.balance = Txt(At(Node("Balance", body), BottomRight, new Vector2(-2, 0), new Vector2(200, 18)), "", 12, Faint, TextAnchor.MiddleRight);
+            // canta-v2: 392 wide, 16 from the right, 81 from the bottom; slots 40 at a 44 pitch from (20, 48).
+            view.window = Window(wrap, "Window", "Çanta", new Vector2(392, 309));
+            At((RectTransform)view.window.transform, BottomRight, new Vector2(-16, 81), new Vector2(392, 309), BottomRight);
+            var body = (RectTransform)view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = body;
+            view.capacity = Txt(At(Node("Capacity", body), TopLeft, new Vector2(22, -20), new Vector2(120, 22)), "0 / 40", 16, Ink);
+            view.balance = Txt(At(Node("Balance", body), BottomRight, new Vector2(-22, 16), new Vector2(200, 20)), "", 14, Faint, TextAnchor.MiddleRight);
 
             var grid = Node("Grid", body);
             grid.anchorMin = new Vector2(0, 0);
             grid.anchorMax = new Vector2(1, 1);
-            grid.offsetMin = new Vector2(0, 22);
-            grid.offsetMax = new Vector2(0, -24);
+            grid.offsetMin = new Vector2(20, 38);
+            grid.offsetMax = new Vector2(-16, -48);
             var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
-            layout.cellSize = new Vector2(42, 42);
-            layout.spacing = new Vector2(2, 2);
+            layout.cellSize = new Vector2(40, 40);
+            layout.spacing = new Vector2(4, 4);
             layout.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             layout.constraintCount = 8;
             view.grid = grid;
             view.slotTemplate = Slot(grid, "SlotTemplate");
             view.slotTemplate.gameObject.SetActive(false);
 
-            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(2, 0), new Vector2(150, 18)), "Sağ tık: işlemler", 12, Faint);
+            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(22, 16), new Vector2(150, 20)), "Tıkla: işlemler", 14, Faint);
             return wrap.gameObject;
         }
 
@@ -481,6 +486,9 @@ namespace CollectionGame.EditorTools
             view.menu = menu;
             view.menuTitle = Label(menu, "Title", "", 13, Paper, TextAnchor.MiddleLeft, true);
             view.menuTitle.gameObject.AddComponent<LayoutElement>().minHeight = 22;
+            var menuLine = Node("Divider", menu);
+            Img(menuLine, "divider");
+            Size(menuLine, minH: 4, prefH: 4);
 
             var item = Node("Item", menu);
             var hi = Img(item, "menu_highlight", Image.Type.Sliced, true);

@@ -96,7 +96,7 @@ namespace CollectionGame.UI
 
             var rows = count / Columns;
             var rt = (RectTransform)view.window.transform;
-            rt.sizeDelta = new Vector2(rt.sizeDelta.x, 82 + rows * 44);
+            rt.sizeDelta = new Vector2(rt.sizeDelta.x, 89 + rows * 44); // canta-v2: 309 for 5 rows
             view.capacity.text = $"{bag.slotsUsed} / {bag.slotsMax}";
             view.balance.text = $"{Kit.Num(bag.coin)} Coin · {Kit.Num(bag.dust)} toz";
         }

@@ -72,8 +72,10 @@ namespace CollectionGame.UI.Views
             {
                 var b = Instantiate(itemTemplate, itemTemplate.transform.parent, false);
                 b.gameObject.SetActive(true);
-                b.GetComponentInChildren<Text>().text = label;
+                var text = b.GetComponentInChildren<Text>();
+                text.text = label;
                 b.interactable = action != null;
+                if (action == null) text.color = new Color32(0x7f, 0x70, 0x8a, 255); // greyed out, as in canta-v2
                 var act = action;
                 b.onClick.AddListener(() =>
                 {
