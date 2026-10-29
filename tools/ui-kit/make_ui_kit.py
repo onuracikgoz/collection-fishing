@@ -223,6 +223,10 @@ put("tag_level", im, (3, 3, 3, 1))
 im = new(8, 8); r(im, 0, 0, 7, 7, NAIL); r(im, 1, 1, 6, 6, c("e4e2a0"))
 put("panel_locked", im, 1)
 
+# "Arıyorum" box on the profile card (profil-v3): red edge, peach inside
+im = new(8, 8); r(im, 0, 0, 7, 7, c("ae2334")); r(im, 1, 1, 6, 6, PAPER)
+put("panel_alert", im, 1)
+
 # ---------- item slots (40x40 holds a 32 px icon) ----------
 TIERS = {"common": "9babb2", "rare": "4d9be6", "epic": "a884f3", "legendary": "f79617", "mythic": "e83b3b"}
 def slot(outline=WM, fill=SAGE_L, inner=SAGE):
@@ -238,6 +242,15 @@ im = slot(outline=GREY_D, fill=GREY, inner=GREY_D); im.alpha_composite(lock, (16
 for t, h in TIERS.items():
     im = slot(outline=c(h)); r(im, 1, 37, 38, 38, c(h)); r(im, 1, 1, 38, 1, c(h))  # tier color top + bottom band
     round_corners(im); put(f"slot_tier_{t}", im, 4)
+
+# ---------- book record cards (defter-v2): ink edge, 2 px frame, face ----------
+def record(frame, face):
+    im = new(40, 40)
+    r(im, 0, 0, 39, 39, INK); r(im, 1, 1, 38, 38, frame); r(im, 3, 3, 36, 36, face)
+    round_corners(im); return im
+for t, h in TIERS.items(): put(f"record_{t}", record(c(h), WHITE), 3)
+put("record_found", record(GREY_L, LINEN), 3)
+put("record_unknown", record(GREY_D, c("3e3546")), 3)
 
 # ---------- cursors (hot spot top-left) ----------
 CUR = {"x": INK, "w": WHITE, "s": GREY_L, "b": c("cd683d"), "r": c("e83b3b"), "l": c("8fd3ff")}
