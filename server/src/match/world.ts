@@ -30,9 +30,9 @@ import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
-import { MarketEnv, MarketState, handleStallOp, initMarket, sendStalls, settleEnded, tickMarket } from './market';
+import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
-import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, readXp, statusEmoteWrite } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
@@ -254,7 +254,14 @@ export function worldJoin(
     const rod = old ? old.rod : readRod(nk, presence.userId);
     const xp = old ? old.xp : readXp(nk, presence.userId);
     const emotes = old ? { status: old.status, owned: old.emotesOwned } : readEmotes(nk, presence.userId);
-    if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
+    if (!old) {
+      saveEnergy(nk, logger, presence.userId, energy, true);
+      try {
+        nk.storageWrite([sessionWrite(presence.userId, state.serverId)]);
+      } catch (e) {
+        logger.error('Saving session failed: %s', String(e));
+      }
+    }
 
     state.players[presence.userId] = {
       presence,
@@ -303,6 +310,7 @@ export function worldLeave(
     gone.push(p);
     delete state.players[presence.userId];
     cancelTradeOf(tradeEnv(nk, logger, dispatcher, state), presence.userId);
+    ownerLeft(marketEnv(nk, logger, dispatcher, state), p);
     saveEnergy(nk, logger, presence.userId, p.energy, false);
     const msg: PlayerLeaveMsg = { id: presence.userId };
     const watchers: nkruntime.Presence[] = [];
@@ -597,11 +605,13 @@ export function worldTerminate(
   _ctx: nkruntime.Context,
   logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
-  _dispatcher: nkruntime.MatchDispatcher,
+  dispatcher: nkruntime.MatchDispatcher,
   _tick: number,
   state: WorldState,
   _graceSeconds: number,
 ): { state: WorldState } | null {
+  const market = marketEnv(nk, logger, dispatcher, state);
+  for (const id in state.players) ownerLeft(market, state.players[id], true);
   savePositions(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
   for (const id in state.players) saveEnergy(nk, logger, id, state.players[id].energy, false);
   return { state };

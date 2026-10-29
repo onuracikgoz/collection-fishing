@@ -183,6 +183,8 @@ export const MARKET = {
   /** Cut of every sale, taken from the seller. */
   feePct: 0.05,
   ttlMs: 24 * 60 * 60 * 1000,
+  /** How often a stall checks whether its owner, away from this server, quit the game. */
+  awayCheckMs: 5000,
   titleMax: 40,
   /** Spots are a grid centred on the map's `market` point: 8 x 5 = 40. */
   columns: 8,

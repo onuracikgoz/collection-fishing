@@ -5,7 +5,9 @@ import { MARKET_POINT } from '../src/data/lake-map';
 import { OpCode } from '../src/protocol';
 import { buildSpots } from '../src/rules/market';
 import { totalForLevel } from '../src/rules/xp';
-import { MarketEnv, MarketPlayer, handleStallOp, initMarket, sendStalls, settleEnded, tickMarket } from '../src/match/market';
+import { MarketEnv, MarketPlayer, handleStallOp, initMarket, ownerLeft, sendStalls, settleEnded, tickMarket } from '../src/match/market';
+
+const SYS = '00000000-0000-0000-0000-000000000000';
 
 type Msg = { op: number; body: any; to: string[] };
 
@@ -20,6 +22,7 @@ function world(opts: { failMulti?: boolean } = {}) {
       reqs.filter((r) => store.has(key(r.collection, r.key, r.userId))).map((r) => ({ ...r, value: store.get(key(r.collection, r.key, r.userId)) })),
     accountGetId: (userId: string) => ({ wallet: wallets[userId] || {} }),
     notificationSend: (...args: any[]) => notices.push(args),
+    storageWrite: (writes: any[]) => writes.forEach((w) => store.set(key(w.collection, w.key, w.userId), w.value)),
     multiUpdate: (_a: unknown, writes: any[], deletes: any[], wal: any[]) => {
       if (opts.failMulti) throw new Error('boom');
       for (const w of wal) if (((wallets[w.userId] || { coin: 0 }).coin || 0) + (w.changeset.coin || 0) < 0) throw new Error('wallet below zero');
@@ -307,12 +310,75 @@ describe('recall and expiry', () => {
     expect(w.last('S').reason).toBe('NOT_OPEN');
   });
 
-  it('says OTHER_SERVER when the stall stands elsewhere', () => {
+  it('closes the stall when the owner quits the game, and returns what was not sold', () => {
     const w = world();
-    w.addPlayer('S');
-    w.store.set(w.key('stall', 'state', 'S'), { serverId: 'other', items: [], stacks: [], title: '', name: 'S', spot: 0, x: 0, y: 0, openedAt: 0, expiresAt: Date.now() + 1000 });
-    w.op('S', OpCode.STALL_RECALL);
-    expect(w.last('S').reason).toBe('OTHER_SERVER');
+    openOne(w);
+    w.addPlayer('V', { dx: 30 });
+    w.store.set(w.key('player', 'session', 'S'), { serverId: 's1' });
+    const owner = w.players.S;
+    delete w.players.S;
+    const before = w.sent.length;
+    ownerLeft(w.env, owner);
+    expect(w.store.get(w.key('player', 'session', 'S'))).toEqual({ serverId: '' });
+    expect(w.env.market.stalls.S).toBeUndefined();
+    expect(w.store.has(w.key('stall', 'state', 'S'))).toBe(false);
+    expect(w.store.get(w.key('items', 'i1', 'S')).inStall).toBeUndefined();
+    expect(w.store.get(w.key('bag', 'stacks', 'S'))).toEqual({ stacks: { worm: 10 } });
+    expect(w.store.get(w.key('market', 's1', SYS))).toEqual({ owners: [] });
+    // Others see it go; the leaver gets no result.
+    const sent = w.sent.slice(before);
+    expect(sent.map((m) => m.op)).toEqual([OpCode.STALL_STATE]);
+    expect(sent[0].body.removed).toEqual(['S']);
+    ownerLeft(w.env, owner);
+    expect(w.sent.length).toBe(before + 1);
+  });
+
+  it('keeps the stall when the owner only moves to another server', () => {
+    const w = world();
+    openOne(w);
+    // The other server's join already wrote its id before this match saw the leave.
+    w.store.set(w.key('player', 'session', 'S'), { serverId: 's2' });
+    const owner = w.players.S;
+    delete w.players.S;
+    ownerLeft(w.env, owner);
+    expect(w.env.market.stalls.S).toBeDefined();
+    expect(w.store.get(w.key('player', 'session', 'S'))).toEqual({ serverId: 's2' });
+    expect(w.store.get(w.key('items', 'i1', 'S')).inStall).toBe(true);
+    // The owner cannot open a second stall there, and cannot recall this one from there.
+    w.addPlayer('S2', {});
+    w.store.set(w.key('stall', 'state', 'S2'), w.store.get(w.key('stall', 'state', 'S')));
+    w.op('S2', OpCode.STALL_RECALL);
+    expect(w.last('S2').reason).toBe('OTHER_SERVER');
+    w.op('S2', OpCode.STALL_OPEN, { items: [item('x', 1)] });
+    expect(w.last('S2').reason).toBe('ALREADY_OPEN');
+  });
+
+  it('closes a stall whose owner is away when they quit the game elsewhere', () => {
+    const w = world();
+    openOne(w);
+    w.store.set(w.key('player', 'session', 'S'), { serverId: 's2' });
+    delete w.players.S;
+    tickMarket(w.env);
+    expect(w.env.market.stalls.S).toBeDefined();
+    // They quit on the other server: its leave wrote ''. This match notices on its next check.
+    w.store.set(w.key('player', 'session', 'S'), { serverId: '' });
+    tickMarket(w.env);
+    expect(w.env.market.stalls.S).toBeDefined(); // the check is rate limited
+    w.env.market.lastAwayCheck = 0;
+    tickMarket(w.env);
+    expect(w.env.market.stalls.S).toBeUndefined();
+    expect(w.store.get(w.key('stall', 'state', 'S')).ended).toBe(true);
+    const back = settleEnded(w.env.nk, w.env.logger, 'S');
+    expect(back && back.items.length).toBe(2);
+  });
+
+  it('a match that ends closes the stalls of everyone in it', () => {
+    const w = world();
+    openOne(w);
+    w.store.set(w.key('player', 'session', 'S'), { serverId: 's1' });
+    ownerLeft(w.env, w.players.S, true);
+    expect(w.env.market.stalls.S).toBeUndefined();
+    expect(w.players.S.bag.items).toBe(2);
   });
 
   it('returns an expired stall at once when the owner is here', () => {
@@ -343,27 +409,30 @@ describe('recall and expiry', () => {
     expect(settleEnded(w.env.nk, w.env.logger, 'S')).toBeNull();
   });
 
-  it('lets an owner with an ended stall (elsewhere online) recall it or open a new one', () => {
+  it('lets an owner recall a stall left over from a stopped server', () => {
     const w = world();
     openOne(w);
-    w.env.market.stalls.S.doc.expiresAt = Date.now() - 1;
-    // Pretend the owner was away when it ended, then came back in another match that holds a fresh bag.
-    const doc = { ...w.env.market.stalls.S.doc, ended: true };
-    delete w.env.market.stalls.S;
-    w.store.set(w.key('stall', 'state', 'S'), doc);
+    // The server stopped: a new match ends what the index lists.
+    const fresh = initMarket(w.env.nk, w.env.logger, 's1', w.env.market.spots);
+    expect(fresh.stalls).toEqual({});
+    expect(w.store.get(w.key('stall', 'state', 'S')).ended).toBe(true);
+    expect(w.store.get(w.key('market', 's1', '00000000-0000-0000-0000-000000000000'))).toEqual({ owners: [] });
+    w.env.market = fresh;
     w.players.S.bag = { items: 0, stacks: { worm: 4 } };
     w.op('S', OpCode.STALL_RECALL);
     expect(w.last('S')).toMatchObject({ ok: true });
     expect(w.players.S.bag).toEqual({ items: 2, stacks: { worm: 10 } });
+    expect(w.store.has(w.key('stall', 'state', 'S'))).toBe(false);
   });
 
-  it('loads stalls from storage when the match starts', () => {
+  it('only one stall stands per owner, even across servers', () => {
     const w = world();
-    openOne(w);
-    const again = initMarket(w.env.nk, w.env.logger, 's1', w.env.market.spots);
-    expect(Object.keys(again.stalls)).toEqual(['S']);
-    expect(Object.keys(again.stalls.S.items).sort()).toEqual(['i1', 'i2']);
-    expect(initMarket(w.env.nk, w.env.logger, 's2', w.env.market.spots).stalls).toEqual({});
+    w.addPlayer('O', { items: [{ id: 'o1', defId: 'lake.fish.carp' }] });
+    w.store.set(w.key('stall', 'state', 'O'), { serverId: 'other', items: [], stacks: [], title: '', name: 'O', spot: 0, x: 0, y: 0, openedAt: 0, expiresAt: Date.now() + 1000 });
+    w.op('O', OpCode.STALL_OPEN, { items: [item('o1', 1)] });
+    expect(w.last('O').reason).toBe('ALREADY_OPEN');
+    w.op('O', OpCode.STALL_RECALL);
+    expect(w.last('O').reason).toBe('OTHER_SERVER');
   });
 });
 

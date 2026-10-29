@@ -30,10 +30,10 @@ Knight Online pazarı gibi gezilen bir pazar, ama satıcı başında beklemez: *
 - Oyuncu pazar alanına gidip petini bırakır, bir **başlık** yazar ("Taze sazan, ucuz!", chat filtresinden geçer) ve satacağı eşyaları fiyatıyla koyar. Eşyalar tezgaha ayrılır: çantadan düşer, satılamaz, takas edilemez. Kilitli eşya (`07-kopya-envanter.md` 9.3) konamaz. Sonra istediği yere gider.
 - **Görünüm:** pete yaklaşınca başlık ve **ilk 4 eşya** (ikon + fiyat) görünür. Tıklayınca (büyütünce) satılan **tüm eşyalar** açılır; Float'lı eşyada Float ve kondisyon görünür.
 - Pet ekranında satıcının **profili** de açılır: oradan whisper atılır, arkadaş eklenir, defterine bakılır (bkz. `10-sosyal.md`).
-- Alıcı tek tıkla satın alır; Coin satıcıya gelir (çevrimdışıysa da). **(Öneri)** Pazar ücreti satıştan %5, tezgah açma ücretsiz.
+- Alıcı tek tıkla satın alır; Coin satıcıya gelir (başka sunucudaysa da). **(Öneri)** Pazar ücreti satıştan %5, tezgah açma ücretsiz.
 - Sıradan balık, malzeme ve recipe gibi yığılanlar **adetle** konur ("10 sazan, tanesi 12 Coin"); alıcı istediği kadarını alır.
-- **(Öneri)** Tezgahta en fazla 12 kalem. Pet oyuncu çevrimdışıyken de durur, en fazla 24 saat; süre bitince ya da oyuncu geri çağırınca kalkar, satılmayanlar **çantaya** döner (çanta dolu olsa da; aşım serbest, Öneri). Süre oyuncu başka yerdeyken biterse eşyalar bir sonraki girişinde döner.
-- Oyuncu başına tek tezgah. Pet tezgahtayken oyuncunun yanında dolaşmaz.
+- **(Öneri)** Tezgahta en fazla 12 kalem. Karar 29.10.2026, Onur: tezgah **oyuncu oyundayken** durur; **sunucu değiştirince kapanmaz** (açıldığı sunucuda satar, geri çağırmak için o sunucuya dönmek gerekir), **oyundan tamamen çıkınca kapanır**. En fazla 24 saat (Öneri). Kapanınca satılmayanlar **çantaya** döner (çanta dolu olsa da; aşım serbest, Öneri); oyuncu başka sunucudayken ya da sunucu durunca kapanırsa eşyalar bir sonraki girişinde döner.
+- Oyuncu başına **tek** tezgah: başka sunucuda ikinci tezgah açılamaz. Pet tezgahtayken oyuncunun yanında dolaşmaz.
 - Her sunucunun kendi pazarı vardır; sunucular arası fiyat farkı doğaldır.
 - Level 10 ve kısıtlı olmayan Steam hesabı şartı geçerlidir (hem açan hem alan için).
 - Alıcı pete en fazla 7 tile yakında olmalı (Öneri); oyuncu tezgahı pazar noktasının 14 tile yakınında açar. Satıcıya satışta bildirim gider. Mesajlar: `protokol.md` Pazar.

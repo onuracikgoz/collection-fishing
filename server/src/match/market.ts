@@ -17,10 +17,12 @@ import {
   marketIndexWrite,
   publicItem,
   readMarketIndex,
+  readSession,
   readStacks,
   readStall,
   readTradeLock,
   readWallet,
+  sessionWrite,
   stacksWrite,
   stallDelete,
   stallWrite,
@@ -42,6 +44,8 @@ export interface StallRec {
 
 export interface MarketState {
   spots: Spot[];
+  /** Wall-clock ms of the last check on owners who are away. */
+  lastAwayCheck: number;
   stalls: { [owner: string]: StallRec };
 }
 
@@ -54,25 +58,25 @@ export interface MarketEnv {
   players: { [userId: string]: MarketPlayer };
 }
 
-/** Loads this server's stalls from storage when the match starts. */
+/**
+ * A new match starts with no stalls: they stand only while the match runs. Stalls still stored for
+ * this server (it stopped without closing them) are marked ended and come home at their owner's next login.
+ */
 export function initMarket(nk: nkruntime.Nakama, logger: nkruntime.Logger, serverId: string, spots: Spot[]): MarketState {
-  const market: MarketState = { spots, stalls: {} };
   try {
     const owners = readMarketIndex(nk, serverId);
-    for (const owner of owners) {
-      const doc = readStall(nk, owner);
-      if (!doc || doc.ended || doc.serverId !== serverId) continue;
-      const items: { [id: string]: ItemInstance } = {};
-      if (doc.items.length > 0) {
-        for (const o of nk.storageRead(doc.items.map((i) => ({ collection: 'items', key: i.instanceId, userId: owner })))) items[o.key] = publicItem(o.value as StoredItem);
+    if (owners.length > 0) {
+      const writes: nkruntime.StorageWriteRequest[] = [marketIndexWrite(serverId, [])];
+      for (const owner of owners) {
+        const doc = readStall(nk, owner);
+        if (doc && !doc.ended && doc.serverId === serverId) writes.push(stallWrite(owner, { ...doc, ended: true }));
       }
-      doc.items = doc.items.filter((i) => items[i.instanceId]);
-      market.stalls[owner] = { doc, items };
+      nk.multiUpdate(null, writes, [], []);
     }
   } catch (e) {
-    logger.error('Loading stalls of %s failed: %s', serverId, String(e));
+    logger.error('Ending leftover stalls of %s failed: %s', serverId, String(e));
   }
-  return market;
+  return { spots, stalls: {}, lastAwayCheck: 0 };
 }
 
 function send(env: MarketEnv, op: number, body: unknown, to: nkruntime.Presence[]): void {
@@ -171,7 +175,7 @@ export function settleEnded(nk: nkruntime.Nakama, logger: nkruntime.Logger, user
 }
 
 /** Closes a stall whose owner is in this match: unsold things go back to their bag. Returns false if storage failed. */
-function closeStall(env: MarketEnv, owner: string, p: MarketPlayer, reason?: string): boolean {
+function closeStall(env: MarketEnv, owner: string, p: MarketPlayer, reason?: string, quiet = false): boolean {
   const rec = env.market.stalls[owner];
   const plan = planReturn(env.nk, owner, rec.doc, p.bag.stacks);
   try {
@@ -183,9 +187,11 @@ function closeStall(env: MarketEnv, owner: string, p: MarketPlayer, reason?: str
   delete env.market.stalls[owner];
   p.bag.items += plan.items.length;
   p.bag.stacks = plan.stacks;
-  const msg: StallResultMsg = { action: 'recall', ok: true, returned: { items: plan.items, stacks: plan.returned } };
-  if (reason) msg.reason = reason;
-  send(env, OpCode.STALL_RESULT, msg, [p.presence]);
+  if (!quiet) {
+    const msg: StallResultMsg = { action: 'recall', ok: true, returned: { items: plan.items, stacks: plan.returned } };
+    if (reason) msg.reason = reason;
+    send(env, OpCode.STALL_RESULT, msg, [p.presence]);
+  }
   announce(env, [], [owner]);
   return true;
 }
@@ -268,7 +274,7 @@ function handleRecall(env: MarketEnv, p: MarketPlayer): void {
   const stored = readStall(env.nk, userId);
   if (!stored) return fail('NOT_OPEN');
   if (!stored.ended) return fail('OTHER_SERVER');
-  // Ended while away: this is the owner's login on a server that has the fresh bag cache.
+  // Left over from a server that stopped: bring it home now, the bag cache here is the live one.
   const back = settleEnded(env.nk, env.logger, userId);
   if (!back) return fail('ERROR');
   p.bag = { items: p.bag.items + back.items.length, stacks: back.stacks };
@@ -371,6 +377,23 @@ function handleBuy(env: MarketEnv, p: MarketPlayer, body: unknown): void {
   }
 }
 
+/**
+ * The owner left this server. If they went to another server the stall stays; if they left the game it closes
+ * and unsold things go back to their bag. `force` (the match is ending) closes it either way.
+ */
+export function ownerLeft(env: MarketEnv, p: MarketPlayer, force = false): void {
+  const owner = p.presence.userId;
+  try {
+    const where = readSession(env.nk, owner);
+    if (where === env.serverId) env.nk.storageWrite([sessionWrite(owner, '')]);
+    else if (where !== '' && !force) return;
+  } catch (e) {
+    env.logger.error('Reading the session of %s failed: %s', owner, String(e));
+    return;
+  }
+  if (env.market.stalls[owner]) closeStall(env, owner, p, undefined, true);
+}
+
 export function handleStallOp(env: MarketEnv, p: MarketPlayer, op: number, body: unknown): void {
   if (op === OpCode.STALL_OPEN) handleOpen(env, p, body);
   else if (op === OpCode.STALL_RECALL) handleRecall(env, p);
@@ -378,25 +401,39 @@ export function handleStallOp(env: MarketEnv, p: MarketPlayer, op: number, body:
   else if (op === OpCode.STALL_BUY) handleBuy(env, p, body);
 }
 
-/** Every tick: stalls past their time come home (or wait for the owner's next login). */
+/** Marks a stall whose owner is not here as ended: it leaves the market and comes home at the owner's next login. */
+function endAway(env: MarketEnv, owner: string): void {
+  const rec = env.market.stalls[owner];
+  try {
+    env.nk.multiUpdate(null, [stallWrite(owner, { ...rec.doc, ended: true }), indexWrite(env, owner)], [], []);
+  } catch (e) {
+    env.logger.error('Ending the stall of %s failed: %s', owner, String(e));
+    return;
+  }
+  delete env.market.stalls[owner];
+  announce(env, [], [owner]);
+}
+
+/** Every tick: stalls past their time come home; now and then, stalls whose owner quit the game close. */
 export function tickMarket(env: MarketEnv): void {
   const wall = Date.now();
+  const check = wall - env.market.lastAwayCheck >= MARKET.awayCheckMs;
+  if (check) env.market.lastAwayCheck = wall;
   for (const owner in env.market.stalls) {
     const rec = env.market.stalls[owner];
-    if (wall < rec.doc.expiresAt) continue;
     const p = env.players[owner];
-    if (p) {
-      closeStall(env, owner, p, 'EXPIRED');
-      continue;
+    if (wall >= rec.doc.expiresAt) {
+      if (p) closeStall(env, owner, p, 'EXPIRED');
+      else endAway(env, owner);
+    } else if (!p && check) {
+      // Away from this server: gone only if not playing on another one either.
+      let where = env.serverId;
+      try {
+        where = readSession(env.nk, owner);
+      } catch (e) {
+        env.logger.error('Reading the session of %s failed: %s', owner, String(e));
+      }
+      if (where === '') endAway(env, owner);
     }
-    try {
-      const doc: StallDoc = { ...rec.doc, ended: true };
-      env.nk.multiUpdate(null, [stallWrite(owner, doc), indexWrite(env, owner)], [], []);
-    } catch (e) {
-      env.logger.error('Ending the stall of %s failed: %s', owner, String(e));
-      continue;
-    }
-    delete env.market.stalls[owner];
-    announce(env, [], [owner]);
   }
 }
