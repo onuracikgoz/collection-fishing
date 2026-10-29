@@ -33,8 +33,10 @@ import {
   rpcDevReset,
   rpcDevSimCatch,
   rpcDevStacks,
+  rpcDevSuspects,
   rpcDevUsers,
   rpcDevWallet,
+  rpcDevWatch,
   rpcDevWorld,
 } from './debug/rpc';
 
@@ -86,6 +88,8 @@ function InitModule(
   initializer.registerRpc('dev_sim_catch', rpcDevSimCatch);
   initializer.registerRpc('dev_reel', rpcDevReel);
   initializer.registerRpc('dev_craft_preview', rpcDevCraftPreview);
+  initializer.registerRpc('dev_suspects', rpcDevSuspects);
+  initializer.registerRpc('dev_watch', rpcDevWatch);
   if (isDevEnabled(ctx)) logger.warn('DEV_TOOLS on: dev_* RPCs work. Never enable this on a test or live server.');
   try {
     ensureServers(nk, logger);

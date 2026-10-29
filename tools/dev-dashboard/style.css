@@ -103,3 +103,10 @@ canvas.reel { border-radius: 6px; background: #123; }
 @media (max-width: 1000px) {
   .split, .grid2, .playgrid { grid-template-columns: 1fr; }
 }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--chip); }
+tr.clickable.open td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+tr.expand td { padding: 8px 12px 14px; }
+.chips.tight { margin: 0; gap: 3px; }
+canvas.mini { display: block; max-width: 100%; }
+.suspect ul { margin: 0 0 8px; padding-left: 18px; }

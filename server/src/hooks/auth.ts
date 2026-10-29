@@ -3,6 +3,7 @@ import { STARTER_RECIPES } from '../data/recipes';
 import { stacksWrite } from '../match/playerData';
 import { ErrorCode, errorMessage } from '../protocol';
 import { isValidUsername } from '../rules/join';
+import { recordLogin } from '../match/watch';
 
 const INVALID_ARGUMENT = 3; // nkruntime.Codes.INVALID_ARGUMENT
 
@@ -23,7 +24,10 @@ export function beforeAuthenticateDevice(
   return data;
 }
 
-/** A new account gets the starter recipes once (docs/tasarim/08-recipe-craft.md 10.2). */
+/**
+ * Every login stores its IP for the multi-account signals (rules/watch.ts).
+ * A new account also gets the starter recipes once (docs/tasarim/08-recipe-craft.md 10.2).
+ */
 export function afterAuthenticateDevice(
   ctx: nkruntime.Context,
   logger: nkruntime.Logger,
@@ -31,7 +35,13 @@ export function afterAuthenticateDevice(
   session: nkruntime.Session,
   _req: nkruntime.AuthenticateDeviceRequest,
 ): void {
-  if (!session.created || !ctx.userId) return;
+  if (!ctx.userId) return;
+  try {
+    recordLogin(nk, ctx.userId, ctx.clientIp || '', !!session.created, Date.now());
+  } catch (e) {
+    logger.warn('Login IP not saved for %s: %s', ctx.userId, String(e));
+  }
+  if (!session.created) return;
   const stacks: { [defId: string]: number } = {};
   for (const s of STARTER_RECIPES) stacks[s.defId] = s.count;
   try {
