@@ -4,7 +4,7 @@
 
 ## 24. Geliştirme Fazları
 
-**Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas ve takas kayıtları, pet tezgahı, eşya kilidi, XP / level, taşıma kodu, hesap silme, fısıltı, rapor / susturma, RPC hız sınırı, bot işaretleri ve elmas (balıkla kazanılır) sunucu tarafında hazır (Steam hesabı şartı Faz 7'de); client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
+**Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas ve takas kayıtları, pet tezgahı, eşya kilidi, XP / level, taşıma kodu, hesap silme, fısıltı, rapor / susturma, RPC hız sınırı ve elmas (balıkla kazanılır) sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
 
 Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinden test edilir.
 

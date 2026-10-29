@@ -312,16 +312,6 @@ Dolandırıcılık şikayetleri için (`tasarim/07-kopya-envanter.md` 9.1). Clie
 - Geliştirici ve moderatör görünümü: `dev_trades { userId, limit? }` (yerel sunucu; oyuncunun kayıtları yeniden eskiye, hakkındaki ve verdiği raporlar). Canlı sunucuda Nakama konsolundan okunur; admin paneli Faz 6.
 - Saklama süresi şimdilik sınırsız (Öneri: 1 yıl, sonra temizlenir).
 
-## Bot işaretleri
-
-Kurallar: `tasarim/03-balik-tutma.md` 5.1.1. Client'a mesaj yoktur, oyuncu bir şey görmez; sadece moderatör için işaret konur, otomatik ceza yok. Sayılar `config.ts` `BOT_CHECK` (Öneri).
-
-- **Düzenli vuruş (`regular_hook`):** ısırmanın gösterildiği tick ile `HOOK` arası süre oyuncu başına son **30** atış için tutulur (bellekte). Standart sapma **30 ms**'nin altındaysa işaret konur. Maç 10 Hz çalıştığı için süreler 100 ms adımlıdır; insan birkaç adıma yayılır, sabit gecikmeli bot hep aynı adıma düşer.
-- **Uzun gün (`long_hours`):** iki atış arası **2 dk**'dan kısaysa aradaki süre balık tutma sayılır. Bir günde (00:00 Türkiye saati) **16 saati** geçerse işaret konur. Süre `player/activity { day, ms }`'te durur, dakikada bir ve çıkışta yazılır.
-- İşaretler `bot_flags/<userId>` (sistem kullanıcısı) kaydında: `{ userId, name, flags: { <işaret>: { at, day, days, detail } } }`. Aynı işaret günde bir kez yazılır, `days` kaç farklı günde konduğunu sayar.
-- Görmek için: `dev_flags` (işaretli herkes), `dev_trades { userId }` (oyuncunun işaretleri, kayıtları ve raporları). Canlıda admin paneli Faz 6.
-- **Henüz yok:** kısıtlı olmayan Steam hesabı şartı (Faz 7, Steam girişiyle), oyun süresi şartı (şimdilik level 10 bunun yerine geçer).
-
 ## Eşya kilidi
 
 Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.

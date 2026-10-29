@@ -135,7 +135,6 @@ Eşyalar dış sitelerde gerçek para edeceği için bot koruması zorunludur. T
 - **Enerji** (bkz. 5.0.0.3) günlük av sayısını sınırlar. Enerji **satılmaz**.
 - Takas ve pazar belli bir level'dan (ör. level 10) sonra açılır.
 - Takas ve pazar için **kısıtlı olmayan Steam hesabı** (Steam'de harcama yapmış hesap) ve belli bir oyun süresi şartı aranır. Ücretsiz oyunda bot hesabı açmayı pahalılaştırır.
-- **Sunucuda (29.10.2026):** "aşırı düzenli tepki" vuruş süresinin dağılımına, "7/24" günlük balık tutma süresine bakar (son 30 vuruşun sapması 30 ms altı, günde 16 saatten fazla; Öneri). Sadece işaret konur, karar moderatörün. Steam şartı Faz 7'de. Ayrıntı: `docs/protokol.md` Bot işaretleri.
 
 ### 5.2. Günlük Görevler ve Sandık
 

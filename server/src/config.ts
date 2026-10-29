@@ -3,7 +3,6 @@
 import type { Tier } from './protocol';
 import type { CatchConfig, Category } from './rules/catch';
 import type { FishingConfig } from './rules/fishing';
-import type { BotCheckConfig } from './rules/botCheck';
 import type { DiamondConfig } from './rules/diamond';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
@@ -291,16 +290,6 @@ export const RPC_LIMITS: { default: RateLimit; rpcs: { [rpc: string]: RateLimit 
     account_delete_status: { perWindow: 10, windowMs: 60 * 1000 },
     transfer_code_create: { perWindow: 5, windowMs: 60 * 1000 },
   },
-};
-
-// Bot signals (03-balik-tutma.md 5.1.1). Flags only, a moderator decides. All Öneri.
-export const BOT_CHECK: BotCheckConfig = {
-  hookSamples: 30,
-  // The match runs at 10 Hz, so reaction times come in 100 ms steps; a person spreads over several.
-  hookMaxStdevMs: 30,
-  activeGapMs: 2 * 60 * 1000,
-  maxDailyActiveMs: 16 * 60 * 60 * 1000,
-  dayOffsetMs: 3 * 60 * 60 * 1000,
 };
 
 /** A mute written while the player is online takes hold within this time (Öneri). */

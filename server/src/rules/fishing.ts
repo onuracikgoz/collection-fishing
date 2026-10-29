@@ -53,8 +53,6 @@ export interface FishState {
   /** Twitch times not yet shown. */
   twitches: number[];
   hookDeadline: number;
-  /** When the bite was shown (match time), for the hook reaction time. */
-  bitAt?: number;
   roll?: CatchRoll;
   seed?: number;
   params?: ReelParams;

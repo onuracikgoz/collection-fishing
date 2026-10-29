@@ -27,7 +27,6 @@ import { normalizeXp } from '../rules/xp';
 import { Listing } from '../rules/market';
 import { QuestState, normalizeQuests } from '../rules/quest';
 import { logKey, TradeLogEntry } from '../rules/tradeLog';
-import { ActivityDoc, BotFlag, normalizeActivity } from '../rules/botCheck';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
@@ -327,30 +326,4 @@ export function tradeLogWrite(userId: string, entry: TradeLogEntry): nkruntime.S
     permissionRead: 0 as nkruntime.ReadPermissionValues,
     permissionWrite: WRITE_SERVER,
   };
-}
-
-/** `player/activity { day, ms }`: today's fishing time, for the "7/24" bot signal. */
-export function readActivity(nk: nkruntime.Nakama, userId: string): ActivityDoc | null {
-  const objs = nk.storageRead([{ collection: 'player', key: 'activity', userId }]);
-  return objs.length > 0 ? normalizeActivity(objs[0].value) : null;
-}
-
-export function activityWrite(userId: string, doc: ActivityDoc): nkruntime.StorageWriteRequest {
-  return { collection: 'player', key: 'activity', userId, value: doc, permissionRead: 0 as nkruntime.ReadPermissionValues, permissionWrite: WRITE_SERVER };
-}
-
-/**
- * Marks a player for moderators in `bot_flags/<userId>` (system user). Each flag keeps its last time,
- * day and detail and how many days it was raised. Nothing happens to the player automatically.
- */
-export function flagBot(nk: nkruntime.Nakama, userId: string, name: string, flag: BotFlag, day: number, detail: Record<string, unknown>): void {
-  const objs = nk.storageRead([{ collection: 'bot_flags', key: userId, userId: SYSTEM_USER }]);
-  const doc = (objs.length > 0 ? objs[0].value : {}) as { flags?: { [f: string]: { at: number; day: number; days: number; detail: unknown } } };
-  const flags = { ...(doc.flags || {}) };
-  const prev = flags[flag];
-  if (prev && prev.day === day) return;
-  flags[flag] = { at: Date.now(), day, days: (prev ? prev.days : 0) + 1, detail };
-  nk.storageWrite([
-    { collection: 'bot_flags', key: userId, userId: SYSTEM_USER, value: { userId, name, flags }, permissionRead: 0 as nkruntime.ReadPermissionValues, permissionWrite: WRITE_SERVER },
-  ]);
 }

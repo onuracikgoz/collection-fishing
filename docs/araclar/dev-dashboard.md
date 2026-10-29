@@ -56,7 +56,6 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_sim_catch` | `{ n, band, water?, level?, hasEnergy, luck \| userId }` av tablosu simülasyonu (bant çarpanları dahil) |
 | `dev_reel` | `{ seed, tier \| params, band?, inputs? , lose? }` mini oyunu oynar ya da girdileri değerlendirir; `band` o bandın zorluğunu ekler |
 | `dev_craft_preview` | `{ recipeId \| grade, average }` craft Float bantları |
-| `dev_trades` | `{ limit? }` oyuncunun bot işaretleri, takas ve tezgah kayıtları (yeniden eskiye), hakkındaki ve verdiği raporlar |
-| `dev_flags` | Bot işareti olan herkes, en son işaretlenen önce |
+| `dev_trades` | `{ limit? }` oyuncunun takas ve tezgah kayıtları (yeniden eskiye), hakkındaki ve verdiği raporlar |
 
 Depoyu değiştiren her dev RPC, oyuncu oyundaysa maça `dev_reload` sinyali yollar; maçın bellekteki çanta, defter ve enerji kopyası yenilenir. Unity client'a "çanta değişti" mesajı gitmez; client çantayı yeniden açınca görür.
