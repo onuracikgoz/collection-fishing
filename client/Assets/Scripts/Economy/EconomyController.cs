@@ -487,20 +487,11 @@ namespace CollectionGame.Economy
         {
             v.window.Closed = Close;
             v.window.Open = false;
-            Tab[] tabs = { Tab.Sell, Tab.Salvage, Tab.Sell, Tab.Shop };
+            Tab[] tabs = { Tab.Sell, Tab.Salvage, Tab.Shop };
             for (var i = 0; i < v.tabs.Length; i++)
             {
                 var index = i;
-                v.tabs[i].onClick.AddListener(() =>
-                {
-                    if (index == 2)
-                    {
-                        Close();
-                        OpenQuests?.Invoke();
-                        return;
-                    }
-                    Select(tabs[index]);
-                });
+                v.tabs[i].button.onClick.AddListener(() => Select(tabs[index]));
             }
             for (var i = 0; i < v.lines.Length; i++)
             {
@@ -615,12 +606,8 @@ namespace CollectionGame.Economy
             var v = merchant;
             var salvage = Current == Tab.Salvage;
             var shop = Current == Tab.Shop;
-            var selectedTab = shop ? 3 : salvage ? 1 : 0;
-            for (var i = 0; i < v.tabs.Length; i++)
-            {
-                v.tabs[i].GetComponent<Image>().sprite = i == selectedTab ? v.tabOn : v.tabOff;
-                v.tabTexts[i].color = i == selectedTab ? Paper : Ink;
-            }
+            var selectedTab = shop ? 2 : salvage ? 1 : 0;
+            for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == selectedTab);
             v.coin.text = Kit.Num(Coin);
             v.dust.text = Kit.Num(Dust);
             v.sell.SetActive(!shop);
@@ -715,8 +702,8 @@ namespace CollectionGame.Economy
         {
             v.window.Closed = Close;
             v.window.Open = false;
-            v.tabs[0].onClick.AddListener(() => Select(Tab.Craft));
-            v.tabs[1].onClick.AddListener(() => Select(Tab.Merge));
+            v.tabs[0].button.onClick.AddListener(() => Select(Tab.Craft));
+            v.tabs[1].button.onClick.AddListener(() => Select(Tab.Merge));
             for (var i = 0; i < v.recipes.Length; i++)
             {
                 var index = i;
@@ -752,12 +739,7 @@ namespace CollectionGame.Economy
         {
             var v = crafter;
             var merge = Current == Tab.Merge;
-            for (var i = 0; i < v.tabs.Length; i++)
-            {
-                var on = i == (merge ? 1 : 0);
-                v.tabs[i].GetComponent<Image>().sprite = on ? v.tabOn : v.tabOff;
-                v.tabTexts[i].color = on ? Paper : Ink;
-            }
+            for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (merge ? 1 : 0));
             v.dust.text = Kit.Num(Dust);
             v.craft.SetActive(!merge);
             v.merge.SetActive(merge);

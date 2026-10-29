@@ -14,7 +14,7 @@ namespace CollectionGame.UI.Views
         public Text place;
         public Text info;
         public Image flag;
-        public Text score, coin, diamond;
+        public Text coin, diamond, dust;
 
         [Header("XP")]
         public Text level;

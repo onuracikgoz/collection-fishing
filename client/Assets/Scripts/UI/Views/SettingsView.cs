@@ -10,8 +10,7 @@ namespace CollectionGame.UI.Views
     public sealed class SettingsView : MonoBehaviour
     {
         public WindowView window;
-        public Button tabGeneral, tabAccount;
-        public Sprite tabOn, tabOff;
+        public TabButton tabGeneral, tabAccount;
         public Text version;
         public GameObject general, account;
 
@@ -50,10 +49,5 @@ namespace CollectionGame.UI.Views
             public Text buttonText;
         }
 
-        public static void Tab(Button b, bool on, Sprite onSprite, Sprite offSprite, Color onText, Color offText)
-        {
-            b.GetComponent<Image>().sprite = on ? onSprite : offSprite;
-            b.GetComponentInChildren<Text>().color = on ? onText : offText;
-        }
     }
 }

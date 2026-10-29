@@ -327,7 +327,7 @@ namespace CollectionGame.Social
                 for (var i = 0; i < view.tabs.Length; i++)
                 {
                     var t = (FriendsTab)i;
-                    view.tabs[i].onClick.AddListener(() =>
+                    view.tabs[i].button.onClick.AddListener(() =>
                     {
                         tab = t;
                         dirty = true;
@@ -379,14 +379,10 @@ namespace CollectionGame.Social
             var incoming = Friends.Where(f => f.State == Connection.FriendInviteReceived).ToList();
             var sent = Friends.Where(f => f.State == Connection.FriendInviteSent).ToList();
             var blocked = Friends.Where(f => f.State == Connection.FriendBlocked).ToList();
-            v.tabTexts[0].text = $"Arkadaşlar {mutual.Count}";
+            v.tabs[0].label.text = $"Arkadaşlar {mutual.Count}";
             v.requestBadge.SetActive(incoming.Count > 0);
             v.requestCount.text = incoming.Count.ToString();
-            for (var i = 0; i < v.tabs.Length; i++)
-            {
-                v.tabs[i].GetComponent<Image>().sprite = i == (int)tab ? v.tabOn : v.tabOff;
-                v.tabTexts[i].color = i == (int)tab ? Ink : Paper;
-            }
+            for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (int)tab);
             v.empty.text = "";
             switch (tab)
             {

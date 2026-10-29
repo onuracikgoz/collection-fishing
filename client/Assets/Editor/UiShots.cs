@@ -212,12 +212,8 @@ namespace CollectionGame.EditorTools
                 var v = Spawn<FriendsView>(canvas, "Friends");
                 var ink = new Color32(0x45, 0x29, 0x3f, 255);
                 var paper = new Color32(0xf2, 0xe8, 0xd0, 255);
-                for (var i = 0; i < 3; i++)
-                {
-                    v.tabs[i].GetComponent<Image>().sprite = i == 0 ? v.tabOn : v.tabOff;
-                    v.tabTexts[i].color = i == 0 ? ink : paper;
-                }
-                v.tabTexts[0].text = "Arkadaşlar 5";
+                for (var i = 0; i < 3; i++) v.tabs[i].Set(i == 0);
+                v.tabs[0].label.text = "Arkadaşlar 5";
                 v.requestCount.text = "2";
                 void Section(string t)
                 {
@@ -254,11 +250,7 @@ namespace CollectionGame.EditorTools
                 {
                     FillHud(Spawn<HudView>(canvas, "Hud"));
                     var v = Spawn<MerchantView>(canvas, "Merchant");
-                    for (var i = 0; i < 4; i++)
-                    {
-                        v.tabs[i].GetComponent<Image>().sprite = i == (sv ? 1 : 0) ? v.tabOn : v.tabOff;
-                        v.tabTexts[i].color = i == (sv ? 1 : 0) ? new Color32(0xf2, 0xe8, 0xd0, 255) : new Color32(0x45, 0x29, 0x3f, 255);
-                    }
+                    for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (sv ? 1 : 0));
                     v.coin.text = "1.240";
                     v.dust.text = "85";
                     v.shop.SetActive(false);
@@ -293,9 +285,8 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<CrafterView>(canvas, "Crafter");
-                v.tabs[0].GetComponent<Image>().sprite = v.tabOn;
-                v.tabTexts[0].color = new Color32(0xf2, 0xe8, 0xd0, 255);
-                v.tabs[1].GetComponent<Image>().sprite = v.tabOff;
+                v.tabs[0].Set(true);
+                v.tabs[1].Set(false);
                 v.dust.text = "85";
                 v.merge.SetActive(false);
                 v.noRecipe.gameObject.SetActive(false);
@@ -331,10 +322,8 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<CrafterView>(canvas, "Crafter");
-                v.tabs[1].GetComponent<Image>().sprite = v.tabOn;
-                v.tabTexts[1].color = new Color32(0xf2, 0xe8, 0xd0, 255);
-                v.tabs[0].GetComponent<Image>().sprite = v.tabOff;
-                v.tabTexts[0].color = new Color32(0x45, 0x29, 0x3f, 255);
+                v.tabs[0].Set(false);
+                v.tabs[1].Set(true);
                 v.dust.text = "85";
                 v.craft.SetActive(false);
                 v.merge.SetActive(true);
@@ -660,8 +649,8 @@ namespace CollectionGame.EditorTools
         {
             var ink = new Color32(0x45, 0x29, 0x3f, 255);
             var paper = new Color32(0xf2, 0xe8, 0xd0, 255);
-            SettingsView.Tab(v.tabGeneral, general, v.tabOn, v.tabOff, paper, ink);
-            SettingsView.Tab(v.tabAccount, !general, v.tabOn, v.tabOff, paper, ink);
+            v.tabGeneral.Set(general);
+            v.tabAccount.Set(!general);
             v.general.SetActive(general);
             v.account.SetActive(!general);
         }
@@ -679,7 +668,7 @@ namespace CollectionGame.EditorTools
         {
             h.place.text = "Liman";
             h.info.text = "12 kişi görüşte";
-            h.score.text = "1.820";
+            h.dust.text = "312";
             h.coin.text = "1.240";
             h.diamond.text = "85";
             h.level.text = "Lv 7";

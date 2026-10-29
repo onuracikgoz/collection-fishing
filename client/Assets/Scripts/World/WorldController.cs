@@ -128,7 +128,6 @@ namespace CollectionGame.World
             social.Popup = hud.Popup;
             economy.Popup = hud.Popup;
             economy.OpenQuests = () => quests.Open = true;
-            quests.OpenMerchantTab = i => economy.Show(i == 1 ? EconomyController.Tab.Salvage : i == 3 ? EconomyController.Tab.Shop : EconomyController.Tab.Sell);
             social.Whisper = (id, name) => whispers.OpenWith(id, name);
             social.OpenProfile = collection.OpenProfile;
             social.OpenBook = collection.OpenBook;
@@ -249,7 +248,7 @@ namespace CollectionGame.World
                 trade.Tick();
                 market.Tick();
                 whispers.Tick();
-                hud.Tick(serverName, others.Count + 1, fishing, collection.Score, quests.State != null && quests.State.complete && !quests.State.claimed);
+                hud.Tick(serverName, others.Count + 1, fishing, quests.State != null && quests.State.complete && !quests.State.claimed);
                 if (!Typing) hud.TryOpenChat();
             }
 

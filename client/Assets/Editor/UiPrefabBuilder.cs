@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 26;
+        public const int Version = 27;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -31,6 +31,7 @@ namespace CollectionGame.EditorTools
         static readonly Color Gold = Hex("f9c22b");
         static readonly Color CoinColour = Hex("e6904e");
         static readonly Color DiamondColour = Hex("8fd3ff");
+        static readonly Color DustColour = Hex("4d9be6");
         static readonly Color Xp = Hex("a884f3");
 
         static Font font;
@@ -331,15 +332,15 @@ namespace CollectionGame.EditorTools
             view.flag = Img(At(Node("Flag", place), TopLeft, new Vector2(12, -32), new Vector2(32, 22)), "flag_tr", Image.Type.Simple);
             view.info = Txt(At(Node("Info", place), TopLeft, new Vector2(52, -31), new Vector2(236, 22)), "", 14, Paper);
 
-            // Top right: score, coin, diamonds.
+            // Top right: Coin, elmas, toz (29.10.2026, Onur). Collection Score is in the profile and the book.
             var bal = At(Node("Balances", root), TopRight, new Vector2(-12, -12), new Vector2(350, 38));
             Img(bal, "box_dark");
-            Icon(bal, "ScoreIcon", new Vector2(0, 0.5f), new Vector2(14, 0), Gold);
-            view.score = Txt(At(Node("Score", bal), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, Gold, TextAnchor.MiddleLeft, true);
-            Icon(bal, "CoinIcon", new Vector2(0, 0.5f), new Vector2(128, 0), CoinColour);
-            view.coin = Txt(At(Node("Coin", bal), new Vector2(0, 0.5f), new Vector2(144, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, Paper, TextAnchor.MiddleLeft, true);
-            Icon(bal, "DiamondIcon", new Vector2(0, 0.5f), new Vector2(244, 0), DiamondColour);
-            view.diamond = Txt(At(Node("Diamond", bal), new Vector2(0, 0.5f), new Vector2(260, 0), new Vector2(80, 24), new Vector2(0, 0.5f)), "0", 15, DiamondColour, TextAnchor.MiddleLeft, true);
+            Icon(bal, "CoinIcon", new Vector2(0, 0.5f), new Vector2(14, 0), CoinColour);
+            view.coin = Txt(At(Node("Coin", bal), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, Paper, TextAnchor.MiddleLeft, true);
+            Icon(bal, "DiamondIcon", new Vector2(0, 0.5f), new Vector2(128, 0), DiamondColour);
+            view.diamond = Txt(At(Node("Diamond", bal), new Vector2(0, 0.5f), new Vector2(144, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, DiamondColour, TextAnchor.MiddleLeft, true);
+            Icon(bal, "DustIcon", new Vector2(0, 0.5f), new Vector2(244, 0), DustColour);
+            view.dust = Txt(At(Node("Dust", bal), new Vector2(0, 0.5f), new Vector2(260, 0), new Vector2(80, 24), new Vector2(0, 0.5f)), "0", 15, DustColour, TextAnchor.MiddleLeft, true);
 
             // Chat log above the chat line.
             var log = At(Node("ChatLog", root), BottomLeft, new Vector2(505, 84), new Vector2(450, 88));
@@ -643,19 +644,8 @@ namespace CollectionGame.EditorTools
             view.window.body = (RectTransform)w;
 
             // Left column: tabs, a vertical divider, the version.
-            view.tabOn = S("button_wood_normal");
-            view.tabOff = S("outline");
-            view.tabGeneral = Btn(w, "TabGeneral", "wood", "Genel", 16);
-            At((RectTransform)view.tabGeneral.transform, TopLeft, new Vector2(23, -32), new Vector2(152, 36));
-            view.tabAccount = Btn(w, "TabAccount", "wood", "Hesap", 16);
-            At((RectTransform)view.tabAccount.transform, TopLeft, new Vector2(23, -76), new Vector2(152, 36));
-            foreach (var tab in new[] { view.tabGeneral, view.tabAccount })
-            {
-                tab.transition = Selectable.Transition.None;
-                var label = tab.GetComponentInChildren<Text>();
-                label.alignment = TextAnchor.MiddleLeft;
-                ((RectTransform)label.transform).offsetMin = new Vector2(12, 2);
-            }
+            view.tabGeneral = Tab(w, "TabGeneral", "Genel", 23, 32, 152, 36, 16, TextAnchor.MiddleLeft);
+            view.tabAccount = Tab(w, "TabAccount", "Hesap", 23, 76, 152, 36, 16, TextAnchor.MiddleLeft);
             var vline = Abs(w, "ColumnDivider", 187, 17, 503, 4);
             Img(vline, "divider");
             vline.pivot = new Vector2(0, 1);
@@ -1098,14 +1088,8 @@ namespace CollectionGame.EditorTools
             // npc-gorev: window 956x594 at (224, 106); quest cards 906x90, 100 apart from y 114.
             var wrap = Stretch(Node("Quests", null));
             var view = wrap.gameObject.AddComponent<QuestView>();
-            view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
+            view.window = DraftWindow(wrap, "Görevler", 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Görevler", "Dükkan" }, out var tabTexts);
-            for (var i = 0; i < view.tabs.Length; i++)
-            {
-                view.tabs[i].GetComponent<Image>().sprite = i == 2 ? S("button_wood_normal") : S("outline");
-                tabTexts[i].color = i == 2 ? Paper : Ink;
-            }
             Icon(w, "CoinIcon", new Vector2(0, 1), new Vector2(766, -42), Gold, 14);
             view.coin = TextAt(w, "Coin", "0", 786, 42, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(866, -42), DiamondColour, 12);
@@ -1258,6 +1242,29 @@ namespace CollectionGame.EditorTools
 
         // ================= Friends (drafts arkadaslar-list, arkadaslar-requests) =================
 
+        /// <summary>
+        /// THE tab of the game: every window with tabs uses this, so one change here changes them all.
+        /// Selected: kit button_wood_normal with paper text; unselected: kit tab_off with ink text.
+        /// </summary>
+        static TabButton Tab(Transform parent, string name, string label, float x, float y, float w, float h, int size = 15, TextAnchor align = TextAnchor.MiddleCenter)
+        {
+            var rt = Abs(parent, name, x, y, w, h);
+            var tab = rt.gameObject.AddComponent<TabButton>();
+            tab.on = S("button_wood_normal");
+            tab.off = S("tab_off");
+            tab.onText = Paper;
+            tab.offText = Ink;
+            tab.image = Img(rt, "tab_off", Image.Type.Sliced, true);
+            tab.button = rt.gameObject.AddComponent<Button>();
+            tab.button.targetGraphic = tab.image;
+            tab.button.transition = Selectable.Transition.None;
+            var nav = tab.button.navigation;
+            nav.mode = Navigation.Mode.None;
+            tab.button.navigation = nav;
+            tab.label = Txt(Stretch(Node("Label", rt), align == TextAnchor.MiddleLeft ? 12 : 4, 2, 4, 1), label, size, Ink, align, true);
+            return tab;
+        }
+
         static Button SmallButton(Transform parent, string name, string colour, string label, float x, float y, float w, float h, int size = 13)
         {
             var b = Btn(parent, name, colour, label, size);
@@ -1272,19 +1279,10 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<FriendsView>();
             view.window = DraftWindow(wrap, "Arkadaşlar", 302, 148, 516, 510);
             var w = view.window.transform;
-            view.tabOn = S("card");
-            view.tabOff = S("button_flat_normal");
             float[] tx = { 23, 148, 233 }, tw = { 115, 77, 75 };
             string[] tl = { "Arkadaşlar", "İstekler", "Engelli" };
-            view.tabs = new Button[3];
-            view.tabTexts = new Text[3];
-            for (var i = 0; i < 3; i++)
-            {
-                var b = SmallButton(w, "Tab" + i, "flat", tl[i], tx[i], 17, tw[i], 26, 14);
-                b.transition = Selectable.Transition.None;
-                view.tabs[i] = b;
-                view.tabTexts[i] = b.GetComponentInChildren<Text>();
-            }
+            view.tabs = new TabButton[3];
+            for (var i = 0; i < 3; i++) view.tabs[i] = Tab(w, "Tab" + i, tl[i], tx[i], 17, tw[i], 26, 14);
             var badge = At(Node("Badge", view.tabs[1].transform), TopRight, new Vector2(4, 8), new Vector2(16, 16));
             Img(badge, "button_red_normal");
             view.requestCount = Txt(Stretch(Node("Text", badge)), "0", 11, Color.white, TextAnchor.MiddleCenter, true);
@@ -1386,16 +1384,10 @@ namespace CollectionGame.EditorTools
             return new SlotGrid { content = content, template = template };
         }
 
-        static Button[] NpcTabs(Transform w, string[] labels, out Text[] texts)
+        static TabButton[] NpcTabs(Transform w, string[] labels)
         {
-            var tabs = new Button[labels.Length];
-            texts = new Text[labels.Length];
-            for (var i = 0; i < labels.Length; i++)
-            {
-                tabs[i] = SmallButton(w, "Tab" + i, "wood", labels[i], 29 + i * 132, 27, 127, 35, 15);
-                tabs[i].transition = Selectable.Transition.None;
-                texts[i] = tabs[i].GetComponentInChildren<Text>();
-            }
+            var tabs = new TabButton[labels.Length];
+            for (var i = 0; i < labels.Length; i++) tabs[i] = Tab(w, "Tab" + i, labels[i], 29 + i * 132, 27, 127, 35, 15);
             return tabs;
         }
 
@@ -1419,9 +1411,7 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<MerchantView>();
             view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Görevler", "Dükkan" }, out view.tabTexts);
-            view.tabOn = S("button_wood_normal");
-            view.tabOff = S("outline");
+            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Dükkan" });
             Balances(w, out view.coin, out view.dust, out view.dustIcon);
 
             var sell = Stretch(Node("Sell", w));
@@ -1502,9 +1492,7 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<CrafterView>();
             view.window = DraftWindow(wrap, "Zanaatkar", 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Craft", "Birleştir" }, out view.tabTexts);
-            view.tabOn = S("button_wood_normal");
-            view.tabOff = S("outline");
+            view.tabs = NpcTabs(w, new[] { "Craft", "Birleştir" });
             view.cardOn = S("button_wood_normal");
             view.cardOff = S("card");
             Balances(w, out _, out view.dust, out _, false);

@@ -100,14 +100,14 @@ namespace CollectionGame.World
 
         // ---------- per frame ----------
 
-        public void Tick(string serverName, int peopleInView, FishingController fishing, int score, bool questsReady)
+        public void Tick(string serverName, int peopleInView, FishingController fishing, bool questsReady)
         {
             if (View == null) return;
             Set(View.place, serverName ?? "");
             Set(View.info, $"{peopleInView} kişi görüşte");
-            Set(View.score, Kit.Num(score));
             Set(View.coin, Kit.Num(fishing.Bag?.coin ?? 0));
             Set(View.diamond, Kit.Num(fishing.Bag?.diamond ?? 0));
+            Set(View.dust, Kit.Num(fishing.Bag?.dust ?? 0));
 
             Set(View.level, $"Lv {Mathf.Max(1, fishing.Level)}");
             var top = fishing.XpNext <= 0;

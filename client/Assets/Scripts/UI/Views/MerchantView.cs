@@ -11,9 +11,8 @@ namespace CollectionGame.UI.Views
     public sealed class MerchantView : MonoBehaviour
     {
         public WindowView window;
-        public Button[] tabs;
-        public Text[] tabTexts;
-        public Sprite tabOn, tabOff;
+        /// <summary>Sat, Parçala, Dükkan.</summary>
+        public TabButton[] tabs;
         public Text coin, dust;
         public Image dustIcon;
 
