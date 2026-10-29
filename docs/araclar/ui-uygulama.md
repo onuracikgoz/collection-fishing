@@ -24,28 +24,26 @@ Bulut oturumu Unity'yi derleyemediği için pencereler ilk başta Unity'de yazı
 
 Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencereleri sırayla kaldırılır. Pixel art kit'i için en uygun yol bu: 9-slice ve Tiled Image doğrudan çalışır.
 
-- **Ölçek:** tek Canvas (`UI/UiRoot.cs`). Düzen birimi kit pikselidir: taslaklar 1408x896 ve kit 1:1, Canvas bunu **tam sayı** ölçekle büyütür (`CanvasScaler` Constant Pixel Size, `referencePixelsPerUnit` 32 = sprite'larla aynı). 1080p'de 1x, Retina'da 2x.
-- **Prefab'lar kodla üretilir:** `Editor/UiPrefabBuilder.cs` kit parçalarından pencere çerçevesi (başlık plakası, kapat, sürükleme), buton, yuva, kart, çubukları kurar ve `Assets/Resources/UI/*.prefab` olarak kaydeder. Editör açılırken `Version` yeniyse kendiliğinden çalışır; menü: CollectionGame > UI > Build Prefabs. Düzeni değiştirmek = builder'ı düzenleyip `Version`'ı artırmak. Prefab'ı elle düzenlemek mümkün ama bir sonraki build üzerine yazar.
-- **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları `World/WorldHud.cs`, `UI/BagPanel.cs` gibi sınıflar doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
-- **Kontrol (Play'e basmadan):** `Editor/UiShots.cs` prefab'ları örnek veriyle, taslağın üstüne bindirerek PNG'ye çizer (CollectionGame > UI > Capture Shots → `ui-shots/`). Batchmode'da projenin bir kopyasında da çalışır. Gerçek oyunda görmek için Autopilot: `-cgUser x -cgServer Mercan -cgShot a.png -cgOpen bag,quests,market,settings`.
-- **Yazı:** şimdilik Unity'nin yerleşik fontu (LegacyRuntime). Türkçe harfli pixel font gelince builder'da tek yerden değişir.
-- **İkonlar:** yok; HUD'da renkli kareler, yuvalarda eşya adının ilk harfleri yer tutucu.
+- **Ölçek:** tek Canvas (`UI/UiRoot.cs`). Taslaklar 1408x896 ve kit'i **2x** çizer (704x448 mantıksal ekran): düzen birimi taslak pikselidir, bir kit pikseli iki birimdir (`referencePixelsPerUnit` 64, sprite'lar 32). Canvas, kit pikseli tam sayı ekran pikseli olacak şekilde ölçeklenir (1080p'de 2, Retina'da 4; Ayarlar > Arayüz boyutu ile değişir). İstisna: eşya yuvaları taslakta 1x (40x40, ince çerçeve), `pixelsPerUnitMultiplier` 2.
+- **Her pencere kendi taslağından:** `Editor/UiPrefabBuilder.cs` her pencereyi taslaktan ölçülen koordinatlarla kurar (`DraftWindow`, `Abs`, `TextAt`) ve `Assets/Resources/UI/*.prefab` olarak kaydeder. Ortak liste şablonu (`PanelView`) artık sadece takas davet kutusunda. Kit'te olmayan bir parça gerekirse `tools/ui-kit/make_ui_kit.py`'ye eklenir (eklenenler: `outline`, `tag_level`, `panel_locked`); kit görselleri boyanmaz (renk tonu yok).
+- **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları denetleyiciler doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
+- **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots). Taslak | Unity karşılaştırmaları: `docs/gorsel/ui-karsilastirma/`. Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
+- **Yazı:** Unity'nin yerleşik fontu (LegacyRuntime). Türkçe harfli pixel font gelince builder'da tek yerden değişir. Taslaklardan en görünür fark bu.
+- **İkonlar:** yok; HUD'da renkli kareler, yuvalarda eşya adının ilk harfleri.
 
-### uGUI'ye geçenler
+### uGUI'ye geçenler (taslağa göre)
 
-| Parça | Dosyalar | Not |
-|---|---|---|
-| HUD (hud3): yer kutusu, Score/Coin/elmas, XP şeridi + level, enerji, olta, yem yuvası, sohbet satırı ve geçmişi, pencere butonları | `Hud.prefab`, `Views/HudView.cs`, `World/WorldHud.cs` | Enter sohbeti açar; `/w` fısıltı. Yem yuvasına tıkla: yem değiştir (Y) |
-| Çanta (canta-v2) | `Bag.prefab`, `Views/BagView.cs`, `UI/BagPanel.cs` | Üstüne gel: ayrıntı. Tıkla / sağ tık: Deftere koy, Kilitle, Takasa ekle, yem seç |
-| İpucu ve sağ tık menüsü | `Popup.prefab`, `Views/PopupView.cs` | Bütün pencereler ortak kullanır |
-| Takas (davet kutusu + Çanta / Sen / Karşı taraf) | `Trade.prefab`, `TradeInvite.prefab`, `Social/TradeController.cs` | Coin alanı, Kilitle, geri sayımlı Onayla |
-| Pazar: tezgah kur, tezgahım, Pazar Panosu, reklam | `Market.prefab`, `Economy/MarketController.cs` | Sekmeli |
-| Bir tezgahın tam listesi | `Stall.prefab` | Satın al (ikinci tıkla onay), Profil / Fısılda / Arkadaş |
-| Günlük görev | `Quests.prefab`, `Economy/QuestController.cs` | |
-| Ayarlar (Genel, Hesap) | `Settings.prefab`, `UI/SettingsController.cs` | Hesap sekmesi gizli açılır |
-| Fısıltı pencereleri | `Whisper.prefab`, `Views/WhisperView.cs`, `Social/WhisperController.cs` | Konuşma başına bir pencere; `_` alt kenarda şerit |
+| Pencere | Taslak | Prefab / kod | Karşılaştırma |
+|---|---|---|---|
+| HUD | `hud3` | `Hud`, `World/WorldHud.cs` | `hud3.png` |
+| Çanta + sağ tık menüsü | `canta-v2` | `Bag`, `Popup`, `UI/BagPanel.cs` | `canta-v2.png` |
+| Ayarlar (Genel, Hesap) | `ayarlar-genel`, `ayarlar-hesap` | `Settings`, `UI/SettingsController.cs`, `UI/ClientSettings.cs` | `ayarlar-*.png` |
+| Takas + "Kaç tane?" | `takas-a/b/c` | `Trade`, `Count`, `Social/TradeController.cs` | `takas.png` |
+| Tezgah kur / Tezgahım, tezgah listesi, Pazar Panosu | `tezgah-kur`, `tezgah-tezgah`, `tezgah-pano` | `StallSetup`, `Stall`, `Board`, `Economy/MarketController.cs` | `pazar.png` |
+| Günlük görev | `npc-gorev` | `Quests`, `Economy/QuestController.cs` | `npc-gorev.png` |
+| Fısıltı pencereleri | taslak yok | `Whisper`, `Social/WhisperController.cs` | |
 
-Liste ekranları ortak bir şablondan üretilir: `PanelView` (başlık, sekmeler, 1-3 kaydırılan sütun, alt bilgi ve butonlar) ve `RowView` (yuva, başlık, alt satır, ilerleme çubuğu, giriş alanları, butonlar). Yeni bir liste penceresi = builder'da `BuildPanel(...)` satırı + satırları dolduran kod. Bir satıra yazı yazılırken pencere yeniden kurulmaz (odak kaybolmasın). Dünyadaki IMGUI etiketleri (isim, balon, tezgah etiketi) uGUI penceresinin altında kalınca çizilmez.
+Taslaktan bilerek ayrılanlar: pet seçimi (pet sistemi yok), çanta genişletme satırı (sunucuda yok), görev başına ödül ve "Teslim et / Değiştir" (sunucuda günlük tek sandık var), tezgah kurda eşya sürükleme yerine tıkla-fiyat-Koy. Takas penceresine çantadan sürükle-bırak var.
 
 ### Hâlâ IMGUI (sırayla taşınacak)
 
