@@ -71,6 +71,9 @@ namespace CollectionGame.Net
         public const long StallList = 54;
         public const long StallState = 55;
         public const long StallResult = 56;
+        public const long QuestState = 57;
+        public const long QuestClaim = 58;
+        public const long QuestClaimResult = 59;
     }
 
     public static class ErrorCode
@@ -787,6 +790,52 @@ namespace CollectionGame.Net
     {
         public bool pending;
         public long runAt;
+    }
+
+    // --- Faz 6: daily quests (docs/protokol.md, Günlük görev) ---
+
+    [Serializable]
+    public class QuestProgress
+    {
+        public string id;
+        public string @event;
+        public int progress;
+        public int target;
+    }
+
+    /// <summary>S → C, op 57.</summary>
+    [Serializable]
+    public class QuestStateMsg
+    {
+        public int day;
+        public QuestProgress[] quests;
+        public bool complete;
+        public bool claimed;
+        public int streak;
+        public int chestDay;
+        public long resetInMs;
+    }
+
+    /// <summary>kind: coin, dust or stack (defId set for stack).</summary>
+    [Serializable]
+    public class QuestReward
+    {
+        public string kind;
+        public string defId;
+        public int count;
+    }
+
+    /// <summary>S → C, op 59. reason: NOT_DONE, ALREADY_CLAIMED, BAG_FULL, ERROR. coin and dust are the balances after the reward.</summary>
+    [Serializable]
+    public class QuestClaimResultMsg
+    {
+        public bool ok;
+        public string reason;
+        public int streak;
+        public int chestDay;
+        public QuestReward[] rewards;
+        public int coin;
+        public int dust;
     }
 
     [Serializable]

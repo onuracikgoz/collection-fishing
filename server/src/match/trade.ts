@@ -21,6 +21,7 @@ import {
 import { levelOf } from '../rules/xp';
 import { FishingContext, Fisher, cancelFishing } from './fishing';
 import { placeNewItem } from './items';
+import { trackQuest } from './quest';
 import { StoredItem, bookWrite, inBag, publicItem, readTradeLock, readWallet, stacksWrite } from './playerData';
 
 /** The part of a match player that trading needs. */
@@ -291,6 +292,7 @@ function execute(env: TradeEnv, rec: TradeRec): void {
     };
   }
   end(env, rec, 'done', undefined, extra);
+  for (const p of [pa, pb]) trackQuest(env.nk, env.logger, env.dispatcher, p, { event: 'trade' });
 }
 
 export function handleTradeOp(env: TradeEnv, p: TradePlayer, op: number, body: unknown, now: number): void {

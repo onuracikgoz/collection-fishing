@@ -8,6 +8,7 @@ import { EconomyResultMsg, OpCode } from '../protocol';
 import { Category } from '../rules/catch';
 import { EconomyAction, OwnedItem, parseEconomyRequest, planEconomy } from '../rules/economy';
 import { Fisher } from './fishing';
+import { trackQuest } from './quest';
 import { StoredItem, inBag, readWallet, stacksWrite } from './playerData';
 
 const CATEGORY: { [defId: string]: Category } = {};
@@ -86,4 +87,8 @@ export function handleEconomy(
     items: plan.removeItems,
     stacks: plan.removedStacks,
   });
+  if (action === 'sell') {
+    const units = plan.removeItems.length + plan.removedStacks.reduce((a, st) => a + st.count, 0);
+    trackQuest(nk, logger, dispatcher, f, { event: 'sell', count: units });
+  }
 }

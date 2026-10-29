@@ -7,6 +7,7 @@ import type { CraftConfig } from './rules/craft';
 import type { RodConfig } from './rules/rod';
 import type { BaitConfig } from './rules/bait';
 import type { StashConfig } from './rules/stash';
+import type { QuestConfig } from './rules/quest';
 import { BANK_POINT } from './data/lake-map';
 
 export interface ServerDef {
@@ -208,6 +209,16 @@ export const TRADE = {
   countdownMs: 3000,
   openTimeoutMs: 300000,
   offerCooldownMs: 3000,
+};
+
+// Daily quests (docs/tasarim/03-balik-tutma.md 5.2). The list and chests are in data/quests.ts. All Öneri.
+export const QUESTS_CONFIG: QuestConfig = {
+  perDay: 3,
+  // A day starts at 00:00 Turkey time (UTC+3).
+  dayOffsetMs: 3 * 60 * 60 * 1000,
+  streakMax: 10,
+  // A missed day drops the streak by 3 instead of resetting it (acik-sorular.md 2).
+  streakFall: 3,
 };
 
 // Account deletion (docs/protokol.md, Hesap silme RPC'leri). All Öneri.

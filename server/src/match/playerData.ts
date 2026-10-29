@@ -8,6 +8,7 @@
 //   player/session  { serverId, at }       (world server the player is in; '' = not in any; each server's match writes it on join / leave)
 //   player/xp  { total }                   (total XP; level comes from it; public: the level shows on the profile)
 //   player/emotes_owned  { ids: [] }       (non-free status emotes owned; written by shop / supporter / book systems)
+//   quest/daily  QuestState               (today's quests, the streak and the last claimed day)
 //   stall/state  StallDoc                  (the owner's pet stall; only the owner's world match writes it)
 //   market/<serverId>  { owners: [] }      (system user: whose stalls stand in that server)
 //   stash/state  { level, stacks: { defId: count } }
@@ -24,6 +25,7 @@ import { regenOffline } from '../rules/energy';
 import { canWear, normalizeOwned } from '../rules/emote';
 import { normalizeXp } from '../rules/xp';
 import { Listing } from '../rules/market';
+import { QuestState, normalizeQuests } from '../rules/quest';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
@@ -295,4 +297,13 @@ export function readMarketIndex(nk: nkruntime.Nakama, serverId: string): string[
 
 export function marketIndexWrite(serverId: string, owners: string[]): nkruntime.StorageWriteRequest {
   return { collection: 'market', key: serverId, userId: SYSTEM_USER, value: { owners }, permissionRead: 0 as nkruntime.ReadPermissionValues, permissionWrite: WRITE_SERVER };
+}
+
+export function readQuests(nk: nkruntime.Nakama, userId: string): QuestState {
+  const objs = nk.storageRead([{ collection: 'quest', key: 'daily', userId }]);
+  return normalizeQuests(objs.length > 0 ? objs[0].value : null);
+}
+
+export function questWrite(userId: string, state: QuestState): nkruntime.StorageWriteRequest {
+  return { collection: 'quest', key: 'daily', userId, value: state, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }

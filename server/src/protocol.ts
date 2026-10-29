@@ -58,6 +58,9 @@ export const OpCode = {
   STALL_LIST: 54,
   STALL_STATE: 55,
   STALL_RESULT: 56,
+  QUEST_STATE: 57,
+  QUEST_CLAIM: 58,
+  QUEST_CLAIM_RESULT: 59,
 } as const;
 
 export const ErrorCode = {
@@ -470,6 +473,28 @@ export interface StallResultMsg {
   paid?: number;
   coin?: number;
   book?: FishBookMsg;
+}
+
+/** S → C, op 57. */
+export interface QuestStateMsg {
+  day: number;
+  quests: { id: string; event: string; progress: number; target: number }[];
+  complete: boolean;
+  claimed: boolean;
+  streak: number;
+  chestDay: number;
+  resetInMs: number;
+}
+
+/** S → C, op 59. */
+export interface QuestClaimResultMsg {
+  ok: boolean;
+  reason?: string;
+  streak?: number;
+  chestDay?: number;
+  rewards?: { kind: 'coin' | 'dust' | 'stack'; defId: string; count: number }[];
+  coin?: number;
+  dust?: number;
 }
 
 export interface FriendStatus {

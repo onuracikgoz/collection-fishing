@@ -27,9 +27,11 @@ import { applyMove, MoveState, newMoveState, parseMove } from '../rules/movement
 import { SpatialGrid, updateVisibility } from '../rules/proximity';
 import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
+import { QuestState } from '../rules/quest';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
+import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
 import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
 import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
@@ -65,6 +67,8 @@ interface Player {
   rod: Rod;
   /** Total XP; the level comes from it. */
   xp: number;
+  /** Today's quests, the streak and the last claimed day. */
+  quest?: QuestState;
   /** Loaded the first time the stash is used at the bank. */
   stash?: StashCache;
   fish?: FishState;
@@ -283,6 +287,7 @@ export function worldJoin(
       xp,
       status: emotes.status,
       emotesOwned: emotes.owned,
+      quest: old ? old.quest : loadQuestState(nk, logger, presence.userId, xp, Date.now()),
       tradeId: old ? old.tradeId : undefined,
       lastOfferAt: old ? old.lastOfferAt : undefined,
       stash: old ? old.stash : undefined,
@@ -292,6 +297,7 @@ export function worldJoin(
     if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
     sendStalls(marketEnv(nk, logger, dispatcher, state), presence);
+    sendQuests(dispatcher, state.players[presence.userId], Date.now());
   }
   return { state };
 }
@@ -414,7 +420,7 @@ function handleGotoFriend(
   send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
 }
 
-function handleEmote(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
+function handleEmote(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
   const emote = parseEmote(body, EMOTES);
   if (emote === null || !canEmote(p.lastEmoteAt, now, EMOTES)) return;
   if (emote === 'show_fish' && !p.lastCatch) return;
@@ -424,6 +430,7 @@ function handleEmote(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p
   const to = [p.presence];
   for (const id in state.players) if (state.players[id].visible[p.presence.userId]) to.push(state.players[id].presence);
   send(dispatcher, OpCode.EMOTE_SHOW, msg, to);
+  trackQuest(nk, logger, dispatcher, p, { event: 'emote' });
 }
 
 /** EMOTE_STATUS: wear or remove the persistent emote above the head. */
@@ -551,13 +558,16 @@ export function worldLoop(
     } else if (m.opCode === OpCode.GOTO_FRIEND) {
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
-      handleEmote(dispatcher, state, p, body, now);
+      handleEmote(nk, logger, dispatcher, state, p, body, now);
     } else if (m.opCode === OpCode.ITEM_LOCK && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleItemLock(nk, logger, dispatcher, p, body);
     } else if (TRADE_OPS[m.opCode] && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleTradeOp(trade, p, m.opCode, body, now);
+    } else if (m.opCode === OpCode.QUEST_CLAIM && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleQuestClaim(nk, logger, dispatcher, p);
     } else if (STALL_OPS[m.opCode] && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleStallOp(market, p, m.opCode, body);
@@ -578,6 +588,8 @@ export function worldLoop(
     }
   }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
+  const wall = Date.now();
+  for (const id in state.players) rollQuestDay(nk, logger, dispatcher, state.players[id], wall);
 
   // Positions are final for this tick; chat and visibility use them.
   const grid = buildGrid(state);

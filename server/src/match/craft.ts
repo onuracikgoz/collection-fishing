@@ -6,6 +6,7 @@ import { CraftResultMsg, ItemInstance, OpCode } from '../protocol';
 import { rollFloat } from '../rules/catch';
 import { CraftItem, CraftResult, craftBands, isStackOutput, parseCraft, parseMerge, planCraft, planMerge } from '../rules/craft';
 import { Fisher } from './fishing';
+import { trackQuest } from './quest';
 import { placeNewItem } from './items';
 import { StoredItem, inBag, readWallet, stacksWrite } from './playerData';
 
@@ -105,4 +106,5 @@ export function handleCraft(
   f.bag.items = Math.max(0, f.bag.items - plan.removeItems.length) + (placed && placed.inBag ? 1 : 0);
   if (placed && placed.book) f.book = placed.book;
   reply(dispatcher, f, { action, ok: true, dust: dustAfter, item, stack, book: placed ? placed.msg : undefined, items: plan.removeItems, stacks: usedStacks });
+  trackQuest(nk, logger, dispatcher, f, { event: action === 'merge' ? 'merge' : 'craft' });
 }

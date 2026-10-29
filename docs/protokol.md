@@ -311,6 +311,32 @@ StallResultMsg = { action, ok, reason?,            // action: open | recall | vi
                    item?, defId?, count?, paid?, coin?, book? }                       // buy
 ```
 
+## Günlük görev (Faz 6)
+
+Kurallar: `docs/tasarim/03-balik-tutma.md` 5.2. Sunucu: `rules/quest.ts` (saf kurallar), `match/quest.ts` (match mesajları ve depolama), liste ve sandıklar `data/quests.ts` (Öneri değerler; admin paneli sonra). Görev durumu match'in önbelleğinde durur, bu yüzden RPC yok, her şey match mesajıdır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 57 | S → C | `QUEST_STATE` | `QuestStateMsg` (girişte `WELCOME`'dan sonra, her ilerlemede, gün değişince, talepten sonra) |
+| 58 | C → S | `QUEST_CLAIM` | `{}` (bugünün sandığını al) |
+| 59 | S → C | `QUEST_CLAIM_RESULT` | `QuestClaimResultMsg` (sadece isteyene) |
+
+- **Günlük 3 görev**, listeden rastgele ve farklı seçilir; seviyesi yetmeyen görev çıkmaz (`minLevel`). Gün **00:00 Türkiye saatinde** (UTC+3, Öneri) döner; yeni günde yeni görevler gelir, dünkü ilerleme gider, seri korunur.
+- **Sayılan olaylar:** `catch` (başarılı her av), `catch_tier` (avın Tier'ı en az `minTier`), `sell` (NPC'ye satılan eşya ve yığın birimi), `craft`, `merge`, `trade` (tamamlanan takas, iki tarafa da), `emote` (jest emote'u; durum emote'u değil). İlerleme hedefte kalır. Sunucu her olayı kendi görür, client sayı gönderemez.
+- **Sandık:** üç görev bitince `QUEST_CLAIM` bugünün sandığını açar: Coin, toz ve yığın ödülleri (malzeme, yem, recipe). Eşya (Float'lı) çıkmaz. Sandık satılmaz, envanterde durmaz, alınca anında açılır. İçerik **seri gününe** göre değişir; **10. gün sandığı en iyisidir** (garanti İyi recipe). Her gün tek sandık.
+- **Seri:** dünkü sandığı almışsan +1; bir gün kaçırırsan 3 geri düşüp +1 (sıfırlanmaz, Öneri; `acik-sorular.md` 2); 10'da kalır. İlk sandık 1. gündür.
+- `QuestClaimResultMsg.reason`: `NOT_DONE`, `ALREADY_CLAIMED`, `BAG_FULL` (yığın ödülleri sığmaz; durum değişmez, yer açıp tekrar denenir), `ERROR`. Hepsi tek işlemde yazılır (durum, yığınlar, Coin ve toz).
+- **Henüz yok:** "birinin defterine bak" görevi (`get_book` RPC'sidir, match önbelleğiyle çakışır; sonra), sandığın Float'lı eşya vermesi (açık soru).
+
+```
+QuestStateMsg       = { day, quests: [{ id, event, progress, target }], complete, claimed,
+                        streak,        // alınmış sandık serisi (bugünküyle birlikte, alındıysa)
+                        chestDay,      // bugünün sandığı kaçıncı gün sandığı (1-10)
+                        resetInMs }    // yeni güne kalan süre
+QuestClaimResultMsg = { ok, reason?, streak?, chestDay?, rewards?: [{ kind, defId, count }], coin?, dust? }
+                      // kind: coin | dust | stack (defId yığında dolu); coin ve dust ödülden sonraki bakiye
+```
+
 ## XP ve level
 
 Kurallar: `docs/tasarim/04-xp-level.md`. Sunucu: `rules/xp.ts`. Saklanan değer toplam XP'dir (`player/xp`, herkese açık okunur); level ondan hesaplanır.

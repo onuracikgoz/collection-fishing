@@ -1,5 +1,7 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
+import { QuestState } from '../rules/quest';
+import { trackQuest } from './quest';
 import { ANNOUNCE, BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
@@ -30,6 +32,8 @@ export interface Fisher {
   xp: number;
   fish?: FishState;
   lastCatch?: string;
+  /** Today's quests; absent until loaded at join. */
+  quest?: QuestState;
 }
 
 export interface FishingContext {
@@ -205,6 +209,7 @@ function give(ctx: FishingContext, f: Fisher): void {
   f.xp = xpResult.total;
   extra.xpGain = xpResult.gain;
   end(ctx, f, 'caught', extra);
+  trackQuest(ctx.nk, ctx.logger, ctx.dispatcher, f, { event: 'catch', tier: roll.tier || undefined });
   if (announce) send(ctx, OpCode.ANNOUNCE, announce, ctx.everyone());
 }
 

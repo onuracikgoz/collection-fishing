@@ -126,5 +126,5 @@ Eşyalar dış sitelerde gerçek para edeceği için bot koruması zorunludur. T
 - Sandıklarda garanti ödüller olabilir (ör. "garanti 1 recipe").
 - **Seri (streak):** görevler art arda yapıldıkça sandık değerlenir. 1–10 günlük takvim, **10. gün sandığı en iyisidir** (ör. garanti İyi recipe).
 - **(Öneri)** Bir gün kaçırılınca seri sıfırlanmaz, 3 gün geri düşer.
-- Sandık içerikleri ve seri ödülleri **admin panelinden** ayarlanır (bkz. 18).
+- Sandık içerikleri ve seri ödülleri **admin panelinden** ayarlanır (bkz. 18). Şimdilik `server/src/data/quests.ts` (Öneri değerler): günde 3 görev, gün 00:00 Türkiye saati, sandık Coin + toz + malzeme / yem / recipe verir, Float'lı eşya vermez. Mesajlar: `protokol.md` Günlük görev.
 - Sandık veya anahtar **asla gerçek parayla satılmaz.** Eşyaların gerçek para değeri olduğu için bu doğrudan kumar sayılır.
