@@ -21,6 +21,8 @@ namespace CollectionGame.Economy
         readonly FishingController fishing;
 
         public bool Open { get; set; }
+        /// <summary>0 Sat, 1 Parçala, 3 Dükkan: switch to the merchant window (set by the world).</summary>
+        public Action<int> OpenMerchantTab { get; set; }
         public QuestStateMsg State { get; private set; }
         public QuestClaimResultMsg LastClaim { get; private set; }
 
@@ -124,6 +126,16 @@ namespace CollectionGame.Economy
                     view.window.Closed = () => Open = false;
                     view.window.Open = false;
                     view.chest.button.onClick.AddListener(Claim);
+                    for (var i = 0; i < view.tabs.Length; i++)
+                    {
+                        var index = i;
+                        if (index == 2) continue;
+                        view.tabs[i].onClick.AddListener(() =>
+                        {
+                            Open = false;
+                            OpenMerchantTab?.Invoke(index);
+                        });
+                    }
                 }
                 return view;
             }

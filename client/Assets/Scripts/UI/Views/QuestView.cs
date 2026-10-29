@@ -21,6 +21,8 @@ namespace CollectionGame.UI.Views
         }
 
         public WindowView window;
+        /// <summary>Sat, Parçala, Görevler (this one), Dükkan: the merchant's tabs (npc-gorev).</summary>
+        public Button[] tabs;
         public Text coin, diamond, header, hint, footer;
         public Row[] quests;
         public Row chest;

@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 19;
+        public const int Version = 20;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -1238,8 +1238,14 @@ namespace CollectionGame.EditorTools
             // npc-gorev: window 956x594 at (224, 106); quest cards 906x90, 100 apart from y 114.
             var wrap = Stretch(Node("Quests", null));
             var view = wrap.gameObject.AddComponent<QuestView>();
-            view.window = DraftWindow(wrap, "Günlük görevler", 224, 106, 956, 594);
+            view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
             var w = view.window.transform;
+            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Görevler", "Dükkan" }, out var tabTexts);
+            for (var i = 0; i < view.tabs.Length; i++)
+            {
+                view.tabs[i].GetComponent<Image>().sprite = i == 2 ? S("button_wood_normal") : S("outline");
+                tabTexts[i].color = i == 2 ? Paper : Ink;
+            }
             Icon(w, "CoinIcon", new Vector2(0, 1), new Vector2(766, -42), Gold, 14);
             view.coin = TextAt(w, "Coin", "0", 786, 42, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(866, -42), DiamondColour, 12);

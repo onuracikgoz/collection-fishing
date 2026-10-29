@@ -121,6 +121,7 @@ namespace CollectionGame.World
             social.Popup = hud.Popup;
             economy.Popup = hud.Popup;
             economy.OpenQuests = () => quests.Open = true;
+            quests.OpenMerchantTab = i => economy.Show(i == 1 ? EconomyController.Tab.Salvage : i == 3 ? EconomyController.Tab.Shop : EconomyController.Tab.Sell);
             social.Whisper = (id, name) => whispers.OpenWith(id, name);
             social.OpenProfile = collection.OpenProfile;
             social.OpenBook = collection.OpenBook;
