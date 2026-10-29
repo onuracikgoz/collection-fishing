@@ -8,6 +8,10 @@ const OP = {
   GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21, SELL: 22, SALVAGE: 23, ECONOMY_RESULT: 24, MERGE: 25, CRAFT: 26, CRAFT_RESULT: 27,
   REPAIR_ROD: 28, BUY_BAIT: 29, SHOP_RESULT: 30, STASH_OPEN: 31, STASH_PUT: 32, STASH_TAKE: 33, STASH_EXPAND: 34, STASH_RESULT: 35,
   EMOTE_STATUS: 36, EMOTE_STATUS_SHOW: 37,
+  TRADE_OFFER: 39, TRADE_REPLY: 40, TRADE_SET: 41, TRADE_LOCK: 42, TRADE_CONFIRM: 43, TRADE_CANCEL: 44, TRADE_INVITE: 45, TRADE_STATE: 46, TRADE_END: 47,
+  ITEM_LOCK: 48, ITEM_LOCK_RESULT: 49,
+  STALL_OPEN: 50, STALL_RECALL: 51, STALL_VIEW: 52, STALL_BUY: 53, STALL_LIST: 54, STALL_STATE: 55, STALL_RESULT: 56,
+  QUEST_STATE: 57, QUEST_CLAIM: 58, QUEST_CLAIM_RESULT: 59,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -499,6 +503,121 @@ await b.join(target.matchId, { protocolVersion: '1', characterId: 'default', nea
 await sleep(400);
 const wb = b.take(OP.WELCOME)[0];
 check(wb && Math.hypot(wb.you.x - pos.x, wb.you.y - pos.y) < 6, 'joining with near lands beside the friend');
+
+
+// Faz 5-6: level, daily quests, item lock, trade and the pet stall. Two seeded level-10 players.
+const LEVEL_10_XP = 13500; // XP.base 250, perLevel 250: sum of 250 + 250 * l for l = 1..9
+const f = await player('fikret');
+const g = await player('gul');
+const seedFor = (who) => (collection, key, value) =>
+  consoleApi(`/v2/console/storage/${collection}/${key}/${who.session.user_id}`, 'PUT', { value: JSON.stringify(value), version: '', permission_read: 1, permission_write: 0 }, admin);
+const fCarp = { instanceId: `smoke-fcarp-${run}`, defId: 'lake.fish.carp', tier: 'common', float: 0.3, source: 'fishing', obtainedAt: Date.now() };
+const fPerch = { instanceId: `smoke-fperch-${run}`, defId: 'lake.fish.perch', tier: 'common', float: 0.4, source: 'fishing', obtainedAt: Date.now() };
+for (const who of [f, g]) await seedFor(who)('player', 'xp', { total: LEVEL_10_XP });
+await seedFor(f)('items', fCarp.instanceId, fCarp);
+await seedFor(f)('items', fPerch.instanceId, fPerch);
+await seedFor(f)('bag', 'stacks', { stacks: { 'lake.mat.scale': 5 } });
+await consoleApi(`/v2/console/account/${f.session.user_id}`, 'POST', { wallet: JSON.stringify({ coin: 500 }) }, admin);
+await consoleApi(`/v2/console/account/${g.session.user_id}`, 'POST', { wallet: JSON.stringify({ coin: 1000 }) }, admin);
+await f.join(target.matchId);
+await g.join(target.matchId);
+await sleep(500);
+const wf = f.take(OP.WELCOME)[0];
+check(wf?.level === 10 && wf.xp === 0 && wf.xpNext === 2750, 'WELCOME carries level 10 from stored XP');
+const qf = f.take(OP.QUEST_STATE)[0];
+check(qf?.quests?.length === 3 && !qf.complete && !qf.claimed && qf.chestDay === 1 && qf.resetInMs > 0, 'QUEST_STATE after WELCOME: three quests for today');
+async function opOf(p, op, body, reply, wait = 300) {
+  p.clear();
+  p.send(op, body);
+  await sleep(wait);
+  return p.take(reply)[0];
+}
+check((await opOf(f, OP.QUEST_CLAIM, {}, OP.QUEST_CLAIM_RESULT))?.reason === 'NOT_DONE', 'the chest waits until the quests are done');
+
+// Item lock
+const locked = await opOf(f, OP.ITEM_LOCK, { instanceId: fCarp.instanceId, locked: true }, OP.ITEM_LOCK_RESULT);
+check(locked?.ok && locked.locked === true, 'ITEM_LOCK locks a bag item');
+check((await opOf(f, OP.SELL, { items: [fCarp.instanceId] }, OP.ECONOMY_RESULT))?.reason === 'LOCKED', 'a locked item cannot be sold');
+
+// Trade: both stand at the spawn.
+f.clear();
+g.clear();
+f.send(OP.TRADE_OFFER, { userId: g.session.user_id });
+await sleep(300);
+check(g.take(OP.TRADE_INVITE)[0]?.from === f.session.user_id, 'TRADE_OFFER reaches the other player as an invite');
+g.send(OP.TRADE_REPLY, { accept: true });
+await sleep(300);
+check(f.take(OP.TRADE_STATE).length > 0 && g.take(OP.TRADE_STATE).length > 0, 'accepting opens the window on both sides');
+check((await opOf(f, OP.TRADE_SET, { items: [fCarp.instanceId], stacks: [], coin: 0 }, OP.TRADE_STATE))?.reason === 'LOCKED', 'a locked item cannot be offered');
+check((await opOf(f, OP.ITEM_LOCK, { instanceId: fCarp.instanceId, locked: false }, OP.ITEM_LOCK_RESULT))?.locked === false, 'ITEM_LOCK unlocks it again');
+await opOf(f, OP.TRADE_SET, { items: [fPerch.instanceId], stacks: [{ defId: 'lake.mat.scale', count: 2 }], coin: 0 }, OP.TRADE_STATE);
+await opOf(g, OP.TRADE_SET, { items: [], stacks: [], coin: 100 }, OP.TRADE_STATE);
+f.send(OP.TRADE_LOCK, { locked: true });
+g.send(OP.TRADE_LOCK, { locked: true });
+await sleep(300);
+const early = await opOf(f, OP.TRADE_CONFIRM, {}, OP.TRADE_STATE);
+check(early && !early.youConfirmed && early.confirmInMs > 0, 'confirming before the countdown ends does nothing');
+await sleep(3200);
+f.clear();
+g.clear();
+f.send(OP.TRADE_CONFIRM, {});
+g.send(OP.TRADE_CONFIRM, {});
+await sleep(500);
+const endG = g.take(OP.TRADE_END)[0];
+const endF = f.take(OP.TRADE_END)[0];
+check(endF?.result === 'done' && endG?.result === 'done', 'both confirm: the trade is done');
+check(endG?.got?.items?.[0]?.instanceId === fPerch.instanceId && endG.got.items[0].source === 'trade' && endG.got.stacks[0]?.count === 2 && endF?.got?.coin === 100,
+  'TRADE_END says what each side got');
+const fAfterTrade = (await client.rpc(f.session, 'get_inventory', {})).payload;
+check(fAfterTrade.coin === 600 && !fAfterTrade.items.some((i) => i.instanceId === fPerch.instanceId) && fAfterTrade.stacks.find((x) => x.defId === 'lake.mat.scale')?.count === 3,
+  'get_inventory shows the trade: Coin in, fish and scales out');
+
+// Pet stall: both walk north to the market.
+async function walkPath(p, from, path) {
+  const at = { ...from };
+  for (const to of path) {
+    while (Math.abs(at.x - to.x) > 1e-6 || Math.abs(at.y - to.y) > 1e-6) {
+      const dx = Math.max(-0.35, Math.min(0.35, to.x - at.x));
+      const dy = Math.max(-0.35, Math.min(0.35, to.y - at.y));
+      at.x += dx;
+      at.y += dy;
+      p.send(OP.MOVE, { seq: ++p.seq, x: at.x, y: at.y, dir: dy < 0 ? 'up' : 'left', moving: true });
+      await sleep(100);
+    }
+  }
+  await sleep(300);
+}
+check((await opOf(f, OP.STALL_OPEN, { title: 'Smoke', items: [{ instanceId: fCarp.instanceId, price: 50 }] }, OP.STALL_RESULT))?.reason === 'NOT_IN_MARKET',
+  'a stall only opens at the market');
+const toMarket = [{ x: 60.5, y: wf.you.y }, { x: 60.5, y: 24.5 }];
+await Promise.all([walkPath(f, wf.you, toMarket), walkPath(g, wf.you, toMarket)]);
+check(f.take(OP.CORRECTION).length === 0 && g.take(OP.CORRECTION).length === 0, 'the walk to the market gets no CORRECTION');
+g.clear();
+const opened2 = await opOf(f, OP.STALL_OPEN, { title: 'Smoke', items: [{ instanceId: fCarp.instanceId, price: 50 }], stacks: [{ defId: 'lake.mat.scale', count: 2, price: 3 }] }, OP.STALL_RESULT);
+check(opened2?.ok && typeof opened2.spot === 'number', 'STALL_OPEN at the market gives a spot');
+const seen = g.take(OP.STALL_STATE).flatMap((m) => m.stalls).find((v) => v.userId === f.session.user_id);
+check(seen?.title === 'Smoke' && seen.total === 2 && seen.top[0]?.defId === 'lake.fish.carp' && seen.top[0].price === 50, 'everyone sees the stall with its first entries');
+check((await opOf(f, OP.STALL_OPEN, { items: [{ instanceId: fPerch.instanceId, price: 1 }] }, OP.STALL_RESULT))?.reason === 'ALREADY_OPEN', 'one stall per player');
+const list = await opOf(g, OP.STALL_VIEW, { userId: f.session.user_id }, OP.STALL_LIST);
+check(list?.items?.[0]?.item?.instanceId === fCarp.instanceId && list.items[0].item.float === 0.3 && list.stacks[0]?.count === 2, 'STALL_VIEW lists everything with Float');
+const stallBought = await opOf(g, OP.STALL_BUY, { userId: f.session.user_id, instanceId: fCarp.instanceId, defId: '', count: 0 }, OP.STALL_RESULT, 500);
+check(stallBought?.ok && stallBought.paid === 50 && stallBought.coin === 850 && stallBought.item?.instanceId === fCarp.instanceId && stallBought.item.source === 'trade', 'STALL_BUY buys the fish for 50 Coin');
+const boughtStack = await opOf(g, OP.STALL_BUY, { userId: f.session.user_id, instanceId: '', defId: 'lake.mat.scale', count: 1 }, OP.STALL_RESULT, 500);
+check(boughtStack?.ok && boughtStack.paid === 3 && boughtStack.coin === 847 && boughtStack.count === 1, 'STALL_BUY takes part of a stack');
+check((await opOf(f, OP.STALL_BUY, { userId: f.session.user_id, defId: 'lake.mat.scale', count: 1 }, OP.STALL_RESULT))?.reason === 'OWN_STALL', 'nobody buys from their own stall');
+const recalled = await opOf(f, OP.STALL_RECALL, {}, OP.STALL_RESULT, 500);
+check(recalled?.ok && recalled.returned?.stacks?.[0]?.defId === 'lake.mat.scale' && recalled.returned.stacks[0].count === 1, 'STALL_RECALL brings the unsold scale back');
+const fAfterMarket = (await client.rpc(f.session, 'get_inventory', {})).payload;
+check(fAfterMarket.coin === 649 && fAfterMarket.stacks.find((x) => x.defId === 'lake.mat.scale')?.count === 2, 'the seller got the price minus the 5 % fee (47 + 2 Coin)');
+// Quitting the game closes the stall and returns what is on it.
+check((await opOf(f, OP.STALL_OPEN, { stacks: [{ defId: 'lake.mat.scale', count: 2, price: 9 }] }, OP.STALL_RESULT))?.ok, 'a second stall opens after the recall');
+g.clear();
+f.socket.disconnect(false);
+await sleep(800);
+check(g.take(OP.STALL_STATE).some((m) => m.removed.includes(f.session.user_id)), 'the stall closes when its owner quits the game');
+const fAfterQuit = (await client.rpc(f.session, 'get_inventory', {})).payload;
+check(fAfterQuit.stacks.find((x) => x.defId === 'lake.mat.scale')?.count === 2, 'what was on it is back in the bag');
+g.socket.disconnect(false);
 
 for (const p of [a, a2, a3, b, c]) p.socket.disconnect(false);
 console.log(failed === 0 ? 'all good' : `${failed} failed`);
