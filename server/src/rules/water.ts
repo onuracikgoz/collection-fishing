@@ -15,6 +15,9 @@ export interface WaterMap {
   height: number;
   /** Tiles from the nearest land (Chebyshev), 0 = land. */
   depth: Uint8Array;
+  /** Named water per tile: index into `names` plus one, 0 = no name. */
+  area: Uint8Array;
+  names: string[];
   cfg: WaterConfig;
 }
 
@@ -67,7 +70,21 @@ export function buildWaterMap(data: MapData, cfg: WaterConfig): WaterMap {
     }
   }
   for (let i = 0; i < depth.length; i++) depth[i] = dist[i] > 0 ? Math.min(255, dist[i]) : 0;
-  return { width, height, depth, cfg };
+  // Named waters: the first area that covers a water tile names it.
+  const area = new Uint8Array(width * height);
+  const names: string[] = [];
+  for (const a of data.waterAreas || []) {
+    if (names.length >= 255) break;
+    names.push(a.id);
+    const n = names.length;
+    for (let y = Math.max(0, a.y); y < Math.min(height, a.y + a.h); y++) {
+      for (let x = Math.max(0, a.x); x < Math.min(width, a.x + a.w); x++) {
+        const i = y * width + x;
+        if (isWater[i] && area[i] === 0) area[i] = n;
+      }
+    }
+  }
+  return { width, height, depth, area, names, cfg };
 }
 
 function depthAt(w: WaterMap, x: number, y: number): number {
@@ -82,6 +99,13 @@ export function bandAt(w: WaterMap, x: number, y: number): Band | null {
   if (d <= w.cfg.shoreMax) return 'shore';
   if (d <= w.cfg.midMax) return 'mid';
   return 'deep';
+}
+
+/** Named water at a point (e.g. "buyuk_gol"), or null for land and unnamed water. */
+export function waterAt(w: WaterMap, x: number, y: number): string | null {
+  if (!(x >= 0 && y >= 0 && x < w.width && y < w.height)) return null;
+  const n = w.area[Math.floor(y) * w.width + Math.floor(x)];
+  return n > 0 ? w.names[n - 1] : null;
 }
 
 /** True if some water tile is within `reach` tiles of (x, y). */

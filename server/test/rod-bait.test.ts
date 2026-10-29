@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { BAG, BAIT, CATCH_TABLE, ROD } from '../src/config';
+import { BAG, BAIT, CATCH, CATCH_TABLE, ROD } from '../src/config';
 import { LAKE_POOL } from '../src/data/lake-pool';
-import { applyBait, baitDef, baitTagBoost, parseBuyBait, planBuyBait } from '../src/rules/bait';
+import { applyBait, baitDef, baitFavour, parseBuyBait, planBuyBait } from '../src/rules/bait';
 import { ItemDef, rollCatch } from '../src/rules/catch';
 import { checkBait, parseCast } from '../src/rules/fishing';
 import { isBroken, newRod, normalizeRod, planRepair, repairCost, rodView, wearRod } from '../src/rules/rod';
@@ -12,10 +12,17 @@ describe('rod', () => {
     const rod = newRod(ROD);
     expect(rodView(rod, ROD)).toEqual({ level: 1, durability: 200, max: 200 });
     let r = rod;
-    for (let i = 0; i < 200; i++) r = wearRod(r, ROD);
+    for (let i = 0; i < 200; i++) r = wearRod(r, 'shore', ROD);
     expect(r.durability).toBe(0);
     expect(isBroken(r)).toBe(true);
-    expect(wearRod(r, ROD).durability).toBe(0);
+    expect(wearRod(r, 'shore', ROD).durability).toBe(0);
+  });
+
+  it('deep water wears the rod twice as fast', () => {
+    const rod = newRod(ROD);
+    expect(rod.durability - wearRod(rod, 'shore', ROD).durability).toBe(1);
+    expect(rod.durability - wearRod(rod, 'mid', ROD).durability).toBe(1);
+    expect(rod.durability - wearRod(rod, 'deep', ROD).durability).toBe(2);
   });
 
   it('costs the full price from 0 and a share for a partial repair', () => {
@@ -56,30 +63,35 @@ describe('bait', () => {
   it('crystal bait only works in deep water', () => {
     const crystal = baitDef('bait.crystal', BAIT);
     expect(applyBait(CATCH_TABLE, crystal, 'mid')).toBe(CATCH_TABLE);
-    expect(baitTagBoost(crystal, 'mid')).toBe(null);
+    expect(baitFavour('bait.crystal', 'mid', BAIT, 3)).toBe(null);
+    expect(baitFavour('bait.crystal', 'shore', BAIT, 3)).toBe(null);
     expect(applyBait(CATCH_TABLE, crystal, 'deep').mythic).toBe(CATCH_TABLE.mythic * 2);
-    expect(baitTagBoost(crystal, 'deep')).toEqual({ crystal: 4 });
+    expect(baitFavour('bait.crystal', 'deep', BAIT, 3)).toEqual({ bait: 'bait.crystal', factor: 3 });
+    expect(baitFavour(undefined, 'deep', BAIT, 3)).toBe(null);
+    expect(baitFavour('bait.unknown', 'deep', BAIT, 3)).toBe(null);
     expect(applyBait(CATCH_TABLE, null, 'deep')).toBe(CATCH_TABLE);
   });
 
-  it('makes tagged items come up more often inside their category, never new ones', () => {
+  it('makes items listing the bait come up more often inside their category, never new ones', () => {
     const pool: ItemDef[] = [
       { id: 'plain', category: 'rare' },
-      { id: 'crystal', category: 'rare', tags: ['crystal'] },
+      { id: 'crystal', category: 'rare', baits: ['bait.crystal'] },
     ];
-    const count = (boost: { [t: string]: number } | null) => {
+    const spot = { band: 'deep' as const, water: null, level: 1 };
+    const count = (favour: { bait: string; factor: number } | null) => {
       const random = seededRandom(11);
       let n = 0;
-      for (let i = 0; i < 4000; i++) if (rollCatch(pool, { rare: 1 }, 'deep', true, random, boost)!.def.id === 'crystal') n++;
+      for (let i = 0; i < 4000; i++) if (rollCatch(pool, { rare: 1 }, spot, true, random, favour)!.def.id === 'crystal') n++;
       return n / 4000;
     };
     expect(count(null)).toBeCloseTo(0.5, 1);
-    expect(count({ crystal: 4 })).toBeCloseTo(0.8, 1);
+    expect(count({ bait: 'bait.crystal', factor: CATCH.baitItemFactor })).toBeCloseTo(0.75, 1);
+    expect(count({ bait: 'bait.shiny', factor: CATCH.baitItemFactor })).toBeCloseTo(0.5, 1);
     // Every bait result is still in the lake pool for that band.
     const random = seededRandom(3);
     const table = applyBait(CATCH_TABLE, baitDef('bait.crystal', BAIT), 'deep');
     for (let i = 0; i < 2000; i++) {
-      const r = rollCatch(LAKE_POOL, table, 'shore', true, random, { crystal: 4 })!;
+      const r = rollCatch(LAKE_POOL, table, { band: 'shore', water: 'buyuk_gol', level: 1 }, true, random, { bait: 'bait.crystal', factor: 3 })!;
       expect(!r.def.bands || r.def.bands.indexOf('shore') >= 0).toBe(true);
     }
   });

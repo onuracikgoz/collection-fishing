@@ -5,8 +5,8 @@
 import { BookPage } from '../rules/book';
 
 export const BOOK_PAGES: BookPage[] = [
-  { id: 'lake_fish', items: ['lake.fish.carp', 'lake.fish.perch', 'lake.fish.roach', 'lake.fish.pike', 'lake.fish.catfish'] },
+  { id: 'lake_fish', items: ['lake.fish.carp', 'lake.fish.perch', 'lake.fish.roach', 'lake.fish.crayfish', 'lake.fish.pike', 'lake.fish.catfish', 'lake.fish.old_turtle'] },
   { id: 'deep_water', items: ['lake.fish.golden_carp', 'lake.item.blue_crystal'] },
-  { id: 'treasures', items: ['lake.item.glasses', 'lake.item.old_coin'] },
+  { id: 'treasures', items: ['lake.item.glasses', 'lake.item.old_coin', 'lake.item.message_bottle'] },
   { id: 'crafts', items: ['craft.scale_charm', 'craft.moss_wreath', 'craft.pike_trophy'] },
 ];

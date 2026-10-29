@@ -5,6 +5,7 @@
 import {
   BAG,
   BOOK_LUCK,
+  CATCH,
   CATCH_TABLE,
   CRAFT,
   ECONOMY,
@@ -13,6 +14,7 @@ import {
   FISHING,
   FLOAT_TABLE,
   FRIENDS,
+  LEVEL,
   PROFILE,
   REEL_PARAMS,
   SCORE,
@@ -31,6 +33,7 @@ import { Category, ItemDef, rollFloat, tierOf } from '../rules/catch';
 import { craftBands, isStackOutput, qualityRow } from '../rules/craft';
 import { planEconomy } from '../rules/economy';
 import { buildCollisionMap, isWalkable } from '../rules/map';
+import { reelParamsFor } from '../rules/fishing';
 import { simulateReel } from '../rules/reel';
 import { buildWaterMap, bandAt, Band } from '../rules/water';
 import { placeNewItem } from '../match/items';
@@ -140,13 +143,14 @@ function readRaw(nk: nkruntime.Nakama, userId: string, collection: string, key: 
 }
 
 /** Every known definition: catch pool, recipes and what crafting makes. */
-function allDefs(): { id: string; category: Category; tier: Tier | null; bands?: Band[]; source: string; page: string | null }[] {
-  const out: { id: string; category: Category; tier: Tier | null; bands?: Band[]; source: string; page: string | null }[] = [];
+type DefRow = { id: string; category: Category; tier: Tier | null; waters?: string[]; bands?: Band[]; baits?: string[]; minLevel?: number; source: string; page: string | null };
+function allDefs(): DefRow[] {
+  const out: DefRow[] = [];
   const seen: { [id: string]: true } = {};
   const add = (d: ItemDef, source: string) => {
     if (seen[d.id]) return;
     seen[d.id] = true;
-    out.push({ id: d.id, category: d.category, tier: tierOf(d.category), bands: d.bands, source, page: pageIdOf(BOOK_PAGES, d.id) });
+    out.push({ id: d.id, category: d.category, tier: tierOf(d.category), waters: d.waters, bands: d.bands, baits: d.baits, minLevel: d.minLevel, source, page: pageIdOf(BOOK_PAGES, d.id) });
   };
   for (const d of LAKE_POOL) add(d, 'lake');
   for (const r of RECIPES) {
@@ -195,7 +199,7 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
     serverTime: Date.now(),
     node: ctx.node,
     opCodes: OpCode,
-    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT },
+    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, CATCH, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT },
     servers,
     defs: allDefs(),
     pages: BOOK_PAGES,
@@ -206,6 +210,7 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
       height: LAKE_MAP.height,
       spawn: LAKE_MAP.spawn,
       rows: mapRows(LAKE_MAP.width, LAKE_MAP.height, (x, y) => !isWalkable(map, x, y), (x, y) => bandAt(water, x, y)),
+      waters: water.names,
     },
   });
 }
@@ -602,7 +607,10 @@ export function rpcDevLive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
   return JSON.stringify(r);
 }
 
-/** Rolls the catch table many times: `{ n, band, hasEnergy, luck }` or the player's own luck via `userId`. */
+/**
+ * Rolls the catch table many times: `{ n, band, water?, level?, hasEnergy, luck }`
+ * or the player's own luck via `userId`. Band weights (CATCH) are included.
+ */
 export function rpcDevSimCatch(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
   const body = parse(payload);
@@ -610,19 +618,24 @@ export function rpcDevSimCatch(ctx: nkruntime.Context, _logger: nkruntime.Logger
   const band = (BANDS.indexOf(body.band) >= 0 ? body.band : 'deep') as Band;
   let luck = typeof body.luck === 'number' ? Math.max(0, Math.min(body.luck, 5)) : 0;
   if (typeof body.userId === 'string' && UUID.test(body.userId)) luck = luckOf(readBook(nk, body.userId), BOOK_PAGES, BOOK_LUCK);
-  const res = simulateCatches(LAKE_POOL, CATCH_TABLE, band, body.hasEnergy !== false, luck, BOOK_LUCK, FLOAT_TABLE, n, Math.random);
-  return JSON.stringify({ ...res, band, luck });
+  const water = typeof body.water === 'string' && body.water ? body.water : null;
+  const level = typeof body.level === 'number' && isFinite(body.level) ? Math.max(1, Math.floor(body.level)) : LEVEL.start;
+  const spot = { band, water, level };
+  const res = simulateCatches(LAKE_POOL, CATCH_TABLE, spot, body.hasEnergy !== false, luck, BOOK_LUCK, FLOAT_TABLE, n, Math.random, CATCH);
+  return JSON.stringify({ ...res, band, water, level, luck });
 }
 
 /**
- * The reel mini game: `{ seed?, tier | params, inputs? }`. Without inputs it plays
+ * The reel mini game: `{ seed?, tier | params, band?, inputs? }`. `band` applies
+ * that band's difficulty (FISHING.reel) to the Tier's params, as a real bite does. Without inputs it plays
  * itself (`lose: true` to lose on purpose) and returns inputs for REEL_DONE.
  */
 export function rpcDevReel(ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
   const body = parse(payload);
   const tier = (TIERS.indexOf(body.tier) >= 0 ? body.tier : 'common') as Tier;
-  const params = typeof body.params === 'object' && body.params !== null ? { ...REEL_PARAMS[tier], ...body.params } : REEL_PARAMS[tier];
+  const tierParams = BANDS.indexOf(body.band) >= 0 ? reelParamsFor(REEL_PARAMS[tier], body.band as Band, FISHING) : REEL_PARAMS[tier];
+  const params = typeof body.params === 'object' && body.params !== null ? { ...tierParams, ...body.params } : tierParams;
   const seed = typeof body.seed === 'number' ? body.seed >>> 0 : Math.floor(Math.random() * 4294967296);
   if (Array.isArray(body.inputs)) {
     const r = simulateReel(seed, params, body.inputs.map(Number));
