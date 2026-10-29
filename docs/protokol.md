@@ -182,6 +182,19 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
   - Yeni gelen oyuncular için `PLAYER_ENTER` içinde `status?` vardır; kendi durumu ve sahip olduğu emote'lar `WELCOME` içinde: `status?`, `emotesOwned` (sadece ücretsiz olmayanlar).
   - Durum emote'u görünümdür; drop, Float ve ekonomiyi etkilemez, metin taşımadığı için sohbet filtresi gerekmez.
 
+## Duyurular (nadir av)
+
+Kurallar: `docs/tasarim/15-gorsel-stil.md` Bildirimler. Bildirim kutularının çoğu (çanta dolu, enerji az, olta yıpranıyor, bağlantı) client'ın zaten bildiği durumdan çıkar, mesaj gerekmez.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 38 | S → C | `ANNOUNCE` | `{ kind, id, name, defId, tier, condition }` (aynı sunucudaki **herkese**, avlayan dahil) |
+
+- `kind`: şimdilik sadece `rare_catch`. Avdan sonra, `tier` Epic veya üstüyse (`ANNOUNCE.minTier`, Öneri) gönderilir. Sadece Tier'li (Float'lı) eşyalar duyurulur, materyal ve çöp duyurulmaz.
+- `condition`: avın kondisyonu (`pristine`...`damaged`). **Ham Float değeri gönderilmez.**
+- `name`: avlayanın görünen adı. Aynı oyuncunun art arda duyurularını birleştirmek client işidir.
+- Duyuru av sonucundan (`FISH_END`) sonra gelir; avlayan kendi `FISH_END` ayrıntısını yine alır.
+
 ## Ekonomi: Coin, NPC satış, toz (Faz 4)
 
 Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md` 3 (hepsi Öneri, `server/src/config.ts` `ECONOMY`).

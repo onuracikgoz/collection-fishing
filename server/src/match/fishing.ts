@@ -1,10 +1,11 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
-import { BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD } from '../config';
+import { ANNOUNCE, BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
-import { BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
+import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
+import { shouldAnnounce } from '../rules/announce';
 import { applyBait, baitDef, baitTagBoost } from '../rules/bait';
 import { Rod, isBroken, rodView, wearRod } from '../rules/rod';
 import { BookEntries, applyLuck, luckOf } from '../rules/book';
@@ -35,6 +36,8 @@ export interface FishingContext {
   water: WaterMap;
   /** Everyone who should see this fisher's bobber, including the fisher. */
   audience: (f: Fisher) => nkruntime.Presence[];
+  /** Everyone in this server, for announcements. */
+  everyone: () => nkruntime.Presence[];
 }
 
 function send(ctx: FishingContext, op: number, body: unknown, to: nkruntime.Presence[]): void {
@@ -158,12 +161,14 @@ function give(ctx: FishingContext, f: Fisher): void {
     writes.push(rodWrite(userId, rod));
     extra.rod = rodView(rod, ROD);
   }
+  let announce: AnnounceMsg | undefined;
   if (roll.tier) {
+    const fl = rollFloat(FLOAT_TABLE, Math.random);
     const item: ItemInstance = {
       instanceId: ctx.nk.uuidv4(),
       defId: roll.def.id,
       tier: roll.tier,
-      float: rollFloat(FLOAT_TABLE, Math.random).value,
+      float: fl.value,
       source: 'fishing',
       obtainedAt: Date.now(),
     };
@@ -172,6 +177,9 @@ function give(ctx: FishingContext, f: Fisher): void {
     book = placed.book;
     if (placed.msg) extra.book = placed.msg;
     extra.item = item;
+    if (shouldAnnounce(roll.tier, ANNOUNCE.minTier)) {
+      announce = { kind: 'rare_catch', id: userId, name: f.presence.username, defId: roll.def.id, tier: roll.tier, condition: fl.condition };
+    }
   } else {
     const stacks = { ...f.bag.stacks };
     stacks[roll.def.id] = (stacks[roll.def.id] || 0) + 1;
@@ -190,6 +198,7 @@ function give(ctx: FishingContext, f: Fisher): void {
   if (extra.stack) f.bag.stacks[extra.stack.defId] = extra.stack.count;
   f.lastCatch = roll.def.id;
   end(ctx, f, 'caught', extra);
+  if (announce) send(ctx, OpCode.ANNOUNCE, announce, ctx.everyone());
 }
 
 /** Runs timers once per tick: twitches, the bite, missed hooks and reel timeouts. */

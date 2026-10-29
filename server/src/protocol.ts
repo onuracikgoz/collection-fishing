@@ -39,6 +39,7 @@ export const OpCode = {
   STASH_RESULT: 35,
   EMOTE_STATUS: 36,
   EMOTE_STATUS_SHOW: 37,
+  ANNOUNCE: 38,
 } as const;
 
 export const ErrorCode = {
@@ -306,6 +307,18 @@ export interface EmoteStatusShowMsg {
   emote: string | null;
   /** Set when the request was refused: NOT_OWNED, RATE_LIMITED. */
   reason?: string;
+}
+
+/** A server-wide announcement. For now only a rare catch (Epic and above). */
+export interface AnnounceMsg {
+  kind: 'rare_catch';
+  /** Who caught it. */
+  id: string;
+  name: string;
+  defId: string;
+  tier: Tier;
+  /** Condition name only, never the raw Float. */
+  condition: string;
 }
 
 export interface FriendStatus {

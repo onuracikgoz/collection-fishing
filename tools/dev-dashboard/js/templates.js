@@ -1,8 +1,8 @@
 // Ready-made message bodies for the message console (docs/protokol.md).
 // `ctx` gives ids from the current state so templates are usable as they are.
 
-export const CLIENT_OPS = ['MOVE', 'SAY', 'CAST', 'HOOK', 'REEL_DONE', 'CANCEL', 'BOOK_PLACE', 'GOTO_FRIEND', 'EMOTE', 'SELL', 'SALVAGE', 'MERGE', 'CRAFT'];
-export const SERVER_OPS = ['SNAPSHOT', 'PLAYER_ENTER', 'PLAYER_LEAVE', 'BUBBLE', 'CORRECTION', 'WELCOME', 'BOBBER', 'REEL_START', 'FISH_END', 'BOOK_RESULT', 'TELEPORT', 'EMOTE_SHOW', 'ECONOMY_RESULT', 'CRAFT_RESULT'];
+export const CLIENT_OPS = ['MOVE', 'SAY', 'CAST', 'HOOK', 'REEL_DONE', 'CANCEL', 'BOOK_PLACE', 'GOTO_FRIEND', 'EMOTE', 'EMOTE_STATUS', 'SELL', 'SALVAGE', 'MERGE', 'CRAFT'];
+export const SERVER_OPS = ['SNAPSHOT', 'PLAYER_ENTER', 'PLAYER_LEAVE', 'BUBBLE', 'CORRECTION', 'WELCOME', 'BOBBER', 'REEL_START', 'FISH_END', 'BOOK_RESULT', 'TELEPORT', 'EMOTE_SHOW', 'EMOTE_STATUS_SHOW', 'ANNOUNCE', 'ECONOMY_RESULT', 'CRAFT_RESULT'];
 
 const item = (defId = 'lake.fish.pike', tier = 'rare', float = 0.0312) => ({
   instanceId: '00000000-0000-4000-8000-000000000001',
@@ -26,6 +26,7 @@ export function clientTemplates(ctx) {
     CANCEL: [['topla', {}]],
     BOOK_PLACE: [['ilk çanta eşyası', { instanceId: ids[0] || 'instance-id' }], ['olmayan eşya', { instanceId: 'nope' }]],
     GOTO_FRIEND: [['arkadaş', { userId: ctx.otherId || 'user-id' }]],
+    EMOTE_STATUS: [['kalp', { emote: 'heart' }], ['kaldır', { emote: null }], ['sahip değil', { emote: 'star' }]],
     EMOTE: [['wave', { emote: 'wave' }], ['show_fish', { emote: 'show_fish' }], ['listede yok', { emote: 'kiss' }]],
     SELL: [['ilk eşya', { items: ids.slice(0, 1) }], ['5 çöp', { stacks: [{ defId: 'lake.junk.boot', count: 5 }] }], ['41 satır (TOO_MANY)', { items: Array.from({ length: 41 }, (_, i) => `x${i}`) }]],
     SALVAGE: [['ilk eşya', { items: ids.slice(0, 1) }], ['recipe (CANNOT_SALVAGE)', { stacks: [{ defId: 'recipe.scale_charm', count: 1 }] }]],
@@ -60,6 +61,8 @@ export function serverTemplates(ctx) {
     BOOK_RESULT: [['yuvaya kondu', { ok: true, defId: 'lake.fish.pike', page: 'lake_fish', slot: item(), score: 12 }], ['NOT_FOUND', { ok: false, reason: 'NOT_FOUND', defId: 'lake.fish.pike' }]],
     TELEPORT: [['meydana', { x: 64.5, y: 50.5 }], ['RATE_LIMITED', { x: 64.5, y: 50.5, reason: 'RATE_LIMITED' }]],
     EMOTE_SHOW: [['dans', { id, emote: 'dance' }], ['balık göster', { id, emote: 'show_fish', defId: 'lake.fish.golden_carp' }]],
+    EMOTE_STATUS_SHOW: [['kalp', { id, emote: 'heart' }], ['kaldırıldı', { id, emote: null }], ['NOT_OWNED', { id, emote: null, reason: 'NOT_OWNED' }]],
+    ANNOUNCE: [['Mythic', { kind: 'rare_catch', id, name: 'Ece', defId: 'lake.fish.golden_carp', tier: 'mythic', condition: 'pristine' }]],
     ECONOMY_RESULT: [['satış', { action: 'sell', ok: true, coin: 1234, dust: 50, gained: 75, items: [], stacks: [] }], ['NOT_ENOUGH', { action: 'sell', ok: false, reason: 'NOT_ENOUGH', coin: 1234, dust: 50 }]],
     CRAFT_RESULT: [['craft + keşif', { action: 'craft', ok: true, dust: 80, item: item('craft.scale_charm', 'common', 0.04), book: { page: 'crafts', kind: 'discovered', pageComplete: false, luck: 0.02, score: 5 }, items: [], stacks: [{ defId: 'lake.mat.scale', count: 3 }] }], ['NOT_ENOUGH_DUST', { action: 'merge', ok: false, reason: 'NOT_ENOUGH_DUST', dust: 3 }]],
   };

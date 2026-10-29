@@ -1,5 +1,6 @@
 // Tunable numbers for the world (docs/protokol.md). Values marked (Öneri)
 // are not final; change them here, not in rules or match code.
+import type { Tier } from './protocol';
 import type { Category } from './rules/catch';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
@@ -156,6 +157,11 @@ export const EMOTES = {
     comet: { tier: 'diamond', gems: 50 },
     goldfish: { tier: 'book' },
   } as { [id: string]: { tier: 'free' | 'supporter' | 'diamond' | 'book'; gems?: number } },
+};
+
+// Server-wide announcements (docs/protokol.md, Duyurular).
+export const ANNOUNCE = {
+  minTier: 'epic' as Tier, // (Öneri) Epic and above
 };
 
 // Friends: "Yanına git" (10-sosyal.md 13.2.1).

@@ -58,4 +58,4 @@ Mockup'lar: sağ üstte yığın ve ekran ortasında bannerlar. Hepsi `box_dark`
 - **Nadir av duyurusu:** üst ortada şerit, **herkese** gider. Sadece Epic ve üstü (Epic ve üstü eşiği Öneri), item'ın tier rengiyle. Karar: sunucudaki herkese gider. Aynı oyuncu için art arda duyuru birleşir. Sohbet kutusundaki Sistem satırı da düşer.
 - **Defter kaydı:** ilk kez tutulan item için, sadece oyuncuya.
 - **Bağlantı koptu:** kırmızı şerit, yeniden bağlanma sayacı; bu sürede istek gönderilmez.
-- Bildirim metinleri sunucu mesajıdır, client kod tabanlı çevirir. Bildirimler drop, Float veya fiyat bilgisi sızdırmaz.
+- Bildirim metinleri sunucu mesajıdır, client kod tabanlı çevirir. Bildirimler ham Float değerini veya fiyat bilgisini sızdırmaz (nadir av duyurusu sadece kondisyon adını taşır).

@@ -27,7 +27,7 @@ function audience(state: WorldState, f: Fisher): nkruntime.Presence[] {
 }
 
 function fishingCtx(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): FishingContext {
-  return { nk, logger, dispatcher, water: state.water, audience: (f) => audience(state, f) };
+  return { nk, logger, dispatcher, water: state.water, audience: (f) => audience(state, f), everyone: () => Object.keys(state.players).map((id) => state.players[id].presence) };
 }
 
 function summary(state: WorldState, now: number) {

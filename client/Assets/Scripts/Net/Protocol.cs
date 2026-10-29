@@ -52,6 +52,7 @@ namespace CollectionGame.Net
         public const long StashResult = 35;
         public const long EmoteStatus = 36;
         public const long EmoteStatusShow = 37;
+        public const long Announce = 38;
     }
 
     public static class ErrorCode
@@ -479,6 +480,18 @@ namespace CollectionGame.Net
         public string id;
         public string emote;
         public string reason;
+    }
+
+    /// <summary>S → C, op 38. Server-wide announcement; kind is "rare_catch" for now. condition is a name only, never the raw Float.</summary>
+    [Serializable]
+    public class AnnounceMsg
+    {
+        public string kind;
+        public string id;
+        public string name;
+        public string defId;
+        public string tier;
+        public string condition;
     }
 
     [Serializable]

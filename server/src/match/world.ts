@@ -310,6 +310,7 @@ function fishingContext(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatch
     logger,
     dispatcher,
     water: state.water,
+    everyone: () => Object.keys(state.players).map((id) => state.players[id].presence),
     audience: (f: Fisher) => {
       const out = [f.presence];
       for (const id in state.players) {
