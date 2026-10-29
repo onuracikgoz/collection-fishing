@@ -60,15 +60,29 @@ namespace CollectionGame.EditorTools
             Shot(outDir, "gorev", Path.Combine(drafts, "npc-gorev.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
-                var p = Spawn<PanelView>(canvas, "Quests");
-                p.header.text = "Bugünün görevleri";
-                p.headerRight.text = "Yenilenmeye 9 sa 41 dk";
-                p.Row().Title("5 balık tut").Right("5 / 5").Bar(1f);
-                p.Row().Title("1 tane rare ya da üstü yakala").Right("0 / 1").Bar(0f);
-                p.Row().Title("NPC'ye 5 şey sat").Right("2 / 5").Bar(0.4f);
-                p.footer.text = "Seri: 3 gün · bugünün sandığı 4. gün sandığı (10. gün en iyisi).";
-                p.FooterSpace();
-                p.FooterButton("2 / 3 bitti", "green", null, 160);
+                var v = Spawn<QuestView>(canvas, "Quests");
+                v.coin.text = "1.240";
+                v.diamond.text = "85";
+                v.hint.text = "Yenilenmeye 9 sa 41 dk · seri 3 gün";
+                (string, string, float, string)[] q = { ("5 balık tut", "balık", 1f, "5 / 5"), ("1 tane rare ya da üstü yakala", "balık", 0.33f, "1 / 3"), ("NPC'ye 5 şey sat", "sat", 0f, "0 / 5") };
+                for (var i = 0; i < 3; i++)
+                {
+                    var r = v.quests[i];
+                    r.icon.SetEmpty();
+                    r.icon.label.text = q[i].Item2;
+                    r.title.text = q[i].Item1;
+                    v.SetBar(r, q[i].Item3);
+                    r.count.text = q[i].Item4;
+                    r.reward.text = "Ödül: günün sandığına sayılır";
+                    r.state.text = i == 0 ? "Bitti" : "";
+                }
+                v.chest.icon.SetEmpty();
+                v.chest.icon.label.text = "sandık";
+                v.chest.title.text = "4. gün sandığı";
+                v.SetBar(v.chest, 0.33f);
+                v.chest.count.text = "1 / 3";
+                v.chest.reward.text = "10. gün sandığı en iyisidir";
+                v.chest.button.interactable = false;
             });
             Shot(outDir, "takas-a", Path.Combine(drafts, "takas-a.png"), canvas => FillTrade(canvas, false, false));
             Shot(outDir, "takas-b", Path.Combine(drafts, "takas-b.png"), canvas => FillTrade(canvas, false, true));

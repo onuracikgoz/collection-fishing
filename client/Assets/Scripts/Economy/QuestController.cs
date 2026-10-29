@@ -31,6 +31,7 @@ namespace CollectionGame.Economy
         {
             this.net = net;
             this.fishing = fishing;
+            fishing.BagChanged += () => dirty = true;
         }
 
         public void Update(bool typing)
@@ -106,22 +107,23 @@ namespace CollectionGame.Economy
             }
         }
 
-        // ---------- UI (uGUI: Resources/UI/Quests, a PanelView) ----------
+        // ---------- UI (uGUI: Resources/UI/Quests, draft npc-gorev) ----------
 
-        PanelView view;
+        QuestView view;
         bool dirty = true;
         int shownSecond = -1;
 
-        PanelView View
+        QuestView View
         {
             get
             {
                 if (view != null) return view;
-                view = UiRoot.Get().Spawn<PanelView>("Quests");
+                view = UiRoot.Get().Spawn<QuestView>("Quests");
                 if (view != null)
                 {
                     view.window.Closed = () => Open = false;
-                    view.Open = false;
+                    view.window.Open = false;
+                    view.chest.button.onClick.AddListener(Claim);
                 }
                 return view;
             }
@@ -137,9 +139,9 @@ namespace CollectionGame.Economy
         {
             var v = View;
             if (v == null) return;
-            if (v.Open != Open)
+            if (v.window.Open != Open)
             {
-                v.Open = Open;
+                v.window.Open = Open;
                 dirty = true;
             }
             if (!Open) return;
@@ -148,34 +150,55 @@ namespace CollectionGame.Economy
             if (s == null) return;
             var left = Mathf.Max(0f, s.resetInMs / 1000f - (Time.time - stateAt));
             var sec = (int)left;
-            if (sec == shownSecond) return;
+            if (sec / 60 == shownSecond / 60 && shownSecond >= 0) return;
             shownSecond = sec;
-            v.headerRight.text = $"Yenilenmeye {sec / 3600} sa {sec % 3600 / 60} dk";
+            v.hint.text = $"Yenilenmeye {sec / 3600} sa {sec % 3600 / 60} dk · seri {s.streak} gün";
         }
 
-        void Redraw(PanelView v)
+        /// <summary>A short word on the quest icon until quest icons exist.</summary>
+        static string IconWord(string e) => e == "catch" || e == "catch_tier" ? "balık" : e == "sell" ? "sat" : e == "craft" ? "craft" : e == "merge" ? "birleş" : e == "trade" ? "takas" : e == "emote" ? "emote" : "?";
+
+        void Redraw(QuestView v)
         {
             dirty = false;
-            v.ClearRows();
-            v.ClearFooter();
+            shownSecond = -1;
+            v.coin.text = Kit.Num(fishing.Bag?.coin ?? 0);
+            v.diamond.text = Kit.Num(fishing.Bag?.diamond ?? 0);
             var s = State;
-            v.header.text = "Bugünün görevleri";
+            var quests = s?.quests ?? Array.Empty<QuestProgress>();
+            for (var i = 0; i < v.quests.Length; i++)
+            {
+                var row = v.quests[i];
+                var q = i < quests.Length ? quests[i] : null;
+                row.root.SetActive(q != null);
+                if (q == null) continue;
+                var done = q.progress >= q.target;
+                row.icon.SetEmpty();
+                row.icon.label.text = IconWord(q.@event);
+                row.title.text = Describe(q);
+                v.SetBar(row, q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
+                row.count.text = $"{q.progress} / {q.target}";
+                row.reward.text = "Ödül: günün sandığına sayılır";
+                row.state.text = done ? "Bitti" : "";
+            }
             if (s == null)
             {
-                v.Line("Görevler yükleniyor...");
+                v.header.text = "Görevler yükleniyor...";
+                v.chest.root.SetActive(false);
                 return;
             }
-            var quests = s.quests ?? Array.Empty<QuestProgress>();
-            foreach (var q in quests)
-            {
-                var done = q.progress >= q.target;
-                v.Row().Title(Describe(q)).Right($"{q.progress} / {q.target}", done ? new Color(0.12f, 0.44f, 0.31f) : (Color?)null)
-                    .Bar(q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
-            }
-            v.footer.text = $"Seri: {s.streak} gün · bugünün sandığı {s.chestDay}. gün sandığı (10. gün en iyisi). Bir gün kaçırırsan seri biraz geri düşer.";
-            v.FooterSpace();
-            var label = s.claimed ? "Sandık alındı" : s.complete ? "Sandığı aç" : $"{quests.Count(q => q.progress >= q.target)} / {quests.Length} bitti";
-            v.FooterButton(label, "green", s.complete && !s.claimed && !ClaimPending ? Claim : (Action)null, 160);
+            v.header.text = "Bugünün görevleri";
+            v.chest.root.SetActive(true);
+            v.chest.icon.SetEmpty();
+            v.chest.icon.label.text = "sandık";
+            var doneCount = quests.Count(q => q.progress >= q.target);
+            v.chest.title.text = $"{s.chestDay}. gün sandığı";
+            v.SetBar(v.chest, quests.Length > 0 ? (float)doneCount / quests.Length : 0f);
+            v.chest.count.text = $"{doneCount} / {quests.Length}";
+            v.chest.reward.text = "10. gün sandığı en iyisidir";
+            v.chest.state.text = "";
+            v.chest.button.interactable = s.complete && !s.claimed && !ClaimPending;
+            v.chest.buttonText.text = s.claimed ? "Alındı" : "Sandığı aç";
         }
     }
 }

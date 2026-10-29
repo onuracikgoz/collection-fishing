@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 13;
+        public const int Version = 15;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -69,7 +69,7 @@ namespace CollectionGame.EditorTools
             Save(BuildHud(), "Hud");
             Save(BuildBag(), "Bag");
             Save(BuildPopup(), "Popup");
-            Save(BuildPanel("Quests", "Günlük görevler", new Vector2(600, 330), 1), "Quests");
+            Save(BuildQuests(), "Quests");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1197,6 +1197,56 @@ namespace CollectionGame.EditorTools
             view.advertise = Btn(w, "Advertise", "wood", "Reklam ver", 16);
             At((RectTransform)view.advertise.transform, TopLeft, new Vector2(620, -510), new Vector2(190, 36));
             view.advertiseText = view.advertise.GetComponentInChildren<Text>();
+            return wrap.gameObject;
+        }
+
+        // ================= Daily quests (draft npc-gorev) =================
+
+        static QuestView.Row QuestRow(Transform w, string name, float y, bool button)
+        {
+            var row = new QuestView.Row();
+            var rt = Abs(w, name, 28, y, 906, 90);
+            Img(rt, "card");
+            Img(Stretch(Node("Outline", rt)), "outline");
+            row.root = rt.gameObject;
+            row.icon = SlotAt(rt, "Icon", 12, 22, 42);
+            row.icon.label.fontSize = 11;
+            row.title = TextAt(rt, "Title", "", 68, 24, 520, 16, Ink);
+            var back = Abs(rt, "Bar", 68, 44, 220, 12);
+            row.fill = Bar(back, "bar_fill_green", out _);
+            row.count = TextAt(rt, "Count", "", 301, 50, 90, 14, Faint);
+            row.reward = TextAt(rt, "Reward", "", 68, 71, 520, 14, Faint);
+            row.reward.supportRichText = true;
+            row.state = TextAt(rt, "State", "", 608, 38, 280, 16, Hex("1e6f50"), TextAnchor.MiddleRight, true);
+            if (button)
+            {
+                row.button = Btn(rt, "Button", "green", "Sandığı aç", 16);
+                At((RectTransform)row.button.transform, TopLeft, new Vector2(752, -20), new Vector2(140, 36));
+                row.buttonText = row.button.GetComponentInChildren<Text>();
+            }
+            return row;
+        }
+
+        static GameObject BuildQuests()
+        {
+            // npc-gorev: window 956x594 at (224, 106); quest cards 906x90, 100 apart from y 114.
+            var wrap = Stretch(Node("Quests", null));
+            var view = wrap.gameObject.AddComponent<QuestView>();
+            view.window = DraftWindow(wrap, "Günlük görevler", 224, 106, 956, 594);
+            var w = view.window.transform;
+            Icon(w, "CoinIcon", new Vector2(0, 1), new Vector2(766, -42), Gold, 14);
+            view.coin = TextAt(w, "Coin", "0", 786, 42, 100, 16, Ink, TextAnchor.MiddleLeft, true);
+            Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(866, -42), DiamondColour, 12);
+            view.diamond = TextAt(w, "Diamond", "0", 884, 42, 60, 16, Hex("4d9be6"), TextAnchor.MiddleLeft, true);
+            view.header = TextAt(w, "Header", "Bugünün görevleri", 29, 92, 220, 17, Ink);
+            view.hint = TextAt(w, "Hint", "", 229, 92, 480, 14, Faint);
+            view.quests = new QuestView.Row[3];
+            for (var i = 0; i < 3; i++) view.quests[i] = QuestRow(w, "Quest" + i, 114 + i * 100, false);
+            view.chest = QuestRow(w, "Chest", 414, true);
+            view.barDone = S("bar_fill_green");
+            view.barGoing = S("bar_fill_yellow");
+            view.footer = TextAt(w, "Footer", "Görevler gece yarısı yenilenir. Sandık üç görev bitince açılır; içinden Coin, toz, yem ya da recipe çıkar.\nSeri: her gün sandığı alırsan büyür, bir gün kaçırırsan biraz geri düşer.", 29, 535, 900, 14, Faint);
+            ((RectTransform)view.footer.transform).sizeDelta = new Vector2(900, 40);
             return wrap.gameObject;
         }
 
