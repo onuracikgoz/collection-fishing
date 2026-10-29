@@ -27,6 +27,7 @@ import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
+import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
 import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
@@ -68,6 +69,9 @@ interface Player {
   /** Non-free status emotes this player owns. */
   emotesOwned: string[];
   lastStatusAt?: number;
+  /** The trade this player is in (invite or open window). */
+  tradeId?: string;
+  lastOfferAt?: number;
   lastTeleportAt?: number;
 }
 
@@ -87,6 +91,8 @@ export interface WorldState {
   players: { [userId: string]: Player };
   /** Join metadata accepted in matchJoinAttempt, keyed by session. */
   pending: { [sessionId: string]: PendingJoin };
+  /** Trade sessions between players of this server. */
+  trades: { [tradeId: string]: TradeRec };
 }
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -154,7 +160,7 @@ export function worldInit(
   const def = SERVERS.filter((s) => s.id === serverId)[0];
   const label: WorldLabel = { kind: 'world', serverId };
   return {
-    state: { serverId, serverName: def ? def.name : serverId, map: buildCollisionMap(LAKE_MAP), water: buildWaterMap(LAKE_MAP, WATER), players: {}, pending: {} },
+    state: { serverId, serverName: def ? def.name : serverId, map: buildCollisionMap(LAKE_MAP), water: buildWaterMap(LAKE_MAP, WATER), players: {}, pending: {}, trades: {} },
     tickRate: WORLD.tickRate,
     label: JSON.stringify(label),
   };
@@ -243,6 +249,8 @@ export function worldJoin(
       rod,
       status: emotes.status,
       emotesOwned: emotes.owned,
+      tradeId: old ? old.tradeId : undefined,
+      lastOfferAt: old ? old.lastOfferAt : undefined,
       stash: old ? old.stash : undefined,
     };
     const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned };
@@ -269,6 +277,7 @@ export function worldLeave(
     if (!p || p.presence.sessionId !== presence.sessionId) continue;
     gone.push(p);
     delete state.players[presence.userId];
+    cancelTradeOf(tradeEnv(nk, logger, dispatcher, state), presence.userId);
     saveEnergy(nk, logger, presence.userId, p.energy, false);
     const msg: PlayerLeaveMsg = { id: presence.userId };
     const watchers: nkruntime.Presence[] = [];
@@ -411,6 +420,18 @@ function handleEmoteStatus(
   send(dispatcher, OpCode.EMOTE_STATUS_SHOW, msg, to);
 }
 
+function tradeEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): TradeEnv {
+  return { nk, logger, dispatcher, fishing: fishingContext(nk, logger, dispatcher, state), players: state.players, trades: state.trades };
+}
+
+const TRADE_OPS: { [op: number]: true } = {
+  [OpCode.TRADE_OFFER]: true,
+  [OpCode.TRADE_REPLY]: true,
+  [OpCode.TRADE_SET]: true,
+  [OpCode.TRADE_LOCK]: true,
+  [OpCode.TRADE_CONFIRM]: true,
+};
+
 function buildGrid(state: WorldState): SpatialGrid {
   const points = Object.keys(state.players).map((id) => ({ id, x: state.players[id].move.x, y: state.players[id].move.y }));
   return new SpatialGrid(WORLD.viewLeaveRadius, points);
@@ -430,6 +451,7 @@ export function worldLoop(
   const storageActions: { [userId: string]: true } = {};
   const says: { p: Player; body: unknown }[] = [];
   const fishing = fishingContext(nk, logger, dispatcher, state);
+  const trade = tradeEnv(nk, logger, dispatcher, state);
 
   for (const m of messages) {
     const p = state.players[m.sender.userId];
@@ -440,7 +462,12 @@ export function worldLoop(
     } catch (_e) {
       continue;
     }
-    if (m.opCode === OpCode.MOVE) {
+    if (m.opCode === OpCode.MOVE && p.tradeId) {
+      // The trade window holds the player still.
+      continue;
+    } else if (m.opCode === OpCode.CAST && p.tradeId) {
+      continue;
+    } else if (m.opCode === OpCode.MOVE) {
       moves[m.sender.userId] = (moves[m.sender.userId] || 0) + 1;
       if (moves[m.sender.userId] <= WORLD.maxMovesPerTick && handleMove(dispatcher, state.map, p, body, now)) {
         cancelFishing(fishing, p);
@@ -476,10 +503,16 @@ export function worldLoop(
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(dispatcher, state, p, body, now);
+    } else if (TRADE_OPS[m.opCode] && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleTradeOp(trade, p, m.opCode, body, now);
+    } else if (m.opCode === OpCode.TRADE_CANCEL) {
+      handleTradeOp(trade, p, m.opCode, body, now);
     } else if (m.opCode === OpCode.EMOTE_STATUS) {
       handleEmoteStatus(nk, logger, dispatcher, state, p, body, now);
     }
   }
+  tickTrades(trade, now);
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
 
   // Positions are final for this tick; chat and visibility use them.

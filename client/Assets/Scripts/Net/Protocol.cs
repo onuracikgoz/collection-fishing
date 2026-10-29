@@ -53,6 +53,15 @@ namespace CollectionGame.Net
         public const long EmoteStatus = 36;
         public const long EmoteStatusShow = 37;
         public const long Announce = 38;
+        public const long TradeOffer = 39;
+        public const long TradeReply = 40;
+        public const long TradeSet = 41;
+        public const long TradeLock = 42;
+        public const long TradeConfirm = 43;
+        public const long TradeCancel = 44;
+        public const long TradeInvite = 45;
+        public const long TradeState = 46;
+        public const long TradeEnd = 47;
     }
 
     public static class ErrorCode
@@ -492,6 +501,102 @@ namespace CollectionGame.Net
         public string defId;
         public string tier;
         public string condition;
+    }
+
+    // --- Faz 5: trade (docs/protokol.md, Takas) ---
+
+    /// <summary>C → S, op 39.</summary>
+    [Serializable]
+    public class TradeOfferMsg
+    {
+        public string userId;
+    }
+
+    /// <summary>C → S, op 40.</summary>
+    [Serializable]
+    public class TradeReplyMsg
+    {
+        public bool accept;
+    }
+
+    /// <summary>C → S, op 41: my whole side of the window.</summary>
+    [Serializable]
+    public class TradeSetMsg
+    {
+        public string[] items;
+        public ItemStack[] stacks;
+        public int coin;
+    }
+
+    /// <summary>C → S, op 42.</summary>
+    [Serializable]
+    public class TradeLockMsg
+    {
+        public bool locked;
+    }
+
+    [Serializable]
+    public class TradeOfferView
+    {
+        public ItemInstance[] items;
+        public ItemStack[] stacks;
+        public int coin;
+    }
+
+    /// <summary>S → C, op 45.</summary>
+    [Serializable]
+    public class TradeInviteMsg
+    {
+        public string tradeId;
+        public string from;
+        public string name;
+        public int expiresInMs;
+    }
+
+    /// <summary>S → C, op 46. confirmInMs is -1 when the server omits it (not both locked).</summary>
+    [Serializable]
+    public class TradeStateMsg
+    {
+        public string tradeId;
+        public string withId;
+        public string withName;
+        public TradeOfferView you;
+        public TradeOfferView them;
+        public bool youLocked;
+        public bool themLocked;
+        public bool youConfirmed;
+        public bool themConfirmed;
+        public int confirmInMs = -1;
+        /// <summary>Set only when our TRADE_SET / TRADE_LOCK was refused: BAD_REQUEST, TOO_MANY, NOT_OWNED, NOT_ENOUGH.</summary>
+        public string reason;
+    }
+
+    [Serializable]
+    public class TradeGave
+    {
+        public string[] items;
+        public ItemStack[] stacks;
+        public int coin;
+    }
+
+    [Serializable]
+    public class TradeBookResult : FishBookMsg
+    {
+        public string instanceId;
+    }
+
+    /// <summary>S → C, op 47. result: done, cancelled, declined, expired, failed. got, gave and book only when done.</summary>
+    [Serializable]
+    public class TradeEndMsg
+    {
+        public string tradeId;
+        public string result;
+        public string reason;
+        /// <summary>failed / BAG_FULL: which side.</summary>
+        public string userId;
+        public TradeOfferView got;
+        public TradeGave gave;
+        public TradeBookResult[] book;
     }
 
     [Serializable]

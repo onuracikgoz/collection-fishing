@@ -164,6 +164,16 @@ export const ANNOUNCE = {
   minTier: 'epic' as Tier, // (Öneri) Epic and above
 };
 
+// Safe trade window (docs/tasarim/07-kopya-envanter.md 9.1, docs/protokol.md Takas). All Öneri.
+export const TRADE = {
+  maxSlots: 8,
+  maxDistance: 5,
+  inviteMs: 15000,
+  countdownMs: 3000,
+  openTimeoutMs: 300000,
+  offerCooldownMs: 3000,
+};
+
 // Friends: "Yanına git" (10-sosyal.md 13.2.1).
 export const FRIENDS = {
   teleportCooldownMs: 3000, // (Öneri)

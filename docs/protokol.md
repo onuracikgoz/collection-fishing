@@ -195,6 +195,47 @@ Kurallar: `docs/tasarim/15-gorsel-stil.md` Bildirimler. Bildirim kutularının �
 - `name`: avlayanın görünen adı. Aynı oyuncunun art arda duyurularını birleştirmek client işidir.
 - Duyuru av sonucundan (`FISH_END`) sonra gelir; avlayan kendi `FISH_END` ayrıntısını yine alır.
 
+## Takas (Faz 5)
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.1. Sunucu: `rules/trade.ts` (saf kurallar), `match/trade.ts` (mesajlar ve depolama). Takas aynı sunucudaki (match) iki oyuncu arasındadır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 39 | C → S | `TRADE_OFFER` | `{ userId }` (karşı tarafa teklif) |
+| 40 | C → S | `TRADE_REPLY` | `{ accept }` (gelen teklifi kabul / reddet) |
+| 41 | C → S | `TRADE_SET` | `{ items: [instanceId], stacks: [{ defId, count }], coin }` (kendi tarafımın **tüm** içeriği) |
+| 42 | C → S | `TRADE_LOCK` | `{ locked }` (kilitle / kilidi aç) |
+| 43 | C → S | `TRADE_CONFIRM` | `{}` (geri sayımdan sonra onayla) |
+| 44 | C → S | `TRADE_CANCEL` | `{}` (pencereyi kapat, takası iptal et) |
+| 45 | S → C | `TRADE_INVITE` | `{ tradeId, from, name, expiresInMs }` (sadece davet edilene) |
+| 46 | S → C | `TRADE_STATE` | `TradeStateMsg` (iki tarafa, kendi bakış açılarıyla) |
+| 47 | S → C | `TRADE_END` | `TradeEndMsg` (iki tarafa) |
+
+- **Akış:** `TRADE_OFFER` → karşı taraf `TRADE_INVITE` alır → `TRADE_REPLY { accept }`. Kabul edilince iki tarafa `TRADE_STATE` gider ve pencere açılır. Reddedilirse, 15 sn cevap gelmezse (Öneri) ya da teklif eden iptal ederse `TRADE_END` gider.
+- **Teklif koşulları:** iki oyuncu aynı sunucuda ve en fazla 5 tile (Öneri) uzakta, ikisi de başka bir takasta değil. Teklif edenin olta atması iptal olur. Aynı oyuncu 3 sn'de bir teklif edebilir (Öneri). `TRADE_END.reason`: `NOT_HERE`, `TOO_FAR`, `BUSY` (taraflardan biri başka takasta), `SELF`, `RATE_LIMITED`.
+- **Pencere açıkken** iki taraf yürüyemez ve olta atamaz (sunucu `MOVE` ve `CAST` mesajlarını yok sayar). Mesafe 5 tile'ı aşarsa, biri bağlantıyı keserse ya da pencere 5 dk (Öneri) açık kalırsa takas iptal olur.
+- **İçerik:** `TRADE_SET` bir tarafın tüm içeriğini değiştirir. Eşya kalemleri (`items` + `stacks`) toplamı en fazla **8** (Öneri); `coin` o anki bakiyeyi aşamaz. Sadece **çantadaki** Float eşyalar (defter yuvasındakiler ve depodakiler değil) ve yığınlar konabilir. Toz takas edilemez. Reddedilirse içerik değişmez, isteyene `TRADE_STATE` içinde `reason` döner: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED`, `NOT_ENOUGH`.
+- **Kilit:** her iki taraf `TRADE_LOCK { locked: true }` der. Birinin içeriği değişirse (kendi `TRADE_SET`'i ya da karşı tarafınki) iki kilit de açılır ve onaylar sıfırlanır.
+- **Onay:** iki kilit kapandıktan **3 sn** (Öneri) sonra `TRADE_CONFIRM` kabul edilir; öncesinde gönderilen yok sayılır. İki taraf da onaylayınca takas **tek işlemde** (eşyalar, yığınlar, Coin, kayıt) gerçekleşir. Sunucu o an her şeyi yeniden doğrular: eşya hâlâ çantada mı, yığın ve Coin yeterli mi, iki tarafın çantasında yer var mı.
+- **Gelen eşya deftere işlenir:** ilk kopyaysa defter yuvasına gider ("Yeni keşif", çantada yer tutmaz), değilse çantaya. Çanta doluluğu hesabında her gelen Float eşya bir yuva sayılır (temkinli). `ItemInstance.source` = `trade`.
+- **Kayıt:** her başarılı takas iki tarafın `trades/<tradeId>` kaydına yazılır (kim, ne verdi, ne aldı, ne zaman). Sadece sunucu okur.
+- **Henüz yok (Öneri):** level 10 şartı ve hesap kısıtları (XP sistemi gelince), eşya kilidi (kilitli eşya konamaz; kilit alanı gelince), takas kısıtı (`acik-sorular.md` 4).
+
+```
+TradeOfferView = { items: ItemInstance[], stacks: [{ defId, count }], coin }
+TradeStateMsg  = { tradeId, withId, withName,
+                   you: TradeOfferView, them: TradeOfferView,
+                   youLocked, themLocked, youConfirmed, themConfirmed,
+                   confirmInMs?,   // iki kilit kapalıyken: onaya kaç ms var (0 = şimdi basılabilir)
+                   reason? }       // sadece isteyene: reddedilen TRADE_SET / TRADE_LOCK / TRADE_CONFIRM nedeni
+TradeEndMsg    = { tradeId, result, reason?, userId?,   // result: done | cancelled | declined | expired | failed; userId: BAG_FULL olan taraf
+                   got?: { items: ItemInstance[], stacks, coin },  // sadece done
+                   gave?: { items: [instanceId], stacks, coin },   // sadece done
+                   book?: [{ instanceId, ...FishBookMsg }] }       // gelen eşyanın defter sonucu
+```
+
+`failed` nedenleri: `ITEM_GONE`, `NOT_ENOUGH`, `BAG_FULL` (`userId` ile hangi taraf), `ERROR`.
+
 ## Ekonomi: Coin, NPC satış, toz (Faz 4)
 
 Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md` 3 (hepsi Öneri, `server/src/config.ts` `ECONOMY`).

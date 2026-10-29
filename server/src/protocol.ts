@@ -40,6 +40,15 @@ export const OpCode = {
   EMOTE_STATUS: 36,
   EMOTE_STATUS_SHOW: 37,
   ANNOUNCE: 38,
+  TRADE_OFFER: 39,
+  TRADE_REPLY: 40,
+  TRADE_SET: 41,
+  TRADE_LOCK: 42,
+  TRADE_CONFIRM: 43,
+  TRADE_CANCEL: 44,
+  TRADE_INVITE: 45,
+  TRADE_STATE: 46,
+  TRADE_END: 47,
 } as const;
 
 export const ErrorCode = {
@@ -165,7 +174,7 @@ export interface ItemInstance {
   defId: string;
   tier: Tier;
   float: number;
-  source: 'fishing' | 'craft' | 'merge';
+  source: 'fishing' | 'craft' | 'merge' | 'trade';
   obtainedAt: number;
 }
 
@@ -319,6 +328,54 @@ export interface AnnounceMsg {
   tier: Tier;
   /** Condition name only, never the raw Float. */
   condition: string;
+}
+
+// --- Faz 5: trade (docs/protokol.md, Takas) ---
+
+export interface TradeOfferView {
+  items: ItemInstance[];
+  stacks: { defId: string; count: number }[];
+  coin: number;
+}
+
+/** S → C, op 46: the window as one side sees it. */
+export interface TradeStateMsg {
+  tradeId: string;
+  withId: string;
+  withName: string;
+  you: TradeOfferView;
+  them: TradeOfferView;
+  youLocked: boolean;
+  themLocked: boolean;
+  youConfirmed: boolean;
+  themConfirmed: boolean;
+  /** Both locked: ms until Confirm is accepted (0 = now). */
+  confirmInMs?: number;
+  /** Only to the asker: why a TRADE_SET / TRADE_LOCK was refused. */
+  reason?: string;
+}
+
+/** S → C, op 45. */
+export interface TradeInviteMsg {
+  tradeId: string;
+  from: string;
+  name: string;
+  expiresInMs: number;
+}
+
+export type TradeResult = 'done' | 'cancelled' | 'declined' | 'expired' | 'failed';
+
+/** S → C, op 47. */
+export interface TradeEndMsg {
+  tradeId: string;
+  result: TradeResult;
+  reason?: string;
+  /** failed / BAG_FULL: which side. */
+  userId?: string;
+  got?: TradeOfferView;
+  gave?: { items: string[]; stacks: { defId: string; count: number }[]; coin: number };
+  /** What the book did with each received item. */
+  book?: (FishBookMsg & { instanceId: string })[];
 }
 
 export interface FriendStatus {
