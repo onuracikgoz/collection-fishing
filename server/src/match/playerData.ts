@@ -1,12 +1,14 @@
 // Persistent player data: energy and bag. Storage layout:
 //   player/energy  { value, at, online }   (at = wall-clock ms of the last save)
-//   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot, inStash = in the stash)
+//   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot, inStash = in the stash, inStall = on a pet stall)
 //   bag/stacks  { stacks: { defId: count } }
 //   player/rod  { level, durability }
 //   player/status_emote  { emote }         (worn status emote; absent = none)
 //   player/trade_lock  { until }           (ms since epoch; a newly linked Steam account cannot trade until then)
 //   player/xp  { total }                   (total XP; level comes from it; public: the level shows on the profile)
 //   player/emotes_owned  { ids: [] }       (non-free status emotes owned; written by shop / supporter / book systems)
+//   stall/state  StallDoc                  (the owner's pet stall; only the owner's world match writes it)
+//   market/<serverId>  { owners: [] }      (system user: whose stalls stand in that server)
 //   stash/state  { level, stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
 //   profile/card  ProfileDoc               (public: showcase and "Arıyorum")
@@ -20,6 +22,7 @@ import { BagSummary, slotsUsed } from '../rules/bag';
 import { regenOffline } from '../rules/energy';
 import { canWear, normalizeOwned } from '../rules/emote';
 import { normalizeXp } from '../rules/xp';
+import { Listing } from '../rules/market';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
@@ -29,17 +32,18 @@ const WRITE_SERVER = 0 as nkruntime.WritePermissionValues;
 export interface StoredItem extends ItemInstance {
   inBook?: boolean;
   inStash?: boolean;
+  inStall?: boolean;
 }
 
 /** The item without storage-only fields, as sent to clients. */
 export function publicItem(item: StoredItem): ItemInstance {
-  const { inBook: _inBook, inStash: _inStash, ...rest } = item;
+  const { inBook: _inBook, inStash: _inStash, inStall: _inStall, ...rest } = item;
   return rest;
 }
 
-/** True if the item sits in the bag: not in a book slot, not in the stash. */
+/** True if the item sits in the bag: not in a book slot, not in the stash, not on a stall. */
 export function inBag(item: StoredItem): boolean {
-  return !item.inBook && !item.inStash;
+  return !item.inBook && !item.inStash && !item.inStall;
 }
 
 interface EnergyDoc {
@@ -74,7 +78,7 @@ export function energyWrite(userId: string, value: number, online: boolean): nkr
   };
 }
 
-function readStacks(nk: nkruntime.Nakama, userId: string): { [defId: string]: number } {
+export function readStacks(nk: nkruntime.Nakama, userId: string): { [defId: string]: number } {
   const objs = nk.storageRead([{ collection: 'bag', key: 'stacks', userId }]);
   const v = objs.length > 0 ? (objs[0].value as { stacks?: { [defId: string]: number } }) : {};
   return v.stacks || {};
@@ -235,4 +239,45 @@ export function profileWrite(userId: string, doc: ProfileDoc): nkruntime.Storage
   const value: { showcase: string[]; hunting?: string } = { showcase: doc.showcase };
   if (doc.hunting) value.hunting = doc.hunting;
   return { collection: 'profile', key: 'card', userId, value, permissionRead: READ_PUBLIC, permissionWrite: WRITE_SERVER };
+}
+
+/** A pet stall as stored on its owner. `ended`: expired while the owner was away; the items are returned at their next login. */
+export interface StallDoc extends Listing {
+  serverId: string;
+  name: string;
+  spot: number;
+  x: number;
+  y: number;
+  openedAt: number;
+  expiresAt: number;
+  ended?: true;
+}
+
+export function readStall(nk: nkruntime.Nakama, userId: string): StallDoc | null {
+  const objs = nk.storageRead([{ collection: 'stall', key: 'state', userId }]);
+  if (objs.length === 0) return null;
+  const v = objs[0].value as Partial<StallDoc>;
+  if (typeof v.serverId !== 'string' || !Array.isArray(v.items) || !Array.isArray(v.stacks)) return null;
+  return v as StallDoc;
+}
+
+export function stallWrite(userId: string, doc: StallDoc): nkruntime.StorageWriteRequest {
+  return { collection: 'stall', key: 'state', userId, value: doc, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
+}
+
+export function stallDelete(userId: string): nkruntime.StorageDeleteRequest {
+  return { collection: 'stall', key: 'state', userId };
+}
+
+const SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
+
+/** Owners whose stall stands in this server. */
+export function readMarketIndex(nk: nkruntime.Nakama, serverId: string): string[] {
+  const objs = nk.storageRead([{ collection: 'market', key: serverId, userId: SYSTEM_USER }]);
+  const v = objs.length > 0 ? (objs[0].value as { owners?: unknown }).owners : [];
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+export function marketIndexWrite(serverId: string, owners: string[]): nkruntime.StorageWriteRequest {
+  return { collection: 'market', key: serverId, userId: SYSTEM_USER, value: { owners }, permissionRead: 0 as nkruntime.ReadPermissionValues, permissionWrite: WRITE_SERVER };
 }

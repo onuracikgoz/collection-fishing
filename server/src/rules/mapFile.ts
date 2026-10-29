@@ -4,7 +4,7 @@ import { MapData, Rect } from './map';
 
 export const MAP_FORMAT = 1;
 
-export const POINT_KINDS = ['bank', 'craftsman', 'shop', 'board', 'rest'] as const;
+export const POINT_KINDS = ['bank', 'craftsman', 'shop', 'board', 'rest', 'market'] as const;
 export type PointKind = (typeof POINT_KINDS)[number];
 
 export interface MapPoint {

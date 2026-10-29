@@ -64,6 +64,13 @@ namespace CollectionGame.Net
         public const long TradeEnd = 47;
         public const long ItemLock = 48;
         public const long ItemLockResult = 49;
+        public const long StallOpen = 50;
+        public const long StallRecall = 51;
+        public const long StallView = 52;
+        public const long StallBuy = 53;
+        public const long StallList = 54;
+        public const long StallState = 55;
+        public const long StallResult = 56;
     }
 
     public static class ErrorCode
@@ -648,6 +655,119 @@ namespace CollectionGame.Net
         public TradeOfferView got;
         public TradeGave gave;
         public TradeBookResult[] book;
+    }
+
+    // --- Faz 5: pet stalls (docs/protokol.md, Pazar) ---
+
+    [Serializable]
+    public class StallOpenItem
+    {
+        public string instanceId;
+        public int price;
+    }
+
+    /// <summary>price is per unit.</summary>
+    [Serializable]
+    public class StallOpenStack
+    {
+        public string defId;
+        public int count;
+        public int price;
+    }
+
+    /// <summary>C → S, op 50.</summary>
+    [Serializable]
+    public class StallOpenMsg
+    {
+        public string title;
+        public StallOpenItem[] items;
+        public StallOpenStack[] stacks;
+    }
+
+    /// <summary>C → S, op 52 (view) and op 53 (buy). Buy: instanceId for a Float item, or defId + count for a stack; leave the other empty / 0.</summary>
+    [Serializable]
+    public class StallBuyMsg
+    {
+        public string userId;
+        public string instanceId;
+        public string defId;
+        public int count;
+    }
+
+    /// <summary>tier is empty for stacks; price is per unit for stacks.</summary>
+    [Serializable]
+    public class StallEntry
+    {
+        public string defId;
+        public string tier;
+        public int count;
+        public int price;
+    }
+
+    [Serializable]
+    public class StallView
+    {
+        public string userId;
+        public string name;
+        public int spot;
+        public float x;
+        public float y;
+        public string title;
+        public StallEntry[] top;
+        public int total;
+        public long expiresInMs;
+    }
+
+    /// <summary>S → C, op 55. full: the list is complete, clear first.</summary>
+    [Serializable]
+    public class StallsMsg
+    {
+        public bool full;
+        public StallView[] stalls;
+        public string[] removed;
+    }
+
+    [Serializable]
+    public class StallListItem
+    {
+        public ItemInstance item;
+        public int price;
+    }
+
+    /// <summary>S → C, op 54.</summary>
+    [Serializable]
+    public class StallListMsg
+    {
+        public string userId;
+        public string name;
+        public string title;
+        public StallListItem[] items;
+        public StallOpenStack[] stacks;
+        public long expiresInMs;
+    }
+
+    [Serializable]
+    public class StallReturned
+    {
+        public ItemInstance[] items;
+        public ItemStack[] stacks;
+    }
+
+    /// <summary>S → C, op 56. action: open, recall, view, buy. Absent parts come as defaults: item.instanceId, defId and book.page are empty when absent.</summary>
+    [Serializable]
+    public class StallResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public int spot;
+        public StallReturned returned;
+        public ItemInstance item;
+        public string defId;
+        public int count;
+        public int paid;
+        public int coin;
+        public FishBookMsg book;
     }
 
     [Serializable]

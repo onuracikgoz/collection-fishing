@@ -175,6 +175,27 @@ export const XP = {
   unlocks: { 10: ['trade'] } as { [level: number]: string[] },
 };
 
+// Pet stalls in the market area (docs/tasarim/09-ekonomi-pazar.md 12.3). All Öneri.
+export const MARKET = {
+  minLevel: 10,
+  maxEntries: 12,
+  maxPrice: 1_000_000_000,
+  /** Cut of every sale, taken from the seller. */
+  feePct: 0.05,
+  ttlMs: 24 * 60 * 60 * 1000,
+  titleMax: 40,
+  /** Spots are a grid centred on the map's `market` point: 8 x 5 = 40. */
+  columns: 8,
+  rows: 5,
+  spacing: 2,
+  /** The owner must stand this close to the market point to open a stall. */
+  areaRadius: 14,
+  /** Buyers and viewers must be this close to the pet. */
+  interactRadius: 7,
+  /** First entries shown beside the pet. */
+  topCount: 4,
+};
+
 // Safe trade window (docs/tasarim/07-kopya-envanter.md 9.1, docs/protokol.md Takas). All Öneri.
 export const TRADE = {
   /** Both players need this level (04-xp-level.md; also a bot guard). */

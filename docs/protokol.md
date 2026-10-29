@@ -262,6 +262,40 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.
 - Kilit eşyanın kendisinde durur: `ItemInstance.locked?: true` (`get_inventory`, takas görünümü). Kilitli eşya **satılamaz** (`SELL`), **parçalanamaz** (`SALVAGE`), `MERGE` ve `CRAFT` girdisi olamaz, takasa konamaz: bu işlemler `reason: "LOCKED"` ile reddedilir. Depoya ve deftere konabilir, kilit korunur. Önce kilit açılır.
 - Yeni eşyalar (av, craft, birleştirme, takas) kilitsiz gelir.
 
+## Pazar (Faz 5, pet tezgahı)
+
+Kurallar: `docs/tasarim/09-ekonomi-pazar.md` 12.3. Sunucu: `rules/market.ts` (saf kurallar), `match/market.ts` (mesajlar ve depolama). Oyuncu petini pazar alanına bırakır, pet onun yerine satar; satıcı çevrimdışı olsa da tezgah durur. Tezgah yalnızca Coin ile çalışır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 50 | C → S | `STALL_OPEN` | `{ title, items: [{ instanceId, price }], stacks: [{ defId, count, price }] }` (tezgah aç; `price` yığında **adet başı**) |
+| 51 | C → S | `STALL_RECALL` | `{}` (peti geri çağır, satılmayanlar çantaya döner) |
+| 52 | C → S | `STALL_VIEW` | `{ userId }` (bir tezgahın tüm listesini iste) |
+| 53 | C → S | `STALL_BUY` | `{ userId, instanceId }` (Float'lı eşya) ya da `{ userId, defId, count }` (yığından) |
+| 54 | S → C | `STALL_LIST` | `StallListMsg` (sadece isteyene; satın almadan sonra da güncel haliyle gelir) |
+| 55 | S → C | `STALL_STATE` | `StallsMsg` (sunucudaki herkese: girişte tam liste, sonra her değişimde) |
+| 56 | S → C | `STALL_RESULT` | `StallResultMsg` (sadece isteyene) |
+
+- **Alan:** harita dosyasındaki `market` noktası etrafında `columns × rows` ızgarası (`MARKET`, Öneri: 8 × 5 = 40 yer, 2 tile arayla; yürünmez tile'a düşen yer atlanır). Tezgah açan oyuncuya **kendine en yakın boş yer** verilir. Oyuncu alan yarıçapı (`areaRadius`, Öneri 14 tile) içinde olmalı.
+- **Açma koşulları:** level 10 (`MARKET.minLevel`) ve takas kilidi yok (yeni bağlanan Steam hesabı, `TRADE_LOCKED`). Oyuncu başına **tek tezgah** (tüm sunucularda), toplam en fazla 12 kalem (`items` + `stacks`, Öneri). Fiyat 1 ile 1.000.000.000 Coin arası tam sayı; yığında `adet × fiyat` de bu sınırı aşamaz. Başlık chat filtresinden geçer, en fazla 40 karakter, boş olabilir. Takas penceresindeyken açılamaz (`BUSY`).
+- **Neler konur:** sadece çantadaki Float eşya (defter yuvası ve depo hariç), kilitli olmayan (`LOCKED`), ve çantadaki yığınlar (çöp, malzeme, recipe, yem; toz değil). Eşyalar tezgaha **ayrılır**: çantadan düşer, satılamaz / parçalanamaz / takas edilemez / craft'ta kullanılamaz. Yığın tezgaha konunca çanta yığınından çıkar. `reason`: `BAD_REQUEST`, `TOO_MANY`, `BAD_PRICE`, `NOT_OWNED`, `NOT_ENOUGH`, `LOCKED`, `LEVEL_TOO_LOW`, `TRADE_LOCKED`, `NOT_IN_MARKET` (alanda değil), `NO_SPOT` (yerler dolu), `ALREADY_OPEN`, `BUSY`.
+- **Görünüm:** `STALL_STATE` her tezgah için başlık, yer, konum ve **ilk 4 kalemi** (`top`: önce Float'lılar, sonra yığınlar) taşır. Pete 7 tile'dan yakındaki oyuncu `STALL_VIEW` ile tam listeyi alır; Float'lı eşyada `ItemInstance` (Float ve kondisyon dahil) gelir. Uzaksa `STALL_RESULT { action: "view", ok: false, reason: "TOO_FAR" }`, tezgah yoksa `NOT_FOUND`.
+- **Satın alma:** alıcı pete 7 tile'dan yakın olmalı, level 10 ve takas kilidi yok olmalı, kendi tezgahından alamaz (`OWN_STALL`). Sunucu **tek işlemde** eşyayı satıcıdan alıcıya geçirir (ilk kopya deftere işlenir, `source: "trade"`), alıcının Coin'ini düşer, satıcıya fiyat eksi pazar ücretini ekler, satıcıya bildirim gönderir. Pazar ücreti satıştan %5 (yukarı yuvarlanır, 1 Coin'lik satışta yok; Öneri), satıcıdan kesilir. `reason`: `BAD_REQUEST`, `NOT_FOUND` (kalem yok / satıldı), `NOT_ENOUGH` (yığında o kadar yok, ya da Coin yetmez), `TOO_FAR`, `BAG_FULL`, `LEVEL_TOO_LOW`, `TRADE_LOCKED`, `OWN_STALL`, `ERROR`. Başarılıda `STALL_RESULT` ardından güncel `STALL_LIST` gelir.
+- **Süre:** tezgah 24 saat (Öneri) durur. Süre bitince ya da satıcı `STALL_RECALL` deyince kalkar; süre dolunca satıcı o sunucudaysa ona `STALL_RESULT { action: "recall", ok: true, reason: "EXPIRED", returned }` gider. Geri çağırma yalnızca tezgahın olduğu sunucuda yapılır (`OTHER_SERVER`); tezgah yoksa `NOT_OPEN`. Satılmayanlar çantaya döner (çanta dolu olsa da; çanta aşımı serbest, Öneri). Süre dolduğunda satıcı o sunucudaysa hemen, değilse **bir sonraki girişinde** iade edilir; o zamana kadar eşyalar tezgaha ayrılı kalır.
+- **Bildirim:** satıcıya `notifications` ile gider: konu `stall_sold`, kod **103**, `{ defId, count, price, fee, buyer }`.
+- **Henüz yok:** elmasla pano reklamı ve "alım ilanı" (`acik-sorular.md`).
+
+```
+StallEntry     = { defId, tier, count, price }   // tier: yığında ""; price: yığında adet başı
+StallView      = { userId, name, spot, x, y, title, top: StallEntry[], total, expiresInMs }  // total: toplam kalem sayısı
+StallsMsg      = { full, stalls: StallView[], removed: [userId] }  // full: true ise liste tamamdır, client önce temizler
+StallListMsg   = { userId, name, title, items: [{ item: ItemInstance, price }], stacks: [{ defId, count, price }], expiresInMs }
+StallResultMsg = { action, ok, reason?,            // action: open | recall | view | buy
+                   spot?,                          // open
+                   returned?: { items: ItemInstance[], stacks: [{ defId, count }] },  // recall
+                   item?, defId?, count?, paid?, coin?, book? }                       // buy
+```
+
 ## XP ve level
 
 Kurallar: `docs/tasarim/04-xp-level.md`. Sunucu: `rules/xp.ts`. Saklanan değer toplam XP'dir (`player/xp`, herkese açık okunur); level ondan hesaplanır.
@@ -378,8 +412,8 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
 
 - Su bandı (kıyı / orta / derin) dosyada yazılmaz; sunucu her su tile'ının karaya uzaklığından hesaplar (`WATER` config). Haritayı çizen yalnızca suyu işaretler.
 - `spawn`: ilk giriş noktası (meydan). Yürünür bir tile'da olmalı.
-- `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı). Şimdilik sunucu sadece `bank`'ı kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
-- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`) var.
+- `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı), `market` (pet tezgahı alanının merkezi). Şimdilik sunucu `bank` ve `market`'i kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
+- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`, `market`) var.
 - Sonraki adım (Öneri): balık noktaları (`spot`) ve her noktanın havuzu. Havuzlar sunucu verisidir, dosyada sadece noktanın yeri ve id'si durur.
 ## Fiyat ve recipe listesi (Faz 4)
 

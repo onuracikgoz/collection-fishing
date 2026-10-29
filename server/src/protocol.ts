@@ -51,6 +51,13 @@ export const OpCode = {
   TRADE_END: 47,
   ITEM_LOCK: 48,
   ITEM_LOCK_RESULT: 49,
+  STALL_OPEN: 50,
+  STALL_RECALL: 51,
+  STALL_VIEW: 52,
+  STALL_BUY: 53,
+  STALL_LIST: 54,
+  STALL_STATE: 55,
+  STALL_RESULT: 56,
 } as const;
 
 export const ErrorCode = {
@@ -404,6 +411,63 @@ export interface ItemLockResultMsg {
   locked: boolean;
   ok: boolean;
   reason?: string;
+}
+
+/** One line of a stall as shown beside the pet. `tier` is "" for stacks; `price` is per unit for stacks. */
+export interface StallEntry {
+  defId: string;
+  tier: string;
+  count: number;
+  price: number;
+}
+
+export interface StallView {
+  userId: string;
+  name: string;
+  spot: number;
+  x: number;
+  y: number;
+  title: string;
+  /** The first entries: Float items, then stacks. */
+  top: StallEntry[];
+  /** How many entries the stall has in all. */
+  total: number;
+  expiresInMs: number;
+}
+
+/** S → C, op 55: every stall of the server on join (`full`), then changes. */
+export interface StallsMsg {
+  full: boolean;
+  stalls: StallView[];
+  removed: string[];
+}
+
+/** S → C, op 54: the whole list of one stall. */
+export interface StallListMsg {
+  userId: string;
+  name: string;
+  title: string;
+  items: { item: ItemInstance; price: number }[];
+  stacks: { defId: string; count: number; price: number }[];
+  expiresInMs: number;
+}
+
+/** S → C, op 56. */
+export interface StallResultMsg {
+  action: 'open' | 'recall' | 'view' | 'buy';
+  ok: boolean;
+  reason?: string;
+  /** open: the spot given. */
+  spot?: number;
+  /** recall: what came back to the bag. */
+  returned?: { items: ItemInstance[]; stacks: { defId: string; count: number }[] };
+  /** buy: what was bought, what it cost, the balance left, and the book's answer. */
+  item?: ItemInstance;
+  defId?: string;
+  count?: number;
+  paid?: number;
+  coin?: number;
+  book?: FishBookMsg;
 }
 
 export interface FriendStatus {

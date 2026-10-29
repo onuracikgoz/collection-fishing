@@ -1,7 +1,7 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { EMOTES, ENERGY, FRIENDS, ROD, SERVERS, WATER, WORLD, XP } from '../config';
-import { LAKE_MAP } from '../data/lake-map';
+import { EMOTES, ENERGY, FRIENDS, MARKET, ROD, SERVERS, WATER, WORLD, XP } from '../config';
+import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
 import {
   BubbleMsg,
   CorrectionMsg,
@@ -18,6 +18,7 @@ import {
 } from '../protocol';
 import { canSpeak, sanitizeChat } from '../rules/chat';
 import { checkJoin } from '../rules/join';
+import { buildSpots } from '../rules/market';
 import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
 import { levelOf } from '../rules/xp';
 import { canEmote, canWear, parseEmote, parseStatus } from '../rules/emote';
@@ -29,6 +30,7 @@ import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
+import { MarketEnv, MarketState, handleStallOp, initMarket, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
 import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, readXp, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
@@ -97,6 +99,8 @@ export interface WorldState {
   pending: { [sessionId: string]: PendingJoin };
   /** Trade sessions between players of this server. */
   trades: { [tradeId: string]: TradeRec };
+  /** Pet stalls standing in this server. */
+  market: MarketState;
 }
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -156,15 +160,26 @@ function savePositions(nk: nkruntime.Nakama, logger: nkruntime.Logger, players: 
 
 export function worldInit(
   _ctx: nkruntime.Context,
-  _logger: nkruntime.Logger,
-  _nk: nkruntime.Nakama,
+  logger: nkruntime.Logger,
+  nk: nkruntime.Nakama,
   params: { [key: string]: any },
 ): { state: WorldState; tickRate: number; label: string } {
   const serverId = String(params.serverId);
   const def = SERVERS.filter((s) => s.id === serverId)[0];
   const label: WorldLabel = { kind: 'world', serverId };
+  const map = buildCollisionMap(LAKE_MAP);
+  const spots = buildSpots(MARKET_POINT, MARKET, (x, y) => isWalkable(map, x, y));
   return {
-    state: { serverId, serverName: def ? def.name : serverId, map: buildCollisionMap(LAKE_MAP), water: buildWaterMap(LAKE_MAP, WATER), players: {}, pending: {}, trades: {} },
+    state: {
+      serverId,
+      serverName: def ? def.name : serverId,
+      map,
+      water: buildWaterMap(LAKE_MAP, WATER),
+      players: {},
+      pending: {},
+      trades: {},
+      market: initMarket(nk, logger, serverId, spots),
+    },
     tickRate: WORLD.tickRate,
     label: JSON.stringify(label),
   };
@@ -230,6 +245,8 @@ export function worldJoin(
       }
     }
 
+    // A stall that ended while the owner was away comes home before the bag is loaded.
+    if (!old) settleEnded(nk, logger, presence.userId);
     // A reconnect keeps the live energy and bag; a fresh join loads them.
     const energy = old ? old.energy : currentEnergy(nk, presence.userId);
     const bag = old ? old.bag : loadBag(nk, presence.userId);
@@ -263,6 +280,7 @@ export function worldJoin(
     const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned, level: lv.level, xp: lv.xp, xpNext: lv.xpNext };
     if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
+    sendStalls(marketEnv(nk, logger, dispatcher, state), presence);
   }
   return { state };
 }
@@ -431,6 +449,17 @@ function tradeEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nk
   return { nk, logger, dispatcher, fishing: fishingContext(nk, logger, dispatcher, state), players: state.players, trades: state.trades };
 }
 
+function marketEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): MarketEnv {
+  return { nk, logger, dispatcher, serverId: state.serverId, market: state.market, players: state.players };
+}
+
+const STALL_OPS: { [op: number]: true } = {
+  [OpCode.STALL_OPEN]: true,
+  [OpCode.STALL_RECALL]: true,
+  [OpCode.STALL_VIEW]: true,
+  [OpCode.STALL_BUY]: true,
+};
+
 const TRADE_OPS: { [op: number]: true } = {
   [OpCode.TRADE_OFFER]: true,
   [OpCode.TRADE_REPLY]: true,
@@ -459,6 +488,7 @@ export function worldLoop(
   const says: { p: Player; body: unknown }[] = [];
   const fishing = fishingContext(nk, logger, dispatcher, state);
   const trade = tradeEnv(nk, logger, dispatcher, state);
+  const market = marketEnv(nk, logger, dispatcher, state);
 
   for (const m of messages) {
     const p = state.players[m.sender.userId];
@@ -516,6 +546,9 @@ export function worldLoop(
     } else if (TRADE_OPS[m.opCode] && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleTradeOp(trade, p, m.opCode, body, now);
+    } else if (STALL_OPS[m.opCode] && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleStallOp(market, p, m.opCode, body);
     } else if (m.opCode === OpCode.TRADE_CANCEL) {
       handleTradeOp(trade, p, m.opCode, body, now);
     } else if (m.opCode === OpCode.EMOTE_STATUS) {
@@ -523,6 +556,7 @@ export function worldLoop(
     }
   }
   tickTrades(trade, now);
+  tickMarket(market);
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
 
   // Positions are final for this tick; chat and visibility use them.
