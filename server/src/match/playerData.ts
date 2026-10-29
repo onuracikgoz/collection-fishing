@@ -3,17 +3,20 @@
 //   items/<instanceId>  StoredItem          (one record per Float item; inBook = in a book slot, inStash = in the stash)
 //   bag/stacks  { stacks: { defId: count } }
 //   player/rod  { level, durability }
+//   player/status_emote  { emote }         (worn status emote; absent = none)
+//   player/emotes_owned  { ids: [] }       (non-free status emotes owned; written by shop / supporter / book systems)
 //   stash/state  { level, stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
 //   profile/card  ProfileDoc               (public: showcase and "Arıyorum")
 // Coin and dust live in the Nakama wallet: { coin, dust }.
-import { BAG, ENERGY, ROD } from '../config';
+import { BAG, EMOTES, ENERGY, ROD } from '../config';
 import { InventoryResponse, ItemInstance } from '../protocol';
 import { Rod, normalizeRod, rodView } from '../rules/rod';
 import { BookEntries } from '../rules/book';
 import { ProfileDoc } from '../rules/profile';
 import { BagSummary, slotsUsed } from '../rules/bag';
 import { regenOffline } from '../rules/energy';
+import { canWear, normalizeOwned } from '../rules/emote';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
@@ -155,6 +158,32 @@ export function readRod(nk: nkruntime.Nakama, userId: string): Rod {
 
 export function rodWrite(userId: string, rod: Rod): nkruntime.StorageWriteRequest {
   return { collection: 'player', key: 'rod', userId, value: { level: rod.level, durability: rod.durability }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
+}
+
+export interface EmoteData {
+  /** Status emote worn, if still allowed. */
+  status?: string;
+  /** Non-free status emotes owned. */
+  owned: string[];
+}
+
+/** Loads the worn status emote and owned list; a worn emote the player no longer owns is dropped. */
+export function readEmotes(nk: nkruntime.Nakama, userId: string): EmoteData {
+  const objs = nk.storageRead([
+    { collection: 'player', key: 'emotes_owned', userId },
+    { collection: 'player', key: 'status_emote', userId },
+  ]);
+  let owned: string[] = [];
+  let worn: unknown;
+  for (const o of objs) {
+    if (o.key === 'emotes_owned') owned = normalizeOwned(o.value, EMOTES);
+    else worn = (o.value as { emote?: unknown }).emote;
+  }
+  return { status: typeof worn === 'string' && canWear(worn, owned, EMOTES) ? worn : undefined, owned };
+}
+
+export function statusEmoteWrite(userId: string, emote: string | null): nkruntime.StorageWriteRequest {
+  return { collection: 'player', key: 'status_emote', userId, value: { emote }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
 }
 
 export interface StashState {

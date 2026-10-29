@@ -67,12 +67,12 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 |---|---|---|---|---|
 | 1 | C → S | `MOVE` | `{ seq, x, y, dir, moving }` | 1 |
 | 2 | S → C | `SNAPSHOT` | `{ t, players: [{ id, x, y, dir, moving }] }` (yakındakilerden bu tick'te değişenler, oyuncunun kendisi hariç) | 1 |
-| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber? }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`) | 1 |
+| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber?, status? }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`; durum emote'u takılıysa `status`) | 1 |
 | 4 | S → C | `PLAYER_LEAVE` | `{ id }` (görüş alanından çıktı veya ayrıldı) | 1 |
 | 5 | C → S | `SAY` | `{ text }` | 1 |
 | 6 | S → C | `BUBBLE` | `{ id, text }` (konuşanın kendisi de alır) | 1 |
 | 7 | S → C | `CORRECTION` | `{ seq, x, y }` (sunucu konumu düzeltti) | 1 |
-| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod }` (katılım sonrası ilk mesaj; `rod` Faz 4) | 1 |
+| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod, status?, emotesOwned }` (katılım sonrası ilk mesaj; `rod` Faz 4; `status` ve `emotesOwned` durum emote'u) | 1 |
 
 ### Hareket kuralları
 
@@ -167,11 +167,20 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 | 19 | S → C | `TELEPORT` | `{ x, y, reason? }` (sadece ışınlanan oyuncu; `reason` varsa ışınlanma olmadı, `x, y` mevcut yer) |
 | 20 | C → S | `EMOTE` | `{ emote }` |
 | 21 | S → C | `EMOTE_SHOW` | `{ id, emote, defId? }` (oyuncunun kendisi ve onu görenler) |
+| 36 | C → S | `EMOTE_STATUS` | `{ emote }` (`emote`: durum emote kimliği, `null` = kaldır) |
+| 37 | S → C | `EMOTE_STATUS_SHOW` | `{ id, emote, reason? }` (oyuncunun kendisi ve onu görenler) |
 
 - **Arkadaşlık:** istek gönderme, kabul, silme ve engelleme Nakama'nın kendi arkadaş API'siyle yapılır (`addFriends`, `listFriends`, `deleteFriends`, `blockFriends`). İki taraf da eklediğinde arkadaşlık karşılıklı olur (Nakama durum 0). Sunucunun saydığı arkadaş sadece karşılıklı olandır.
 - **friends_status:** her arkadaş için çevrimiçi mi, hangi sunucuda (`serverName`, `matchId`) ve haritada nerede (`x, y`).
 - **Yanına git:** arkadaş aynı sunucudaysa `GOTO_FRIEND`; sunucu arkadaşın yanındaki boş bir tile'a koyar, balık tutuyorsa olta toplanır (`FISH_END cancelled`), client karakteri `TELEPORT` konumuna atar. Arkadaş başka sunucudaysa client o sunucunun maçına katılım metadata'sında `near: userId` ile girer, `WELCOME` arkadaşın yanındaki yeri verir. `reason`: `NOT_FRIEND`, `NOT_HERE` (arkadaş bu sunucuda değil), `NO_SPOT`, `RATE_LIMITED` (3 sn'de bir, Öneri).
-- **Emote:** `wave`, `clap`, `dance`, `sit`, `laugh`, `show_fish`. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
+- **Emote (hareket):** `wave`, `clap`, `dance`, `cheer`, `sit`, `laugh`, `show_fish`. Kısa animasyondur, bitince kaybolur. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
+- **Durum emote'u** (`10-sosyal.md` 13.2.2): oyuncunun üstünde **kalıcı** balon. Aynı anda bir tane.
+  - `EMOTE_STATUS { emote }`: `emote` bir durum emote kimliği ya da `null` (kaldır; Unity `JsonUtility` boş string gönderir, o da kaldır sayılır). Listede olmayan kimlik yok sayılır (hareket emote'larından ayrı liste; `laugh` gibi aynı ad iki listede olabilir, op koduyla ayrılır).
+  - Sunucu sahipliği doğrular: `free` herkese açık; `supporter`, `diamond` ve `book` emote'ları ancak oyuncunun sahip olduğu listedeyse takılır. Sahiplik başka sistemlerden gelir (destekçi paketi, elmas satın alma, defter ödülü) ve sunucu verisidir; client yazamaz.
+  - Başarılıysa `EMOTE_STATUS_SHOW { id, emote }` oyuncuya ve onu görenlere gider. Reddedilirse sadece oyuncuya `{ id, emote: <şu an takılı olan ya da null>, reason }` gider (client eski halini geri koyar). `reason`: `NOT_OWNED`, `RATE_LIMITED` (1 sn'de bir, Öneri). Bilinmeyen kimlik ve bozuk gövde sessizce yok sayılır.
+  - Durum **kalıcıdır**: oyundan çıkıp girince geri gelir (`player/status_emote`). Girişte sahipliği kalmamışsa kaldırılır.
+  - Yeni gelen oyuncular için `PLAYER_ENTER` içinde `status?` vardır; kendi durumu ve sahip olduğu emote'lar `WELCOME` içinde: `status?`, `emotesOwned` (sadece ücretsiz olmayanlar).
+  - Durum emote'u görünümdür; drop, Float ve ekonomiyi etkilemez, metin taşımadığı için sohbet filtresi gerekmez.
 
 ## Ekonomi: Coin, NPC satış, toz (Faz 4)
 

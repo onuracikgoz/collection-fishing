@@ -7,6 +7,7 @@ const OP = {
   CAST: 9, BOBBER: 10, HOOK: 11, REEL_START: 12, REEL_DONE: 13, FISH_END: 14, CANCEL: 15, BOOK_PLACE: 16, BOOK_RESULT: 17,
   GOTO_FRIEND: 18, TELEPORT: 19, EMOTE: 20, EMOTE_SHOW: 21, SELL: 22, SALVAGE: 23, ECONOMY_RESULT: 24, MERGE: 25, CRAFT: 26, CRAFT_RESULT: 27,
   REPAIR_ROD: 28, BUY_BAIT: 29, SHOP_RESULT: 30, STASH_OPEN: 31, STASH_PUT: 32, STASH_TAKE: 33, STASH_EXPAND: 34, STASH_RESULT: 35,
+  EMOTE_STATUS: 36, EMOTE_STATUS_SHOW: 37,
 };
 const client = new Client('defaultkey', process.env.NAKAMA_HOST || '127.0.0.1', '7350', false);
 const run = Date.now().toString(36);
@@ -464,6 +465,23 @@ c.send(OP.EMOTE, { emote: 'kiss' });
 await sleep(400);
 const em = b.take(OP.EMOTE_SHOW);
 check(em.length === 1 && em[0].id === c.session.user_id && em[0].emote === 'show_fish' && em[0].defId, 'nearby friend sees show_fish with the last catch, bad emote dropped');
+// Status emote: free ones stick, owned-only ones are refused, remove works.
+b.clear();
+c.clear();
+c.send(OP.EMOTE_STATUS, { emote: 'heart' });
+await sleep(400);
+const st1 = b.take(OP.EMOTE_STATUS_SHOW);
+check(st1.length === 1 && st1[0].id === c.session.user_id && st1[0].emote === 'heart' && !st1[0].reason, 'nearby friend sees the status emote');
+check(c.take(OP.EMOTE_STATUS_SHOW)[0]?.emote === 'heart', 'the wearer gets it too');
+await sleep(1100);
+c.send(OP.EMOTE_STATUS, { emote: 'star' });
+await sleep(400);
+const st2 = c.take(OP.EMOTE_STATUS_SHOW)[0];
+check(st2?.reason === 'NOT_OWNED' && st2.emote === 'heart' && b.take(OP.EMOTE_STATUS_SHOW).length === 0, 'an emote that is not owned is refused and only the sender hears');
+await sleep(1100);
+c.send(OP.EMOTE_STATUS, { emote: null });
+await sleep(400);
+check(b.take(OP.EMOTE_STATUS_SHOW)[0]?.emote === null, 'removing the status emote is broadcast');
 // "Yanına git" from outside: join with { near } and land beside the friend
 await b.socket.leaveMatch(target.matchId);
 await sleep(300);

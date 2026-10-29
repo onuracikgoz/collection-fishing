@@ -37,6 +37,8 @@ export const OpCode = {
   STASH_TAKE: 33,
   STASH_EXPAND: 34,
   STASH_RESULT: 35,
+  EMOTE_STATUS: 36,
+  EMOTE_STATUS_SHOW: 37,
 } as const;
 
 export const ErrorCode = {
@@ -84,6 +86,8 @@ export interface PlayerEnterMsg extends PlayerView {
   characterId: string;
   /** Present if the player is fishing right now. */
   bobber?: { x: number; y: number; band: Band };
+  /** Persistent status emote, if one is worn. */
+  status?: string;
 }
 
 export interface PlayerLeaveMsg {
@@ -107,6 +111,10 @@ export interface WelcomeMsg {
   energy: number;
   energyMax: number;
   rod: RodView;
+  /** Status emote worn right now. */
+  status?: string;
+  /** Status emotes the player owns beyond the free set. */
+  emotesOwned: string[];
 }
 
 /** The player's rod (Faz 4). */
@@ -289,6 +297,15 @@ export interface EmoteShowMsg {
   emote: string;
   /** show_fish: the last thing this player caught. */
   defId?: string;
+}
+
+/** A persistent status emote changed (or was refused: then only the sender gets it, with the current value). */
+export interface EmoteStatusShowMsg {
+  id: string;
+  /** Emote now worn, or null when none. */
+  emote: string | null;
+  /** Set when the request was refused: NOT_OWNED, RATE_LIMITED. */
+  reason?: string;
 }
 
 export interface FriendStatus {

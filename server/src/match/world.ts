@@ -7,6 +7,7 @@ import {
   CorrectionMsg,
   Dir,
   EmoteShowMsg,
+  EmoteStatusShowMsg,
   OpCode,
   PlayerEnterMsg,
   PlayerLeaveMsg,
@@ -18,7 +19,7 @@ import {
 import { canSpeak, sanitizeChat } from '../rules/chat';
 import { checkJoin } from '../rules/join';
 import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
-import { canEmote, parseEmote } from '../rules/emote';
+import { canEmote, canWear, parseEmote, parseStatus } from '../rules/emote';
 import { areFriends } from './friends';
 import { applyMove, MoveState, newMoveState, parseMove } from '../rules/movement';
 import { SpatialGrid, updateVisibility } from '../rules/proximity';
@@ -26,7 +27,7 @@ import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
-import { currentEnergy, energyWrite, loadBag, readBook, readRod } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
@@ -62,6 +63,11 @@ interface Player {
   /** Last thing caught, for the show_fish emote. */
   lastCatch?: string;
   lastEmoteAt?: number;
+  /** Status emote worn above the head; kept in storage. */
+  status?: string;
+  /** Non-free status emotes this player owns. */
+  emotesOwned: string[];
+  lastStatusAt?: number;
   lastTeleportAt?: number;
 }
 
@@ -219,6 +225,7 @@ export function worldJoin(
     const bag = old ? old.bag : loadBag(nk, presence.userId);
     const book = old ? old.book : readBook(nk, presence.userId);
     const rod = old ? old.rod : readRod(nk, presence.userId);
+    const emotes = old ? { status: old.status, owned: old.emotesOwned } : readEmotes(nk, presence.userId);
     if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
 
     state.players[presence.userId] = {
@@ -234,9 +241,12 @@ export function worldJoin(
       bag,
       book,
       rod,
+      status: emotes.status,
+      emotesOwned: emotes.owned,
       stash: old ? old.stash : undefined,
     };
-    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD) };
+    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned };
+    if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
   }
   return { state };
@@ -369,6 +379,37 @@ function handleEmote(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p
   send(dispatcher, OpCode.EMOTE_SHOW, msg, to);
 }
 
+/** EMOTE_STATUS: wear or remove the persistent emote above the head. */
+function handleEmoteStatus(
+  nk: nkruntime.Nakama,
+  logger: nkruntime.Logger,
+  dispatcher: nkruntime.MatchDispatcher,
+  state: WorldState,
+  p: Player,
+  body: unknown,
+  now: number,
+): void {
+  const req = parseStatus(body, EMOTES);
+  if (!req) return;
+  const refuse = (reason: string) => {
+    const msg: EmoteStatusShowMsg = { id: p.presence.userId, emote: p.status === undefined ? null : p.status, reason };
+    send(dispatcher, OpCode.EMOTE_STATUS_SHOW, msg, [p.presence]);
+  };
+  if (p.lastStatusAt !== undefined && now - p.lastStatusAt < EMOTES.statusCooldownMs) return refuse('RATE_LIMITED');
+  if (req.emote !== null && !canWear(req.emote, p.emotesOwned, EMOTES)) return refuse('NOT_OWNED');
+  p.lastStatusAt = now;
+  p.status = req.emote === null ? undefined : req.emote;
+  try {
+    nk.storageWrite([statusEmoteWrite(p.presence.userId, req.emote)]);
+  } catch (e) {
+    logger.error('Saving status emote failed: %s', String(e));
+  }
+  const msg: EmoteStatusShowMsg = { id: p.presence.userId, emote: req.emote };
+  const to = [p.presence];
+  for (const id in state.players) if (state.players[id].visible[p.presence.userId]) to.push(state.players[id].presence);
+  send(dispatcher, OpCode.EMOTE_STATUS_SHOW, msg, to);
+}
+
 function buildGrid(state: WorldState): SpatialGrid {
   const points = Object.keys(state.players).map((id) => ({ id, x: state.players[id].move.x, y: state.players[id].move.y }));
   return new SpatialGrid(WORLD.viewLeaveRadius, points);
@@ -434,6 +475,8 @@ export function worldLoop(
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(dispatcher, state, p, body, now);
+    } else if (m.opCode === OpCode.EMOTE_STATUS) {
+      handleEmoteStatus(nk, logger, dispatcher, state, p, body, now);
     }
   }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
@@ -450,6 +493,7 @@ export function worldLoop(
       const o = state.players[otherId];
       const enter: PlayerEnterMsg = { ...view(otherId, o), name: o.name, characterId: o.characterId };
       if (o.fish) enter.bobber = { x: o.fish.x, y: o.fish.y, band: o.fish.band };
+      if (o.status) enter.status = o.status;
       send(dispatcher, OpCode.PLAYER_ENTER, enter, [p.presence]);
     }
     for (const otherId of change.left) {

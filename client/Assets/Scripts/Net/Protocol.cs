@@ -50,6 +50,8 @@ namespace CollectionGame.Net
         public const long StashTake = 33;
         public const long StashExpand = 34;
         public const long StashResult = 35;
+        public const long EmoteStatus = 36;
+        public const long EmoteStatusShow = 37;
     }
 
     public static class ErrorCode
@@ -130,6 +132,8 @@ namespace CollectionGame.Net
         public string characterId;
         /// <summary>Set if the player is fishing. JsonUtility fills absent objects with defaults: check band.</summary>
         public BobberPos bobber;
+        /// <summary>Status emote worn above the head; empty when none.</summary>
+        public string status;
     }
 
     /// <summary>S → C, op 4.</summary>
@@ -181,6 +185,10 @@ namespace CollectionGame.Net
         public int energyMax;
         /// <summary>Faz 4.</summary>
         public RodView rod;
+        /// <summary>Status emote worn right now; empty when none.</summary>
+        public string status;
+        /// <summary>Non-free status emotes this player owns.</summary>
+        public string[] emotesOwned;
     }
 
     // --- Faz 2: fishing (docs/protokol.md, Balık tutma) ---
@@ -455,6 +463,22 @@ namespace CollectionGame.Net
         public string id;
         public string emote;
         public string defId;
+    }
+
+    /// <summary>C → S, op 36. emote empty = remove the status emote (JsonUtility cannot send null).</summary>
+    [Serializable]
+    public class EmoteStatusMsg
+    {
+        public string emote;
+    }
+
+    /// <summary>S → C, op 37. emote empty = none worn. reason set = refused (NOT_OWNED, RATE_LIMITED) and only to us, emote is what we still wear.</summary>
+    [Serializable]
+    public class EmoteStatusShowMsg
+    {
+        public string id;
+        public string emote;
+        public string reason;
     }
 
     [Serializable]

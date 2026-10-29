@@ -131,10 +131,31 @@ export const PROFILE = {
   showcaseMax: 3, // docs/tasarim/10-sosyal.md 13.3
 };
 
-// Emotes (docs/tasarim/10-sosyal.md 13.2.2). show_fish holds up the last catch.
+// Emotes (docs/tasarim/10-sosyal.md 13.2.2). Gestures are short; show_fish holds up the last catch.
+// Status emotes stay above the head until removed. Tier: free for all, supporter /
+// diamond / book need ownership (granted by other systems, never by the client).
 export const EMOTES = {
-  list: ['wave', 'clap', 'dance', 'sit', 'laugh', 'show_fish'],
+  list: ['wave', 'clap', 'dance', 'cheer', 'sit', 'laugh', 'show_fish'],
   cooldownMs: 2000, // (Öneri)
+  statusCooldownMs: 1000, // (Öneri)
+  status: {
+    smile: { tier: 'free' },
+    laugh: { tier: 'free' },
+    zzz: { tier: 'free' },
+    fish: { tier: 'free' },
+    ask: { tier: 'free' },
+    heart: { tier: 'free' },
+    note: { tier: 'free' },
+    coffee: { tier: 'free' },
+    star: { tier: 'supporter' },
+    cool: { tier: 'supporter' },
+    crown: { tier: 'supporter' },
+    sparkle: { tier: 'supporter' },
+    fire: { tier: 'diamond', gems: 50 }, // (Öneri)
+    rain: { tier: 'diamond', gems: 50 },
+    comet: { tier: 'diamond', gems: 50 },
+    goldfish: { tier: 'book' },
+  } as { [id: string]: { tier: 'free' | 'supporter' | 'diamond' | 'book'; gems?: number } },
 };
 
 // Friends: "Yanına git" (10-sosyal.md 13.2.1).
