@@ -50,7 +50,7 @@ Knight Online pazarı gibi gezilen bir pazar, ama satıcı başında beklemez: *
 - İlan **yalnızca tezgah açıkken** durur; tezgah kalkınca ilan da kalkar.
 - Panodaki ilana tıklayan alıcı **satıcının petinin yanına ışınlanır** (aynı sunucuda; "Yanına git" kuralları, `10-sosyal.md` 13.2.1).
 - Pano arama ve fiyat sıralaması yapmaz; ilanlar sırayla döner.
-- **Alım ilanı** ("Mavi Kristal arıyorum, 500 Coin'e kadar") panoda kalsın mı: açık soru.
+- **Alım ilanı yok** (karar 29.10.2026, Onur). Panoda sadece tezgah reklamı olur; arayan kişi "Arıyorum" etiketini (`10-sosyal.md` 13.4) ve fısıltıyı kullanır.
 
 Dış sitelerde gerçek parayla satılan eşyalar pet tezgahından değil **takas penceresinden** teslim edilir. Tezgah yalnızca Coin ile çalışır.
 
