@@ -4,6 +4,8 @@ using System.Linq;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
+using UnityEngine.UI;
 using CollectionGame.World;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -23,9 +25,9 @@ namespace CollectionGame.Economy
     /// </summary>
     public sealed class EconomyController
     {
-        public enum Tab { Sell, Merge, Craft, Shop, Stash }
+        /// <summary>Sell, Salvage, Shop: Balıkçı Tüccar. Merge, Craft: Zanaatkar. Stash: Banka.</summary>
+        public enum Tab { Sell, Merge, Craft, Shop, Stash, Salvage }
 
-        static readonly string[] TabNames = { "Sat / Parçala", "Birleştir", "Craft", "Dükkan", "Depo" };
         const float ReplyTimeout = 3f;
         const float NoteSeconds = 4f;
 
@@ -65,10 +67,6 @@ namespace CollectionGame.Economy
 
         float pendingSince = -1f;
         bool loadingCatalog;
-        string note;
-        bool noteBad;
-        float noteUntil;
-        Vector2 scroll, scroll2;
 
         public EconomyController(Connection net, FishingController fishing, Func<Vector2?> myPosition)
         {
@@ -76,6 +74,7 @@ namespace CollectionGame.Economy
             this.fishing = fishing;
             this.myPosition = myPosition;
             fishing.BagChanged += PruneSelections;
+            fishing.BagChanged += () => dirty = true;
         }
 
         /// <summary>Waiting for the server's answer to the last action: buttons stay off.</summary>
@@ -87,10 +86,16 @@ namespace CollectionGame.Economy
         {
             var k = Keyboard.current;
             if (typing || k == null) return;
+            // E: the bank when standing at it, else the merchant. C: the crafter.
             if (k.eKey.wasPressedThisFrame)
             {
-                if (Open) Close();
-                else Show(Current);
+                if (Open && Current != Tab.Merge && Current != Tab.Craft) Close();
+                else Show(NearBank ? Tab.Stash : Tab.Sell);
+            }
+            if (k.cKey.wasPressedThisFrame)
+            {
+                if (Open && (Current == Tab.Merge || Current == Tab.Craft)) Close();
+                else Show(Tab.Craft);
             }
         }
 
@@ -104,6 +109,7 @@ namespace CollectionGame.Economy
         {
             Open = true;
             Current = tab;
+            dirty = true;
             if (Prices == null) LoadCatalog();
             fishing.RefreshBag();
         }
@@ -144,6 +150,7 @@ namespace CollectionGame.Economy
         public void OnEconomyResult(EconomyResultMsg r)
         {
             pendingSince = -1f;
+            dirty = true;
             Debug.Log($"[Economy] ECONOMY_RESULT {r.action} ok {r.ok} {r.reason} gained {r.gained} coin {r.coin} dust {r.dust}");
             SetBalances(r.coin, r.dust);
             if (!r.ok)
@@ -160,6 +167,7 @@ namespace CollectionGame.Economy
         public void OnCraftResult(CraftResultMsg r)
         {
             pendingSince = -1f;
+            dirty = true;
             Debug.Log($"[Economy] CRAFT_RESULT {r.action} ok {r.ok} {r.reason} dust {r.dust}");
             if (fishing.Bag != null) fishing.Bag.dust = r.dust;
             if (!r.ok)
@@ -188,6 +196,7 @@ namespace CollectionGame.Economy
         public void OnShopResult(ShopResultMsg r)
         {
             pendingSince = -1f;
+            dirty = true;
             Debug.Log($"[Economy] SHOP_RESULT {r.action} ok {r.ok} {r.reason} spent {r.spent} coin {r.coin}");
             if (fishing.Bag != null) fishing.Bag.coin = r.coin;
             if (!r.ok)
@@ -211,6 +220,7 @@ namespace CollectionGame.Economy
         public void OnStashResult(StashResultMsg r)
         {
             pendingSince = -1f;
+            dirty = true;
             Debug.Log($"[Economy] STASH_RESULT {r.action} ok {r.ok} {r.reason}");
             if (!r.ok)
             {
@@ -308,12 +318,7 @@ namespace CollectionGame.Economy
             }
         }
 
-        void ShowNote(string text, bool bad)
-        {
-            note = text;
-            noteBad = bad;
-            noteUntil = Time.time + NoteSeconds;
-        }
+        void ShowNote(string text, bool bad) => Toasts.Show(text, bad);
 
         // ---------- map ----------
 
@@ -338,147 +343,607 @@ namespace CollectionGame.Economy
             return Vector2.Distance(me.Value, new Vector2(bank.x, bank.y));
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: Merchant, Crafter, Bank after npc-sat/parcala, npc-craft/birlestir, npc-depo) ----------
 
-        public void DrawGui()
+        static readonly Color Ink = new Color32(0x45, 0x29, 0x3f, 255);
+        static readonly Color Paper = new Color32(0xf2, 0xe8, 0xd0, 255);
+        static readonly Color Good = new Color32(0x1e, 0x6f, 0x50, 255);
+        static readonly Color Bad = new Color32(0xe8, 0x3b, 0x3b, 255);
+        static readonly Color Gold = new Color32(0xf9, 0xc2, 0x2b, 255);
+        static readonly Color DustBlue = new Color32(0x8f, 0xd3, 0xff, 255);
+
+        MerchantView merchant;
+        CrafterView crafter;
+        BankView bank;
+        bool dirty = true;
+        readonly List<SlotView> merchantSlots = new List<SlotView>(), mergeSlots = new List<SlotView>(), stashSlots = new List<SlotView>(), bankBagSlots = new List<SlotView>();
+        /// <summary>Opens the quest window (Görevler tab of the merchant).</summary>
+        public Action OpenQuests { get; set; }
+        public PopupView Popup { get; set; }
+
+        bool MerchantTab => Current == Tab.Sell || Current == Tab.Salvage || Current == Tab.Shop;
+        bool CrafterTab => Current == Tab.Merge || Current == Tab.Craft;
+        bool NearBank
         {
-            if (note != null && Time.time < noteUntil)
+            get
             {
-                var size = Gui.Toast.CalcSize(new GUIContent(note)) + new Vector2(24f, 12f);
-                GUI.Box(new Rect((Gui.Width - size.x) / 2f, Gui.Height - Gui.CanvasToGui(230), size.x, size.y), note, Gui.Toast);
+                var bankPoint = Prices?.Catalog.stash;
+                var d = BankDistance();
+                return bankPoint != null && d.HasValue && d.Value <= bankPoint.range;
             }
-            if (!Open) return;
+        }
 
-            var r = new Rect(20, 100, Mathf.Min(640, Gui.Width - 40), Mathf.Min(500, Gui.Height - 170));
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Gui.Window);
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"Coin {Coin} · Toz {Dust}", Gui.Header);
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Kapat (E)", Gui.Button, GUILayout.Width(100))) Close();
-            GUILayout.EndHorizontal();
+        public void Destroy()
+        {
+            if (merchant != null) UnityEngine.Object.Destroy(merchant.gameObject);
+            if (crafter != null) UnityEngine.Object.Destroy(crafter.gameObject);
+            if (bank != null) UnityEngine.Object.Destroy(bank.gameObject);
+        }
 
-            var next = (Tab)GUILayout.Toolbar((int)Current, TabNames, Gui.Button);
-            if (next != Current)
+        /// <summary>Old IMGUI hook: nothing left to draw (notes are toasts now).</summary>
+        public void DrawGui() { }
+
+        bool Ensure()
+        {
+            var ui = UiRoot.Get();
+            if (merchant == null && (merchant = ui.Spawn<MerchantView>("Merchant")) != null) WireMerchant(merchant);
+            if (crafter == null && (crafter = ui.Spawn<CrafterView>("Crafter")) != null) WireCrafter(crafter);
+            if (bank == null && (bank = ui.Spawn<BankView>("Bank")) != null) WireBank(bank);
+            return merchant != null && crafter != null && bank != null;
+        }
+
+        public void Tick()
+        {
+            if (!Ensure()) return;
+            if (Open && Current == Tab.Stash && !NearBank && Prices != null)
             {
-                Current = next;
-                confirmArmed = false;
-                scroll = scroll2 = Vector2.zero;
+                // Walked away from the bank.
+                Stash = null;
+                stashRequested = false;
+                Close();
             }
-            GUILayout.Space(6);
+            Follow(merchant.window, Open && MerchantTab);
+            Follow(crafter.window, Open && CrafterTab);
+            Follow(bank.window, Open && Current == Tab.Stash);
+            if (!Open || UiRoot.Typing || !dirty) return;
+            dirty = false;
+            if (Prices == null || fishing.Bag == null) return;
+            if (MerchantTab) RedrawMerchant();
+            else if (CrafterTab) RedrawCrafter();
+            else RedrawBank();
+        }
 
-            if (Prices == null || fishing.Bag == null)
-            {
-                GUILayout.Label(loadingCatalog || fishing.Bag == null ? "Yükleniyor..." : "Fiyat listesi yok", Gui.Hud);
-                if (!loadingCatalog && Prices == null && GUILayout.Button("Tekrar dene", Gui.Button, GUILayout.Width(120))) LoadCatalog();
-                GUILayout.EndArea();
-                return;
-            }
+        void Follow(WindowView w, bool open)
+        {
+            if (w.Open == open) return;
+            w.Open = open;
+            dirty = true;
+        }
 
-            var wasEnabled = GUI.enabled;
-            switch (Current)
-            {
-                case Tab.Sell: DrawSell(); break;
-                case Tab.Merge: DrawMerge(); break;
-                case Tab.Craft: DrawCraft(); break;
-                case Tab.Shop: DrawShop(); break;
-                case Tab.Stash: DrawStash(); break;
-            }
-            GUI.enabled = wasEnabled;
-            GUILayout.EndArea();
+        void Select(Tab tab)
+        {
+            Current = tab;
+            confirmArmed = false;
+            dirty = true;
         }
 
         ItemInstance[] BagItems => fishing.Bag?.items ?? Array.Empty<ItemInstance>();
         ItemStack[] BagStacks => fishing.Bag?.stacks ?? Array.Empty<ItemStack>();
 
-        string ItemLine(ItemInstance it) =>
-            $"{FishingController.ItemName(it.defId)} · {it.tier} · {Prices.ConditionName(Prices.ConditionOf(it.@float))} · Float {it.@float:0.0000}";
-
-        /// <summary>A "- n +  Hepsi" picker; returns the new value in [0, max].</summary>
-        static int CountPicker(int value, int max)
+        void Tip(SlotView s)
         {
-            if (GUILayout.Button("-", Gui.Button, GUILayout.Width(26))) value--;
-            GUILayout.Label(value.ToString(), Gui.Hud, GUILayout.Width(30));
-            if (GUILayout.Button("+", Gui.Button, GUILayout.Width(26))) value++;
-            if (GUILayout.Button("Hepsi", Gui.Button, GUILayout.Width(60))) value = max;
-            return Mathf.Clamp(value, 0, max);
+            if (Popup == null || s.Data == null) return;
+            switch (s.Data)
+            {
+                case ItemInstance it:
+                    var cond = Prices.ConditionName(Prices.ConditionOf(it.@float));
+                    var price = Current == Tab.Salvage ? $"Toz {Prices.DustOf(it)}, Float etkilemez" : $"Fiyat {Prices.SellPrice(it)} Coin";
+                    Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)} · {it.tier}</b>\n<color=#f9c22b>Float {it.@float:0.0000} · {cond}</color>\n{price}{(it.locked ? "\nKilitli" : "")}");
+                    break;
+                case ItemStack st:
+                    Popup.ShowTooltip($"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet");
+                    break;
+            }
         }
 
-        // ----- Sat / Parçala -----
-
-        void DrawSell()
+        /// <summary>Fills a grid with entries (ItemInstance / ItemStack), at least min cells, a row of cols at a time.</summary>
+        void FillGrid(SlotGrid grid, List<SlotView> cells, List<object> entries, int min, int cols, Action<SlotView> click, Func<object, bool> selected = null)
         {
-            GUILayout.Label("Satış Coin verir, parçalamak toz. Float sadece satış fiyatını etkiler. Defterdeki ve depodaki eşyalar burada görünmez.", Gui.Faint);
-            scroll = GUILayout.BeginScrollView(scroll);
-            foreach (var it in BagItems.OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId).ThenByDescending(i => i.@float))
+            var count = Mathf.CeilToInt(Mathf.Max(min, entries.Count) / (float)cols) * cols;
+            while (cells.Count < count)
             {
-                GUILayout.BeginHorizontal(GUI.skin.box);
-                var on = sellItems.Contains(it.instanceId);
-                var now = GUILayout.Toggle(on, ItemLine(it), GUILayout.ExpandWidth(true));
-                if (now != on)
-                {
-                    if (now) sellItems.Add(it.instanceId);
-                    else sellItems.Remove(it.instanceId);
-                    confirmArmed = false;
-                }
-                GUILayout.Label($"{Prices.SellPrice(it)} Coin / {Prices.DustOf(it)} toz", Gui.Faint, GUILayout.Width(140));
-                GUILayout.EndHorizontal();
+                var s = UnityEngine.Object.Instantiate(grid.template, grid.content, false);
+                s.gameObject.SetActive(true);
+                s.Hovered = Tip;
+                s.Left = _ => Popup?.HideTooltip();
+                cells.Add(s);
             }
-            foreach (var st in BagStacks)
+            for (var i = 0; i < cells.Count; i++)
             {
-                var sell = Prices.SellPrice(st.defId);
-                var dust = Prices.DustOf(st.defId);
-                GUILayout.BeginHorizontal(GUI.skin.box);
-                GUILayout.Label($"{FishingController.ItemName(st.defId)} x {st.count}", Gui.Hud, GUILayout.Width(190));
-                GUILayout.Label(sell == 0 && dust == 0 ? "satılmaz" : $"{(sell > 0 ? $"{sell} Coin" : "satılmaz")} / {(dust > 0 ? $"{dust} toz" : "parçalanmaz")} (adet)", Gui.Faint, GUILayout.Width(190));
-                GUILayout.FlexibleSpace();
-                if (sell > 0 || dust > 0)
-                {
-                    sellStacks.TryGetValue(st.defId, out var n);
-                    var m = CountPicker(n, st.count);
-                    if (m != n) confirmArmed = false;
-                    if (m > 0) sellStacks[st.defId] = m;
-                    else sellStacks.Remove(st.defId);
-                }
-                GUILayout.EndHorizontal();
+                var s = cells[i];
+                s.gameObject.SetActive(i < count);
+                s.Clicked = click;
+                var e = i < entries.Count ? entries[i] : null;
+                var on = e != null && selected != null && selected(e);
+                if (e is ItemInstance it) s.SetItem(it.defId, it.tier, 1, it.locked, on);
+                else if (e is ItemStack st) s.SetItem(st.defId, "", st.count, false, on);
+                else s.SetEmpty();
+                s.Data = e;
             }
-            if (BagItems.Length == 0 && BagStacks.Length == 0) GUILayout.Label("Çanta boş", Gui.Faint);
-            GUILayout.EndScrollView();
+        }
 
+        static List<object> Entries(IEnumerable<ItemInstance> items, IEnumerable<ItemStack> stacks)
+        {
+            var list = new List<object>();
+            list.AddRange(items.OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId).ThenBy(i => i.@float));
+            list.AddRange(stacks);
+            return list;
+        }
+
+        // ----- Balıkçı Tüccar -----
+
+        void WireMerchant(MerchantView v)
+        {
+            v.window.Closed = Close;
+            v.window.Open = false;
+            Tab[] tabs = { Tab.Sell, Tab.Salvage, Tab.Sell, Tab.Shop };
+            for (var i = 0; i < v.tabs.Length; i++)
+            {
+                var index = i;
+                v.tabs[i].onClick.AddListener(() =>
+                {
+                    if (index == 2)
+                    {
+                        Close();
+                        OpenQuests?.Invoke();
+                        return;
+                    }
+                    Select(tabs[index]);
+                });
+            }
+            for (var i = 0; i < v.lines.Length; i++)
+            {
+                var index = i;
+                v.lines[i].hover.Clicked = () => RemoveLine(index);
+            }
+            v.sellButton.onClick.AddListener(() => SellOrSalvage(OpCode.Sell));
+            v.salvageButton.onClick.AddListener(() => SellOrSalvage(OpCode.Salvage));
+            v.repair.onClick.AddListener(() => Send(OpCode.RepairRod, new EmptyMsg()));
+            for (var i = 0; i < v.baits.Length; i++)
+            {
+                var index = i;
+                var b = v.baits[i];
+                b.minus.onClick.AddListener(() => BaitCount(index, -1));
+                b.plus.onClick.AddListener(() => BaitCount(index, 1));
+                b.buy.onClick.AddListener(() =>
+                {
+                    var bait = Bait(index);
+                    if (bait != null) Send(OpCode.BuyBait, new BuyBaitMsg { defId = bait.defId, count = BuyCount(bait) });
+                });
+                b.use.onClick.AddListener(() =>
+                {
+                    var bait = Bait(index);
+                    if (bait == null) return;
+                    fishing.SelectedBait = fishing.SelectedBait == bait.defId ? null : bait.defId;
+                    dirty = true;
+                });
+            }
+        }
+
+        CatalogBait Bait(int i)
+        {
+            var baits = Prices?.Catalog.baits ?? Array.Empty<CatalogBait>();
+            return i < baits.Length ? baits[i] : null;
+        }
+
+        int BuyCount(CatalogBait b) => buyCounts.TryGetValue(b.defId, out var n) ? n : 5;
+
+        void BaitCount(int i, int step)
+        {
+            var b = Bait(i);
+            if (b == null) return;
+            var max = Prices.Catalog.maxBuy > 0 ? Prices.Catalog.maxBuy : 99;
+            buyCounts[b.defId] = Mathf.Clamp(BuyCount(b) + step, 1, max);
+            dirty = true;
+        }
+
+        /// <summary>The basket in order: items, then stacks.</summary>
+        List<object> Basket()
+        {
+            var list = new List<object>();
+            list.AddRange(BagItems.Where(i => sellItems.Contains(i.instanceId)));
+            list.AddRange(sellStacks.Where(p => p.Value > 0).Select(p => (object)new ItemStack { defId = p.Key, count = p.Value }));
+            return list;
+        }
+
+        void ToggleBasket(SlotView s)
+        {
+            switch (s.Data)
+            {
+                case ItemInstance it when !it.locked:
+                    if (!sellItems.Remove(it.instanceId)) sellItems.Add(it.instanceId);
+                    break;
+                case ItemStack st:
+                    sellStacks.TryGetValue(st.defId, out var n);
+                    sellStacks[st.defId] = n >= st.count ? 0 : st.count; // a click puts the whole stack in, the next takes it out
+                    if (sellStacks[st.defId] == 0) sellStacks.Remove(st.defId);
+                    break;
+                default:
+                    return;
+            }
+            confirmArmed = false;
+            dirty = true;
+        }
+
+        void RemoveLine(int index)
+        {
+            var basket = Basket();
+            if (index >= basket.Count) return;
+            if (basket[index] is ItemInstance it) sellItems.Remove(it.instanceId);
+            else if (basket[index] is ItemStack st) sellStacks.Remove(st.defId);
+            confirmArmed = false;
+            dirty = true;
+        }
+
+        long ValueOf(object e, bool salvage) => e switch
+        {
+            ItemInstance it => salvage ? Prices.DustOf(it) : Prices.SellPrice(it),
+            ItemStack st => (long)(salvage ? Prices.DustOf(st.defId) : Prices.SellPrice(st.defId)) * st.count,
+            _ => 0,
+        };
+
+        void SellOrSalvage(long op)
+        {
             var items = BagItems.Where(i => sellItems.Contains(i.instanceId)).ToList();
             var stacks = sellStacks.Where(p => p.Value > 0).ToList();
-            var coin = items.Sum(i => (long)Prices.SellPrice(i)) + stacks.Sum(p => (long)Prices.SellPrice(p.Key) * p.Value);
-            var dustSum = items.Sum(i => (long)Prices.DustOf(i)) + stacks.Sum(p => (long)Prices.DustOf(p.Key) * p.Value);
-            var lines = items.Count + stacks.Count;
-            var canSell = lines > 0 && stacks.All(p => Prices.SellPrice(p.Key) > 0);
-            var canSalvage = lines > 0 && items.All(i => Prices.DustOf(i) > 0) && stacks.All(p => Prices.DustOf(p.Key) > 0);
-            // Rare and up, or a clean copy, needs a second click: selling is final.
+            if (items.Count + stacks.Count == 0) return;
+            // Rare and up, a clean copy or a recipe needs a second click: selling is final.
             var precious = items.Any(i => Tiers.Rank(i.tier) >= Tiers.Rank(Tiers.Rare) || Prices.ConditionOf(i.@float) == "pristine")
                 || stacks.Any(p => Prices.Stack(p.Key)?.category == "recipe");
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Tüm çöpü seç", Gui.Button, GUILayout.Width(120)))
-                foreach (var st in BagStacks)
-                    if (Prices.Stack(st.defId)?.category == "junk") sellStacks[st.defId] = st.count;
-            if (GUILayout.Button("Temizle", Gui.Button, GUILayout.Width(80)))
+            if (!Act(op, precious))
             {
-                sellItems.Clear();
-                sellStacks.Clear();
-                confirmArmed = false;
+                dirty = true;
+                return;
             }
-            GUILayout.FlexibleSpace();
-            var max = Prices.Catalog.maxEntries > 0 ? Prices.Catalog.maxEntries : 40;
-            if (lines > max) GUILayout.Label($"En fazla {max} satır", Gui.Warn);
-            const string sure = "Emin misin? Tekrar bas";
-            GUI.enabled = !Pending && lines <= max && canSell;
-            if (GUILayout.Button(Armed(OpCode.Sell) ? sure : $"Sat (+{coin} Coin)", Gui.Button, GUILayout.Width(170)) && Act(OpCode.Sell, precious))
-                Send(OpCode.Sell, SellBody(items, stacks));
-            GUI.enabled = !Pending && lines <= max && canSalvage;
-            if (GUILayout.Button(Armed(OpCode.Salvage) ? sure : $"Parçala (+{dustSum} toz)", Gui.Button, GUILayout.Width(170)) && Act(OpCode.Salvage, precious))
-                Send(OpCode.Salvage, SellBody(items, stacks));
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
+            Send(op, SellBody(items, stacks));
+            dirty = true;
         }
+
+        void RedrawMerchant()
+        {
+            var v = merchant;
+            var salvage = Current == Tab.Salvage;
+            var shop = Current == Tab.Shop;
+            var selectedTab = shop ? 3 : salvage ? 1 : 0;
+            for (var i = 0; i < v.tabs.Length; i++)
+            {
+                v.tabs[i].GetComponent<Image>().sprite = i == selectedTab ? v.tabOn : v.tabOff;
+                v.tabTexts[i].color = i == selectedTab ? Paper : Ink;
+            }
+            v.coin.text = Kit.Num(Coin);
+            v.dust.text = Kit.Num(Dust);
+            v.sell.SetActive(!shop);
+            v.shop.SetActive(shop);
+            if (shop)
+            {
+                RedrawShop(v);
+                return;
+            }
+
+            FillGrid(v.bag, merchantSlots, Entries(BagItems, BagStacks), 40, 8, ToggleBasket,
+                e => e is ItemInstance it ? sellItems.Contains(it.instanceId) : e is ItemStack st && sellStacks.ContainsKey(st.defId));
+            var basket = Basket();
+            v.basketTitle.text = $"Sepet · {basket.Count} kalem";
+            for (var i = 0; i < v.lines.Length; i++)
+            {
+                var line = v.lines[i];
+                var e = i < basket.Count ? basket[i] : null;
+                line.root.SetActive(e != null);
+                if (e == null) continue;
+                var value = ValueOf(e, salvage);
+                if (e is ItemInstance it)
+                {
+                    line.icon.SetItem(it.defId, it.tier, 1, false);
+                    line.name.text = $"{FishingController.ItemName(it.defId)}{(salvage ? "" : $" · {Prices.ConditionName(Prices.ConditionOf(it.@float))}")}";
+                }
+                else if (e is ItemStack st)
+                {
+                    line.icon.SetItem(st.defId, "", 1, false);
+                    line.name.text = $"{FishingController.ItemName(st.defId)} × {st.count}";
+                }
+                line.value.text = value > 0 ? Kit.Num(value) : "—";
+                line.valueIcon.color = salvage ? DustBlue : Gold;
+            }
+            v.more.text = basket.Count > v.lines.Length ? $"+{basket.Count - v.lines.Length} kalem daha" : "";
+            var total = basket.Sum(e => ValueOf(e, salvage));
+            v.totalValue.text = Kit.Num(total);
+            v.totalIcon.color = salvage ? DustBlue : Gold;
+            var canAll = basket.Count > 0 && basket.All(e => ValueOf(e, salvage) > 0);
+            var max = Prices.Catalog.maxEntries > 0 ? Prices.Catalog.maxEntries : 40;
+            v.note.text = basket.Count == 0 ? "Çantadan tıkla, sepete ekle. Sepetteki satıra tıkla, çıkar."
+                : basket.Count > max ? $"Bir seferde en fazla {max} kalem"
+                : !canAll ? (salvage ? "Sepette parçalanmayan eşya var" : "Sepette satılmayan eşya var")
+                : salvage ? "Toz takas edilmez, craft için." : "Çöp ve sıradan balık da burada.";
+            v.sellButton.gameObject.SetActive(!salvage);
+            v.salvageButton.gameObject.SetActive(salvage);
+            var enabled = !Pending && canAll && basket.Count <= max;
+            v.sellButton.interactable = v.salvageButton.interactable = enabled;
+            v.sellText.text = Armed(OpCode.Sell) ? "Emin misin? Tekrar bas" : "Sat";
+            v.salvageText.text = Armed(OpCode.Salvage) ? "Emin misin? Tekrar bas" : "Parçala";
+            v.bagHint.text = "tıkla: sepete ekle";
+        }
+
+        void RedrawShop(MerchantView v)
+        {
+            var rod = fishing.Rod;
+            if (rod == null || rod.max <= 0)
+            {
+                v.rodText.text = "Olta bilgisi yok";
+                HudView.Fill(v.rodFill, 0f);
+                v.repair.interactable = false;
+            }
+            else
+            {
+                v.rodText.text = $"Seviye {rod.level} · Dayanıklılık {rod.durability}/{rod.max}{(fishing.RodBroken ? " · KIRIK" : "")}";
+                HudView.Fill(v.rodFill, (float)rod.durability / rod.max);
+                var cost = Prices.RepairCost(rod);
+                v.repair.interactable = !Pending && cost > 0 && Coin > 0;
+                v.repairText.text = cost == 0 ? "Tamire gerek yok" : $"Tamir et ({Kit.Num(Math.Min(cost, Coin))} Coin)";
+            }
+            for (var i = 0; i < v.baits.Length; i++)
+            {
+                var row = v.baits[i];
+                var b = Bait(i);
+                row.root.SetActive(b != null);
+                if (b == null) continue;
+                var n = BuyCount(b);
+                row.icon.SetItem(b.defId, "", fishing.StackCount(b.defId), false);
+                row.name.text = FishingController.ItemName(b.defId);
+                row.info.text = $"{b.price} Coin · çantada {fishing.StackCount(b.defId)}";
+                row.count.text = n.ToString();
+                row.buy.interactable = !Pending && Coin >= (long)n * b.price;
+                row.buyText.text = $"Al ({Kit.Num((long)n * b.price)})";
+                row.use.interactable = fishing.StackCount(b.defId) > 0;
+                row.useText.text = fishing.SelectedBait == b.defId ? "Kullanılıyor" : "Kullan";
+            }
+        }
+
+        // ----- Zanaatkar -----
+
+        void WireCrafter(CrafterView v)
+        {
+            v.window.Closed = Close;
+            v.window.Open = false;
+            v.tabs[0].onClick.AddListener(() => Select(Tab.Craft));
+            v.tabs[1].onClick.AddListener(() => Select(Tab.Merge));
+            for (var i = 0; i < v.recipes.Length; i++)
+            {
+                var index = i;
+                v.recipes[i].button.onClick.AddListener(() =>
+                {
+                    var owned = OwnedRecipes();
+                    if (index >= owned.Count) return;
+                    recipeId = owned[index].id;
+                    craftItems.Clear();
+                    PreselectCraftItems(owned[index]);
+                    dirty = true;
+                });
+            }
+            v.craftButton.onClick.AddListener(() =>
+            {
+                var rec = OwnedRecipes().FirstOrDefault(r => r.id == recipeId);
+                if (rec == null) return;
+                var picked = BagItems.Where(i => craftItems.Contains(i.instanceId)).Select(i => i.instanceId).ToArray();
+                Send(OpCode.Craft, new CraftMsg { recipeId = rec.id, items = picked });
+                dirty = true;
+            });
+            v.mergeButton.onClick.AddListener(() =>
+            {
+                var picked = BagItems.Where(i => mergeItems.Contains(i.instanceId)).Select(i => i.instanceId).ToArray();
+                Send(OpCode.Merge, new MergeMsg { items = picked });
+                dirty = true;
+            });
+        }
+
+        List<CatalogRecipe> OwnedRecipes() => (Prices?.Catalog.recipes ?? Array.Empty<CatalogRecipe>()).Where(r => fishing.StackCount(r.id) > 0).ToList();
+
+        void RedrawCrafter()
+        {
+            var v = crafter;
+            var merge = Current == Tab.Merge;
+            for (var i = 0; i < v.tabs.Length; i++)
+            {
+                var on = i == (merge ? 1 : 0);
+                v.tabs[i].GetComponent<Image>().sprite = on ? v.tabOn : v.tabOff;
+                v.tabTexts[i].color = on ? Paper : Ink;
+            }
+            v.dust.text = Kit.Num(Dust);
+            v.craft.SetActive(!merge);
+            v.merge.SetActive(merge);
+            if (merge) RedrawMerge(v);
+            else RedrawCraft(v);
+        }
+
+        void RedrawCraft(CrafterView v)
+        {
+            var owned = OwnedRecipes();
+            if (recipeId == null && owned.Count > 0)
+            {
+                recipeId = owned[0].id;
+                PreselectCraftItems(owned[0]);
+            }
+            v.noRecipe.gameObject.SetActive(owned.Count == 0);
+            for (var i = 0; i < v.recipes.Length; i++)
+            {
+                var c = v.recipes[i];
+                var rec = i < owned.Count ? owned[i] : null;
+                c.root.SetActive(rec != null);
+                if (rec == null) continue;
+                var on = rec.id == recipeId;
+                c.back.sprite = on ? v.cardOn : v.cardOff;
+                c.name.text = $"{OutputName(rec)} × {fishing.StackCount(rec.id)}";
+                c.name.color = on ? Paper : Ink;
+                c.grade.text = Prices.GradeName(rec.grade);
+                c.grade.color = on ? Gold : Ink;
+            }
+            var recipe = owned.FirstOrDefault(r => r.id == recipeId);
+            v.detail.SetActive(recipe != null);
+            if (recipe == null) return;
+            v.recipeName.text = recipe.output.count > 0 ? $"{OutputName(recipe)} × {recipe.output.count}" : OutputName(recipe);
+            var gradeNote = Prices.GradeNote(recipe.grade);
+            v.recipeSub.text = $"{Prices.GradeName(recipe.grade)} recipe · bir kez harcanır{(gradeNote.Length > 0 ? $" · {gradeNote}" : "")}";
+            var ready = true;
+            var missing = new List<string>();
+            var picked = new List<ItemInstance>();
+            var needs = new List<(string defId, string text, bool ok)>();
+            foreach (var st in recipe.stacks ?? Array.Empty<ItemStack>())
+            {
+                var have = fishing.StackCount(st.defId);
+                var ok = have >= st.count;
+                ready &= ok;
+                if (!ok) missing.Add(FishingController.ItemName(st.defId));
+                needs.Add((st.defId, $"{have} / {st.count}", ok));
+            }
+            foreach (var need in recipe.items ?? Array.Empty<ItemStack>())
+            {
+                var chosen = BagItems.Where(i => i.defId == need.defId && craftItems.Contains(i.instanceId)).ToList();
+                var ok = chosen.Count == need.count;
+                ready &= ok;
+                if (!ok) missing.Add(FishingController.ItemName(need.defId));
+                picked.AddRange(chosen);
+                needs.Add((need.defId, $"{chosen.Count} / {need.count}{(chosen.Count > 0 ? $" · Float {chosen.Max(x => x.@float):0.000}" : "")}", ok));
+            }
+            for (var i = 0; i < v.needs.Length; i++)
+            {
+                var n = v.needs[i];
+                var e = i < needs.Count ? needs[i] : default;
+                n.root.SetActive(i < needs.Count);
+                if (i >= needs.Count) continue;
+                n.icon.SetItem(e.defId, "", 1, false);
+                n.name.text = FishingController.ItemName(e.defId);
+                n.have.text = e.text;
+                n.have.color = e.ok ? Good : Bad;
+            }
+            v.recipeDust.text = $"Toz {recipe.dust}   <color=#7f708a>({Kit.Num(Dust)} var)</color>";
+            v.recipeDust.supportRichText = true;
+            if (Dust < recipe.dust)
+            {
+                ready = false;
+                missing.Add("toz");
+            }
+            if (recipe.output.count == 0)
+            {
+                float? avg = picked.Count > 0 ? picked.Average(i => i.@float) : (float?)null;
+                v.quality.text = Prices.QualityWord(avg);
+                HudView.Fill(v.qualityFill, avg.HasValue ? 1f - Mathf.Clamp01(avg.Value) : 0.5f);
+            }
+            else
+            {
+                v.quality.text = "";
+                HudView.Fill(v.qualityFill, 0f);
+            }
+            v.missing.text = missing.Count > 0 ? $"Eksik: {string.Join(", ", missing)}" : "";
+            v.craftButton.interactable = !Pending && ready;
+            v.craftText.text = "Craft yap";
+        }
+
+        void PickForMerge(SlotView s)
+        {
+            if (!(s.Data is ItemInstance it) || it.locked) return;
+            var need = Prices.Catalog.mergeCount > 0 ? Prices.Catalog.mergeCount : 3;
+            if (mergeDefId != it.defId)
+            {
+                mergeDefId = it.defId;
+                mergeItems.Clear();
+                PreselectMerge(need);
+                if (!mergeItems.Contains(it.instanceId) && mergeItems.Count < need) mergeItems.Add(it.instanceId);
+            }
+            else if (!mergeItems.Remove(it.instanceId) && mergeItems.Count < need) mergeItems.Add(it.instanceId);
+            dirty = true;
+        }
+
+        void RedrawMerge(CrafterView v)
+        {
+            var need = Prices.Catalog.mergeCount > 0 ? Prices.Catalog.mergeCount : 3;
+            FillGrid(v.bag, mergeSlots, Entries(BagItems, Array.Empty<ItemStack>()), 20, 10, PickForMerge, e => e is ItemInstance it && mergeItems.Contains(it.instanceId));
+            var picked = BagItems.Where(i => mergeItems.Contains(i.instanceId)).OrderByDescending(i => i.@float).ToList();
+            for (var i = 0; i < v.inputs.Length; i++)
+            {
+                var it = i < picked.Count ? picked[i] : null;
+                if (it == null) v.inputs[i].SetEmpty();
+                else v.inputs[i].SetItem(it.defId, it.tier, 1, false);
+                v.inputs[i].Data = it;
+                v.inputs[i].Clicked = PickForMerge;
+                v.inputNames[i].text = it != null ? FishingController.ItemName(it.defId) : "";
+                v.inputFloats[i].text = it != null ? $"{it.@float:0.0000}" : "";
+            }
+            v.result.SetEmpty();
+            v.result.label.text = "?";
+            v.resultName.text = mergeDefId != null ? $"yeni {FishingController.ItemName(mergeDefId)}" : "";
+            var tier = picked.FirstOrDefault()?.tier;
+            var cost = tier != null ? Prices.MergeDust(tier) : 0;
+            v.mergeDust.text = tier == null ? "Çantadan aynı eşyanın kopyalarına tıkla"
+                : $"Toz {cost}   <color=#7f708a>({tier} · {Kit.Num(Dust)} var) · Coin ücreti yok</color>";
+            if (picked.Count > 0)
+            {
+                var worst = picked.Max(i => i.@float);
+                v.mergeQuality.text = Prices.ConditionName(Prices.ConditionOf(worst));
+                HudView.Fill(v.mergeFill, 1f - Mathf.Clamp01(worst));
+            }
+            else
+            {
+                v.mergeQuality.text = "";
+                HudView.Fill(v.mergeFill, 0f);
+            }
+            v.mergeButton.interactable = !Pending && picked.Count == need && Dust >= cost;
+            v.mergeNote.text = $"Seçili {picked.Count} / {need} · her birleştirme {need - 1} eşyayı oyundan siler.";
+        }
+
+        // ----- Banka -----
+
+        void WireBank(BankView v)
+        {
+            v.window.Closed = Close;
+            v.window.Open = false;
+            v.expandButton.onClick.AddListener(() => Send(OpCode.StashExpand, new EmptyMsg()));
+        }
+
+        void MoveOne(SlotView s, long op)
+        {
+            if (Pending || s.Data == null) return;
+            var body = s.Data switch
+            {
+                ItemInstance it => new ItemsAndStacksMsg { items = new[] { it.instanceId }, stacks = Array.Empty<ItemStack>() },
+                ItemStack st => new ItemsAndStacksMsg { items = Array.Empty<string>(), stacks = new[] { new ItemStack { defId = st.defId, count = st.count } } },
+                _ => null,
+            };
+            if (body != null) Send(op, body);
+        }
+
+        void RedrawBank()
+        {
+            var v = bank;
+            if (Stash == null)
+            {
+                if (!stashRequested && !Pending)
+                {
+                    stashRequested = true;
+                    Send(OpCode.StashOpen, new EmptyMsg());
+                }
+                v.stashCount.text = "açılıyor...";
+                dirty = true;
+                return;
+            }
+            v.stashCount.text = $"{Stash.slotsUsed} / {Stash.slotsMax} yuva";
+            FillGrid(v.stash, stashSlots, Entries(Stash.items ?? Array.Empty<ItemInstance>(), Stash.stacks ?? Array.Empty<ItemStack>()), Stash.slotsMax, 10, s => MoveOne(s, OpCode.StashTake));
+            FillGrid(v.bag, bankBagSlots, Entries(BagItems, BagStacks), fishing.Bag.slotsMax, 8, s => MoveOne(s, OpCode.StashPut));
+            var tier = Prices.NextStashTier(Stash.level);
+            v.expandSlots.text = tier != null ? $"+{tier.slots - Stash.slotsMax} yuva" : "En büyük depo";
+            v.expandPrice.text = tier != null ? Kit.Num(tier.price) : "";
+            v.expandButton.interactable = !Pending && tier != null && Coin >= tier.price;
+        }
+
+        // ----- shared helpers -----
 
         bool Armed(long op) => confirmArmed && confirmOp == op;
 
@@ -497,288 +962,13 @@ namespace CollectionGame.Economy
             stacks = stacks.Select(p => new ItemStack { defId = p.Key, count = p.Value }).ToArray(),
         };
 
-        // ----- Birleştir -----
-
-        void DrawMerge()
-        {
-            var need = Prices.Catalog.mergeCount > 0 ? Prices.Catalog.mergeCount : 3;
-            GUILayout.Label($"Aynı eşyadan {need} kopya + toz = 1 kopya, yeni Float. Tier değişmez, sonuç en kötü girdiden kötü çıkmaz.", Gui.Faint);
-            var groups = BagItems.GroupBy(i => i.defId).Where(g => g.Count() >= need).OrderBy(g => Tiers.Rank(g.First().tier)).ThenBy(g => g.Key).ToList();
-            if (groups.Count == 0)
-            {
-                GUILayout.Label($"Çantanda {need} kopyası olan eşya yok.", Gui.Hud);
-                return;
-            }
-
-            GUILayout.BeginHorizontal();
-            scroll = GUILayout.BeginScrollView(scroll, GUILayout.Width(210));
-            foreach (var g in groups)
-            {
-                var label = $"{FishingController.ItemName(g.Key)} ({g.First().tier}) x {g.Count()}";
-                if (GUILayout.Toggle(mergeDefId == g.Key, label, Gui.Button) && mergeDefId != g.Key)
-                {
-                    mergeDefId = g.Key;
-                    mergeItems.Clear();
-                    PreselectMerge(need);
-                }
-            }
-            GUILayout.EndScrollView();
-
-            GUILayout.BeginVertical();
-            var group = groups.FirstOrDefault(g => g.Key == mergeDefId);
-            if (group == null) GUILayout.Label("Soldan bir eşya seç.", Gui.Hud);
-            else
-            {
-                scroll2 = GUILayout.BeginScrollView(scroll2);
-                foreach (var it in group.OrderByDescending(i => i.@float))
-                {
-                    var on = mergeItems.Contains(it.instanceId);
-                    var now = GUILayout.Toggle(on, ItemLine(it));
-                    if (now && !on && mergeItems.Count < need) mergeItems.Add(it.instanceId);
-                    else if (!now && on) mergeItems.Remove(it.instanceId);
-                }
-                GUILayout.EndScrollView();
-                var tier = group.First().tier;
-                var cost = Prices.MergeDust(tier);
-                var picked = group.Where(i => mergeItems.Contains(i.instanceId)).ToList();
-                GUILayout.Label($"Seçili {picked.Count}/{need} · Toz {cost} (sende {Dust})", Dust >= cost ? Gui.Hud : Gui.Warn);
-                if (picked.Count > 0)
-                    GUILayout.Label($"Sonuç en kötü: Float {picked.Max(i => i.@float):0.0000}", Gui.Faint);
-                GUI.enabled = !Pending && picked.Count == need && Dust >= cost;
-                if (GUILayout.Button("Birleştir", Gui.Button, GUILayout.Height(30)))
-                    Send(OpCode.Merge, new MergeMsg { items = picked.Select(i => i.instanceId).ToArray() });
-                GUI.enabled = true;
-            }
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-        }
-
-        // ----- Craft -----
-
-        void DrawCraft()
-        {
-            var owned = (Prices.Catalog.recipes ?? Array.Empty<CatalogRecipe>()).Where(r => fishing.StackCount(r.id) > 0).ToList();
-            GUILayout.Label("Recipe tek kullanımlıktır. Recipe balıktan \"şişedeki recipe\" olarak çıkar.", Gui.Faint);
-            if (owned.Count == 0)
-            {
-                GUILayout.Label("Çantanda recipe yok.", Gui.Hud);
-                return;
-            }
-
-            GUILayout.BeginHorizontal();
-            scroll = GUILayout.BeginScrollView(scroll, GUILayout.Width(210));
-            foreach (var rec in owned)
-            {
-                var label = $"{OutputName(rec)} x {fishing.StackCount(rec.id)}";
-                if (GUILayout.Toggle(recipeId == rec.id, label, Gui.Button) && recipeId != rec.id)
-                {
-                    recipeId = rec.id;
-                    craftItems.Clear();
-                    PreselectCraftItems(rec);
-                }
-            }
-            GUILayout.EndScrollView();
-
-            GUILayout.BeginVertical();
-            var recipe = owned.FirstOrDefault(x => x.id == recipeId);
-            if (recipe == null) GUILayout.Label("Soldan bir recipe seç.", Gui.Hud);
-            else DrawRecipe(recipe);
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-        }
-
         static string OutputName(CatalogRecipe r) => FishingController.ItemName(r.output.defId);
 
         void PreselectCraftItems(CatalogRecipe rec)
         {
             foreach (var need in rec.items ?? Array.Empty<ItemStack>())
-                foreach (var it in BagItems.Where(i => i.defId == need.defId).OrderByDescending(i => i.@float).Take(need.count))
+                foreach (var it in BagItems.Where(i => i.defId == need.defId && !i.locked).OrderByDescending(i => i.@float).Take(need.count))
                     craftItems.Add(it.instanceId);
         }
-
-        void DrawRecipe(CatalogRecipe rec)
-        {
-            var output = rec.output.count > 0 ? $"{OutputName(rec)} x {rec.output.count}" : $"{OutputName(rec)} ({rec.output.tier})";
-            GUILayout.Label($"Çıkan: {output}", Gui.Header);
-            var gradeNote = Prices.GradeNote(rec.grade);
-            GUILayout.Label($"Recipe: {Prices.GradeName(rec.grade)}{(gradeNote.Length > 0 ? $" ({gradeNote})" : "")}", Gui.Hud);
-
-            var ready = true;
-            foreach (var st in rec.stacks ?? Array.Empty<ItemStack>())
-            {
-                var have = fishing.StackCount(st.defId);
-                ready &= have >= st.count;
-                GUILayout.Label($"{FishingController.ItemName(st.defId)}: {have}/{st.count}", have >= st.count ? Gui.Good : Gui.Warn);
-            }
-
-            var picked = new List<ItemInstance>();
-            scroll2 = GUILayout.BeginScrollView(scroll2);
-            foreach (var need in rec.items ?? Array.Empty<ItemStack>())
-            {
-                var copies = BagItems.Where(i => i.defId == need.defId).OrderByDescending(i => i.@float).ToList();
-                var chosen = copies.Where(i => craftItems.Contains(i.instanceId)).ToList();
-                ready &= chosen.Count == need.count;
-                GUILayout.Label($"{FishingController.ItemName(need.defId)}: seçili {chosen.Count}/{need.count}", chosen.Count == need.count ? Gui.Good : Gui.Warn);
-                foreach (var it in copies)
-                {
-                    var on = craftItems.Contains(it.instanceId);
-                    var now = GUILayout.Toggle(on, "  " + ItemLine(it));
-                    if (now && !on && chosen.Count < need.count) craftItems.Add(it.instanceId);
-                    else if (!now && on) craftItems.Remove(it.instanceId);
-                }
-                picked.AddRange(chosen);
-            }
-            GUILayout.EndScrollView();
-
-            if (rec.output.count == 0)
-            {
-                float? avg = picked.Count > 0 ? picked.Average(i => i.@float) : (float?)null;
-                GUILayout.Label($"Kalite şansı: {Prices.QualityWord(avg)}", Gui.Hud);
-            }
-            GUILayout.Label($"Toz {rec.dust} (sende {Dust})", Dust >= rec.dust ? Gui.Hud : Gui.Warn);
-            GUI.enabled = !Pending && ready && Dust >= rec.dust;
-            if (GUILayout.Button("Craft", Gui.Button, GUILayout.Height(30)))
-                Send(OpCode.Craft, new CraftMsg { recipeId = rec.id, items = picked.Select(i => i.instanceId).ToArray() });
-            GUI.enabled = true;
-        }
-
-        // ----- Dükkan -----
-
-        void DrawShop()
-        {
-            var rod = fishing.Rod;
-            GUILayout.Label("Olta", Gui.Header);
-            if (rod == null || rod.max <= 0) GUILayout.Label("Olta bilgisi yok", Gui.Faint);
-            else
-            {
-                GUILayout.Label($"Seviye {rod.level} · Dayanıklılık {rod.durability}/{rod.max}{(fishing.RodBroken ? " · KIRIK: sadece çöp çıkar" : "")}", fishing.RodBroken ? Gui.Warn : Gui.Hud);
-                var cost = Prices.RepairCost(rod);
-                GUILayout.BeginHorizontal();
-                if (cost == 0) GUILayout.Label("Tamire gerek yok", Gui.Faint);
-                else
-                {
-                    if (Coin < cost) GUILayout.Label("Coin yettiği kadar tamir edilir", Gui.Faint);
-                    GUILayout.FlexibleSpace();
-                    GUI.enabled = !Pending && Coin > 0;
-                    if (GUILayout.Button($"Tamir et ({Math.Min(cost, Coin)} Coin)", Gui.Button, GUILayout.Width(190)))
-                        Send(OpCode.RepairRod, new EmptyMsg());
-                    GUI.enabled = true;
-                }
-                GUILayout.EndHorizontal();
-            }
-
-            GUILayout.Space(10);
-            GUILayout.Label("Özel yem", Gui.Header);
-            GUILayout.Label("Yem sadece oranları kaydırır, yeni eşya eklemez. Her atış 1 yem harcar. Balık tutarken Y ile seçilir.", Gui.Faint);
-            var maxBuy = Prices.Catalog.maxBuy > 0 ? Prices.Catalog.maxBuy : 99;
-            foreach (var bait in Prices.Catalog.baits ?? Array.Empty<CatalogBait>())
-            {
-                GUILayout.BeginHorizontal(GUI.skin.box);
-                GUILayout.Label($"{FishingController.ItemName(bait.defId)} · {bait.price} Coin · çantada {fishing.StackCount(bait.defId)}", Gui.Hud, GUILayout.Width(250));
-                if (!buyCounts.TryGetValue(bait.defId, out var n)) n = 5;
-                if (GUILayout.Button("-", Gui.Button, GUILayout.Width(26))) n--;
-                GUILayout.Label(n.ToString(), Gui.Hud, GUILayout.Width(26));
-                if (GUILayout.Button("+", Gui.Button, GUILayout.Width(26))) n++;
-                n = Mathf.Clamp(n, 1, maxBuy);
-                buyCounts[bait.defId] = n;
-                GUI.enabled = !Pending && Coin >= (long)n * bait.price;
-                if (GUILayout.Button($"Al ({n * bait.price})", Gui.Button, GUILayout.Width(90)))
-                    Send(OpCode.BuyBait, new BuyBaitMsg { defId = bait.defId, count = n });
-                GUI.enabled = fishing.StackCount(bait.defId) > 0;
-                var using_ = fishing.SelectedBait == bait.defId;
-                if (GUILayout.Button(using_ ? "Kullanılıyor" : "Kullan", Gui.Button, GUILayout.Width(100)))
-                    fishing.SelectedBait = using_ ? null : bait.defId;
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
-            }
-        }
-
-        // ----- Depo -----
-
-        void DrawStash()
-        {
-            var bank = Prices.Catalog.stash;
-            var dist = BankDistance();
-            var near = bank != null && dist.HasValue && dist.Value <= bank.range;
-            if (!near)
-            {
-                Stash = null;
-                stashRequested = false;
-                GUILayout.Label("Depo sadece Banka'da açılır (haritada \"Banka\" yazan yer).", Gui.Hud);
-                if (dist.HasValue) GUILayout.Label($"Banka {dist.Value:0} tile uzakta.", Gui.Faint);
-                return;
-            }
-            if (Stash == null)
-            {
-                if (!stashRequested && !Pending)
-                {
-                    stashRequested = true;
-                    Send(OpCode.StashOpen, new EmptyMsg());
-                }
-                GUILayout.Label("Depo açılıyor...", Gui.Hud);
-                if (!Pending && GUILayout.Button("Tekrar dene", Gui.Button, GUILayout.Width(120))) stashRequested = false;
-                return;
-            }
-
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"Çanta {fishing.Bag.slotsUsed}/{fishing.Bag.slotsMax}", Gui.Header, GUILayout.Width(280));
-            GUILayout.Label($"Depo {Stash.slotsUsed}/{Stash.slotsMax}", Gui.Header);
-            GUILayout.EndHorizontal();
-
-            GUILayout.BeginHorizontal();
-            scroll = GUILayout.BeginScrollView(scroll, GUILayout.Width(290));
-            DrawMoveList(BagItems, BagStacks, putItems, putStacks);
-            GUILayout.EndScrollView();
-            scroll2 = GUILayout.BeginScrollView(scroll2);
-            DrawMoveList(Stash.items ?? Array.Empty<ItemInstance>(), Stash.stacks ?? Array.Empty<ItemStack>(), takeItems, takeStacks);
-            GUILayout.EndScrollView();
-            GUILayout.EndHorizontal();
-
-            var max = bank.maxEntries > 0 ? bank.maxEntries : 40;
-            var putLines = putItems.Count + putStacks.Count(p => p.Value > 0);
-            var takeLines = takeItems.Count + takeStacks.Count(p => p.Value > 0);
-            GUILayout.BeginHorizontal();
-            GUI.enabled = !Pending && putLines > 0 && putLines <= max;
-            if (GUILayout.Button($"Depoya koy ({putLines})", Gui.Button, GUILayout.Width(170)))
-                Send(OpCode.StashPut, MoveBody(putItems, putStacks));
-            GUI.enabled = !Pending && takeLines > 0 && takeLines <= max;
-            if (GUILayout.Button($"Çantaya al ({takeLines})", Gui.Button, GUILayout.Width(170)))
-                Send(OpCode.StashTake, MoveBody(takeItems, takeStacks));
-            GUILayout.FlexibleSpace();
-            var tier = Prices.NextStashTier(Stash.level);
-            GUI.enabled = !Pending && tier != null && Coin >= tier.price;
-            if (GUILayout.Button(tier == null ? "En büyük depo" : $"Genişlet: {tier.slots} kutu ({tier.price} Coin)", Gui.Button, GUILayout.Width(230)))
-                Send(OpCode.StashExpand, new EmptyMsg());
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-        }
-
-        void DrawMoveList(ItemInstance[] items, ItemStack[] stacks, HashSet<string> pickItems, Dictionary<string, int> pickStacks)
-        {
-            foreach (var it in items.OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId))
-            {
-                var on = pickItems.Contains(it.instanceId);
-                var now = GUILayout.Toggle(on, $"{FishingController.ItemName(it.defId)} · {it.tier} · {it.@float:0.000}");
-                if (now) pickItems.Add(it.instanceId);
-                else pickItems.Remove(it.instanceId);
-            }
-            foreach (var st in stacks)
-            {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"{FishingController.ItemName(st.defId)} x {st.count}", Gui.Hud, GUILayout.Width(110));
-                pickStacks.TryGetValue(st.defId, out var n);
-                var m = CountPicker(n, st.count);
-                if (m > 0) pickStacks[st.defId] = m;
-                else pickStacks.Remove(st.defId);
-                GUILayout.EndHorizontal();
-            }
-            if (items.Length == 0 && stacks.Length == 0) GUILayout.Label("Boş", Gui.Faint);
-        }
-
-        static ItemsAndStacksMsg MoveBody(HashSet<string> items, Dictionary<string, int> stacks) => new ItemsAndStacksMsg
-        {
-            items = items.ToArray(),
-            stacks = stacks.Where(p => p.Value > 0).Select(p => new ItemStack { defId = p.Key, count = p.Value }).ToArray(),
-        };
     }
 }

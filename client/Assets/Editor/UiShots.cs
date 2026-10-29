@@ -247,6 +247,139 @@ namespace CollectionGame.EditorTools
                 Row("Selin", "çevrimdışı", false);
                 v.friendsOnly.isOn = true;
             });
+            foreach (var salvage in new[] { false, true })
+            {
+                var sv = salvage;
+                Shot(outDir, sv ? "npc-parcala" : "npc-sat", Path.Combine(drafts, sv ? "npc-parcala.png" : "npc-sat.png"), canvas =>
+                {
+                    FillHud(Spawn<HudView>(canvas, "Hud"));
+                    var v = Spawn<MerchantView>(canvas, "Merchant");
+                    for (var i = 0; i < 4; i++)
+                    {
+                        v.tabs[i].GetComponent<Image>().sprite = i == (sv ? 1 : 0) ? v.tabOn : v.tabOff;
+                        v.tabTexts[i].color = i == (sv ? 1 : 0) ? new Color32(0xf2, 0xe8, 0xd0, 255) : new Color32(0x45, 0x29, 0x3f, 255);
+                    }
+                    v.coin.text = "1.240";
+                    v.dust.text = "85";
+                    v.shop.SetActive(false);
+                    for (var i = 0; i < 40; i++)
+                    {
+                        var s2 = UnityEngine.Object.Instantiate(v.bag.template, v.bag.content, false);
+                        s2.gameObject.SetActive(true);
+                        if (i < 25) s2.SetItem(i % 3 == 0 ? "lake.fish.sazan" : "lake.junk.boot", i % 4 == 0 ? "rare" : "", i % 3 == 1 ? 4 : 1, i == 0, i % 5 == 1);
+                        else s2.SetEmpty();
+                    }
+                    string[] names = { "Sazan × 3", "Alabalık", "Midye · Worn", "Çizme", "Şişe", "Çizme", "Alabalık" };
+                    string[] vals = { "15", "5", "17", "1", "1", "1", "5" };
+                    for (var i = 0; i < v.lines.Length; i++)
+                    {
+                        var on = i < (sv ? 4 : 7);
+                        v.lines[i].root.SetActive(on);
+                        if (!on) continue;
+                        v.lines[i].icon.SetItem("lake.fish.sazan", "", 1, false);
+                        v.lines[i].name.text = names[i];
+                        v.lines[i].value.text = sv ? new[] { "25", "2", "2", "5" }[i] : vals[i];
+                        v.lines[i].valueIcon.color = sv ? new Color32(0x8f, 0xd3, 0xff, 255) : new Color32(0xf9, 0xc2, 0x2b, 255);
+                    }
+                    v.basketTitle.text = sv ? "Sepet · 4 kalem" : "Sepet · 7 kalem";
+                    v.totalValue.text = sv ? "34" : "45";
+                    v.totalIcon.color = sv ? new Color32(0x8f, 0xd3, 0xff, 255) : new Color32(0xf9, 0xc2, 0x2b, 255);
+                    v.note.text = sv ? "Toz takas edilmez, craft için." : "Çöp ve sıradan balık da burada.";
+                    v.sellButton.gameObject.SetActive(!sv);
+                    v.salvageButton.gameObject.SetActive(sv);
+                });
+            }
+            Shot(outDir, "npc-craft", Path.Combine(drafts, "npc-craft.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<CrafterView>(canvas, "Crafter");
+                v.tabs[0].GetComponent<Image>().sprite = v.tabOn;
+                v.tabTexts[0].color = new Color32(0xf2, 0xe8, 0xd0, 255);
+                v.tabs[1].GetComponent<Image>().sprite = v.tabOff;
+                v.dust.text = "85";
+                v.merge.SetActive(false);
+                v.noRecipe.gameObject.SetActive(false);
+                string[] rn = { "Pul Tılsımı", "Yosun Çelengi", "Tuna Kupası", "Deniz Tacı" };
+                string[] rg = { "Normal", "Normal", "İyi", "Usta" };
+                for (var i = 0; i < v.recipes.Length; i++)
+                {
+                    v.recipes[i].root.SetActive(i < 4);
+                    if (i >= 4) continue;
+                    v.recipes[i].back.sprite = i == 0 ? v.cardOn : v.cardOff;
+                    v.recipes[i].name.text = rn[i];
+                    v.recipes[i].name.color = i == 0 ? new Color32(0xf2, 0xe8, 0xd0, 255) : new Color32(0x45, 0x29, 0x3f, 255);
+                    v.recipes[i].grade.text = rg[i];
+                }
+                v.recipeName.text = "Pul Tılsımı";
+                v.recipeSub.text = "Normal recipe · bir kez harcanır";
+                for (var i = 0; i < v.needs.Length; i++) v.needs[i].root.SetActive(i < 2);
+                v.needs[0].icon.SetItem("lake.mat.scale", "", 1, false);
+                v.needs[0].name.text = "Pul";
+                v.needs[0].have.text = "4 / 3";
+                v.needs[1].icon.SetItem("lake.mat.rope", "", 1, false);
+                v.needs[1].name.text = "İp";
+                v.needs[1].have.text = "0 / 1";
+                v.needs[1].have.color = new Color32(0xe8, 0x3b, 0x3b, 255);
+                v.recipeDust.supportRichText = true;
+                v.recipeDust.text = "Toz 20   <color=#7f708a>(85 var)</color>";
+                HudView.Fill(v.qualityFill, 0.5f);
+                v.quality.text = "Normal";
+                v.missing.text = "Eksik: İp";
+                v.craftButton.interactable = false;
+            });
+            Shot(outDir, "npc-birlestir", Path.Combine(drafts, "npc-birlestir.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<CrafterView>(canvas, "Crafter");
+                v.tabs[1].GetComponent<Image>().sprite = v.tabOn;
+                v.tabTexts[1].color = new Color32(0xf2, 0xe8, 0xd0, 255);
+                v.tabs[0].GetComponent<Image>().sprite = v.tabOff;
+                v.tabTexts[0].color = new Color32(0x45, 0x29, 0x3f, 255);
+                v.dust.text = "85";
+                v.craft.SetActive(false);
+                v.merge.SetActive(true);
+                string[] fl = { "0.5120", "0.3340", "0.4410" };
+                for (var i = 0; i < 3; i++)
+                {
+                    v.inputs[i].SetItem("lake.fish.tunek", "rare", 1, false);
+                    v.inputNames[i].text = "Tünek";
+                    v.inputFloats[i].text = fl[i];
+                }
+                v.result.SetEmpty();
+                v.result.label.text = "?";
+                v.resultName.text = "yeni Tünek";
+                v.mergeDust.text = "Toz 50   <color=#7f708a>(Rare · 85 var) · Coin ücreti yok</color>";
+                HudView.Fill(v.mergeFill, 0.5f);
+                v.mergeQuality.text = "Normal";
+                for (var i = 0; i < 20; i++)
+                {
+                    var s2 = UnityEngine.Object.Instantiate(v.bag.template, v.bag.content, false);
+                    s2.gameObject.SetActive(true);
+                    s2.SetItem(i % 2 == 0 ? "lake.fish.tunek" : "lake.junk.boot", i % 3 == 0 ? "rare" : "", 1, false);
+                }
+            });
+            Shot(outDir, "npc-depo", Path.Combine(drafts, "npc-depo.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<BankView>(canvas, "Bank");
+                v.stashCount.text = "25 / 100 yuva";
+                for (var i = 0; i < 100; i++)
+                {
+                    var s2 = UnityEngine.Object.Instantiate(v.stash.template, v.stash.content, false);
+                    s2.gameObject.SetActive(true);
+                    if (i < 25) s2.SetItem(i % 2 == 0 ? "lake.fish.sazan" : "lake.junk.boot", i % 3 == 0 ? "rare" : "", 1, false);
+                    else s2.SetEmpty();
+                }
+                for (var i = 0; i < 40; i++)
+                {
+                    var s2 = UnityEngine.Object.Instantiate(v.bag.template, v.bag.content, false);
+                    s2.gameObject.SetActive(true);
+                    if (i < 25) s2.SetItem(i % 2 == 0 ? "lake.fish.sazan" : "lake.junk.boot", i % 4 == 0 ? "rare" : "", 1, false);
+                    else s2.SetEmpty();
+                }
+                v.expandSlots.text = "+20 yuva";
+                v.expandPrice.text = "2.000";
+            });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));

@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 17;
+        public const int Version = 19;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -73,6 +73,9 @@ namespace CollectionGame.EditorTools
             Save(BuildBook(), "Book");
             Save(BuildProfile(), "Profile");
             Save(BuildFriends(), "Friends");
+            Save(BuildMerchant(), "Merchant");
+            Save(BuildCrafter(), "Crafter");
+            Save(BuildBank(), "Bank");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1483,6 +1486,269 @@ namespace CollectionGame.EditorTools
             view.friendsOnly.targetGraphic = off;
             view.friendsOnly.graphic = on;
             view.friendsOnly.transition = Selectable.Transition.None;
+            return wrap.gameObject;
+        }
+
+        // ================= NPC windows (drafts npc-sat, npc-parcala, npc-craft, npc-birlestir, npc-depo) =================
+
+        /// <summary>40 px slots, 46 apart, cols wide; rows visible, the rest scrolls.</summary>
+        static SlotGrid GridAt(Transform parent, string name, float x, float y, int cols, int rows)
+        {
+            var scroll = Abs(parent, name, x, y, cols * 46 - 6, rows * 46 - 6);
+            var sr = scroll.gameObject.AddComponent<ScrollRect>();
+            sr.horizontal = false;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+            sr.scrollSensitivity = 30;
+            var viewport = Stretch(Node("Viewport", scroll));
+            viewport.gameObject.AddComponent<RectMask2D>();
+            viewport.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            var content = Node("Content", viewport);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.offsetMin = content.offsetMax = Vector2.zero;
+            var grid = content.gameObject.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(40, 40);
+            grid.spacing = new Vector2(6, 6);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = cols;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            sr.viewport = viewport;
+            sr.content = content;
+            var template = Slot(content, "SlotTemplate");
+            template.gameObject.SetActive(false);
+            return new SlotGrid { content = content, template = template };
+        }
+
+        static Button[] NpcTabs(Transform w, string[] labels, out Text[] texts)
+        {
+            var tabs = new Button[labels.Length];
+            texts = new Text[labels.Length];
+            for (var i = 0; i < labels.Length; i++)
+            {
+                tabs[i] = SmallButton(w, "Tab" + i, "wood", labels[i], 29 + i * 132, 27, 127, 35, 15);
+                tabs[i].transition = Selectable.Transition.None;
+                texts[i] = tabs[i].GetComponentInChildren<Text>();
+            }
+            return tabs;
+        }
+
+        static void Balances(Transform w, out Text coin, out Text dust, out Image dustIcon, bool withCoin = true)
+        {
+            coin = null;
+            if (withCoin)
+            {
+                Icon(w, "CoinIcon", new Vector2(0, 1), new Vector2(766, -42), Gold, 14);
+                coin = TextAt(w, "Coin", "0", 786, 42, 80, 16, Ink, TextAnchor.MiddleLeft, true);
+            }
+            var icon = At(Node("DustIcon", w), new Vector2(0, 1), new Vector2(866, -42), new Vector2(12, 12), new Vector2(0, 0.5f));
+            dustIcon = Solid(icon, DiamondColour);
+            dust = TextAt(w, "Dust", "0", 884, 42, 60, 16, Hex("4d9be6"), TextAnchor.MiddleLeft, true);
+        }
+
+        static GameObject BuildMerchant()
+        {
+            // npc-sat / npc-parcala: same frame as npc-gorev; bag at (29,110), basket card at (421,82).
+            var wrap = Stretch(Node("Merchant", null));
+            var view = wrap.gameObject.AddComponent<MerchantView>();
+            view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
+            var w = view.window.transform;
+            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Görevler", "Dükkan" }, out view.tabTexts);
+            view.tabOn = S("button_wood_normal");
+            view.tabOff = S("outline");
+            Balances(w, out view.coin, out view.dust, out view.dustIcon);
+
+            var sell = Stretch(Node("Sell", w));
+            view.sell = sell.gameObject;
+            TextAt(sell, "BagLabel", "Çanta", 29, 92, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.bagHint = TextAt(sell, "BagHint", "tıkla: sepete ekle", 97, 92, 250, 14, Faint);
+            view.bag = GridAt(sell, "Bag", 29, 110, 8, 5);
+            TextAt(sell, "LockHint", "Kilitli eşya satılmaz, parçalanmaz.", 29, 355, 360, 14, Faint);
+            var basket = Abs(sell, "Basket", 421, 82, 512, 489);
+            Img(basket, "card");
+            Img(Stretch(Node("Outline", basket)), "outline");
+            view.basketTitle = TextAt(basket, "Title", "Sepet", 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.coinMark = null;
+            view.lines = new BasketLine[11];
+            for (var i = 0; i < view.lines.Length; i++)
+            {
+                var y = 52 + i * 28;
+                var line = Abs(basket, "Line" + i, 10, y - 12, 492, 24);
+                var l = new BasketLine { root = line.gameObject };
+                line.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+                l.hover = line.gameObject.AddComponent<CardHover>();
+                l.icon = SlotAt(line, "Icon", 6, 2, 20);
+                l.icon.label.fontSize = 6;
+                l.name = TextAt(line, "Name", "", 37, 12, 340, 15, Ink);
+                l.valueIcon = Solid(At(Node("ValueIcon", line), new Vector2(0, 1), new Vector2(430, -12), new Vector2(12, 12), new Vector2(0, 0.5f)), Gold);
+                l.value = TextAt(line, "Value", "", 448, 12, 50, 15, Ink, TextAnchor.MiddleLeft, true);
+                view.lines[i] = l;
+            }
+            view.more = TextAt(basket, "More", "", 16, 360, 300, 13, Faint);
+            Img(Abs(basket, "Line", 14, 366, 484, 4), "divider");
+            TextAt(basket, "TotalLabel", "Toplam", 16, 390, 120, 17, Ink);
+            view.totalIcon = Solid(At(Node("TotalIcon", basket), new Vector2(0, 1), new Vector2(400, -388), new Vector2(14, 14), new Vector2(0, 0.5f)), Gold);
+            view.totalValue = TextAt(basket, "Total", "0", 420, 388, 80, 17, Ink, TextAnchor.MiddleLeft, true);
+            view.note = TextAt(basket, "Note", "", 16, 412, 480, 14, Faint);
+            view.sellButton = SmallButton(basket, "Sell", "green", "Sat", 16, 437, 478, 36, 17);
+            view.sellText = view.sellButton.GetComponentInChildren<Text>();
+            view.salvageButton = SmallButton(basket, "Salvage", "red", "Parçala", 16, 437, 478, 36, 17);
+            view.salvageText = view.salvageButton.GetComponentInChildren<Text>();
+
+            var shop = Stretch(Node("Shop", w));
+            view.shop = shop.gameObject;
+            TextAt(shop, "RodLabel", "Olta", 29, 92, 100, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.rodText = TextAt(shop, "Rod", "", 29, 122, 380, 15, Ink);
+            view.rodFill = Bar(Abs(shop, "RodBar", 29, 138, 220, 14), "bar_fill_green", out _);
+            view.repair = SmallButton(shop, "Repair", "wood", "Tamir et", 29, 164, 200, 34, 15);
+            view.repairText = view.repair.GetComponentInChildren<Text>();
+            TextAt(shop, "RodNote", "Olta yıprandıkça tamir edilir; kırık olta sadece çöp çıkarır.", 29, 220, 380, 13, Faint).horizontalOverflow = HorizontalWrapMode.Wrap;
+            var baitCard = Abs(shop, "Baits", 421, 82, 512, 489);
+            Img(baitCard, "card");
+            Img(Stretch(Node("Outline", baitCard)), "outline");
+            TextAt(baitCard, "Title", "Özel yem", 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(baitCard, "Hint", "Yem sadece oranları kaydırır, yeni eşya eklemez. Her atış 1 yem harcar.", 16, 44, 480, 13, Faint);
+            view.baits = new BaitRow[4];
+            for (var i = 0; i < 4; i++)
+            {
+                var y = 64 + i * 60;
+                var row = Abs(baitCard, "Bait" + i, 10, y, 492, 52);
+                var b = new BaitRow { root = row.gameObject };
+                b.icon = SlotAt(row, "Icon", 6, 6, 40);
+                b.name = TextAt(row, "Name", "", 56, 16, 200, 15, Ink, TextAnchor.MiddleLeft, true);
+                b.info = TextAt(row, "Info", "", 56, 36, 200, 13, Faint);
+                b.minus = SmallButton(row, "Minus", "wood", "-", 246, 13, 26, 26, 14);
+                b.count = TextAt(row, "Count", "5", 274, 26, 30, 15, Ink, TextAnchor.MiddleCenter, true);
+                b.plus = SmallButton(row, "Plus", "wood", "+", 306, 13, 26, 26, 14);
+                b.buy = SmallButton(row, "Buy", "green", "Al", 338, 13, 76, 26, 13);
+                b.buyText = b.buy.GetComponentInChildren<Text>();
+                b.use = SmallButton(row, "Use", "wood", "Kullan", 418, 13, 72, 26, 13);
+                b.useText = b.use.GetComponentInChildren<Text>();
+                view.baits[i] = b;
+            }
+            return wrap.gameObject;
+        }
+
+        static GameObject BuildCrafter()
+        {
+            // npc-craft / npc-birlestir: same frame; recipe cards at (29,110) 247x42, 48 apart; detail card at (297,82).
+            var wrap = Stretch(Node("Crafter", null));
+            var view = wrap.gameObject.AddComponent<CrafterView>();
+            view.window = DraftWindow(wrap, "Zanaatkar", 224, 106, 956, 594);
+            var w = view.window.transform;
+            view.tabs = NpcTabs(w, new[] { "Craft", "Birleştir" }, out view.tabTexts);
+            view.tabOn = S("button_wood_normal");
+            view.tabOff = S("outline");
+            view.cardOn = S("button_wood_normal");
+            view.cardOff = S("card");
+            Balances(w, out _, out view.dust, out _, false);
+
+            var craft = Stretch(Node("Craft", w));
+            view.craft = craft.gameObject;
+            TextAt(craft, "RecipesLabel", "Recipe'lerin", 29, 92, 200, 16, Ink);
+            view.recipes = new CrafterView.RecipeCard[8];
+            for (var i = 0; i < view.recipes.Length; i++)
+            {
+                var rt = Abs(craft, "Recipe" + i, 29, 110 + i * 48, 247, 42);
+                var c = new CrafterView.RecipeCard { root = rt.gameObject };
+                c.back = Img(rt, "card", Image.Type.Sliced, true);
+                c.button = rt.gameObject.AddComponent<Button>();
+                c.button.targetGraphic = c.back;
+                c.button.transition = Selectable.Transition.None;
+                SlotAt(rt, "Icon", 8, 7, 28).label.fontSize = 7;
+                c.name = TextAt(rt, "Name", "", 44, 13, 195, 14, Ink, TextAnchor.MiddleLeft, true);
+                c.grade = TextAt(rt, "Grade", "", 44, 30, 195, 13, Faint);
+                view.recipes[i] = c;
+            }
+            view.noRecipe = TextAt(craft, "NoRecipe", "Çantanda recipe yok. Recipe balıktan \"şişedeki recipe\" olarak çıkar.", 29, 140, 250, 14, Faint);
+            view.noRecipe.horizontalOverflow = HorizontalWrapMode.Wrap;
+            ((RectTransform)view.noRecipe.transform).sizeDelta = new Vector2(250, 60);
+            var detail = Abs(craft, "Detail", 297, 82, 636, 489);
+            Img(detail, "card");
+            Img(Stretch(Node("Outline", detail)), "outline");
+            view.detail = detail.gameObject;
+            view.recipeName = TextAt(detail, "Name", "", 16, 22, 600, 16, Ink);
+            view.recipeSub = TextAt(detail, "Sub", "", 16, 42, 600, 14, Faint);
+            view.needs = new CrafterView.Need[4];
+            for (var i = 0; i < 4; i++)
+            {
+                var y = 66 + i * 44;
+                var n = new CrafterView.Need { root = Abs(detail, "Need" + i, 16, y, 600, 42).gameObject };
+                n.icon = SlotAt(n.root.transform, "Icon", 0, 2, 38);
+                n.name = TextAt(n.root.transform, "Name", "", 50, 12, 300, 15, Ink);
+                n.have = TextAt(n.root.transform, "Have", "", 50, 30, 300, 14, Hex("1e6f50"));
+                view.needs[i] = n;
+            }
+            view.recipeDust = TextAt(detail, "Dust", "", 36, 168, 400, 15, Hex("4d9be6"));
+            Solid(At(Node("DustIcon", detail), new Vector2(0, 1), new Vector2(16, -168), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
+            TextAt(detail, "QualityLabel", "Kalite şansı", 16, 205, 120, 15, Ink);
+            view.qualityFill = Bar(Abs(detail, "QualityBar", 124, 198, 180, 14), "bar_fill_yellow", out _);
+            view.quality = TextAt(detail, "Quality", "", 314, 205, 200, 15, Hex("f79617"));
+            view.note = TextAt(detail, "Note", "Çıkan eşyanın Float'ı şansa bağlı, en iyi malzeme garanti vermez.", 16, 233, 600, 14, Faint);
+            view.missing = TextAt(detail, "Missing", "", 16, 420, 600, 14, Hex("e83b3b"));
+            view.craftButton = SmallButton(detail, "Craft", "green", "Craft yap", 16, 437, 604, 36, 17);
+            view.craftText = view.craftButton.GetComponentInChildren<Text>();
+
+            var merge = Stretch(Node("Merge", w));
+            view.merge = merge.gameObject;
+            TextAt(merge, "Desc", "3'ü 1: aynı eşyadan 3 kopya + toz → daha temiz 1 kopya", 29, 92, 800, 15, Ink);
+            TextAt(merge, "Desc2", "Tier değişmez, yeni Float çıkar, girdilerin en kötüsünden kötü olmaz. Recipe gerekmez.", 29, 111, 800, 14, Faint);
+            view.inputs = new SlotView[3];
+            view.inputNames = new Text[3];
+            view.inputFloats = new Text[3];
+            for (var i = 0; i < 3; i++)
+            {
+                var x = 109 + i * 108;
+                view.inputs[i] = SlotAt(merge, "Input" + i, x, 150);
+                view.inputNames[i] = TextAt(merge, "InputName" + i, "", x - 30, 206, 100, 14, Ink, TextAnchor.MiddleCenter);
+                view.inputFloats[i] = TextAt(merge, "InputFloat" + i, "", x - 30, 226, 100, 13, Faint, TextAnchor.MiddleCenter);
+                if (i < 2) TextAt(merge, "Plus" + i, "+", x + 56, 170, 20, 16, Ink, TextAnchor.MiddleCenter);
+            }
+            TextAt(merge, "Arrow", "→", 405, 170, 30, 16, Ink, TextAnchor.MiddleCenter);
+            view.result = SlotAt(merge, "Result", 459, 138, 52);
+            view.result.frame.pixelsPerUnitMultiplier = 1;
+            view.resultName = TextAt(merge, "ResultName", "", 425, 216, 120, 14, Faint, TextAnchor.MiddleCenter);
+            Solid(At(Node("DustIcon", merge), new Vector2(0, 1), new Vector2(109, -270), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
+            view.mergeDust = TextAt(merge, "Dust", "", 129, 270, 600, 15, Hex("4d9be6"));
+            view.mergeDust.supportRichText = true;
+            TextAt(merge, "QualityLabel", "Girdi kalitesi", 109, 306, 120, 15, Ink);
+            view.mergeFill = Bar(Abs(merge, "QualityBar", 236, 299, 180, 14), "bar_fill_yellow", out _);
+            view.mergeQuality = TextAt(merge, "Quality", "", 426, 306, 200, 15, Hex("f79617"));
+            view.mergeButton = SmallButton(merge, "Merge", "green", "Birleştir", 733, 264, 198, 40, 17);
+            view.mergeNote = TextAt(merge, "Note", "Her birleştirme 2 eşyayı oyundan siler.", 560, 327, 371, 14, Faint, TextAnchor.MiddleRight);
+            TextAt(merge, "BagLabel", "Çanta (aynı eşyadan kopyalar seçilir)", 29, 346, 500, 15, Ink);
+            view.bag = GridAt(merge, "Bag", 29, 362, 10, 2);
+            view.barGood = S("bar_fill_green");
+            view.barMid = S("bar_fill_yellow");
+            return wrap.gameObject;
+        }
+
+        static GameObject BuildBank()
+        {
+            // npc-depo: window 1031x564 at (186, 132); stash 10 wide at (26,60), bag 8 wide at (526,60).
+            var wrap = Stretch(Node("Bank", null));
+            var view = wrap.gameObject.AddComponent<BankView>();
+            view.window = DraftWindow(wrap, "Banka", 186, 132, 1031, 564);
+            var w = view.window.transform;
+            view.stashTitle = TextAt(w, "StashLabel", "Depo", 26, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.stashCount = TextAt(w, "StashCount", "", 88, 40, 200, 14, Faint);
+            view.stash = GridAt(w, "Stash", 26, 60, 10, 10);
+            view.footer = TextAt(w, "Footer", "Depo sadece bankada açılır. Tıkla: çantaya al.", 26, 537, 480, 14, Faint);
+            view.bagTitle = TextAt(w, "BagLabel", "Çanta", 526, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(w, "BagHint", "tıkla: depoya koy", 596, 40, 300, 14, Faint);
+            view.bag = GridAt(w, "Bag", 526, 60, 8, 5);
+            view.hint = TextAt(w, "Hint", "Defter yuvasındaki eşya depoya konmaz.\nDepodaki eşya satılmaz, parçalanmaz;\nönce çantaya al.", 526, 320, 460, 14, Faint);
+            ((RectTransform)view.hint.transform).sizeDelta = new Vector2(460, 60);
+            var expand = Abs(w, "Expand", 526, 485, 485, 60);
+            Img(expand, "card");
+            Img(Stretch(Node("Outline", expand)), "outline");
+            view.expand = expand.gameObject;
+            TextAt(expand, "Title", "Depoyu genişlet", 12, 16, 260, 16, Ink);
+            view.expandSlots = TextAt(expand, "Slots", "", 12, 40, 100, 14, Hex("1e6f50"));
+            Icon(expand, "CoinIcon", new Vector2(0, 1), new Vector2(122, -40), Gold, 12);
+            view.expandPrice = TextAt(expand, "Price", "", 140, 40, 120, 14, Ink, TextAnchor.MiddleLeft, true);
+            view.expandButton = SmallButton(expand, "Expand", "green", "Genişlet", 352, 11, 118, 38, 15);
+            view.expandText = view.expandButton.GetComponentInChildren<Text>();
             return wrap.gameObject;
         }
 

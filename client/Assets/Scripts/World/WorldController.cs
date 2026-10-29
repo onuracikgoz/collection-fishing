@@ -119,6 +119,8 @@ namespace CollectionGame.World
             market.Popup = hud.Popup;
             collection.Popup = hud.Popup;
             social.Popup = hud.Popup;
+            economy.Popup = hud.Popup;
+            economy.OpenQuests = () => quests.Open = true;
             social.Whisper = (id, name) => whispers.OpenWith(id, name);
             social.OpenProfile = collection.OpenProfile;
             social.OpenBook = collection.OpenBook;
@@ -164,6 +166,7 @@ namespace CollectionGame.World
             quests?.Destroy();
             collection?.Destroy();
             social?.Destroy();
+            economy?.Destroy();
             settings?.Destroy();
             trade?.Destroy();
             market?.Destroy();
@@ -226,6 +229,7 @@ namespace CollectionGame.World
                 quests.Tick();
                 collection.Tick();
                 social.Tick();
+                economy.Tick();
                 if (social.FriendsOpen && settings.PmNeedsLoad) settings.LoadPm();
                 settings.Tick();
                 trade.Tick();
