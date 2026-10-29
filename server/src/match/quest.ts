@@ -106,7 +106,7 @@ export function handleQuestClaim(nk: nkruntime.Nakama, logger: nkruntime.Logger,
     const res = nk.multiUpdate(null, writes, [], Object.keys(changeset).length > 0 ? [{ userId, changeset, metadata: { action: 'quest_chest', streak: plan.streak } }] : []);
     if (res.walletUpdateAcks.length > 0) {
       const w = res.walletUpdateAcks[0].updated;
-      wallet = { coin: w.coin || 0, dust: w.dust || 0 };
+      wallet = { coin: w.coin || 0, dust: w.dust || 0, diamond: w.diamond || 0 };
     }
   } catch (e) {
     logger.error('Quest chest of %s failed: %s', userId, String(e));

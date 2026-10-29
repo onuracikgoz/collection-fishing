@@ -369,6 +369,15 @@ namespace CollectionGame.Net
         public RodView rod;
         /// <summary>XP for this catch; gained is 0 when absent or when the cast had no energy.</summary>
         public XpGainMsg xpGain;
+        /// <summary>A diamond dropped with this catch; gained is 0 when absent.</summary>
+        public DiamondGain diamond;
+    }
+
+    [Serializable]
+    public class DiamondGain
+    {
+        public int gained;
+        public long total;
     }
 
     [Serializable]
@@ -940,6 +949,8 @@ namespace CollectionGame.Net
         /// <summary>Faz 4.</summary>
         public long coin;
         public long dust;
+        /// <summary>Diamonds; not tradeable.</summary>
+        public long diamond;
         public RodView rod;
     }
 

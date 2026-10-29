@@ -14,7 +14,7 @@
 //   stash/state  { level, stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
 //   profile/card  ProfileDoc               (public: showcase and "Arıyorum")
-// Coin and dust live in the Nakama wallet: { coin, dust }.
+// Coin, dust and diamonds live in the Nakama wallet: { coin, dust, diamond }.
 import { BAG, EMOTES, ENERGY, ROD } from '../config';
 import { InventoryResponse, ItemInstance } from '../protocol';
 import { Rod, normalizeRod, rodView } from '../rules/rod';
@@ -142,10 +142,10 @@ export function readBookItems(nk: nkruntime.Nakama, userId: string, entries: Boo
   return out;
 }
 
-/** Coin and dust from the Nakama wallet (server-only writes). */
-export function readWallet(nk: nkruntime.Nakama, userId: string): { coin: number; dust: number } {
+/** Coin, dust and diamonds from the Nakama wallet (server-only writes). */
+export function readWallet(nk: nkruntime.Nakama, userId: string): { coin: number; dust: number; diamond: number } {
   const w = nk.accountGetId(userId).wallet || {};
-  return { coin: w.coin || 0, dust: w.dust || 0 };
+  return { coin: w.coin || 0, dust: w.dust || 0, diamond: w.diamond || 0 };
 }
 
 export function readInventory(nk: nkruntime.Nakama, userId: string): InventoryResponse {

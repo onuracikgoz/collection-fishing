@@ -222,6 +222,8 @@ export interface FishEndMsg {
   rod?: RodView;
   /** XP for this catch and where the player stands now. */
   xpGain?: XpGainMsg;
+  /** A diamond dropped with this catch: how many, and the new total. */
+  diamond?: { gained: number; total: number };
 }
 
 export interface XpGainMsg {
@@ -288,6 +290,8 @@ export interface InventoryResponse {
   stacks: { defId: string; count: number }[];
   coin: number;
   dust: number;
+  /** Diamonds (fishing drops, later bought); not tradeable. */
+  diamond: number;
   rod: RodView;
 }
 

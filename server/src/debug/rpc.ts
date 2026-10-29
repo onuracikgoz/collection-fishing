@@ -410,14 +410,14 @@ export function rpcDevStacks(ctx: nkruntime.Context, logger: nkruntime.Logger, n
   return JSON.stringify({ ok: true, stacks, live: reload(nk, logger, userId) });
 }
 
-/** Coin and dust: `set: { coin?, dust? }` or `add: { coin?, dust? }`. Written to the ledger as dev. */
+/** Coin, dust and diamonds: `set: { coin?, dust?, diamond? }` or `add: { ... }`. Written to the ledger as dev. */
 export function rpcDevWallet(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const now = readWallet(nk, userId);
   const change: { [k: string]: number } = {};
-  for (const k of ['coin', 'dust'] as const) {
+  for (const k of ['coin', 'dust', 'diamond'] as const) {
     if (body.set && typeof body.set[k] === 'number') change[k] = Math.max(0, Math.floor(body.set[k])) - now[k];
     else if (body.add && typeof body.add[k] === 'number') change[k] = Math.max(-now[k], Math.floor(body.add[k]));
   }
@@ -582,7 +582,7 @@ export function rpcDevReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
   for (const s of STARTER_RECIPES) stacks[s.defId] = s.count;
   nk.storageWrite([stacksWrite(userId, stacks)]);
   const w = readWallet(nk, userId);
-  if (w.coin !== 0 || w.dust !== 0) nk.walletUpdate(userId, { coin: -w.coin, dust: -w.dust }, { action: 'dev_reset' }, true);
+  if (w.coin !== 0 || w.dust !== 0 || w.diamond !== 0) nk.walletUpdate(userId, { coin: -w.coin, dust: -w.dust, diamond: -w.diamond }, { action: 'dev_reset' }, true);
   // An online player keeps standing where they are; energy goes back to full.
   const live = signalPlayer(nk, logger, { type: 'dev_energy', userId, value: ENERGY.max });
   reload(nk, logger, userId);

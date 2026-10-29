@@ -4,6 +4,7 @@ import type { Tier } from './protocol';
 import type { CatchConfig, Category } from './rules/catch';
 import type { FishingConfig } from './rules/fishing';
 import type { BotCheckConfig } from './rules/botCheck';
+import type { DiamondConfig } from './rules/diamond';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
 import type { RodConfig } from './rules/rod';
@@ -146,6 +147,15 @@ export const ENERGY = {
   // Energy spent on casts is kept in the match and saved with the next catch, at leave, or at
   // least this often; a server crash gives back at most this much fishing (Öneri).
   saveEveryMs: 60 * 1000,
+};
+
+// Diamonds (11-monetization.md, Elmas). Earned by fishing at a small chance on each catch made with
+// energy; buying them with real money comes in Faz 7. All Öneri.
+export const DIAMOND: DiamondConfig = {
+  perDay: 5, // Onur 29.10.2026: about 5 a day
+  // A day's energy is ENERGY.max casts; about 9 in 10 reels are won, so this keeps the average at perDay.
+  catchesPerDay: Math.round(ENERGY.max * 0.9),
+  amount: 1,
 };
 
 export const BAG = {

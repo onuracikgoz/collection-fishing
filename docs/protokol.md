@@ -46,7 +46,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4; oyuncu bir sunucudayken `energy` 1 dk'ya kadar geride kalabilir, client maçtaki değeri kullanır: `WELCOME`, `BOBBER`, `FISH_END`) | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, diamond, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4, `diamond` Faz 5; oyuncu bir sunucudayken `energy` 1 dk'ya kadar geride kalabilir, client maçtaki değeri kullanır: `WELCOME`, `BOBBER`, `FISH_END`) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
 | `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
@@ -170,7 +170,7 @@ Yem: `bait` verilmeyen atış temel yemle yapılır (bedava, sınırsız, oranla
 | 11 | C → S | `HOOK` | `{}` (oyuncu çekti) |
 | 12 | S → C | `REEL_START` | `{ seed, params }` (sadece oyuncunun kendisi) |
 | 13 | C → S | `REEL_DONE` | `{ inputs: [ms, ...] }` |
-| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?, xpGain?` |
+| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?, xpGain?, diamond?` |
 | 15 | C → S | `CANCEL` | `{}` (oltayı topla) |
 
 - `band`: `"shore"`, `"mid"`, `"deep"`. `state`: `"cast"` (şamandıra suda), `"twitch"` (sahte kıpırdama), `"bite"` (gerçek vuruş, şamandıra battı).
@@ -418,6 +418,7 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md
 | 24 | S → C | `ECONOMY_RESULT` | `{ action: "sell" \| "salvage", ok, reason?, coin, dust, gained?, items?, stacks? }` (sadece oyuncunun kendisi) |
 
 - **Coin ve toz** Nakama cüzdanında durur (`{ coin, dust }`), sadece sunucu değiştirir. Client bakiyeyi `get_inventory` ve `ECONOMY_RESULT`'tan alır. Toz takas edilemez.
+- **Elmas** da cüzdanda durur (`{ coin, dust, diamond }`). Balık tutarken enerjiyle yapılan her başarılı çekişte küçük bir şansla **1 elmas** düşer; şans günde ortalama **5** elmas verecek şekilde hesaplanır (`DIAMOND` config: `perDay` 5, `catchesPerDay` enerji tavanının %90'ı, yani şimdi ~%5,6; hepsi Öneri). Enerjisiz atış ve kaçan balık elmas vermez. Elmas av kaydıyla aynı işlemde yazılır; `FISH_END` (sadece avlayana) `diamond: { gained, total }` taşır, düşmediyse alan yoktur. Bakiye `get_inventory.diamond`'dadır. Elmas **takas edilemez** (takas ve tezgah sadece Coin ister), harcama yerleri sonra gelir (pano reklamı, kozmetikler). Gerçek parayla elmas satın alma Faz 7'de.
 - Bir istekte birden çok eşya ve yığın olabilir, toplam en fazla 40 satır. İstek ya tamamen olur ya hiç olmaz: eşyalar, yığınlar ve cüzdan tek işlemde değişir.
 - **NPC fiyatı:** Tier'lı eşyada Tier fiyatı × kondisyon çarpanı (Pristine ×3, Excellent ×1.5, Normal ×1, Worn ×0.7, Damaged ×0.5), yuvarlanır, en az 1. Yığınlarda (çöp, malzeme) adet başı sabit fiyat.
 - **Toz:** Float'tan etkilenmez. Recipe parçalanamaz.

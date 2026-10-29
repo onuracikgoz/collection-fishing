@@ -2,7 +2,7 @@
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
 import { QuestState } from '../rules/quest';
 import { trackQuest } from './quest';
-import { ANNOUNCE, BAG, BAIT, BOT_CHECK, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
+import { ANNOUNCE, BAG, BAIT, BOT_CHECK, DIAMOND, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
@@ -19,6 +19,7 @@ import { WaterMap } from '../rules/water';
 import { placeNewItem } from './items';
 import { addXp, levelOf, xpForCatch } from '../rules/xp';
 import { activityWrite, energyWrite, flagBot, rodWrite, stacksWrite, xpWrite } from './playerData';
+import { rollDiamond } from '../rules/diamond';
 import { ActivityDoc, BotFlag, addActive, dayNumber, hookTooRegular, pushSample, stdev, tooLong } from '../rules/botCheck';
 
 /** The part of a match player that fishing needs. */
@@ -209,7 +210,7 @@ export function cancelFishing(ctx: FishingContext, f: Fisher): void {
 }
 
 /** Puts the catch in the bag and tells everyone. */
-function give(ctx: FishingContext, f: Fisher): void {
+export function give(ctx: FishingContext, f: Fisher): void {
   const roll = f.fish!.roll!;
   const userId = f.presence.userId;
   const writes: nkruntime.StorageWriteRequest[] = [];
@@ -251,8 +252,15 @@ function give(ctx: FishingContext, f: Fisher): void {
   // The cast's energy rides along with the catch instead of costing a write of its own.
   const energySaved = !!f.energyDirty;
   if (energySaved) writes.push(energyWrite(userId, f.energy, true));
+  // A diamond drop is paid in the same transaction as the catch.
+  const diamonds = rollDiamond(DIAMOND, f.fish!.hasEnergy, Math.random);
   try {
-    ctx.nk.storageWrite(writes);
+    if (diamonds > 0) {
+      const res = ctx.nk.multiUpdate(null, writes, [], [{ userId, changeset: { diamond: diamonds }, metadata: { action: 'fishing', defId: roll.def.id } }]);
+      extra.diamond = { gained: diamonds, total: res.walletUpdateAcks[0].updated.diamond || diamonds };
+    } else {
+      ctx.nk.storageWrite(writes);
+    }
   } catch (e) {
     ctx.logger.error('Saving catch failed: %s', String(e));
     return end(ctx, f, 'escaped');
