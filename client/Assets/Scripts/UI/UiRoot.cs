@@ -8,8 +8,8 @@ namespace CollectionGame.UI
 {
     /// <summary>
     /// The one uGUI canvas of the game (docs/araclar/ui-uygulama.md). Layout units are UI kit pixels:
-    /// the drafts in docs/gorsel/ui-taslaklar are 1408x896 with the kit at 1:1, and the canvas is
-    /// scaled by a whole number so every kit pixel stays a square block of screen pixels.
+    /// the drafts in docs/gorsel/ui-taslaklar are 1408x896 and show the kit at 2x, so layout units are
+    /// draft pixels and one kit pixel is two units; kit pixels stay whole screen pixels.
     /// Window prefabs live in Resources/UI/ and are made by Editor/UiPrefabBuilder.cs.
     /// </summary>
     public sealed class UiRoot : MonoBehaviour
@@ -18,9 +18,9 @@ namespace CollectionGame.UI
         public const float RefHeight = 896f;
         /// <summary>
         /// Canvas units are draft pixels; the drafts show the kit at 2x (704x448 logical screen),
-        /// so one kit pixel (sprites are 32 per unit) is two canvas units.
+        /// so one kit pixel is two canvas units: sprites are 32 per unit, the canvas counts 64 (Image size = sprite PPU / canvas PPU).
         /// </summary>
-        public const float PixelsPerUnit = 16f;
+        public const float PixelsPerUnit = 64f;
 
         static UiRoot instance;
 
@@ -62,13 +62,14 @@ namespace CollectionGame.UI
             }
         }
 
-        /// <summary>Whole-number scale that fits the 1408x896 layout, at least 1.</summary>
         /// <summary>Kit pixel size in screen pixels: the largest whole number that fits the 704x448 logical screen.</summary>
         public static float AutoScale(int width, int height) =>
             Mathf.Max(1f, Mathf.Floor(Mathf.Min(height / (RefHeight / 2f), width / (RefWidth / 2f)) + 0.0001f));
 
-        /// <summary>The player's choice (Ayarlar > Arayüz boyutu), or <see cref="AutoScale"/>.</summary>
-        /// <summary>Canvas scale factor: half the kit pixel size, since a canvas unit is half a kit pixel.</summary>
+        /// <summary>
+        /// Canvas scale factor: half the kit pixel size (the player's choice in Ayarlar > Arayüz boyutu,
+        /// or <see cref="AutoScale"/>), since a canvas unit is half a kit pixel.
+        /// </summary>
         public static float ScaleFor(int width, int height) =>
             (ClientSettings.UiScale > 0 ? ClientSettings.UiScale : AutoScale(width, height)) / 2f;
 
