@@ -33,23 +33,34 @@ Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencerele
 
 ### uGUI'ye geçenler (taslağa göre)
 
-| Pencere | Taslak | Prefab / kod | Karşılaştırma |
+Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sağda / altta Unity).
+
+| Pencere | Taslak | Prefab / kod | Açılış |
 |---|---|---|---|
-| HUD | `hud3` | `Hud`, `World/WorldHud.cs` | `hud3.png` |
-| Çanta + sağ tık menüsü | `canta-v2` | `Bag`, `Popup`, `UI/BagPanel.cs` | `canta-v2.png` |
-| Ayarlar (Genel, Hesap) | `ayarlar-genel`, `ayarlar-hesap` | `Settings`, `UI/SettingsController.cs`, `UI/ClientSettings.cs` | `ayarlar-*.png` |
-| Takas + "Kaç tane?" | `takas-a/b/c` | `Trade`, `Count`, `Social/TradeController.cs` | `takas.png` |
-| Tezgah kur / Tezgahım, tezgah listesi, Pazar Panosu | `tezgah-kur`, `tezgah-tezgah`, `tezgah-pano` | `StallSetup`, `Stall`, `Board`, `Economy/MarketController.cs` | `pazar.png` |
-| Günlük görev | `npc-gorev` | `Quests`, `Economy/QuestController.cs` | `npc-gorev.png` |
-| Fısıltı pencereleri | taslak yok | `Whisper`, `Social/WhisperController.cs` | |
+| Giriş akışı: başlık, Oyuna gir, karakter adı, sunucu seç, yükleniyor | `_akis-1,2,5,6,7` | `Login`, `Game.cs` | Oyun açılınca |
+| HUD | `hud3` | `Hud`, `World/WorldHud.cs` | Hep |
+| Çanta + sağ tık menüsü | `canta-v2` | `Bag`, `Popup`, `UI/BagPanel.cs` | B |
+| Defter | `defter-v2` | `Book`, `Collection/CollectionController.cs` | K |
+| Profil kartı | `profil-v3` | `Profile` | P, isim menüsünden |
+| Oyuncu menüsü (isme tıkla) | `oyuncu-kart` | `Popup`, `World/WorldController.cs` | Bir oyuncunun adına tıkla |
+| Arkadaşlar | `arkadaslar-list`, `-requests` | `Friends`, `Social/SocialController.cs` | O |
+| Emote menüsü + dünyada durum işaretleri | `emote-menu`, `emote-dunya` | `Emote` | T, HUD |
+| Takas + "Kaç tane?" + teklif kutusu | `takas-a/b/c`, `oyuncu-teklif` | `Trade`, `Count`, `TradeInvite` | Oyuncu menüsü |
+| Fısıltı pencereleri | taslak yok | `Whisper` | `/w ad mesaj` |
+| Balıkçı Tüccar: Sat, Parçala, Görevler, Dükkan | `npc-sat`, `npc-parcala`, `npc-gorev` | `Merchant`, `Quests`, `Economy/EconomyController.cs`, `QuestController.cs` | E (bankadaysan Banka), G |
+| Zanaatkar: Craft, Birleştir | `npc-craft`, `npc-birlestir` | `Crafter` | C |
+| Banka | `npc-depo` | `Bank` | Bankada E |
+| Tezgah kur / Tezgahım, tezgah listesi, Pazar Panosu | `tezgah-kur`, `-tezgah`, `-pano` | `StallSetup`, `Stall`, `Board`, `Economy/MarketController.cs` | M, haritada tezgah etiketi |
+| Ayarlar | `ayarlar-genel`, `ayarlar-hesap` | `Settings`, `UI/SettingsController.cs` | HUD Ayar |
+| Balık tutma anları | `balik-at`, `-vurus`, `-cekme` | `Fishing`, `World/FishingHud.cs` | Balık tutarken |
+| Yeni keşif / Daha temiz kopya | `balik-kesif`, `balik-temiz` | `Catch` | Avdan sonra |
+| Bildirim yığını, nadir av satırı, seviye atlama | `bildirim-yigin`, `bildirim-ust` | `Notices`, `UI/Toasts.cs` | Olaylar |
 
-Taslaktan bilerek ayrılanlar: pet seçimi (pet sistemi yok), çanta genişletme satırı (sunucuda yok), görev başına ödül ve "Teslim et / Değiştir" (sunucuda günlük tek sandık var), tezgah kurda eşya sürükleme yerine tıkla-fiyat-Koy. Takas penceresine çantadan sürükle-bırak var.
+Taslaktan bilerek ayrılanlar (sunucuda karşılığı yok, uydurulmadı): pet seçimi; çanta genişletme satırı; görev başına ödül ve "Teslim et / Değiştir" (sunucuda günlük tek sandık var); karakter görünümü seçimi (`_akis-5`, sadece ad); Google / Facebook / Discord girişi (butonlar kapalı) ve Steam ekranları (`_akis-3`, `_akis-4`); profilde portre, unvan, konum; arkadaş satırında Lv ve son görülme; recipe'de "Float seç". Dükkan (olta tamiri, yem) taslaksız, Tüccar'a sekme oldu. Taslaklardaki ◆ NPC pencerelerinde toz; HUD'da elmas gösteriliyor (pano reklamı için), karar Onur'da.
 
-### Hâlâ IMGUI (sırayla taşınacak)
+### Hâlâ IMGUI
 
-Defter, Profil, Arkadaşlar, NPC pencereleri (sat, parçala, birleştir, craft, depo, dükkan), balık tutma (ipucu, şarj, çekme oyunu), bildirim kutuları (`UI/Toasts.cs`), dünyadaki isim etiketleri ve balonlar. Taslağı olup hiç yapılmayanlar: emote menüsü, oyuncu sağ tık menüsü, giriş akışı.
-
-**Sunucudan eksik (client uydurmadı):** `get_catalog` pano fiyatını (`BOARD.priceDiamonds`), tezgaha bakma yarıçapını (`MARKET.interactRadius`) ve pazar noktasını vermiyor. Client "Reklam ver (elmas)" yazıyor, fiyat göstermiyor; harita etiketi 7 tile'dan yakında ilk kalemleri gösteriyor (sadece görüntü, karar sunucuda). Kataloğa eklenirse client oradan okur.
+Dünyadaki isim etiketleri, sohbet balonları, durum emote işaretleri ve haritadaki tezgah etiketleri (uGUI penceresinin altında kalınca çizilmez). Kit görünümlü `UI/Kit.cs` sadece bunlar için kaldı.
 
 ## Pencereler
 

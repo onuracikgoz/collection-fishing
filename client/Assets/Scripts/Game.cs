@@ -3,6 +3,9 @@ using CollectionGame.Dev;
 using CollectionGame.Net;
 using CollectionGame.UI;
 using CollectionGame.World;
+using CollectionGame.UI.Views;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace CollectionGame
@@ -16,7 +19,7 @@ namespace CollectionGame
         const string UsernameKey = "cg_username";
         const string HostKey = "cg_host";
 
-        enum Page { Login, Servers, Busy, World }
+        enum Page { Login, Guest, Character, Servers, Busy, World }
 
         Page screen = Page.Login;
         string username;
@@ -81,6 +84,19 @@ namespace CollectionGame
             Busy("Sunucular yükleniyor...");
             servers = await net.ListServersAsync();
             error = null;
+            var friendsOn = new Dictionary<string, int>();
+            try
+            {
+                var status = await net.FriendsStatusAsync();
+                foreach (var f in status?.friends ?? Array.Empty<FriendStatus>())
+                    if (f.online && !string.IsNullOrEmpty(f.serverName))
+                        friendsOn[f.serverName] = friendsOn.TryGetValue(f.serverName, out var n) ? n + 1 : 1;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"[Game] friends_status failed: {e.Message}");
+            }
+            FillServers(friendsOn);
             screen = Page.Servers;
 
             var wanted = Autopilot.Enabled ? Autopilot.Arg("-cgServer") : null;
@@ -97,7 +113,7 @@ namespace CollectionGame
         async void Join(ServerInfo server, string near = null)
         {
             DestroyWorld();
-            Busy($"{server.name} sunucusuna giriliyor...");
+            Busy($"{server.name} sunucusuna bağlanıyor...");
             try
             {
                 // The world exists before joining: WELCOME can arrive before JoinAsync returns.
@@ -147,70 +163,121 @@ namespace CollectionGame
             if (net != null) await net.CloseAsync();
         }
 
-        void OnGUI()
+        // ---------- uGUI (Resources/UI/Login, drafts _akis-1..7) ----------
+
+        static readonly string[] Tips =
         {
-            if (screen == Page.World) return;
-            Gui.Begin();
-            var w = 360f;
-            var area = new Rect((Gui.Width - w) / 2f, Gui.Height * 0.2f, w, Gui.Height * 0.7f);
-            GUI.Box(new Rect(0, 0, Gui.Width, Gui.Height), GUIContent.none);
-            GUILayout.BeginArea(area);
-            GUILayout.Label("CollectionGame", Gui.Title, GUILayout.Height(48));
-            GUILayout.Space(12);
+            "İpucu: Daha temiz Float'lı kopya gelirse deftere koymak sana sorulur.",
+            "İpucu: F basılı tut, bırak: olta at. Şamandıra batınca Space.",
+            "İpucu: Çantadaki değerli eşyayı kilitle; satılmaz, takasa konmaz.",
+            "İpucu: Günlük görevler gece yarısı yenilenir, sandık seriyle büyür.",
+        };
 
-            switch (screen)
-            {
-                case Page.Login: DrawLogin(); break;
-                case Page.Servers: DrawServers(); break;
-                case Page.Busy: GUILayout.Label(busyText, Gui.Hud); break;
-            }
+        LoginView view;
+        float busySince;
+        string tip;
 
-            if (!string.IsNullOrEmpty(error))
-            {
-                GUILayout.Space(12);
-                GUILayout.Label(error, Gui.Error);
-            }
-            GUILayout.EndArea();
-        }
-
-        void DrawLogin()
+        bool EnsureView()
         {
-            GUILayout.Label("Kullanıcı adı (3-16: harf, rakam, _)", Gui.Hud);
-            GUI.SetNextControlName("username");
-            username = GUILayout.TextField(username, 16, Gui.Input, GUILayout.Height(32));
-            GUILayout.Space(8);
-            GUILayout.Label("Sunucu adresi", Gui.Hud);
-            host = GUILayout.TextField(host, 64, Gui.Input, GUILayout.Height(32));
-            GUILayout.Space(12);
-
-            var e = Event.current;
-            var enter = e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter);
-            if ((GUILayout.Button("Giriş", Gui.Button, GUILayout.Height(36)) || enter) && username.Trim().Length > 0)
-            {
-                if (enter) e.Use();
-                Login();
-            }
-            if (GUI.GetNameOfFocusedControl() == "") GUI.FocusControl("username");
-        }
-
-        void DrawServers()
-        {
-            GUILayout.Label($"Merhaba {net.Username}! Bir sunucu seç:", Gui.Hud);
-            GUILayout.Space(8);
-            foreach (var s in servers)
-            {
-                var label = $"{s.name}  ({s.language})   {s.players}/{s.capacity}";
-                if (GUILayout.Button(label, Gui.Button, GUILayout.Height(36))) Join(s);
-            }
-            GUILayout.Space(12);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Yenile", Gui.Button, GUILayout.Height(30))) Refresh();
-            if (GUILayout.Button("Çıkış", Gui.Button, GUILayout.Height(30)))
+            if (view != null) return true;
+            view = UiRoot.Get().Spawn<LoginView>("Login");
+            if (view == null) return false;
+            view.version.text = $"v{Application.version} · {(Application.platform == RuntimePlatform.WebGLPlayer ? "Web" : "Mac")}";
+            view.play.onClick.AddListener(() =>
             {
                 error = null;
+                if (!string.IsNullOrWhiteSpace(username)) Login();
+                else screen = Page.Guest;
+            });
+            view.settings.onClick.AddListener(() =>
+            {
+                view.hostField.SetTextWithoutNotify(host);
+                view.host.Open = !view.host.Open;
+            });
+            view.settings.gameObject.SetActive(Application.platform != RuntimePlatform.WebGLPlayer);
+            view.hostSave.onClick.AddListener(() =>
+            {
+                host = view.hostField.text.Trim();
+                PlayerPrefs.SetString(HostKey, host);
+                PlayerPrefs.Save();
+                view.host.Open = false;
+            });
+            view.guest.Closed = () => screen = Page.Login;
+            view.guestPlay.onClick.AddListener(() =>
+            {
+                error = null;
+                view.nameField.SetTextWithoutNotify(username);
+                screen = Page.Character;
+            });
+            view.character.Closed = () => screen = Page.Guest;
+            view.back.onClick.AddListener(() => screen = Page.Guest);
+            view.next.onClick.AddListener(() =>
+            {
+                username = view.nameField.text.Trim();
+                if (username.Length == 0) return;
+                Login();
+            });
+            view.nameField.onEndEdit.AddListener(_ =>
+            {
+                var k = UnityEngine.InputSystem.Keyboard.current;
+                if (k != null && (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame) && view.nameField.text.Trim().Length > 0)
+                {
+                    username = view.nameField.text.Trim();
+                    Login();
+                }
+            });
+            view.servers.Closed = () => screen = Page.Login;
+            view.refresh.onClick.AddListener(Refresh);
+            view.logout.onClick.AddListener(() =>
+            {
+                error = null;
+                username = "";
+                PlayerPrefs.SetString(UsernameKey, "");
                 screen = Page.Login;
+            });
+            for (var i = 0; i < view.rows.Length; i++)
+            {
+                var index = i;
+                view.rows[i].go.onClick.AddListener(() =>
+                {
+                    if (index < servers.Length) Join(servers[index]);
+                });
             }
-            GUILayout.EndHorizontal();
+            return true;
+        }
+
+        void Update()
+        {
+            if (!EnsureView()) return;
+            var inWorld = screen == Page.World && world != null && world.Ready;
+            if (view.gameObject.activeSelf == inWorld) view.gameObject.SetActive(!inWorld);
+            if (inWorld) return;
+            view.transform.SetAsLastSibling();
+
+            var loading = screen == Page.Busy || screen == Page.World;
+            view.titlePlate.SetActive(screen != Page.Character && screen != Page.Servers);
+            // _akis-2 lifts the name plate above the "Oyuna gir" window.
+            ((RectTransform)view.titlePlate.transform).anchoredPosition = new Vector2(444, screen == Page.Guest ? -96 : -140);
+            view.title.SetActive(screen == Page.Login);
+            if (screen != Page.Login && view.host.Open) view.host.Open = false;
+            Show(view.guest, screen == Page.Guest);
+            Show(view.character, screen == Page.Character);
+            Show(view.servers, screen == Page.Servers);
+            if (view.loading.activeSelf != loading)
+            {
+                view.loading.SetActive(loading);
+                busySince = Time.time;
+                tip = Tips[UnityEngine.Random.Range(0, Tips.Length)];
+            }
+            if (loading)
+            {
+                view.loadingText.text = screen == Page.World ? busyText ?? "Bağlanıyor..." : busyText;
+                // There is no real progress to report: the bar fills slowly while waiting.
+                HudView.Fill(view.loadingFill, 1f - Mathf.Exp(-(Time.time - busySince) / 1.5f));
+                view.tip.text = tip;
+            }
+            var err = error ?? "";
+            if (view.error.text != err) view.error.text = err;
         }
 
         async void Refresh()
@@ -222,6 +289,39 @@ namespace CollectionGame
             catch (Exception e)
             {
                 Fail(Page.Login, e);
+            }
+        }
+
+        static void Show(WindowView w, bool on)
+        {
+            if (w.Open != on) w.Open = on;
+        }
+
+        /// <summary>Server rows (_akis-6): flag, name, friends there, how full, Gir.</summary>
+        void FillServers(Dictionary<string, int> friendsOn)
+        {
+            if (!EnsureView()) return;
+            var best = friendsOn.Count > 0 ? friendsOn.OrderByDescending(p => p.Value).First().Key : null;
+            view.greeting.text = best != null ? $"Merhaba {net.Username}! Arkadaşlarının olduğu sunucu üstte." : $"Merhaba {net.Username}! Bir sunucu seç.";
+            var ordered = servers.OrderByDescending(s => friendsOn.TryGetValue(s.name, out var n) ? n : 0).ToArray();
+            servers = ordered;
+            for (var i = 0; i < view.rows.Length; i++)
+            {
+                var r = view.rows[i];
+                var s = i < servers.Length ? servers[i] : null;
+                r.root.SetActive(s != null);
+                if (s == null) continue;
+                friendsOn.TryGetValue(s.name, out var friends);
+                r.back.sprite = friends > 0 ? view.rowFriends : view.rowPlain;
+                r.flag.sprite = s.language == "en" ? view.flagEn : view.flagTr;
+                r.name.text = s.name;
+                r.friends.text = friends > 0 ? $"{friends} arkadaş" : "";
+                var share = s.capacity > 0 ? (float)s.players / s.capacity : 0f;
+                HudView.Fill(r.fill, share);
+                r.fillImage.sprite = share >= 0.9f ? view.fillRed : share >= 0.6f ? view.fillYellow : view.fillGreen;
+                r.count.text = $"{s.players} / {s.capacity}";
+                r.warn.text = share >= 0.9f ? "neredeyse dolu" : "";
+                r.go.interactable = s.players < s.capacity;
             }
         }
     }

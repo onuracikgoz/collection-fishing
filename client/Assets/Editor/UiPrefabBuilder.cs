@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 25;
+        public const int Version = 26;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -79,6 +79,7 @@ namespace CollectionGame.EditorTools
             Save(BuildFishing(), "Fishing");
             Save(BuildCatch(), "Catch");
             Save(BuildNotices(), "Notices");
+            Save(BuildLogin(), "Login");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1212,7 +1213,7 @@ namespace CollectionGame.EditorTools
             view.portrait = SlotAt(w, "Portrait", 28, 28, 104);
             view.portrait.frame.pixelsPerUnitMultiplier = 1;
             view.portrait.label.fontSize = 14;
-            view.name = TextAt(w, "Name", "", 145, 42, 200, 21, Ink, TextAnchor.MiddleLeft, true);
+            view.displayName = TextAt(w, "Name", "", 145, 42, 200, 21, Ink, TextAnchor.MiddleLeft, true);
             var tag = Abs(w, "LevelTag", 197, 35, 38, 16);
             Img(tag, "tag_level");
             view.levelTag = tag.gameObject;
@@ -1327,7 +1328,7 @@ namespace CollectionGame.EditorTools
             fr.dot = Img(dot, "checkbox_on", Image.Type.Simple);
             view.dotOnline = S("checkbox_on");
             view.dotOffline = S("slot_locked");
-            fr.name = TextAt(row, "Name", "", 50, 14, 260, 16, Ink, TextAnchor.MiddleLeft, true);
+            fr.player = TextAt(row, "Name", "", 50, 14, 260, 16, Ink, TextAnchor.MiddleLeft, true);
             fr.sub = TextAt(row, "Sub", "", 50, 34, 260, 13, Faint);
             fr.sub.supportRichText = true;
             fr.go = SmallButton(row, "Go", "green", "Yanına git", 314, 10, 82, 26);
@@ -1861,6 +1862,127 @@ namespace CollectionGame.EditorTools
             var foot = TextAt(w, "Footer", "Bir tane takılı kalır. Sunucudaki herkes görür.\nYürürken de durur; Kaldır'a basana kadar kalır.", 30, 366, 480, 13, Hex("1e6f50"));
             ((RectTransform)foot.transform).sizeDelta = new Vector2(480, 40);
             return wrap.gameObject;
+        }
+
+        // ================= Way into the game (drafts _akis-1..7) =================
+
+        static GameObject BuildLogin()
+        {
+            var root = Stretch(Node("Login", null));
+            var view = root.gameObject.AddComponent<LoginView>();
+            Img(Stretch(Node("Shade", root)), "box_dark", Image.Type.Sliced, true);
+
+            // _akis-1: the name plate 518x88 at (444, 140); Oyna and Ayarlar 220x44 at (594, 400 / 460).
+            var plate = Abs(root, "TitlePlate", 444, 140, 518, 88);
+            Img(plate, "button_wood_normal");
+            Txt(Stretch(Node("Text", plate), 0, 4, 0, 0), "CollectionGame", 40, Gold, TextAnchor.MiddleCenter, true, true);
+            view.titlePlate = plate.gameObject;
+            var title = Stretch(Node("Title", root));
+            view.title = title.gameObject;
+            view.play = SmallButton(title, "Play", "green", "Oyna", 594, 400, 220, 44, 18);
+            view.settings = SmallButton(title, "Settings", "wood", "Ayarlar", 594, 460, 220, 44, 18);
+            view.version = TextAt(root, "Version", "", 16, 876, 300, 13, Paper, TextAnchor.MiddleLeft, false);
+            view.credits = TextAt(root, "Credits", "Krediler · LPC Revised", 1092, 876, 300, 13, Paper, TextAnchor.MiddleRight, false);
+
+            // Server address (development builds; the web build uses the page's host).
+            var hostHolder = Stretch(Node("Host", root));
+            view.host = DraftWindow(hostHolder, "Ayarlar", 494, 530, 420, 150);
+            var h = view.host.transform;
+            TextAt(h, "Label", "Sunucu adresi", 26, 40, 300, 15, Ink);
+            view.hostField = Field(Abs(h, "Field", 26, 56, 368, 32), "127.0.0.1", 15);
+            view.hostField.characterLimit = 64;
+            view.hostSave = SmallButton(h, "Save", "green", "Kaydet", 274, 100, 120, 32, 15);
+            view.host.Open = false;
+
+            // _akis-2: "Oyuna gir" 516x424 at (444, 220).
+            var guestHolder = Stretch(Node("Guest", root));
+            view.guest = DraftWindow(guestHolder, "Oyuna gir", 444, 220, 516, 424);
+            var g = view.guest.transform;
+            view.guestPlay = SmallButton(g, "GuestPlay", "green", "Misafir olarak oyna", 56, 40, 404, 40, 17);
+            var guestNote = TextAt(g, "GuestNote", "Kayıt yok, hemen başla. Sonra Ayarlar > Hesabını koru\nile bir hesap bağlarsın.", 30, 110, 456, 14, Faint, TextAnchor.MiddleCenter);
+            ((RectTransform)guestNote.transform).sizeDelta = new Vector2(456, 40);
+            Img(Abs(g, "LineL", 60, 146, 140, 4), "divider");
+            TextAt(g, "Or", "veya şununla gir", 200, 148, 116, 13, Faint, TextAnchor.MiddleCenter);
+            Img(Abs(g, "LineR", 316, 146, 140, 4), "divider");
+            string[] social = { "G", "f", "D" };
+            view.social = new Button[3];
+            for (var i = 0; i < 3; i++)
+            {
+                view.social[i] = SmallButton(g, "Social" + i, "square_wood", social[i], 128 + i * 96, 170, 64, 64, 26);
+                view.social[i].interactable = false;
+            }
+            TextAt(g, "SocialNote", "Google · Facebook · Discord (yakında)", 30, 252, 456, 13, Faint, TextAnchor.MiddleCenter);
+            TextAt(g, "Private", "Gizli sekmede misafir hesabın kapanınca kaybolur.", 30, 312, 456, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
+            var steam = TextAt(g, "Steam", "Steam'deki hesabınla da bu yollardan birini\nbağlayıp buradan girebilirsin.", 30, 360, 456, 13, Faint, TextAnchor.MiddleCenter);
+            ((RectTransform)steam.transform).sizeDelta = new Vector2(456, 40);
+            view.guest.Open = false;
+
+            // _akis-5: the character, 756x474 at (324, 140). Only the name is kept by the server today.
+            var charHolder = Stretch(Node("Character", root));
+            view.character = DraftWindow(charHolder, "Karakterini oluştur", 324, 140, 756, 474);
+            var c = view.character.transform;
+            var preview = Abs(c, "Preview", 28, 28, 276, 356);
+            Img(preview, "card");
+            Img(Stretch(Node("Outline", preview)), "outline");
+            Txt(Stretch(Node("Text", preview), 10, 10, 10, 10), "Karakter görünümü\nsonra seçilecek", 15, Faint, TextAnchor.MiddleCenter);
+            TextAt(c, "NameLabel", "Ad", 346, 32, 80, 16, Ink);
+            view.nameField = Field(Abs(c, "Name", 420, 16, 300, 32), "Adın", 16);
+            view.nameField.characterLimit = 16;
+            TextAt(c, "NameRule", "3-16: harf, rakam, _", 420, 64, 300, 13, Faint);
+            var look = TextAt(c, "Look", "Gövde, ten, saç ve kıyafet seçimi karakter görünümü\nsunucuya eklenince gelecek.", 346, 140, 380, 14, Faint);
+            ((RectTransform)look.transform).sizeDelta = new Vector2(380, 40);
+            TextAt(c, "Fixed", "Ad sonra değişmez, iyi düşün.", 346, 410, 380, 13, Faint);
+            view.back = SmallButton(c, "Back", "wood", "Geri", 346, 428, 180, 36, 16);
+            view.next = SmallButton(c, "Next", "green", "Devam", 536, 428, 190, 36, 16);
+            view.character.Open = false;
+
+            // _akis-6: server list, 716x476 at (344, 128); rows 684x60, 68 apart.
+            var srvHolder = Stretch(Node("Servers", root));
+            view.servers = DraftWindow(srvHolder, "Sunucu seç", 344, 128, 716, 476);
+            var sv = view.servers.transform;
+            view.greeting = TextAt(sv, "Greeting", "", 22, 26, 660, 14, Ink);
+            view.rowFriends = S("panel_locked");
+            view.rowPlain = S("card");
+            view.fillGreen = S("bar_fill_green");
+            view.fillYellow = S("bar_fill_yellow");
+            view.fillRed = S("bar_fill_red");
+            view.flagTr = S("flag_tr");
+            view.flagEn = S("flag_en");
+            view.rows = new LoginView.ServerRow[6];
+            for (var i = 0; i < 6; i++)
+            {
+                var rt = Abs(sv, "Row" + i, 16, 44 + i * 68, 684, 60);
+                var r = new LoginView.ServerRow { root = rt.gameObject };
+                r.back = Img(rt, "card");
+                Img(Stretch(Node("Outline", rt)), "outline");
+                r.flag = Img(Abs(rt, "Flag", 12, 18, 32, 22), "flag_tr", Image.Type.Simple);
+                r.name = TextAt(rt, "Name", "", 54, 20, 220, 17, Ink, TextAnchor.MiddleLeft, true);
+                r.friends = TextAt(rt, "Friends", "", 54, 41, 220, 13, Hex("1e6f50"));
+                r.fill = Bar(Abs(rt, "Bar", 290, 14, 200, 14), "bar_fill_green", out r.fillImage);
+                r.count = TextAt(rt, "Count", "", 290, 41, 100, 13, Ink);
+                r.warn = TextAt(rt, "Warn", "", 390, 41, 140, 13, Hex("e83b3b"));
+                r.go = SmallButton(rt, "Go", "green", "Gir", 548, 12, 124, 36, 16);
+                view.rows[i] = r;
+            }
+            view.refresh = LinkText(sv, "Refresh", "Yenile", 22, 452, 80, Hex("4d65b4"));
+            view.logout = LinkText(sv, "Logout", "Çıkış", 620, 452, 80, Hex("e83b3b"), TextAnchor.MiddleRight);
+            view.servers.Open = false;
+
+            // _akis-7: loading.
+            var loading = Stretch(Node("Loading", root));
+            view.loading = loading.gameObject;
+            view.loadingText = TextAt(loading, "Text", "", 304, 392, 800, 20, Color.white, TextAnchor.MiddleCenter, true);
+            view.loadingText.gameObject.AddComponent<Shadow>().effectColor = new Color(0, 0, 0, 0.75f);
+            view.loadingFill = Bar(Abs(loading, "Bar", 544, 490, 320, 14), "bar_fill_green", out _);
+            var tipBox = Abs(loading, "Tip", 404, 782, 600, 40);
+            Img(tipBox, "box_dark");
+            view.tip = Txt(Stretch(Node("Text", tipBox), 12, 0, 12, 0), "", 13, Paper, TextAnchor.MiddleCenter);
+            loading.gameObject.SetActive(false);
+
+            view.error = TextAt(root, "Error", "", 304, 676, 800, 16, Hex("e83b3b"), TextAnchor.MiddleCenter, true);
+            view.error.gameObject.AddComponent<Shadow>().effectColor = new Color(0, 0, 0, 0.75f);
+            view.error.horizontalOverflow = HorizontalWrapMode.Wrap;
+            return root.gameObject;
         }
 
         // ================= Whisper window =================

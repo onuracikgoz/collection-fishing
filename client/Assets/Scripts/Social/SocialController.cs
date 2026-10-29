@@ -450,8 +450,8 @@ namespace CollectionGame.Social
             r.avatar.SetEmpty();
             r.avatar.label.text = f.Username.Length > 0 ? f.Username.Substring(0, 1).ToUpperInvariant() : "?";
             r.dot.sprite = online ? v.dotOnline : v.dotOffline;
-            r.name.text = f.Username;
-            r.name.color = online ? Ink : Faint;
+            r.player.text = f.Username;
+            r.player.color = online ? Ink : Faint;
             foreach (var b in new[] { r.go, r.chat, r.menu, r.no, r.yes, r.cancel, r.unblock }) b.gameObject.SetActive(false);
             rows.Add(r.gameObject);
             return r;

@@ -585,13 +585,13 @@ namespace CollectionGame.Collection
             v.portrait.label.text = p != null ? p.username : "";
             if (p == null)
             {
-                v.name.text = "Yükleniyor...";
+                v.displayName.text = "Yükleniyor...";
                 v.levelTag.SetActive(false);
                 v.hunt.SetActive(false);
                 return;
             }
             var mine = p.userId == net.UserId;
-            v.name.text = p.username;
+            v.displayName.text = p.username;
             v.levelTag.SetActive(true);
             v.level.text = $"Lv {Mathf.Max(1, p.level)}";
             v.sub.text = "";

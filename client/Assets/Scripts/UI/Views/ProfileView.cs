@@ -8,7 +8,7 @@ namespace CollectionGame.UI.Views
     {
         public WindowView window;
         public SlotView portrait;
-        public Text name, level, sub, score;
+        public Text displayName, level, sub, score;
         public GameObject levelTag, hunt;
         public Text huntText;
         public SlotView[] showcase;

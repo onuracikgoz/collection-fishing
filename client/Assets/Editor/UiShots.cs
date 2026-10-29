@@ -190,7 +190,7 @@ namespace CollectionGame.EditorTools
                 var v = Spawn<ProfileView>(canvas, "Profile");
                 v.portrait.SetEmpty();
                 v.portrait.label.text = "Ece";
-                v.name.text = "Ece";
+                v.displayName.text = "Ece";
                 v.level.text = "Lv 12";
                 v.score.text = "2.340";
                 v.huntText.text = "Arıyorum: Mağara Kristali";
@@ -233,7 +233,7 @@ namespace CollectionGame.EditorTools
                     r.avatar.SetEmpty();
                     r.avatar.label.text = name.Substring(0, 1);
                     r.dot.sprite = online ? v.dotOnline : v.dotOffline;
-                    r.name.text = name;
+                    r.player.text = name;
                     r.sub.text = sub;
                     foreach (var b in new[] { r.no, r.yes, r.cancel, r.unblock }) b.gameObject.SetActive(false);
                     r.go.gameObject.SetActive(online);
@@ -524,6 +524,43 @@ namespace CollectionGame.EditorTools
                 pop.ShowMenu("Deniz", new (string, Action)[] { ("Profil", () => { }), ("Defterine bak", () => { }), ("Arkadaş ekle", () => { }), ("Fısılda", () => { }), ("Takas teklif et", () => { }), ("Engelle", () => { }), ("Şikayet et", () => { }) });
                 ((RectTransform)pop.menu).anchoredPosition = new Vector2(480, 896 - 318); // menu top-left on the draft
             });
+            foreach (var page in new[] { "_akis-1-baslik", "_akis-2-web-giris", "_akis-5-karakter", "_akis-6-sunucu", "_akis-7-yukleniyor" })
+            {
+                var pg = page;
+                Shot(outDir, pg, Path.Combine(drafts, pg + ".png"), canvas =>
+                {
+                    var v = Spawn<LoginView>(canvas, "Login");
+                    v.version.text = "v0.4 · Web";
+                    v.title.SetActive(pg == "_akis-1-baslik");
+                    v.titlePlate.SetActive(pg != "_akis-5-karakter" && pg != "_akis-6-sunucu");
+                    ((RectTransform)v.titlePlate.transform).anchoredPosition = new Vector2(444, pg == "_akis-2-web-giris" ? -96 : -140);
+                    v.guest.gameObject.SetActive(pg == "_akis-2-web-giris");
+                    v.character.gameObject.SetActive(pg == "_akis-5-karakter");
+                    v.servers.gameObject.SetActive(pg == "_akis-6-sunucu");
+                    v.loading.SetActive(pg == "_akis-7-yukleniyor");
+                    v.nameField.text = "Ece";
+                    v.loadingText.text = "Liman sunucusuna bağlanıyor...";
+                    HudView.Fill(v.loadingFill, 0.6f);
+                    v.tip.text = "İpucu: Daha temiz Float'lı kopya gelirse deftere koymak sana sorulur.";
+                    v.greeting.text = "Merhaba Ece! Arkadaşlarının olduğu sunucu üstte.";
+                    (string, string, int, int, int)[] rows = { ("Liman", "tr", 2, 143, 200), ("Mercan", "tr", 0, 88, 200), ("Fener", "tr", 1, 196, 200), ("Harbor", "en", 0, 61, 200), ("Coral", "en", 0, 12, 200) };
+                    for (var i = 0; i < v.rows.Length; i++)
+                    {
+                        var r = v.rows[i];
+                        r.root.SetActive(i < rows.Length);
+                        if (i >= rows.Length) continue;
+                        var (n, lang, f, p, c) = rows[i];
+                        r.back.sprite = f > 0 ? v.rowFriends : v.rowPlain;
+                        r.flag.sprite = lang == "en" ? v.flagEn : v.flagTr;
+                        r.name.text = n;
+                        r.friends.text = f > 0 ? $"{f} arkadaş" : "";
+                        HudView.Fill(r.fill, (float)p / c);
+                        r.fillImage.sprite = p >= 180 ? v.fillRed : p >= 120 ? v.fillYellow : v.fillGreen;
+                        r.count.text = $"{p} / {c}";
+                        r.warn.text = p >= 180 ? "neredeyse dolu" : "";
+                    }
+                });
+            }
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));

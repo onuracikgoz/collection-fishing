@@ -9,7 +9,7 @@ namespace CollectionGame.UI.Views
         public Image back;
         public SlotView avatar;
         public Image dot;
-        public Text name, sub;
+        public Text player, sub;
         public Button go, chat, menu, no, yes, cancel, unblock;
     }
 }
