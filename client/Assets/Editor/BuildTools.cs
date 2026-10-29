@@ -23,6 +23,7 @@ namespace CollectionGame.EditorTools
         public static void BuildMac()
         {
             ArtCatalogBuilder.Refresh();
+            UiPrefabBuilder.BuildIfStale();
             var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
             var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
             {
@@ -46,6 +47,7 @@ namespace CollectionGame.EditorTools
         public static void BuildWeb()
         {
             ArtCatalogBuilder.Refresh();
+            UiPrefabBuilder.BuildIfStale();
             PlayerSettings.WebGL.compressionFormat = WebGLCompressionFormat.Gzip;
             PlayerSettings.WebGL.decompressionFallback = true;
             var scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray();
