@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
         const int PixelsPerUnit = 32;
 
         // Bump to reimport existing art after changing the settings below.
-        public override uint GetVersion() => 2;
+        public override uint GetVersion() => 3;
 
         [Serializable] class Border { public string name; public int l, t, r, b; }
         [Serializable] class BorderList { public Border[] items; }
@@ -53,6 +53,8 @@ namespace CollectionGame.EditorTools
                 return;
             }
 
+            // One sprite per file: in Multiple mode the sliced sprite ("card_0") gets no 9-slice border.
+            importer.spriteImportMode = SpriteImportMode.Single;
             context.DependsOnSourceAsset(BordersPath);
             if (!File.Exists(BordersPath)) return;
             var list = JsonUtility.FromJson<BorderList>(File.ReadAllText(BordersPath));

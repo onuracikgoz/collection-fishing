@@ -25,8 +25,17 @@ namespace CollectionGame.Net
             public Incoming(long op, string json) { Op = op; Json = json; }
         }
 
+        /// <summary>A live Nakama notification (whisper, stall sale...), drained by the world like match messages.</summary>
+        public readonly struct Notice
+        {
+            public readonly int Code;
+            public readonly string Subject, Json;
+            public Notice(int code, string subject, string json) { Code = code; Subject = subject; Json = json; }
+        }
+
         readonly IClient client;
         readonly Queue<Incoming> inbox = new Queue<Incoming>();
+        readonly Queue<Notice> notices = new Queue<Notice>();
         ISocket socket;
 
         public ISession Session { get; private set; }
@@ -111,6 +120,47 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<ProfileResponse>(rpc.Payload);
         }
 
+        /// <summary>Calls an RPC with a JsonUtility body and parses the answer. Errors throw; see <see cref="ErrorOf"/>.</summary>
+        public async Task<T> RpcAsync<T>(string id, object body)
+        {
+            var rpc = await client.RpcAsync(Session, id, body == null ? "{}" : JsonUtility.ToJson(body));
+            return JsonUtility.FromJson<T>(string.IsNullOrEmpty(rpc.Payload) ? "{}" : rpc.Payload);
+        }
+
+        /// <summary>whisper_send. Unity sends empty fields as "", which the server skips.</summary>
+        public Task<WhisperSendResponse> WhisperAsync(string userId, string username, string text, string context = null) =>
+            RpcAsync<WhisperSendResponse>("whisper_send", new WhisperSendRequest { userId = userId ?? "", username = username ?? "", text = text, context = context ?? "" });
+
+        /// <summary>whisper_settings: null only reads.</summary>
+        public async Task<bool> WhisperSettingsAsync(bool? pmOff)
+        {
+            var body = pmOff.HasValue ? "{\"pmOff\":" + (pmOff.Value ? "true" : "false") + "}" : "{}";
+            var rpc = await client.RpcAsync(Session, "whisper_settings", body);
+            return JsonUtility.FromJson<WhisperSettings>(rpc.Payload)?.pmOff ?? false;
+        }
+
+        public Task ReportAsync(string userId, string reason, string note, string text) =>
+            RpcAsync<WhisperSettings>("report_player", new ReportPlayerRequest { userId = userId, reason = reason, note = note ?? "", text = text ?? "" });
+
+        public Task BlockAsync(string userId) => client.BlockFriendsAsync(Session, new[] { userId });
+
+        /// <summary>
+        /// The game error code inside an RPC failure (the server sends {"code","message"} as the
+        /// message), or null.
+        /// </summary>
+        public static string ErrorOf(Exception e)
+        {
+            var msg = e?.GetBaseException().Message ?? "";
+            var at = msg.IndexOf("\"code\"", StringComparison.Ordinal);
+            if (at >= 0)
+            {
+                var start = msg.IndexOf('"', msg.IndexOf(':', at) + 1);
+                var end = start >= 0 ? msg.IndexOf('"', start + 1) : -1;
+                if (start >= 0 && end > start) return msg.Substring(start + 1, end - start - 1);
+            }
+            return msg.Contains("RATE_LIMITED") ? ErrorCode.RateLimited : null;
+        }
+
         static string UserArg(string userId) => string.IsNullOrEmpty(userId) ? "{}" : "{\"userId\":" + JsonString(userId) + "}";
 
         static string JsonString(string s)
@@ -166,6 +216,10 @@ namespace CollectionGame.Net
 
             var s = client.NewSocket(useMainThread: true);
             socket = s;
+            s.ReceivedNotification += n =>
+            {
+                lock (notices) notices.Enqueue(new Notice(n.Code, n.Subject, n.Content));
+            };
             s.ReceivedMatchState += state =>
             {
                 var json = Encoding.UTF8.GetString(state.State);
@@ -199,6 +253,20 @@ namespace CollectionGame.Net
                 }
             }
             message = default;
+            return false;
+        }
+
+        public bool TryDequeueNotice(out Notice notice)
+        {
+            lock (notices)
+            {
+                if (notices.Count > 0)
+                {
+                    notice = notices.Dequeue();
+                    return true;
+                }
+            }
+            notice = default;
             return false;
         }
 

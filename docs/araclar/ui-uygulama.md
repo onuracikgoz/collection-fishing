@@ -2,7 +2,7 @@
 
 Taslaklar (PNG) `docs/gorsel/ui-taslaklar/`. Bunlar 2x gösterilen 1x çizimlerdir: 704x448 mantıksal ekran, 1408x896 görüntü. Kit parçaları `client/Assets/Art/UI/` (`ui-borders.json` 9-slice kenarlarını verir). Kural ve renk kararları: `docs/tasarim/15-gorsel-stil.md` UI kiti. Kit'i yeniden üretmek: `tools/ui-kit/make_ui_kit.py`.
 
-Bulut oturumu Unity'yi derleyemediği için bu pencerelerin hiçbiri Unity'de yazılmadı. Mevcut Faz 4 pencereleri eski IMGUI (`UI/Gui.cs`, `Economy/`); sırayla yeni kitle değiştirilecek.
+Bulut oturumu Unity'yi derleyemediği için pencereler ilk başta Unity'de yazılmamıştı; Mac oturumunun yazdıkları aşağıda (Yazılanlar). Mevcut Faz 4 pencereleri eski IMGUI (`UI/Gui.cs`, `Economy/`); sırayla yeni kitle değiştirilecek.
 
 ## Önce Mac'te kontrol et
 
@@ -11,6 +11,30 @@ Bulut oturumu Unity'yi derleyemediği için bu pencerelerin hiçbiri Unity'de ya
 3. Kapat butonu yeniden çizildi (ahşap plaka): `button_close_*`.
 4. `Protocol.cs` bulutta derlenmedi: yeni `EmoteStatus*`, `Announce` sınıfları ve `status`, `emotesOwned` alanları denenmeli.
 5. **Enerji (29.10.2026):** sunucu atış enerjisini artık her atışta değil, av sonucuyla ya da dakikada bir kaydediyor. `FishingController.RefreshBag` içindeki `Energy = Bag.energy;` satırı maçtayken kaldırılmalı (maçtaki değer `WELCOME` / `BOBBER` / `FISH_END`'den gelir); yoksa kaçan bir atıştan sonra çanta açılınca enerji 1 geri gelmiş görünür.
+
+## Mac kontrolü sonucu (29.10.2026)
+
+1. Kit içe aktarılıyor, 9-slice kenarları dokuya yazılıyor. Ama parçalar Multiple sprite modunda geliyordu, kesilen sprite'ın (`card_0`) kenarı 0'dı: `PixelArtImporter` (sürüm 3) UI parçalarını artık Single içe aktarıyor. Unity açılınca 172 doku yeniden içe aktarılır, UI `.meta` dosyaları değişir (commit'lenmeli).
+2. Kodda `card_paper` kullanan yer yok.
+3. `button_close_*` kit pencerelerinin kapat butonu.
+4. `Protocol.cs` Unity'nin derleyicisiyle (editörün `.rsp` dosyasıyla) hatasız derleniyor.
+5. `Energy = Bag.energy;` kaldırıldı (Onur).
+
+## Yazılanlar (IMGUI + kit, 29.10.2026)
+
+Pencereler hâlâ IMGUI, ama kit dokularıyla: `UI/Kit.cs` (pencere, başlık plakası, sürükleme, kapat, kart, Tier yuvası, butonlar), `UI/Toasts.cs` (en fazla 4 kutu), `UI/ItemText.cs`. Kit dokuları çalışma anında `ArtCatalog.Ui("window")` ile gelir (katalog `Assets/Art/UI/`'yi de tutar). uGUI'ye geçiş sonra.
+
+| Pencere | Dosya | Açılış |
+|---|---|---|
+| Takas (davet kutusu, 3 sütun, kilit, geri sayım, onay) | `Social/TradeController.cs` | Profil kartında "Takas teklif et" |
+| Pazar: tezgah kur / tezgahım / pano / bir tezgahın tam listesi | `Economy/MarketController.cs` | M, sağ üst "Pazar"; haritadaki tezgah etiketine tıkla |
+| Günlük görev | `Economy/QuestController.cs` | G, sağ üst "Görev" |
+| Fısıltı pencereleri | `Social/WhisperController.cs` | `/w Ad mesaj`, profil kartında "Fısılda", tezgahta "Fısılda" |
+| Ayarlar (Genel: PM kapalı; Hesap: bulanık açılış, Steam kodu, hesap silme) | `UI/SettingsController.cs` | sağ üst "Ayarlar" |
+
+Takas açıkken client yürümez ve olta atmaz. Bildirimler socket'ten: 110 fısıltı, 103 tezgah satışı, 104 silme iptali, 101/102 giriş yolu (sadece canlı gelenler; kalıcı bildirimleri girişte listelemek henüz yok).
+
+**Sunucudan eksik (client uydurmadı):** `get_catalog` pano fiyatını (`BOARD.priceDiamonds`), tezgaha bakma yarıçapını (`MARKET.interactRadius`) ve pazar noktasını vermiyor. Client "Reklam ver (elmas)" yazıyor, fiyat göstermiyor; harita etiketi 7 tile'dan yakında ilk kalemleri gösteriyor (sadece görüntü, karar sunucuda). Kataloğa eklenirse client oradan okur.
 
 ## Pencereler
 

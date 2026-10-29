@@ -801,6 +801,17 @@ namespace CollectionGame.Net
         public FishBookMsg book;
     }
 
+    /// <summary>Content of a stall sale notification (code 103, subject stall_sold). price is the sale total; fee was taken from it.</summary>
+    [Serializable]
+    public class StallSoldNotice
+    {
+        public string defId;
+        public int count;
+        public int price;
+        public int fee;
+        public string buyer;
+    }
+
     // --- Market board (docs/protokol.md, Pazar Panosu) ---
 
     [Serializable]
@@ -851,6 +862,14 @@ namespace CollectionGame.Net
         public bool ok;
         public string reason;
         public long diamond;
+    }
+
+    /// <summary>transfer_code_create answer (docs/protokol.md, Taşıma kodu RPC'leri). code looks like ABCD-EFGH.</summary>
+    [Serializable]
+    public class TransferCodeResponse
+    {
+        public string code;
+        public long expiresInMs;
     }
 
     // --- Account deletion RPCs (docs/protokol.md, Hesap silme RPC'leri) ---
