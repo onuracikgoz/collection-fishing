@@ -3,8 +3,10 @@
 import { mutualFriends } from '../match/friends';
 import { findWorldMatches } from '../match/servers';
 import { ErrorCode, FriendStatus, FriendsStatusResponse, errorMessage } from '../protocol';
+import { rpcLimit } from './limit';
 
 export function rpcFriendsStatus(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+  rpcLimit(nk, ctx.userId, 'friends_status');
   if (!ctx.userId) throw { message: errorMessage(ErrorCode.BAD_REQUEST, 'no user'), code: 16 } as nkruntime.Error;
   const friends = mutualFriends(nk, ctx.userId);
   const out: FriendStatus[] = friends.map((f) => ({ userId: f.userId, username: f.username, online: false }));

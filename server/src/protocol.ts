@@ -37,6 +37,34 @@ export const OpCode = {
   STASH_TAKE: 33,
   STASH_EXPAND: 34,
   STASH_RESULT: 35,
+  EMOTE_STATUS: 36,
+  EMOTE_STATUS_SHOW: 37,
+  ANNOUNCE: 38,
+  TRADE_OFFER: 39,
+  TRADE_REPLY: 40,
+  TRADE_SET: 41,
+  TRADE_LOCK: 42,
+  TRADE_CONFIRM: 43,
+  TRADE_CANCEL: 44,
+  TRADE_INVITE: 45,
+  TRADE_STATE: 46,
+  TRADE_END: 47,
+  ITEM_LOCK: 48,
+  ITEM_LOCK_RESULT: 49,
+  STALL_OPEN: 50,
+  STALL_RECALL: 51,
+  STALL_VIEW: 52,
+  STALL_BUY: 53,
+  STALL_LIST: 54,
+  STALL_STATE: 55,
+  STALL_RESULT: 56,
+  QUEST_STATE: 57,
+  QUEST_CLAIM: 58,
+  QUEST_CLAIM_RESULT: 59,
+  BOARD_AD: 60,
+  BOARD_STATE: 61,
+  BOARD_RESULT: 62,
+  BOARD_GOTO: 63,
 } as const;
 
 export const ErrorCode = {
@@ -44,6 +72,16 @@ export const ErrorCode = {
   PROTOCOL_MISMATCH: 'PROTOCOL_MISMATCH',
   SERVER_FULL: 'SERVER_FULL',
   RATE_LIMITED: 'RATE_LIMITED',
+  ACCOUNT_RECENTLY_DELETED: 'ACCOUNT_RECENTLY_DELETED',
+  NAME_RESERVED: 'NAME_RESERVED',
+  // Whisper and reports (docs/protokol.md, Fısıltı)
+  MUTED: 'MUTED',
+  NOT_FOUND: 'NOT_FOUND',
+  SELF: 'SELF',
+  NOT_ALLOWED: 'NOT_ALLOWED',
+  YOU_BLOCKED: 'YOU_BLOCKED',
+  LEVEL_TOO_LOW: 'LEVEL_TOO_LOW',
+  OFFLINE: 'OFFLINE',
 } as const;
 
 export interface HealthcheckResponse {
@@ -84,6 +122,8 @@ export interface PlayerEnterMsg extends PlayerView {
   characterId: string;
   /** Present if the player is fishing right now. */
   bobber?: { x: number; y: number; band: Band };
+  /** Persistent status emote, if one is worn. */
+  status?: string;
 }
 
 export interface PlayerLeaveMsg {
@@ -107,6 +147,14 @@ export interface WelcomeMsg {
   energy: number;
   energyMax: number;
   rod: RodView;
+  /** Status emote worn right now. */
+  status?: string;
+  /** Status emotes the player owns beyond the free set. */
+  emotesOwned: string[];
+  /** Level and XP inside the level (xpNext 0 at the top level). */
+  level: number;
+  xp: number;
+  xpNext: number;
 }
 
 /** The player's rod (Faz 4). */
@@ -156,7 +204,9 @@ export interface ItemInstance {
   defId: string;
   tier: Tier;
   float: number;
-  source: 'fishing' | 'craft' | 'merge';
+  source: 'fishing' | 'craft' | 'merge' | 'trade';
+  /** Protected by its owner: cannot be sold, salvaged, merged, crafted or traded. */
+  locked?: true;
   obtainedAt: number;
 }
 
@@ -174,6 +224,19 @@ export interface FishEndMsg {
   book?: FishBookMsg;
   /** The rod after this catch, when it wore. */
   rod?: RodView;
+  /** XP for this catch and where the player stands now. */
+  xpGain?: XpGainMsg;
+  /** A diamond dropped with this catch: how many, and the new total. */
+  diamond?: { gained: number; total: number };
+}
+
+export interface XpGainMsg {
+  gained: number;
+  level: number;
+  xp: number;
+  xpNext: number;
+  /** Set when this catch reached a new level. */
+  levelUp?: { level: number; unlocks: string[] };
 }
 
 export interface FishBookMsg {
@@ -231,6 +294,8 @@ export interface InventoryResponse {
   stacks: { defId: string; count: number }[];
   coin: number;
   dust: number;
+  /** Diamonds (fishing drops, later bought); not tradeable. */
+  diamond: number;
   rod: RodView;
 }
 
@@ -260,6 +325,7 @@ export interface ProfileResponse {
   score: number;
   /** Pages whose every record was found. */
   pagesComplete: string[];
+  level: number;
   /** Showcase items as they sit in the book now. */
   showcase: ItemInstance[];
   hunting?: string;
@@ -280,7 +346,7 @@ export interface GotoFriendMsg {
 export interface TeleportMsg {
   x: number;
   y: number;
-  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED. */
+  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED (NOT_FRIEND does not apply to BOARD_GOTO). */
   reason?: string;
 }
 
@@ -289,6 +355,162 @@ export interface EmoteShowMsg {
   emote: string;
   /** show_fish: the last thing this player caught. */
   defId?: string;
+}
+
+/** A persistent status emote changed (or was refused: then only the sender gets it, with the current value). */
+export interface EmoteStatusShowMsg {
+  id: string;
+  /** Emote now worn, or null when none. */
+  emote: string | null;
+  /** Set when the request was refused: NOT_OWNED, RATE_LIMITED. */
+  reason?: string;
+}
+
+/** A server-wide announcement. For now only a rare catch (Epic and above). */
+export interface AnnounceMsg {
+  kind: 'rare_catch';
+  /** Who caught it. */
+  id: string;
+  name: string;
+  defId: string;
+  tier: Tier;
+  /** Condition name only, never the raw Float. */
+  condition: string;
+}
+
+// --- Faz 5: trade (docs/protokol.md, Takas) ---
+
+export interface TradeOfferView {
+  items: ItemInstance[];
+  stacks: { defId: string; count: number }[];
+  coin: number;
+}
+
+/** S → C, op 46: the window as one side sees it. */
+export interface TradeStateMsg {
+  tradeId: string;
+  withId: string;
+  withName: string;
+  you: TradeOfferView;
+  them: TradeOfferView;
+  youLocked: boolean;
+  themLocked: boolean;
+  youConfirmed: boolean;
+  themConfirmed: boolean;
+  /** Both locked: ms until Confirm is accepted (0 = now). */
+  confirmInMs?: number;
+  /** Only to the asker: why a TRADE_SET / TRADE_LOCK was refused. */
+  reason?: string;
+}
+
+/** S → C, op 45. */
+export interface TradeInviteMsg {
+  tradeId: string;
+  from: string;
+  name: string;
+  expiresInMs: number;
+}
+
+export type TradeResult = 'done' | 'cancelled' | 'declined' | 'expired' | 'failed';
+
+/** S → C, op 47. */
+export interface TradeEndMsg {
+  tradeId: string;
+  result: TradeResult;
+  reason?: string;
+  /** failed / BAG_FULL: which side. */
+  userId?: string;
+  got?: TradeOfferView;
+  gave?: { items: string[]; stacks: { defId: string; count: number }[]; coin: number };
+  /** What the book did with each received item. */
+  book?: (FishBookMsg & { instanceId: string })[];
+}
+
+/** S → C, op 49: answer to ITEM_LOCK. */
+export interface ItemLockResultMsg {
+  instanceId: string;
+  locked: boolean;
+  ok: boolean;
+  reason?: string;
+}
+
+/** One line of a stall as shown beside the pet. `tier` is "" for stacks; `price` is per unit for stacks. */
+export interface StallEntry {
+  defId: string;
+  tier: string;
+  count: number;
+  price: number;
+}
+
+export interface StallView {
+  userId: string;
+  name: string;
+  spot: number;
+  x: number;
+  y: number;
+  title: string;
+  /** The first entries: Float items, then stacks. */
+  top: StallEntry[];
+  /** How many entries the stall has in all. */
+  total: number;
+  expiresInMs: number;
+}
+
+/** S → C, op 55: every stall of the server on join (`full`), then changes. */
+export interface StallsMsg {
+  full: boolean;
+  stalls: StallView[];
+  removed: string[];
+}
+
+/** S → C, op 54: the whole list of one stall. */
+export interface StallListMsg {
+  userId: string;
+  name: string;
+  title: string;
+  items: { item: ItemInstance; price: number }[];
+  stacks: { defId: string; count: number; price: number }[];
+  expiresInMs: number;
+}
+
+/** S → C, op 56. */
+export interface StallResultMsg {
+  action: 'open' | 'recall' | 'view' | 'buy';
+  ok: boolean;
+  reason?: string;
+  /** open: the spot given. */
+  spot?: number;
+  /** recall: what came back to the bag. */
+  returned?: { items: ItemInstance[]; stacks: { defId: string; count: number }[] };
+  /** buy: what was bought, what it cost, the balance left, and the book's answer. */
+  item?: ItemInstance;
+  defId?: string;
+  count?: number;
+  paid?: number;
+  coin?: number;
+  book?: FishBookMsg;
+}
+
+/** S → C, op 57. */
+export interface QuestStateMsg {
+  day: number;
+  quests: { id: string; event: string; progress: number; target: number }[];
+  complete: boolean;
+  claimed: boolean;
+  streak: number;
+  chestDay: number;
+  resetInMs: number;
+}
+
+/** S → C, op 59. */
+export interface QuestClaimResultMsg {
+  ok: boolean;
+  reason?: string;
+  streak?: number;
+  chestDay?: number;
+  rewards?: { kind: 'coin' | 'dust' | 'stack'; defId: string; count: number }[];
+  coin?: number;
+  dust?: number;
 }
 
 export interface FriendStatus {
@@ -362,3 +584,80 @@ export interface StashResultMsg {
 
 /** get_catalog RPC (Faz 4): display-only prices and recipes, see rules/catalog.ts. */
 export type { CatalogResponse } from './rules/catalog';
+
+// --- Whisper and reports (docs/protokol.md, Fısıltı) ---
+
+export interface WhisperSendRequest {
+  /** One of userId or username; Unity sends the other as ''. */
+  userId?: string;
+  username?: string;
+  text: string;
+  /** 'stall' when written from a pet stall's window. */
+  context?: '' | 'stall';
+}
+
+export interface WhisperSendResponse {
+  ok: true;
+  to: string;
+  toName: string;
+  /** What the receiver got, personal info masked. */
+  text: string;
+  masked: boolean;
+}
+
+/** Content of the whisper notification (subject 'whisper', code 110, not persistent). */
+export interface WhisperNotice {
+  from: string;
+  fromName: string;
+  text: string;
+  context: '' | 'stall';
+  at: number;
+}
+
+export interface ReportPlayerRequest {
+  userId: string;
+  reason: 'spam' | 'abuse' | 'scam' | 'personal_info' | 'cheating' | 'other';
+  note?: string;
+  text?: string;
+}
+
+// --- Market board (docs/protokol.md, Pazar Panosu) ---
+
+/** C → S, op 60: put the stall on the board for diamonds (or change the ad, or take it down). */
+export interface BoardAdMsg {
+  action: 'set' | 'remove';
+  /** Up to BOARD.maxHighlights entries of the stall: a Float item by instanceId, a stack by defId. */
+  highlights?: { instanceId: string; defId: string }[];
+}
+
+export interface BoardAd {
+  userId: string;
+  name: string;
+  title: string;
+  spot: number;
+  x: number;
+  y: number;
+  /** The picked entries that are still on the stall (or the stall's first entries if none were picked). */
+  top: StallEntry[];
+  total: number;
+  /** When the ad started (ms, server time): the board lists ads by this, oldest first. */
+  startedAt: number;
+  expiresInMs: number;
+}
+
+/** S → C, op 61: every ad of the server on join (`full`), then changes. */
+export interface BoardStateMsg {
+  full: boolean;
+  ads: BoardAd[];
+  removed: string[];
+}
+
+/** S → C, op 62: reply to BOARD_AD, only to the player. */
+export interface BoardResultMsg {
+  action: 'set' | 'remove';
+  ok: boolean;
+  /** NO_STALL, BAD_REQUEST, NOT_IN_STALL, BOARD_FULL, NOT_ENOUGH_DIAMOND, ERROR */
+  reason?: string;
+  /** Diamonds after the charge. */
+  diamond?: number;
+}

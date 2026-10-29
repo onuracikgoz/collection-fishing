@@ -18,3 +18,10 @@ Satılabilecekler:
 Parayla alınan kozmetikler **takas edilemez**, dış sitelerde satılık mala dönüşmesin.
 
 Sosyal oyunda kozmetik iyi satar çünkü herkes seni görür (Sanalika'nın modeli de kıyafet üzerineydi). Ödeme: Steam'de Steamworks, mobilde Unity IAP.
+
+### Elmas (karar 29.10.2026, Onur)
+
+- Elmas oyunun **premium parasıdır**: pano reklamı, elmasla alınan kozmetikler ve pet türleri (`09-ekonomi-pazar.md`, `10-sosyal.md`) elmasla ödenir. Eşya miktarı veya kalitesi satın alınmaz (kural 2).
+- **Kazanma:** balık tutarken enerjiyle yapılan her başarılı çekişte küçük bir şansla 1 elmas düşer; **günde ortalama 5** elmas (Öneri). Ücretsiz oyuncu da biriktirip harcayabilir. Enerjisiz atış ve kaçan balık vermez, böylece botun sınırsız atışı elmas üretmez.
+- **Satın alma:** gerçek parayla elmas satışı sonra (Faz 7, Steamworks). Bu yüzden elmas **takas edilemez** ve oyuncular arası geçmez; yoksa elmas Coin'e çevrilip kazanılan eşya yerine kullanılırdı (kural 2 ve 3).
+- Sayılar ve protokol: `docs/protokol.md` Ekonomi, `server/src/config.ts` `DIAMOND`.

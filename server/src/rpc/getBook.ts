@@ -4,10 +4,12 @@ import { BOOK_PAGES } from '../data/book-pages';
 import { readBook, readBookItems } from '../match/playerData';
 import { BookRecordMsg, BookResponse, ErrorCode, errorMessage } from '../protocol';
 import { luckOf, scoreOf, stateOf } from '../rules/book';
+import { rpcLimit } from './limit';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export function rpcGetBook(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  rpcLimit(nk, ctx.userId, 'get_book');
   let userId = ctx.userId;
   if (payload) {
     let body: { userId?: unknown };

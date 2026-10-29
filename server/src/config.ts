@@ -1,12 +1,17 @@
 // Tunable numbers for the world (docs/protokol.md). Values marked (Öneri)
 // are not final; change them here, not in rules or match code.
+import type { Tier } from './protocol';
 import type { CatchConfig, Category } from './rules/catch';
 import type { FishingConfig } from './rules/fishing';
+import type { BoardConfig } from './rules/board';
+import type { DiamondConfig } from './rules/diamond';
 import type { EconomyConfig } from './rules/economy';
 import type { CraftConfig } from './rules/craft';
 import type { RodConfig } from './rules/rod';
 import type { BaitConfig } from './rules/bait';
 import type { StashConfig } from './rules/stash';
+import type { QuestConfig } from './rules/quest';
+import type { WhisperConfig } from './rules/whisper';
 import type { WatchConfig } from './rules/watch';
 import { BANK_POINT } from './data/lake-map';
 
@@ -140,6 +145,18 @@ export const ENERGY = {
   max: 100,
   castCost: 1,
   offlineFullMs: 8 * 60 * 60 * 1000, // full in ~8 h offline (Öneri)
+  // Energy spent on casts is kept in the match and saved with the next catch, at leave, or at
+  // least this often; a server crash gives back at most this much fishing (Öneri).
+  saveEveryMs: 60 * 1000,
+};
+
+// Diamonds (11-monetization.md, Elmas). Earned by fishing at a small chance on each catch made with
+// energy; buying them with real money comes in Faz 7. All Öneri.
+export const DIAMOND: DiamondConfig = {
+  perDay: 5, // Onur 29.10.2026: about 5 a day
+  // A day's energy is ENERGY.max casts; about 9 in 10 reels are won, so this keeps the average at perDay.
+  catchesPerDay: Math.round(ENERGY.max * 0.9),
+  amount: 1,
 };
 
 export const BAG = {
@@ -165,10 +182,162 @@ export const PROFILE = {
   showcaseMax: 3, // docs/tasarim/10-sosyal.md 13.3
 };
 
-// Emotes (docs/tasarim/10-sosyal.md 13.2.2). show_fish holds up the last catch.
+// Emotes (docs/tasarim/10-sosyal.md 13.2.2). Gestures are short; show_fish holds up the last catch.
+// Status emotes stay above the head until removed. Tier: free for all, supporter /
+// diamond / book need ownership (granted by other systems, never by the client).
 export const EMOTES = {
-  list: ['wave', 'clap', 'dance', 'sit', 'laugh', 'show_fish'],
+  list: ['wave', 'clap', 'dance', 'cheer', 'sit', 'laugh', 'show_fish'],
   cooldownMs: 2000, // (Öneri)
+  statusCooldownMs: 1000, // (Öneri)
+  status: {
+    smile: { tier: 'free' },
+    laugh: { tier: 'free' },
+    zzz: { tier: 'free' },
+    fish: { tier: 'free' },
+    ask: { tier: 'free' },
+    heart: { tier: 'free' },
+    note: { tier: 'free' },
+    coffee: { tier: 'free' },
+    star: { tier: 'supporter' },
+    cool: { tier: 'supporter' },
+    crown: { tier: 'supporter' },
+    sparkle: { tier: 'supporter' },
+    fire: { tier: 'diamond', gems: 50 }, // (Öneri)
+    rain: { tier: 'diamond', gems: 50 },
+    comet: { tier: 'diamond', gems: 50 },
+    goldfish: { tier: 'book' },
+  } as { [id: string]: { tier: 'free' | 'supporter' | 'diamond' | 'book'; gems?: number } },
+};
+
+// Server-wide announcements (docs/protokol.md, Duyurular).
+export const ANNOUNCE = {
+  minTier: 'epic' as Tier, // (Öneri) Epic and above
+};
+
+// XP and level (docs/tasarim/04-xp-level.md). All Öneri. xpToNext(level) = base + perLevel * level.
+export const XP = {
+  maxLevel: 50,
+  base: 250,
+  perLevel: 250,
+  /** XP per successful catch by category. A cast without energy gives none (only junk comes out, and it must not be farmable). */
+  catchXp: { junk: 1, material: 3, common: 10, rare: 25, recipe: 40, epic: 60, legendary: 150, mythic: 400 } as { [c in Category]: number },
+  /** What a level opens, by level (shown on the level-up banner). */
+  unlocks: { 10: ['trade'] } as { [level: number]: string[] },
+};
+
+// Pet stalls in the market area (docs/tasarim/09-ekonomi-pazar.md 12.3). All Öneri.
+export const MARKET = {
+  minLevel: 10,
+  maxEntries: 12,
+  maxPrice: 1_000_000_000,
+  /** Cut of every sale, taken from the seller. */
+  feePct: 0.05,
+  ttlMs: 24 * 60 * 60 * 1000,
+  /** How often a stall checks whether its owner, away from this server, quit the game. */
+  awayCheckMs: 5000,
+  titleMax: 40,
+  /** Spots are a grid centred on the map's `market` point: 8 x 5 = 40. */
+  columns: 8,
+  rows: 5,
+  spacing: 2,
+  /** The owner must stand this close to the market point to open a stall. */
+  areaRadius: 14,
+  /** Buyers and viewers must be this close to the pet. */
+  interactRadius: 7,
+  /** First entries shown beside the pet. */
+  topCount: 4,
+};
+
+// The market board: ads for a stall, paid in diamonds (09-ekonomi-pazar.md). The price is the one number
+// to tune: diamonds drop about DIAMOND.perDay a day, so 10 is a couple of days of play. All Öneri.
+export const BOARD: BoardConfig = {
+  priceDiamonds: 10,
+  ttlMs: MARKET.ttlMs,
+  slots: 8,
+  maxHighlights: 3,
+};
+
+// Safe trade window (docs/tasarim/07-kopya-envanter.md 9.1, docs/protokol.md Takas). All Öneri.
+export const TRADE = {
+  /** Both players need this level (04-xp-level.md; also a bot guard). */
+  minLevel: 10,
+  maxSlots: 8,
+  maxDistance: 5,
+  inviteMs: 15000,
+  countdownMs: 3000,
+  openTimeoutMs: 300000,
+  offerCooldownMs: 3000,
+};
+
+export interface RateLimit {
+  perWindow: number;
+  windowMs: number;
+}
+
+// Whisper and reports (docs/tasarim/10-sosyal.md 13.1.2). All Öneri.
+export const WHISPER: WhisperConfig = {
+  strangerMinLevel: 10,
+  perWindow: 10,
+  windowMs: 10 * 1000,
+  phoneDigits: 10,
+};
+export const REPORTS = { perWindow: 10, windowMs: 60 * 60 * 1000 };
+// Per-player RPC limits (docs/protokol.md, RPC hız sınırı). All Öneri. A player who hits one gets
+// RATE_LIMITED; normal play stays far below. friends_status: the client asks every 5 s while the list is open.
+export const RPC_LIMITS: { default: RateLimit; rpcs: { [rpc: string]: RateLimit } } = {
+  default: { perWindow: 20, windowMs: 10 * 1000 },
+  rpcs: {
+    list_servers: { perWindow: 10, windowMs: 10 * 1000 },
+    get_inventory: { perWindow: 10, windowMs: 10 * 1000 },
+    get_book: { perWindow: 15, windowMs: 10 * 1000 },
+    get_profile: { perWindow: 15, windowMs: 10 * 1000 },
+    set_profile: { perWindow: 5, windowMs: 10 * 1000 },
+    friends_status: { perWindow: 5, windowMs: 10 * 1000 },
+    get_catalog: { perWindow: 5, windowMs: 10 * 1000 },
+    whisper_send: { perWindow: WHISPER.perWindow, windowMs: WHISPER.windowMs },
+    whisper_settings: { perWindow: 5, windowMs: 10 * 1000 },
+    account_delete_request: { perWindow: 5, windowMs: 60 * 1000 },
+    account_delete_cancel: { perWindow: 5, windowMs: 60 * 1000 },
+    account_delete_status: { perWindow: 10, windowMs: 60 * 1000 },
+    transfer_code_create: { perWindow: 5, windowMs: 60 * 1000 },
+  },
+};
+
+/** A mute written while the player is online takes hold within this time (Öneri). */
+export const MODERATION = { muteRecheckMs: 60 * 1000 };
+
+// Daily quests (docs/tasarim/03-balik-tutma.md 5.2). The list and chests are in data/quests.ts. All Öneri.
+export const QUESTS_CONFIG: QuestConfig = {
+  perDay: 3,
+  // A day starts at 00:00 Turkey time (UTC+3).
+  dayOffsetMs: 3 * 60 * 60 * 1000,
+  streakMax: 10,
+  // A missed day drops the streak by 3 instead of resetting it (acik-sorular.md 2).
+  streakFall: 3,
+};
+
+// Account deletion (docs/protokol.md, Hesap silme RPC'leri). All Öneri.
+export const ACCOUNT_DELETE = {
+  waitMs: 14 * 24 * 60 * 60 * 1000,
+  /** A deleted account's login methods cannot open a new account for this long. */
+  loginBlockMs: 7 * 24 * 60 * 60 * 1000,
+  /** Its username is not given to anyone else for this long. */
+  nameBlockMs: 30 * 24 * 60 * 60 * 1000,
+  sweepEveryMs: 10 * 60 * 1000,
+  /** A session record older than this counts as gone (the server crashed without clearing it). */
+  staleSessionMs: 2 * 24 * 60 * 60 * 1000,
+};
+
+// Account transfer code (docs/protokol.md, Giriş). All Öneri.
+export const TRANSFER = {
+  codeLength: 8,
+  ttlMs: 10 * 60 * 1000,
+  createPerHour: 5,
+  /** Wrong codes allowed per client address in the window. */
+  maxFails: 10,
+  failWindowMs: 10 * 60 * 1000,
+  /** A newly linked Steam account cannot trade or sell on the market for this long. */
+  steamTradeLockMs: 72 * 60 * 60 * 1000,
 };
 
 // Friends: "Yanına git" (10-sosyal.md 13.2.1).

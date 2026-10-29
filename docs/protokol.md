@@ -17,6 +17,26 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | Faz 1 | `authenticateDevice` (cihaz kimliği) + kullanıcı adı |
 | Faz 7 | `authenticateSteam` |
 
+### Hesap kuralları (karar 28.10.2026, Faz 7'de yazılacak)
+
+- **Bir hesap = bir karakter.** Defter, çanta, depo, level ve Score hesaba bağlıdır. Hesap başına ikinci karakter yok (kendi kendine takas ve bot çiftliği olmasın).
+- Bir hesaba birden fazla giriş yolu bağlanabilir (Nakama link): cihaz (misafir), Google, Facebook, Discord, Steam. Hangisiyle girilirse aynı karakter açılır. E-posta + şifre girişi yok (şifre sıfırlama ve sızıntı yükü bizde kalmasın).
+- **Web:** "Misafir olarak oyna" (`authenticateDevice`) veya "Google / Facebook / Discord ile gir" (`authenticateGoogle`, `authenticateFacebook`; Discord Nakama'da hazır değil, sunucuda Discord token'ını doğrulayan özel giriş, `authenticateCustom`). Ayrı kayıt formu yok; misafir, ayarlardan "Hesabını koru" ile bu üçünden birini bağlar (`linkGoogle`, `linkFacebook`, özel Discord bağlama).
+- **Misafir hesap:** kimlik tarayıcıda (localStorage) durur; sekme / tarayıcı kapanınca silinmez. Tarayıcı verisi silinirse, gizli sekmede veya başka cihazda erişim kaybolur. Bu yüzden (Öneri): ilk Rare / level 5 / ilk sayfa gibi anlarda "Hesabını koru" hatırlatması; gizli sekmede uyarı; hiçbir yola bağlanmamış ve 90 gün girilmemiş misafir hesaplar sunucudan temizlenir.
+- **Steam ilk açılış:** önce `authenticateSteam` hesap oluşturmadan denenir. Bağlı hesap yoksa oyuncu seçer:
+  - **Yeni başla:** Steam hesabıyla yeni hesap ve karakter oluşturma.
+  - **Web hesabım var:** webde Ayarlar > Hesap > "Kod üret" tek kullanımlık kod üretir (10 dk geçerli, Öneri); Steam'de bu kod girilir ve Steam o hesaba bağlanır (`linkSteam`). Masaüstünde Google / Facebook / Discord girişi tarayıcı yönlendirmesi istediği için Steam'de tek yol koddur. RPC'ler: `transfer_code_create`, `transfer_code_redeem` (aşağıda, "Taşıma kodu RPC'leri").
+- **Taşıma kodu güvenliği:** kod webde Ayarlar > Hesap > "Kod üret" ile üretilir ve Steam'de girilince bağlama hemen olur (ayrı onay yok, kodu üretmek onaydır). Kodu ele geçiren biri kendi Steam'ini bu hesaba bağlayıp karakteri alabilir (ör. "kodunu ver, eşya vereyim" kandırması). Bu yüzden:
+  - Ayarlar > Hesap sayfası her açılışta bulanık gelir; "Hesap bilgilerin gizlendi" uyarısı onaylanınca açılır (yayın / omuz üstünden bakma için).
+  - Kodun yanında sabit uyarı: "Bu kodu kimseyle paylaşma. Yetkililer asla istemez."
+  - Yeni bağlanan Steam hesabıyla ilk 72 saat (Öneri) takas ve pazar satışı kapalıdır; hesap sahibi bu sürede bağlantıyı kaldırırsa çalınan karakter elden çıkmamış olur.
+  - Hesaba bir giriş yolu bağlanınca veya kaldırılınca diğer yollardan girişte bildirim gösterilir.
+- **İki hesap birleştirilmez.** Bir Steam hesabı tek oyun hesabına bağlıdır.
+- **Steam hesabını silip web hesabını açmak:** Steam'de "Yeni başla" ile oynamış oyuncu, ayarlardan bu hesabı silip Steam'i web hesabına bağlayabilir. Silinen hesabın karakteri, defteri, eşyaları ve o hesapta alınmış kozmetikler kalıcı olarak gider; ekranda iki adımlı onay (hesap adını yazdırma) istenir. Tekrar bağlamaya bekleme süresi konur (ör. 30 günde bir, Öneri), hesap değiştirerek ekonomi açığı aranmasın.
+- **Bağlı hesapta iki ayrı işlem:**
+  - **Bağlantıyı kaldır** (`unlinkSteam`, `unlinkGoogle` vb.): karakter kalır, sadece o giriş yolu ayrılır. Hesapta en az bir giriş yolu kalmalı.
+  - **Hesabı sil:** hesap tektir, bütün giriş yolları (Steam, Google, Facebook, Discord, cihaz) birlikte serbest kalır; aynı Google / Steam vb. ile sonra sıfırdan yeni karakter açılabilir. Silme önce 14 gün bekler (Öneri), bu sürede tekrar girince iptal olur; sonra kalıcıdır. Silinen hesabın giriş yolları 7 gün yeni hesap açamaz ve kullanıcı adı 30 gün başkasına verilmez (Öneri: başlangıç ödüllerini tekrar toplamak ve ad kapmak için sil-aç yapılmasın).
+
 - Kullanıcı adı ilk girişte (hesap oluşurken) gönderilir. Kural: **3–16 karakter**, harf (Türkçe harfler dahil), rakam ve `_` (Öneri). Uymazsa giriş `BAD_REQUEST` ile reddedilir. Ad başkasındaysa Nakama'nın kendi hatası döner.
 - Ad gönderilmezse Nakama rastgele bir ad atar, bu yüzden client ilk girişte adı her zaman gönderir. Hesap zaten varsa gönderilen ad yok sayılır.
 
@@ -26,14 +46,78 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 |---|---|---|---|
 | `healthcheck` | `{}` | `{ ok: true, serverTime, protocolVersion }` | 0 |
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
-| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4) | 2 |
+| `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, diamond, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4, `diamond` Faz 5; oyuncu bir sunucudayken `energy` 1 dk'ya kadar geride kalabilir, client maçtaki değeri kullanır: `WELCOME`, `BOBBER`, `FISH_END`) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
-| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
+| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
+| `transfer_code_create` | `{}` (oturumlu) | `{ code, expiresInMs }` (`code`: `ABCD-EFGH`) | 5 |
+| `transfer_code_redeem` | `{ code, steamToken }` (**oturumsuz**, HTTP anahtarıyla) | `{ ok: true }` | 5 |
+| `account_delete_request` | `{ name }` (hesabın kullanıcı adı, aynen) | `{ runAt }` (ms; silinme zamanı) | 7 |
+| `account_delete_cancel` | `{}` | `{ ok: true }` | 7 |
+| `account_delete_status` | `{}` | `{ pending, runAt }` (`runAt` 0 = yok) | 7 |
+| `whisper_send` | `{ userId \| username, text, context? }` | `{ ok, to, toName, text, masked }`, bkz. Fısıltı | 5 |
+| `whisper_settings` | `{ pmOff? }` (boşsa sadece okur) | `{ pmOff }` | 5 |
+| `report_player` | `{ userId, reason, note?, text? }` | `{ ok: true }` | 5 |
 
 Sunucular (match'ler) sunucu açılışında config'teki listeden oluşturulur; oyuncu yeni sunucu açamaz. `players` o andaki kişi sayısıdır, liste config sırasıyla döner.
+
+### RPC hız sınırı
+
+Oyuncu başına, RPC başına sayılır (`server/src/rpc/limit.ts`, sayılar `config.ts` `RPC_LIMITS`, hepsi Öneri). Sınır aşılınca `RATE_LIMITED` (Nakama kodu 8) döner; client birkaç saniye bekleyip tekrar dener, kullanıcıya göstermesi gerekmez. Sayaç Nakama'nın bellek önbelleğindedir (`localcache`), veritabanına yazılmaz; sunucu yeniden başlayınca sıfırlanır.
+
+| RPC | Sınır |
+|---|---|
+| `friends_status` | 10 sn'de 5 (client liste açıkken 5 sn'de bir sorar) |
+| `get_book`, `get_profile` | 10 sn'de 15 |
+| `get_inventory`, `list_servers` | 10 sn'de 10 |
+| `set_profile`, `get_catalog`, `whisper_settings` | 10 sn'de 5 |
+| `whisper_send` | 10 sn'de 10 |
+| `account_delete_*`, `transfer_code_create` | 1 dk'da 5 (`status` 10); taşıma kodunun saatlik sınırı ayrıca geçerli |
+| Diğerleri | 10 sn'de 20 |
+
+`healthcheck`, `transfer_code_redeem` (oturumsuz, kendi sınırı var) ve `dev_*` sayılmaz.
+
+### Taşıma kodu RPC'leri
+
+- **`transfer_code_create`** (web hesabı, oturumlu): 8 karakterlik tek kullanımlık kod üretir. Alfabe 32 karakter (I, O, 0, 1 yok), gösterimi `ABCD-EFGH`; yazarken büyük/küçük harf, boşluk ve tire fark etmez. 10 dk geçerli. Hesabın aynı anda tek geçerli kodu olur: yenisi eskisini siler. Saatte en fazla 5 kod (Öneri), aşılırsa `RATE_LIMITED`.
+- **`transfer_code_redeem`** (Steam): Steam oyuncusunun henüz Nakama hesabı olmadığı için **oturumsuz** çağrılır (HTTP anahtarı). `steamToken` Steam oturum bileti. Sunucu kodu tek kullanımlık siler, Steam'i **sunucuda** o hesaba bağlar (`nk.linkSteam`; bilet Steam'de doğrulanır) ve `{ ok: true }` döner. Sonra client `authenticateSteam(create: false)` ile girer, bağlı hesap açılır.
+  - Hatalar: `CODE_INVALID` (yanlış, kullanılmış ya da süresi dolmuş; hangisi olduğu söylenmez), `RATE_LIMITED` (aynı adresten 10 dk'da 10 yanlış kod, Öneri), `LINK_FAILED` (Steam bileti reddedildi ya da bu Steam başka hesapta; kod geri verilir, tekrar denenebilir), `BAD_REQUEST`.
+  - Başarıda: hesaba **72 saat takas kilidi** konur (`TRADE_*` teklifi `TRADE_LOCKED` / karşı taraf için `TARGET_TRADE_LOCKED` ile reddedilir; pazar gelince aynı kilit satışı da kapatır), hesaba "giriş yolu bağlandı" bildirimi gider (Nakama bildirimi, kod 101, `{ provider: "steam" }`).
+- **Giriş yolu bildirimleri:** cihaz, Google, Facebook ve Discord (özel) bağlanınca bildirim kodu 101, herhangi bir yol (Steam dahil) kaldırılınca 102 gider; `{ provider }` içerir. Kalıcı bildirimdir, sonraki girişte gösterilir.
+- **Steam'i istemciden `linkSteam` ile bağlamak kapalıdır** (`PERMISSION_DENIED`): Steam sadece kodla bağlanır.
+- Sunucu ayarı: Steam yayıncı anahtarı ve app id `local.yml` / canlı ayar dosyasında (`social.steam`) gerekir; Faz 7'de girilecek. Ayarsız `linkSteam` hata verir ve `LINK_FAILED` döner.
+
+### Hesap silme RPC'leri
+
+Kurallar: "Hesap kuralları" (Giriş). Sunucu: `rules/accountDelete.ts` (saf kurallar), `rpc/accountDelete.ts`. Hepsi oturumludur.
+
+- **`account_delete_request`:** `name` hesabın kullanıcı adıyla **aynen** eşleşmezse `BAD_REQUEST` (client iki adımlı onayda adı yazdırır). Eşleşirse hesap silme kuyruğuna **14 gün** sonrasına (Öneri) yazılır, `{ runAt }` döner. Zaten kuyruktaysa mevcut `runAt` döner. Oyuncu oyundan çıkıp bekler; hesap bu sürede oynanabilir.
+- **`account_delete_cancel`:** kuyruktan çıkarır. Kuyrukta değilse de `{ ok: true }` döner.
+- **Girişle iptal:** silme beklerken hesaba **herhangi bir yoldan yeniden girilirse** (cihaz, Google, Facebook, Steam, Discord) silme iptal olur ve hesaba bildirim gider (kod **104**, `{}`). İsteği veren oturum bundan etkilenmez.
+- **Silme:** süre dolunca sunucu hesabı kalıcı siler (`accountDeleteId`: karakter, defter, eşya, Coin, arkadaşlar, her şey). Oyuncu o sırada hâlâ bir sunucudaysa silme sonraki taramaya kalır. Tarama sunucuda her 10 dk'da bir çalışır (Öneri), açık bir sunucunun match'i yapar.
+- **Silince:** hesabın bütün giriş yolları (cihaz, Google, Facebook, Steam, Discord) **7 gün** (Öneri) yeni hesap açamaz ve kullanıcı adı **30 gün** (Öneri) başkasına verilmez. Cihaz girişinde bu `ACCOUNT_RECENTLY_DELETED` / `NAME_RESERVED` ile reddedilir. Google, Facebook, Steam ve Discord'da kimlik giriş öncesi bilinmediği için kontrol girişten sonra yapılır: engelliyse yeni oluşan hesap hemen silinir, sonraki çağrı hata verir (client giriş sonrası ilk RPC'de `UNAUTHENTICATED` görürse "Bu hesapla şu an yeni hesap açılamaz" gösterir).
+- **Henüz yok:** Steam'in web hesabına tekrar bağlanması için 30 günlük bekleme (Giriş, "Steam hesabını silip web hesabını açmak").
+
+## Fısıltı (Faz 5)
+
+Kurallar: `docs/tasarim/10-sosyal.md` 13.1.1 ve 13.1.2. Sunucu: `rules/whisper.ts` (saf kurallar), `rpc/whisper.ts`. Hepsi oturumlu RPC'dir; fısıltı match mesajı **değildir**, böylece iki oyuncu farklı sunucularda olsa da ulaşır.
+
+- **`whisper_send { userId | username, text, context? }`:** alıcı `userId` ya da kullanıcı adıyla (`/w Nick mesaj`) verilir; Unity boş alanı `""` gönderir, boş olan yok sayılır. `text` chat kurallarıyla kırpılır (120 karakter), boşsa `BAD_REQUEST`. `context: "stall"` mesaj pazar tezgahının penceresinden ("Whisper at") yazıldıysa gönderilir.
+- **Kim kime yazabilir** (sırayla):
+  1. Gönderen alıcıyı engellediyse `YOU_BLOCKED`.
+  2. Alıcı göndereni engellediyse `NOT_ALLOWED` (engel belli edilmez).
+  3. Karşılıklı arkadaşlar her zaman yazabilir ("PM kapalı" arkadaşları etkilemez).
+  4. Yabancı ancak `context: "stall"` ile, alıcının **açık tezgahı** varken ve alıcının "PM kapalı" ayarı kapalıyken yazabilir; değilse `NOT_ALLOWED`.
+  5. Yabancı gönderen en az **level 10** (Öneri) olmalı, değilse `LEVEL_TOO_LOW`.
+- **Diğer hatalar:** `MUTED` (gönderen susturulmuş), `NOT_FOUND` (böyle oyuncu yok), `SELF`, `OFFLINE` (alıcı hiçbir sunucuda değil), `RATE_LIMITED` (10 sn'de 10 fısıltı, Öneri).
+- **Kişisel bilgi filtresi:** telefon (10 ve üstü rakam, Öneri), e-posta, link, alan adı, `@kullanıcı` ve sosyal medya adı (`insta: x`, `discord x`) `***` olur. Cevaptaki `text` alıcının gördüğü halidir, client kendi penceresine bunu yazar; `masked: true` ise "Kişisel bilgi gizlendi" notu gösterilebilir.
+- **Teslim:** alıcıya Nakama bildirimi gider: konu `whisper`, kod **110**, **kalıcı değil** (çevrimdışıyken birikmez, depoda tutulmaz). İçerik: `{ from, fromName, text, context, at }`. Client bildirimi socket'ten alır ve `from` için küçük pencereyi açar ya da yanıp söndürür (pencere: `docs/araclar/ui-uygulama.md`, Fısıltı penceresi).
+- **`whisper_settings { pmOff? }`:** "PM kapalı" düğmesi. `pmOff: true` yabancılardan fısıltıyı kapatır. Gövde boşsa sadece okur. Değer `player/settings.pmOff`'ta durur, varsayılan `false` (yabancı zaten sadece pazar bağlamında yazabilir, 13.1.1).
+- **Engelleme:** Nakama arkadaş API'siyle (`blockFriends` / `deleteFriends`), ayrı RPC yok.
+- **`report_player { userId, reason, note?, text? }`:** `reason`: `spam`, `abuse`, `scam`, `personal_info`, `cheating`, `other`. `note` oyuncunun açıklaması (300 karakter), `text` raporlanan mesaj (200 karakter; client fısıltı penceresinden ya da balondan doldurur). Rapor moderatörler için `reports` koleksiyonuna (sistem kullanıcısı) yazılır, oyunculara gösterilmez. Saatte en fazla 10 rapor (Öneri), sonra `RATE_LIMITED`. Hatalar: `SELF`, `NOT_FOUND`, `BAD_REQUEST`.
+- **Susturma:** moderatör `player/mute { until }` (ms) yazar. Susturulmuş oyuncu fısıltı gönderemez (`MUTED`) ve `SAY`'i düşer. Moderatör aracı henüz yok, kayıt Nakama konsolundan yazılır.
 
 ## Match (harita) mesajları
 
@@ -47,12 +131,12 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 |---|---|---|---|---|
 | 1 | C → S | `MOVE` | `{ seq, x, y, dir, moving }` | 1 |
 | 2 | S → C | `SNAPSHOT` | `{ t, players: [{ id, x, y, dir, moving }] }` (yakındakilerden bu tick'te değişenler, oyuncunun kendisi hariç) | 1 |
-| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber? }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`) | 1 |
+| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber?, status? }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`; durum emote'u takılıysa `status`) | 1 |
 | 4 | S → C | `PLAYER_LEAVE` | `{ id }` (görüş alanından çıktı veya ayrıldı) | 1 |
 | 5 | C → S | `SAY` | `{ text }` | 1 |
 | 6 | S → C | `BUBBLE` | `{ id, text }` (konuşanın kendisi de alır) | 1 |
 | 7 | S → C | `CORRECTION` | `{ seq, x, y }` (sunucu konumu düzeltti) | 1 |
-| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod }` (katılım sonrası ilk mesaj; `rod` Faz 4) | 1 |
+| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod, status?, emotesOwned, level, xp, xpNext }` (katılım sonrası ilk mesaj; `rod` Faz 4; `status` ve `emotesOwned` durum emote'u; `level`, `xp` (bu level içindeki), `xpNext` (bu level için gereken, son level'da 0)) | 1 |
 
 ### Hareket kuralları
 
@@ -69,7 +153,9 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 - Hız sınırı: saniyede 1 mesaj, aşan mesaj sessizce düşer (Öneri).
 - `BUBBLE` gönderilmeden önce de sunucu metni kırpar; client gelen metni olduğu gibi gösterir.
 - `BUBBLE` sadece konuşanın **12 tile** (Öneri) yakınındakilere gider.
-- Küfür filtresi ve şikayet Faz 5'te.
+- **Kişisel bilgi filtresi** (Faz 5): telefon, e-posta, link, alan adı, `@kullanıcı` ve sosyal medya adı `***` ile maskelenir (Fısıltı'daki kural). Client gelen metni yine olduğu gibi gösterir.
+- **Susturma:** susturulmuş oyuncunun `SAY`'i sessizce düşer (kendisi de balon almaz). Kayıt `player/mute { until }` (ms), moderatör yazar; oyuncu çevrimiçiyken yazılırsa en geç **1 dk** (Öneri) içinde başlar.
+- Küfür filtresi henüz yok (kelime listesi gerekiyor, `acik-sorular.md`). Raporlama `report_player` ile (Fısıltı).
 
 ## Balık tutma (Faz 2)
 
@@ -84,7 +170,7 @@ Yem: `bait` verilmeyen atış temel yemle yapılır (bedava, sınırsız, oranla
 | 11 | C → S | `HOOK` | `{}` (oyuncu çekti) |
 | 12 | S → C | `REEL_START` | `{ seed, params }` (sadece oyuncunun kendisi) |
 | 13 | C → S | `REEL_DONE` | `{ inputs: [ms, ...] }` |
-| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?` |
+| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?, xpGain?, diamond?` |
 | 15 | C → S | `CANCEL` | `{}` (oltayı topla) |
 
 - `band`: `"shore"`, `"mid"`, `"deep"`. `state`: `"cast"` (şamandıra suda), `"twitch"` (sahte kıpırdama), `"bite"` (gerçek vuruş, şamandıra battı).
@@ -147,11 +233,194 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 | 19 | S → C | `TELEPORT` | `{ x, y, reason? }` (sadece ışınlanan oyuncu; `reason` varsa ışınlanma olmadı, `x, y` mevcut yer) |
 | 20 | C → S | `EMOTE` | `{ emote }` |
 | 21 | S → C | `EMOTE_SHOW` | `{ id, emote, defId? }` (oyuncunun kendisi ve onu görenler) |
+| 36 | C → S | `EMOTE_STATUS` | `{ emote }` (`emote`: durum emote kimliği, `null` = kaldır) |
+| 37 | S → C | `EMOTE_STATUS_SHOW` | `{ id, emote, reason? }` (oyuncunun kendisi ve onu görenler) |
 
 - **Arkadaşlık:** istek gönderme, kabul, silme ve engelleme Nakama'nın kendi arkadaş API'siyle yapılır (`addFriends`, `listFriends`, `deleteFriends`, `blockFriends`). İki taraf da eklediğinde arkadaşlık karşılıklı olur (Nakama durum 0). Sunucunun saydığı arkadaş sadece karşılıklı olandır.
 - **friends_status:** her arkadaş için çevrimiçi mi, hangi sunucuda (`serverName`, `matchId`) ve haritada nerede (`x, y`).
 - **Yanına git:** arkadaş aynı sunucudaysa `GOTO_FRIEND`; sunucu arkadaşın yanındaki boş bir tile'a koyar, balık tutuyorsa olta toplanır (`FISH_END cancelled`), client karakteri `TELEPORT` konumuna atar. Arkadaş başka sunucudaysa client o sunucunun maçına katılım metadata'sında `near: userId` ile girer, `WELCOME` arkadaşın yanındaki yeri verir. `reason`: `NOT_FRIEND`, `NOT_HERE` (arkadaş bu sunucuda değil), `NO_SPOT`, `RATE_LIMITED` (3 sn'de bir, Öneri).
-- **Emote:** `wave`, `clap`, `dance`, `sit`, `laugh`, `show_fish`. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
+- **Emote (hareket):** `wave`, `clap`, `dance`, `cheer`, `sit`, `laugh`, `show_fish`. Kısa animasyondur, bitince kaybolur. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
+- **Durum emote'u** (`10-sosyal.md` 13.2.2): oyuncunun üstünde **kalıcı** balon. Aynı anda bir tane.
+  - `EMOTE_STATUS { emote }`: `emote` bir durum emote kimliği ya da `null` (kaldır; Unity `JsonUtility` boş string gönderir, o da kaldır sayılır). Listede olmayan kimlik yok sayılır (hareket emote'larından ayrı liste; `laugh` gibi aynı ad iki listede olabilir, op koduyla ayrılır).
+  - Sunucu sahipliği doğrular: `free` herkese açık; `supporter`, `diamond` ve `book` emote'ları ancak oyuncunun sahip olduğu listedeyse takılır. Sahiplik başka sistemlerden gelir (destekçi paketi, elmas satın alma, defter ödülü) ve sunucu verisidir; client yazamaz.
+  - Başarılıysa `EMOTE_STATUS_SHOW { id, emote }` oyuncuya ve onu görenlere gider. Reddedilirse sadece oyuncuya `{ id, emote: <şu an takılı olan ya da null>, reason }` gider (client eski halini geri koyar). `reason`: `NOT_OWNED`, `RATE_LIMITED` (1 sn'de bir, Öneri). Bilinmeyen kimlik ve bozuk gövde sessizce yok sayılır.
+  - Durum **kalıcıdır**: oyundan çıkıp girince geri gelir (`player/status_emote`). Girişte sahipliği kalmamışsa kaldırılır.
+  - Yeni gelen oyuncular için `PLAYER_ENTER` içinde `status?` vardır; kendi durumu ve sahip olduğu emote'lar `WELCOME` içinde: `status?`, `emotesOwned` (sadece ücretsiz olmayanlar).
+  - Durum emote'u görünümdür; drop, Float ve ekonomiyi etkilemez, metin taşımadığı için sohbet filtresi gerekmez.
+
+## Duyurular (nadir av)
+
+Kurallar: `docs/tasarim/15-gorsel-stil.md` Bildirimler. Bildirim kutularının çoğu (çanta dolu, enerji az, olta yıpranıyor, bağlantı) client'ın zaten bildiği durumdan çıkar, mesaj gerekmez.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 38 | S → C | `ANNOUNCE` | `{ kind, id, name, defId, tier, condition }` (aynı sunucudaki **herkese**, avlayan dahil) |
+
+- `kind`: şimdilik sadece `rare_catch`. Avdan sonra, `tier` Epic veya üstüyse (`ANNOUNCE.minTier`, Öneri) gönderilir. Sadece Tier'li (Float'lı) eşyalar duyurulur, materyal ve çöp duyurulmaz.
+- `condition`: avın kondisyonu (`pristine`...`damaged`). **Ham Float değeri gönderilmez.**
+- `name`: avlayanın görünen adı. Aynı oyuncunun art arda duyurularını birleştirmek client işidir.
+- Duyuru av sonucundan (`FISH_END`) sonra gelir; avlayan kendi `FISH_END` ayrıntısını yine alır.
+
+## Takas (Faz 5)
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.1. Sunucu: `rules/trade.ts` (saf kurallar), `match/trade.ts` (mesajlar ve depolama). Takas aynı sunucudaki (match) iki oyuncu arasındadır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 39 | C → S | `TRADE_OFFER` | `{ userId }` (karşı tarafa teklif) |
+| 40 | C → S | `TRADE_REPLY` | `{ accept }` (gelen teklifi kabul / reddet) |
+| 41 | C → S | `TRADE_SET` | `{ items: [instanceId], stacks: [{ defId, count }], coin }` (kendi tarafımın **tüm** içeriği) |
+| 42 | C → S | `TRADE_LOCK` | `{ locked }` (kilitle / kilidi aç) |
+| 43 | C → S | `TRADE_CONFIRM` | `{}` (geri sayımdan sonra onayla) |
+| 44 | C → S | `TRADE_CANCEL` | `{}` (pencereyi kapat, takası iptal et) |
+| 45 | S → C | `TRADE_INVITE` | `{ tradeId, from, name, expiresInMs }` (sadece davet edilene) |
+| 46 | S → C | `TRADE_STATE` | `TradeStateMsg` (iki tarafa, kendi bakış açılarıyla) |
+| 47 | S → C | `TRADE_END` | `TradeEndMsg` (iki tarafa) |
+
+- **Akış:** `TRADE_OFFER` → karşı taraf `TRADE_INVITE` alır → `TRADE_REPLY { accept }`. Kabul edilince iki tarafa `TRADE_STATE` gider ve pencere açılır. Reddedilirse, 15 sn cevap gelmezse (Öneri) ya da teklif eden iptal ederse `TRADE_END` gider.
+- **Teklif koşulları:** iki oyuncu aynı sunucuda ve en fazla 5 tile (Öneri) uzakta, ikisi de başka bir takasta değil. Teklif edenin olta atması iptal olur. Aynı oyuncu 3 sn'de bir teklif edebilir (Öneri). `TRADE_END.reason`: `NOT_HERE`, `TOO_FAR`, `BUSY` (taraflardan biri başka takasta), `SELF`, `RATE_LIMITED`, `TRADE_LOCKED` (kendi hesabın yeni bağlanmış Steam'den dolayı kilitli), `TARGET_TRADE_LOCKED` (karşı taraf kilitli).
+- **Pencere açıkken** iki taraf yürüyemez ve olta atamaz (sunucu `MOVE` ve `CAST` mesajlarını yok sayar). Mesafe 5 tile'ı aşarsa, biri bağlantıyı keserse ya da pencere 5 dk (Öneri) açık kalırsa takas iptal olur.
+- **İçerik:** `TRADE_SET` bir tarafın tüm içeriğini değiştirir. Eşya kalemleri (`items` + `stacks`) toplamı en fazla **8** (Öneri); `coin` o anki bakiyeyi aşamaz. Sadece **çantadaki** Float eşyalar (defter yuvasındakiler ve depodakiler değil) ve yığınlar konabilir. Toz takas edilemez. Reddedilirse içerik değişmez, isteyene `TRADE_STATE` içinde `reason` döner: `BAD_REQUEST`, `TOO_MANY`, `NOT_OWNED`, `NOT_ENOUGH`, `LOCKED` (kilitli eşya).
+- **Kilit:** her iki taraf `TRADE_LOCK { locked: true }` der. Birinin içeriği değişirse (kendi `TRADE_SET`'i ya da karşı tarafınki) iki kilit de açılır ve onaylar sıfırlanır.
+- **Onay:** iki kilit kapandıktan **3 sn** (Öneri) sonra `TRADE_CONFIRM` kabul edilir; öncesinde gönderilen yok sayılır. İki taraf da onaylayınca takas **tek işlemde** (eşyalar, yığınlar, Coin, kayıt) gerçekleşir. Sunucu o an her şeyi yeniden doğrular: eşya hâlâ çantada mı, yığın ve Coin yeterli mi, iki tarafın çantasında yer var mı.
+- **Gelen eşya deftere işlenir:** ilk kopyaysa defter yuvasına gider ("Yeni keşif", çantada yer tutmaz), değilse çantaya. Çanta doluluğu hesabında her gelen Float eşya bir yuva sayılır (temkinli). `ItemInstance.source` = `trade`.
+- **Kayıt:** her başarılı takas, iki tarafın `trades` koleksiyonuna aynı işlemde yazılır (bkz. Takas kayıtları). Sadece sunucu okur.
+- **Level şartı:** iki taraf da en az level 10 olmalı (`TRADE.minLevel`, Öneri). Değilse teklif `LEVEL_TOO_LOW` (kendin) / `TARGET_LEVEL_TOO_LOW` (karşı taraf) ile reddedilir.
+- **Henüz yok (Öneri):** takas kısıtı (`acik-sorular.md` 4).
+
+```
+TradeOfferView = { items: ItemInstance[], stacks: [{ defId, count }], coin }
+TradeStateMsg  = { tradeId, withId, withName,
+                   you: TradeOfferView, them: TradeOfferView,
+                   youLocked, themLocked, youConfirmed, themConfirmed,
+                   confirmInMs?,   // iki kilit kapalıyken: onaya kaç ms var (0 = şimdi basılabilir)
+                   reason? }       // sadece isteyene: reddedilen TRADE_SET / TRADE_LOCK / TRADE_CONFIRM nedeni
+TradeEndMsg    = { tradeId, result, reason?, userId?,   // result: done | cancelled | declined | expired | failed; userId: BAG_FULL olan taraf
+                   got?: { items: ItemInstance[], stacks, coin },  // sadece done
+                   gave?: { items: [instanceId], stacks, coin },   // sadece done
+                   book?: [{ instanceId, ...FishBookMsg }] }       // gelen eşyanın defter sonucu
+```
+
+`failed` nedenleri: `ITEM_GONE`, `NOT_ENOUGH`, `BAG_FULL` (`userId` ile hangi taraf), `ERROR`.
+
+## Takas kayıtları
+
+Dolandırıcılık şikayetleri için (`tasarim/07-kopya-envanter.md` 9.1). Client'a gösterilmez, mesaj değildir.
+
+- Her başarılı takas ve tezgah satışı, iki oyuncunun kendi `trades` koleksiyonuna birer kayıt olarak yazılır (okuma izni yok, sadece sunucu ve konsol). Anahtar `<zaman 15 hane>_<kind>_<ref>`, zamana göre sıralanır.
+- Kayıt: `{ kind, with, withName, at, serverId, ref, gave, got, fee? }`. `kind`: `trade`, `stall_buy`, `stall_sale`. `gave` / `got`: `{ items: [{ instanceId, defId, tier, float }], stacks: [{ defId, count }], coin }`; eşya sonra satılsa ya da parçalansa da o anki hali kayıtta kalır. `ref`: takas id'si ya da satışın kendi id'si. `fee`: satıcının ödediği pazar ücreti.
+- Geliştirici ve moderatör görünümü: `dev_trades { userId, limit? }` (yerel sunucu; oyuncunun kayıtları yeniden eskiye, hakkındaki ve verdiği raporlar). Canlı sunucuda Nakama konsolundan okunur; admin paneli Faz 6.
+- Saklama süresi şimdilik sınırsız (Öneri: 1 yıl, sonra temizlenir).
+
+## Eşya kilidi
+
+Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 48 | C → S | `ITEM_LOCK` | `{ instanceId, locked }` |
+| 49 | S → C | `ITEM_LOCK_RESULT` | `{ instanceId, locked, ok, reason? }` (sadece isteyene) |
+
+- Sadece **çantadaki** Float eşya kilitlenir (defter yuvası ve depo hariç). Aynı duruma tekrar istek `ok` döner. `reason`: `BAD_REQUEST`, `NOT_OWNED`.
+- Kilit eşyanın kendisinde durur: `ItemInstance.locked?: true` (`get_inventory`, takas görünümü). Kilitli eşya **satılamaz** (`SELL`), **parçalanamaz** (`SALVAGE`), `MERGE` ve `CRAFT` girdisi olamaz, takasa konamaz: bu işlemler `reason: "LOCKED"` ile reddedilir. Depoya ve deftere konabilir, kilit korunur. Önce kilit açılır.
+- Yeni eşyalar (av, craft, birleştirme, takas) kilitsiz gelir.
+
+## Pazar (Faz 5, pet tezgahı)
+
+Kurallar: `docs/tasarim/09-ekonomi-pazar.md` 12.3. Sunucu: `rules/market.ts` (saf kurallar), `match/market.ts` (mesajlar ve depolama). Oyuncu petini pazar alanına bırakır, pet onun yerine satar; satıcı oyundan çıkana kadar tezgah durur (sunucu değiştirse bile). Tezgah yalnızca Coin ile çalışır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 50 | C → S | `STALL_OPEN` | `{ title, items: [{ instanceId, price }], stacks: [{ defId, count, price }] }` (tezgah aç; `price` yığında **adet başı**) |
+| 51 | C → S | `STALL_RECALL` | `{}` (peti geri çağır, satılmayanlar çantaya döner) |
+| 52 | C → S | `STALL_VIEW` | `{ userId }` (bir tezgahın tüm listesini iste) |
+| 53 | C → S | `STALL_BUY` | `{ userId, instanceId }` (Float'lı eşya) ya da `{ userId, defId, count }` (yığından) |
+| 54 | S → C | `STALL_LIST` | `StallListMsg` (sadece isteyene; satın almadan sonra da güncel haliyle gelir) |
+| 55 | S → C | `STALL_STATE` | `StallsMsg` (sunucudaki herkese: girişte tam liste, sonra her değişimde) |
+| 56 | S → C | `STALL_RESULT` | `StallResultMsg` (sadece isteyene) |
+
+- **Alan:** harita dosyasındaki `market` noktası etrafında `columns × rows` ızgarası (`MARKET`, Öneri: 8 × 5 = 40 yer, 2 tile arayla; yürünmez tile'a düşen yer atlanır). Tezgah açan oyuncuya **kendine en yakın boş yer** verilir. Oyuncu alan yarıçapı (`areaRadius`, Öneri 14 tile) içinde olmalı.
+- **Açma koşulları:** level 10 (`MARKET.minLevel`) ve takas kilidi yok (yeni bağlanan Steam hesabı, `TRADE_LOCKED`). Oyuncu başına **tek tezgah** (tüm sunucularda), toplam en fazla 12 kalem (`items` + `stacks`, Öneri). Fiyat 1 ile 1.000.000.000 Coin arası tam sayı; yığında `adet × fiyat` de bu sınırı aşamaz. Başlık chat filtresinden geçer, en fazla 40 karakter, boş olabilir. Takas penceresindeyken açılamaz (`BUSY`).
+- **Neler konur:** sadece çantadaki Float eşya (defter yuvası ve depo hariç), kilitli olmayan (`LOCKED`), ve çantadaki yığınlar (çöp, malzeme, recipe, yem; toz değil). Eşyalar tezgaha **ayrılır**: çantadan düşer, satılamaz / parçalanamaz / takas edilemez / craft'ta kullanılamaz. Yığın tezgaha konunca çanta yığınından çıkar. `reason`: `BAD_REQUEST`, `TOO_MANY`, `BAD_PRICE`, `NOT_OWNED`, `NOT_ENOUGH`, `LOCKED`, `LEVEL_TOO_LOW`, `TRADE_LOCKED`, `NOT_IN_MARKET` (alanda değil), `NO_SPOT` (yerler dolu), `ALREADY_OPEN`, `BUSY`.
+- **Görünüm:** `STALL_STATE` her tezgah için başlık, yer, konum ve **ilk 4 kalemi** (`top`: önce Float'lılar, sonra yığınlar) taşır. Pete 7 tile'dan yakındaki oyuncu `STALL_VIEW` ile tam listeyi alır; Float'lı eşyada `ItemInstance` (Float ve kondisyon dahil) gelir. Uzaksa `STALL_RESULT { action: "view", ok: false, reason: "TOO_FAR" }`, tezgah yoksa `NOT_FOUND`.
+- **Satın alma:** alıcı pete 7 tile'dan yakın olmalı, level 10 ve takas kilidi yok olmalı, kendi tezgahından alamaz (`OWN_STALL`). Sunucu **tek işlemde** eşyayı satıcıdan alıcıya geçirir (ilk kopya deftere işlenir, `source: "trade"`), alıcının Coin'ini düşer, satıcıya fiyat eksi pazar ücretini ekler, satıcıya bildirim gönderir. Pazar ücreti satıştan %5 (yukarı yuvarlanır, 1 Coin'lik satışta yok; Öneri), satıcıdan kesilir. `reason`: `BAD_REQUEST`, `NOT_FOUND` (kalem yok / satıldı), `NOT_ENOUGH` (yığında o kadar yok, ya da Coin yetmez), `TOO_FAR`, `BAG_FULL`, `LEVEL_TOO_LOW`, `TRADE_LOCKED`, `OWN_STALL`, `ERROR`. Başarılıda `STALL_RESULT` ardından güncel `STALL_LIST` gelir.
+- **Tek sunucu:** oyuncunun aynı anda **tek** tezgahı olur ve tezgah açıldığı sunucuda durur. Başka sunucuda `STALL_OPEN` `ALREADY_OPEN` ile reddedilir. Oyuncu sunucu değiştirirse tezgah **kapanmaz**, açıldığı sunucuda satmaya devam eder; ama geri çağırmak için o sunucuya dönmesi gerekir (`STALL_RECALL` başka sunucuda `OTHER_SERVER`, tezgah yoksa `NOT_OPEN`).
+- **Kapanma:** tezgah `STALL_RECALL` ile, oyuncu **oyundan tamamen çıkınca** (hiçbir sunucuda değilse), satılacak her şey satılınca ya da 24 saat (Öneri) dolunca kalkar. Sunucu `player/session` kaydından oyuncunun hangi sunucuda olduğunu bilir: bir sunucudan çıkarken kayıt hâlâ o sunucuyu gösteriyorsa oyuncu oyundan çıkmıştır. Satılmayanlar çantaya döner (çanta dolu olsa da; çanta aşımı serbest, Öneri). Oyuncu tezgahın sunucusundayken kapanırsa eşyalar hemen döner (süre dolunca ona `STALL_RESULT { action: "recall", ok: true, reason: "EXPIRED", returned }` gider). Oyuncu başka sunucudayken ya da sunucu durdurulunca kapanırsa eşyalar tezgaha ayrılı kalır ve oyuncunun **bir sonraki girişinde** çantaya döner; tezgah pazardan hemen kalkar (`STALL_STATE.removed`).
+- **Bildirim:** satıcıya `notifications` ile gider: konu `stall_sold`, kod **103**, `{ defId, count, price, fee, buyer }`.
+- **Kayıt:** her satış alıcının (`stall_buy`) ve satıcının (`stall_sale`) `trades` koleksiyonuna, satın almayla aynı işlemde yazılır (bkz. Takas kayıtları).
+- **Pano reklamı** aşağıda (Pazar Panosu). **Alım ilanı yok** (karar 29.10.2026).
+
+```
+StallEntry     = { defId, tier, count, price }   // tier: yığında ""; price: yığında adet başı
+StallView      = { userId, name, spot, x, y, title, top: StallEntry[], total, expiresInMs }  // total: toplam kalem sayısı
+StallsMsg      = { full, stalls: StallView[], removed: [userId] }  // full: true ise liste tamamdır, client önce temizler
+StallListMsg   = { userId, name, title, items: [{ item: ItemInstance, price }], stacks: [{ defId, count, price }], expiresInMs }
+StallResultMsg = { action, ok, reason?,            // action: open | recall | view | buy
+                   spot?,                          // open
+                   returned?: { items: ItemInstance[], stacks: [{ defId, count }] },  // recall
+                   item?, defId?, count?, paid?, coin?, book? }                       // buy
+```
+
+### Pazar Panosu (elmasla reklam)
+
+Kurallar: `docs/tasarim/09-ekonomi-pazar.md` (Pazar Panosu). Sunucu: `rules/board.ts` (saf kurallar), `match/market.ts`. Açık tezgahı olan oyuncu **elmas** öder, tezgahı meydandaki panoya girer; başkaları panodan tıklayıp tezgahın yanına gider. Reklam eşya miktarını ya da kalitesini etkilemez (kural 2).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 60 | C → S | `BOARD_AD` | `{ action: "set", highlights: [{ instanceId, defId }] }` ya da `{ action: "remove" }` |
+| 61 | S → C | `BOARD_STATE` | `BoardStateMsg` (sunucudaki herkese: girişte tam liste, sonra her değişimde) |
+| 62 | S → C | `BOARD_RESULT` | `BoardResultMsg` (sadece isteyene) |
+| 63 | C → S | `BOARD_GOTO` | `{ userId }` (panodaki ilana tıkla, tezgahın yanına git) |
+
+- **Kurma:** `set`. Oyuncunun bu sunucuda **açık tezgahı** olmalı (`NO_STALL`). `highlights`: ilanda öne çıkacak en fazla 3 kalem (`BOARD.maxHighlights`); Float'lı eşya `instanceId` ile, yığın `defId` ile verilir (Unity ikisini de gönderir, dolu olan geçer). Kalem tezgahta yoksa `NOT_IN_STALL`. Boş liste verilirse ilan tezgahın ilk kalemlerini gösterir.
+- **Ücret:** yeni ilan **10 elmas** (`BOARD.priceDiamonds`, Öneri, config'den ayarlanır) öder; elmas yetmezse `NOT_ENOUGH_DIAMOND`. Elmas cüzdandan düşülür (`BOARD_RESULT.diamond` kalan bakiye). Çalışan ilanda `set` tekrar gönderilirse sadece öne çıkan kalemler değişir, **ücret alınmaz** ve ilanın sırası/süresi korunur.
+- **Yer:** panoda aynı anda sunucu başına en fazla 8 ilan (`BOARD.slots`, Öneri), doluysa `BOARD_FULL`. İlanlar başlama sırasına göre (eskiden yeniye) listelenir; panoda sırayla dönmesi client işidir. Arama ve fiyat sıralaması yok.
+- **Süre:** ilan en fazla 24 saat (`BOARD.ttlMs`) ve **tezgah açık kaldığı sürece** durur: tezgah kapanır, geri çağrılır ya da her şey satılırsa ilan da kalkar. `remove` ilanı kaldırır. İlan erken kalkarsa **elmas iade edilmez** (Öneri). İlanlar sunucu bellekte tutulur, sunucu yeniden başlayınca tezgahla birlikte gider.
+- **Tıklama:** `BOARD_GOTO { userId }`: ilan hâlâ bu sunucudaysa oyuncu tezgahın yanındaki boş bir yere `TELEPORT` ile gider ("Yanına git" kurallarıyla aynı: 3 sn'de bir, balık tutuyorsa olta toplanır). Hata `TELEPORT.reason` ile gelir: `NOT_HERE` (ilan ya da tezgah yok), `NO_SPOT`, `RATE_LIMITED`. Arkadaş olmak gerekmez.
+- **Hatalar (`BOARD_RESULT.reason`):** `NO_STALL`, `BAD_REQUEST`, `NOT_IN_STALL`, `BOARD_FULL`, `NOT_ENOUGH_DIAMOND`.
+
+```
+BoardAd        = { userId, name, title, spot, x, y, top: StallEntry[], total, startedAt, expiresInMs }
+                 // top: seçilen kalemler (tezgahta kalanlar), seçilmemişse tezgahın ilk kalemleri
+BoardStateMsg  = { full, ads: BoardAd[], removed: [userId] }
+BoardResultMsg = { action: "set" | "remove", ok, reason?, diamond? }
+```
+
+## Günlük görev (Faz 6)
+
+Kurallar: `docs/tasarim/03-balik-tutma.md` 5.2. Sunucu: `rules/quest.ts` (saf kurallar), `match/quest.ts` (match mesajları ve depolama), liste ve sandıklar `data/quests.ts` (Öneri değerler; admin paneli sonra). Görev durumu match'in önbelleğinde durur, bu yüzden RPC yok, her şey match mesajıdır.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 57 | S → C | `QUEST_STATE` | `QuestStateMsg` (girişte `WELCOME`'dan sonra, her ilerlemede, gün değişince, talepten sonra) |
+| 58 | C → S | `QUEST_CLAIM` | `{}` (bugünün sandığını al) |
+| 59 | S → C | `QUEST_CLAIM_RESULT` | `QuestClaimResultMsg` (sadece isteyene) |
+
+- **Günlük 3 görev**, listeden rastgele ve farklı seçilir; seviyesi yetmeyen görev çıkmaz (`minLevel`). Gün **00:00 Türkiye saatinde** (UTC+3, Öneri) döner; yeni günde yeni görevler gelir, dünkü ilerleme gider, seri korunur.
+- **Sayılan olaylar:** `catch` (başarılı her av), `catch_tier` (avın Tier'ı en az `minTier`), `sell` (NPC'ye satılan eşya ve yığın birimi), `craft`, `merge`, `trade` (tamamlanan takas, iki tarafa da), `emote` (jest emote'u; durum emote'u değil). İlerleme hedefte kalır. Sunucu her olayı kendi görür, client sayı gönderemez.
+- **Sandık:** üç görev bitince `QUEST_CLAIM` bugünün sandığını açar: Coin, toz ve yığın ödülleri (malzeme, yem, recipe). Eşya (Float'lı) çıkmaz. Sandık satılmaz, envanterde durmaz, alınca anında açılır. İçerik **seri gününe** göre değişir; **10. gün sandığı en iyisidir** (garanti İyi recipe). Her gün tek sandık.
+- **Seri:** dünkü sandığı almışsan +1; bir gün kaçırırsan 3 geri düşüp +1 (sıfırlanmaz, Öneri; `acik-sorular.md` 2); 10'da kalır. İlk sandık 1. gündür.
+- `QuestClaimResultMsg.reason`: `NOT_DONE`, `ALREADY_CLAIMED`, `BAG_FULL` (yığın ödülleri sığmaz; durum değişmez, yer açıp tekrar denenir), `ERROR`. Hepsi tek işlemde yazılır (durum, yığınlar, Coin ve toz).
+- **Henüz yok:** "birinin defterine bak" görevi (`get_book` RPC'sidir, match önbelleğiyle çakışır; sonra), sandığın Float'lı eşya vermesi (açık soru).
+
+```
+QuestStateMsg       = { day, quests: [{ id, event, progress, target }], complete, claimed,
+                        streak,        // alınmış sandık serisi (bugünküyle birlikte, alındıysa)
+                        chestDay,      // bugünün sandığı kaçıncı gün sandığı (1-10)
+                        resetInMs }    // yeni güne kalan süre
+QuestClaimResultMsg = { ok, reason?, streak?, chestDay?, rewards?: [{ kind, defId, count }], coin?, dust? }
+                      // kind: coin | dust | stack (defId yığında dolu); coin ve dust ödülden sonraki bakiye
+```
+
+## XP ve level
+
+Kurallar: `docs/tasarim/04-xp-level.md`. Sunucu: `rules/xp.ts`. Saklanan değer toplam XP'dir (`player/xp`, herkese açık okunur); level ondan hesaplanır.
+
+- Enerjili her başarılı av XP verir (`config.ts` `XP.catchXp`, Öneri): çöp 1, malzeme 3, Common 10, Rare 25, recipe 40, Epic 60, Legendary 150, Mythic 400. **Enerjisiz av XP vermez** (sadece çöp çıkar ve çiftliği yapılmasın). Kaçan ve ıskalanan av vermez.
+- Level `n` → `n+1` için gereken XP: `250 + 250·n` (Öneri). En yüksek level 50. Level drop şansını artırmaz.
+- `FISH_END` (sadece avlayana) `xpGain: { gained, level, xp, xpNext, levelUp?: { level, unlocks: [string] } }` taşır; `levelUp` seviye atlanan avda gelir. `unlocks` o seviyelerin açtığı özelliklerdir (şimdilik `trade`, level 10).
+- `WELCOME` ve `get_profile` level'ı taşır.
+- Level şartları: takas (level 10). Olta, derin su ve yem şartları eşyanın `minLevel` alanıyla gelir (`03-balik-tutma.md`), henüz yok.
 
 ## Ekonomi: Coin, NPC satış, toz (Faz 4)
 
@@ -164,6 +433,7 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9, fiyatlar `16-ekonomi-tablosu.md
 | 24 | S → C | `ECONOMY_RESULT` | `{ action: "sell" \| "salvage", ok, reason?, coin, dust, gained?, items?, stacks? }` (sadece oyuncunun kendisi) |
 
 - **Coin ve toz** Nakama cüzdanında durur (`{ coin, dust }`), sadece sunucu değiştirir. Client bakiyeyi `get_inventory` ve `ECONOMY_RESULT`'tan alır. Toz takas edilemez.
+- **Elmas** da cüzdanda durur (`{ coin, dust, diamond }`). Balık tutarken enerjiyle yapılan her başarılı çekişte küçük bir şansla **1 elmas** düşer; şans günde ortalama **5** elmas verecek şekilde hesaplanır (`DIAMOND` config: `perDay` 5, `catchesPerDay` enerji tavanının %90'ı, yani şimdi ~%5,6; hepsi Öneri). Enerjisiz atış ve kaçan balık elmas vermez. Elmas av kaydıyla aynı işlemde yazılır; `FISH_END` (sadece avlayana) `diamond: { gained, total }` taşır, düşmediyse alan yoktur. Bakiye `get_inventory.diamond`'dadır. Elmas **takas edilemez** (takas ve tezgah sadece Coin ister), harcama yerleri sonra gelir (pano reklamı, kozmetikler). Gerçek parayla elmas satın alma Faz 7'de.
 - Bir istekte birden çok eşya ve yığın olabilir, toplam en fazla 40 satır. İstek ya tamamen olur ya hiç olmaz: eşyalar, yığınlar ve cüzdan tek işlemde değişir.
 - **NPC fiyatı:** Tier'lı eşyada Tier fiyatı × kondisyon çarpanı (Pristine ×3, Excellent ×1.5, Normal ×1, Worn ×0.7, Damaged ×0.5), yuvarlanır, en az 1. Yığınlarda (çöp, malzeme) adet başı sabit fiyat.
 - **Toz:** Float'tan etkilenmez. Recipe parçalanamaz.
@@ -260,9 +530,9 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
 
 - Su bandı (kıyı / orta / derin) dosyada yazılmaz; sunucu her su tile'ının karaya uzaklığından hesaplar (`WATER` config). Haritayı çizen yalnızca suyu işaretler.
 - `spawn`: ilk giriş noktası (meydan). Yürünür bir tile'da olmalı.
-- `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı). Şimdilik sunucu sadece `bank`'ı kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
+- `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı), `market` (pet tezgahı alanının merkezi). Şimdilik sunucu `bank` ve `market`'i kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
 - `waters` (isteğe bağlı): isimli sular. Dikdörtgenin içindeki `~` tile'lar o suya aittir; eşyaların `waters` alanı bu id'leri kullanır (`tasarim/03-balik-tutma.md`, Eşyanın çıkış alanları). `id` küçük harf, rakam ve `_`. Liste verilirse her su tile'ı tam bir suya ait olmalı. Client bu alanı kullanmaz; hangi suda olunduğu oyuncuya gösterilmez (keşif konusu).
-- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`) var, isimli suların dikdörtgeni harita içinde, içinde su var, çakışmıyor ve isimsiz su kalmıyor.
+- Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`, `market`) var, isimli suların dikdörtgeni harita içinde, içinde su var, çakışmıyor ve isimsiz su kalmıyor.
 - Sonraki adım (Öneri): balık noktaları (`spot`) ve her noktanın havuzu. Havuzlar sunucu verisidir, dosyada sadece noktanın yeri ve id'si durur.
 ## Fiyat ve recipe listesi (Faz 4)
 
@@ -286,4 +556,6 @@ Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe ba
 
 ## Hata kodları
 
-RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`.
+RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde). Pano: `NO_STALL`, `NOT_IN_STALL`, `BOARD_FULL`, `NOT_ENOUGH_DIAMOND`. Fısıltı ve rapor: `MUTED`, `NOT_FOUND`, `SELF`, `NOT_ALLOWED`, `YOU_BLOCKED`, `LEVEL_TOO_LOW`, `OFFLINE`.
+
+Nakama bildirim kodları: 101 giriş yolu bağlandı, 102 giriş yolu kaldırıldı, 103 tezgahtan satış, 104 hesap silme iptal, 110 fısıltı.

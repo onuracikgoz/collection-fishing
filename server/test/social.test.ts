@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMOTES } from '../src/config';
 import { LAKE_MAP } from '../src/data/lake-map';
-import { canEmote, parseEmote } from '../src/rules/emote';
+import { canEmote, canWear, normalizeOwned, parseEmote, parseStatus } from '../src/rules/emote';
 import { buildCollisionMap, isWalkable, spotNear } from '../src/rules/map';
 
 describe('spotNear', () => {
@@ -44,5 +44,35 @@ describe('emotes', () => {
     expect(canEmote(undefined, 0, EMOTES)).toBe(true);
     expect(canEmote(1000, 1000 + EMOTES.cooldownMs - 1, EMOTES)).toBe(false);
     expect(canEmote(1000, 1000 + EMOTES.cooldownMs, EMOTES)).toBe(true);
+  });
+});
+
+describe('status emotes', () => {
+  it('parses wear and remove, drops unknown ids and bad bodies', () => {
+    expect(parseStatus({ emote: 'zzz' }, EMOTES)).toEqual({ emote: 'zzz' });
+    expect(parseStatus({ emote: null }, EMOTES)).toEqual({ emote: null });
+    expect(parseStatus({ emote: '' }, EMOTES)).toEqual({ emote: null });
+    expect(parseStatus({ emote: 'kiss' }, EMOTES)).toBeUndefined();
+    expect(parseStatus({ emote: 'toString' }, EMOTES)).toBeUndefined();
+    expect(parseStatus({}, EMOTES)).toBeUndefined();
+    expect(parseStatus(null, EMOTES)).toBeUndefined();
+    expect(parseStatus({ emote: 5 }, EMOTES)).toBeUndefined();
+  });
+  it('lets everyone wear free emotes, others only when owned', () => {
+    expect(canWear('heart', [], EMOTES)).toBe(true);
+    expect(canWear('star', [], EMOTES)).toBe(false);
+    expect(canWear('star', ['star'], EMOTES)).toBe(true);
+    expect(canWear('fire', ['star'], EMOTES)).toBe(false);
+    expect(canWear('goldfish', ['goldfish'], EMOTES)).toBe(true);
+    expect(canWear('nope', ['nope'], EMOTES)).toBe(false);
+  });
+  it('cleans the owned list from storage', () => {
+    expect(normalizeOwned({ ids: ['star', 'star', 'heart', 'nope', 7, 'fire'] }, EMOTES)).toEqual(['star', 'fire']);
+    expect(normalizeOwned(null, EMOTES)).toEqual([]);
+    expect(normalizeOwned({ ids: 'star' }, EMOTES)).toEqual([]);
+  });
+  it('has no flirting content and only known tiers', () => {
+    for (const bad of ['kiss', 'wink']) expect(Object.keys(EMOTES.status)).not.toContain(bad);
+    for (const id of Object.keys(EMOTES.status)) expect(['free', 'supporter', 'diamond', 'book']).toContain(EMOTES.status[id].tier);
   });
 });

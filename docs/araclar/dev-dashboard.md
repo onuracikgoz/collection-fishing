@@ -46,7 +46,8 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_item_edit` | `{ instanceId, float?, tier? }` |
 | `dev_item_delete` | `{ instanceIds }` ya da `{ all: true }` (çantadakiler) |
 | `dev_stacks` | `{ stacks: { defId: count }, clear? }`, 0 siler |
-| `dev_wallet` | `{ set: { coin?, dust? } }` ya da `{ add: … }`, cüzdan geçmişine `action: dev` yazar |
+| `dev_wallet` | `{ set: { coin?, dust?, diamond? } }` ya da `{ add: … }`, cüzdan geçmişine `action: dev` yazar |
+| `dev_xp` | `{ value }` ya da `{ level }` (toplam XP'yi ya da o level'ın başlangıcını yazar) |
 | `dev_energy` | `{ value }` |
 | `dev_book` | `{ action: discover \| fill \| unslot \| forget \| fill_page \| reset, defId?, page?, float? }` |
 | `dev_profile` | `{ showcase?, hunting? }` kontrolsüz yazar |
@@ -56,6 +57,7 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_sim_catch` | `{ n, band, water?, level?, hasEnergy, luck \| userId }` av tablosu simülasyonu (bant çarpanları dahil) |
 | `dev_reel` | `{ seed, tier \| params, band?, inputs? , lose? }` mini oyunu oynar ya da girdileri değerlendirir; `band` o bandın zorluğunu ekler |
 | `dev_craft_preview` | `{ recipeId \| grade, average }` craft Float bantları |
+| `dev_trades` | `{ limit? }` oyuncunun takas ve tezgah kayıtları (yeniden eskiye), hakkındaki ve verdiği raporlar |
 | `dev_suspects` | `{ limit? }` her hesap, işaretleri, puanı ve sayıları (önce maçlara sinyalleri kaydettirir); IP grupları |
 | `dev_watch` | `{ userId, action: reset }`, `{ action: transfer, to, value, n? }` sahte takas kaydı, `{ action: ip, ip }` hesabı o IP'den açılmış say |
 

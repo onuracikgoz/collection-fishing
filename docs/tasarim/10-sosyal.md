@@ -26,6 +26,9 @@
 - Chat'e **`/w Nick mesaj`** yazarak veya panodaki ilana / oyuncuya tıklayıp "Whisper at" ile gönderilir.
 - Her oyuncunun **"PM kapalı"** düğmesi vardır.
 - **Genel kitle ile uyum:** arkadaşlar her zaman yazabilir. Yabancıya whisper yalnızca **pazar bağlamında** (satış / alım ilanından "Whisper at") ve gönderen en az level 10 ise açılır. Kişisel bilgi filtresi whisper'da da çalışır; engelle / raporla tek tıklıktır.
+- **Pencere (karar 29.10.2026):** Knight Online'daki gibi **küçük**, açılıp kapanan, küçültülebilen pencere; uygulama notu `docs/araclar/ui-uygulama.md` Fısıltı penceresi.
+- **Sunucu (29.10.2026):** fısıltı RPC'yle gider, farklı sunuculardaki iki oyuncu da yazışabilir. Alıcı çevrimdışıysa mesaj gitmez ve saklanmaz ("çevrimiçi değil"). "PM kapalı" yalnızca yabancıları keser, arkadaşlar yine yazar. Engelleyen tarafın engeli karşı tarafa belli edilmez. Hız sınırı 10 sn'de 10 mesaj, rapor saatte 10 (Öneri). Ayrıntı: `docs/protokol.md` Fısıltı.
+- **Susturma:** moderatörün verdiği süreli susturma hem fısıltıyı hem yakın sohbeti keser. Kişisel bilgi filtresi yakın sohbet balonunda da çalışır. Küfür filtresi için kelime listesi bekleniyor (`acik-sorular.md`).
 
 ### 13.2. Oyuncu Etkileşimi
 
@@ -39,7 +42,15 @@ Bir oyuncuya tıklanınca: profil kartı, Collection Book'u incele, arkadaş ekl
 ### 13.2.2. Emote'lar
 
 - Arkadaşça, genel kitleye uygun: el sallama, alkış, dans, oturma, gülme, **balık gösterme** (son avı havaya kaldırma).
-- Ekstra emote'lar kozmetik olarak satılabilir.
+- **Durum emote'u (karar 29.10.2026):** emote artık sadece anlık bir hareket değil. Oyuncu bir **durum emote'u** seçer; karakterinin üstünde **kalıcı** bir balon olarak durur (yürürken, balık tutarken, hatta oyundan çıkana kadar), sunucudaki herkes görür. Aynı anda **bir** tane takılır; "Kaldır" ile veya başkasını seçerek değişir. Örnek: uyuyor (zzz), balık, soru, müzik, kahve.
+- **Hareketler** (el sallama, alkış, dans) kısa süren animasyondur, bitince kaybolur.
+- **Kimler alabilir:**
+  - **Herkese açık:** ücretsiz, temel set.
+  - **Destekçi:** destekçi paketiyle gelen emote'lar (altın çerçeve, taç işareti).
+  - **Elmasla alınır:** tek tek satın alınır, **takas edilmez** (kural 2).
+  - **Defter ödülü:** set tamamlayınca açılır (`06-defter.md` prestij ödülleri).
+- Emote'lar yalnızca görünümdür, drop ya da Float'ı etkilemez. **Düz kalp ("sevgi") ücretsiz sette kalır** (karar 29.10.2026); öpücük, göz kırpma, çift/romantik emote'lar yoktur: genel kitle 13+.
+- Sunucu emote kimliğini ve sahipliğini doğrular; sohbet filtresi gerekmez (metin yok). Protokol: `docs/protokol.md` Emote bölümüne durum emote'u eklenecek (sözleşme önce).
 
 ### 13.3. Profil Kartı ve Showcase
 

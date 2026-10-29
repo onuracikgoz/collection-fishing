@@ -8,6 +8,7 @@ import { EconomyResultMsg, OpCode } from '../protocol';
 import { Category } from '../rules/catch';
 import { EconomyAction, OwnedItem, parseEconomyRequest, planEconomy } from '../rules/economy';
 import { Fisher } from './fishing';
+import { trackQuest } from './quest';
 import { StoredItem, inBag, readWallet, stacksWrite } from './playerData';
 
 const CATEGORY: { [defId: string]: Category } = {};
@@ -46,7 +47,10 @@ export function handleEconomy(
     const objs = nk.storageRead(req.items.map((key) => ({ collection: 'items', key, userId })));
     for (const o of objs) {
       const item = o.value as StoredItem;
-      if (inBag(item)) owned[o.key] = { instanceId: item.instanceId, tier: item.tier, float: item.float };
+      if (inBag(item)) {
+        if (item.locked) return fail('LOCKED');
+        owned[o.key] = { instanceId: item.instanceId, tier: item.tier, float: item.float };
+      }
     }
   }
 
@@ -83,4 +87,8 @@ export function handleEconomy(
     items: plan.removeItems,
     stacks: plan.removedStacks,
   });
+  if (action === 'sell') {
+    const units = plan.removeItems.length + plan.removedStacks.reduce((a, st) => a + st.count, 0);
+    trackQuest(nk, logger, dispatcher, f, { event: 'sell', count: units });
+  }
 }

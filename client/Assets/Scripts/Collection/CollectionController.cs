@@ -57,6 +57,10 @@ namespace CollectionGame.Collection
 
         /// <summary>Sends a friend request (userId, username); set by the world.</summary>
         public Action<string, string> AddFriend { get; set; }
+        /// <summary>(userId, name): sends a trade offer.</summary>
+        public Action<string, string> OfferTrade { get; set; }
+        /// <summary>(userId, name): opens a whisper window.</summary>
+        public Action<string, string> Whisper { get; set; }
 
         public CollectionController(Connection net) => this.net = net;
 
@@ -317,7 +321,7 @@ namespace CollectionGame.Collection
 
         void DrawProfile()
         {
-            var r = new Rect(Gui.Width - 340, 60, 320, 240);
+            var r = new Rect(Gui.Width - 340, 60, 320, 280);
             Gui.Block(r);
             GUILayout.BeginArea(r, Gui.Window);
             GUILayout.BeginHorizontal();
@@ -350,6 +354,13 @@ namespace CollectionGame.Collection
             var mine = Profile.userId == net.UserId;
             if (!mine && AddFriend != null && GUILayout.Button("Arkadaş ekle", Gui.Button, GUILayout.Height(28)))
                 AddFriend(Profile.userId, Profile.username);
+            if (!mine)
+            {
+                GUILayout.BeginHorizontal();
+                if (Whisper != null && GUILayout.Button("Fısılda", Gui.Button, GUILayout.Height(28))) Whisper(Profile.userId, Profile.username);
+                if (OfferTrade != null && GUILayout.Button("Takas teklif et", Gui.Button, GUILayout.Height(28))) OfferTrade(Profile.userId, Profile.username);
+                GUILayout.EndHorizontal();
+            }
             if (GUILayout.Button(mine ? "Defterimi aç (K)" : "Defterini gör", Gui.Button, GUILayout.Height(28)))
                 OpenBook(mine ? null : Profile.userId, Profile.username);
             GUILayout.EndArea();

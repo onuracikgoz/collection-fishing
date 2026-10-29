@@ -50,6 +50,34 @@ namespace CollectionGame.Net
         public const long StashTake = 33;
         public const long StashExpand = 34;
         public const long StashResult = 35;
+        public const long EmoteStatus = 36;
+        public const long EmoteStatusShow = 37;
+        public const long Announce = 38;
+        public const long TradeOffer = 39;
+        public const long TradeReply = 40;
+        public const long TradeSet = 41;
+        public const long TradeLock = 42;
+        public const long TradeConfirm = 43;
+        public const long TradeCancel = 44;
+        public const long TradeInvite = 45;
+        public const long TradeState = 46;
+        public const long TradeEnd = 47;
+        public const long ItemLock = 48;
+        public const long ItemLockResult = 49;
+        public const long StallOpen = 50;
+        public const long StallRecall = 51;
+        public const long StallView = 52;
+        public const long StallBuy = 53;
+        public const long StallList = 54;
+        public const long StallState = 55;
+        public const long StallResult = 56;
+        public const long QuestState = 57;
+        public const long QuestClaim = 58;
+        public const long QuestClaimResult = 59;
+        public const long BoardAd = 60;
+        public const long BoardState = 61;
+        public const long BoardResult = 62;
+        public const long BoardGoto = 63;
     }
 
     public static class ErrorCode
@@ -58,6 +86,21 @@ namespace CollectionGame.Net
         public const string ProtocolMismatch = "PROTOCOL_MISMATCH";
         public const string ServerFull = "SERVER_FULL";
         public const string RateLimited = "RATE_LIMITED";
+        public const string AccountRecentlyDeleted = "ACCOUNT_RECENTLY_DELETED";
+        public const string NameReserved = "NAME_RESERVED";
+        // Whisper and reports (docs/protokol.md, Fısıltı)
+        public const string Muted = "MUTED";
+        public const string NotFound = "NOT_FOUND";
+        public const string Self = "SELF";
+        public const string NotAllowed = "NOT_ALLOWED";
+        public const string YouBlocked = "YOU_BLOCKED";
+        public const string LevelTooLow = "LEVEL_TOO_LOW";
+        public const string Offline = "OFFLINE";
+        // Market board
+        public const string NoStall = "NO_STALL";
+        public const string NotInStall = "NOT_IN_STALL";
+        public const string BoardFull = "BOARD_FULL";
+        public const string NotEnoughDiamond = "NOT_ENOUGH_DIAMOND";
     }
 
     /// <summary>"up", "down", "left" or "right". Server y grows downward, so "down" is +y.</summary>
@@ -130,6 +173,8 @@ namespace CollectionGame.Net
         public string characterId;
         /// <summary>Set if the player is fishing. JsonUtility fills absent objects with defaults: check band.</summary>
         public BobberPos bobber;
+        /// <summary>Status emote worn above the head; empty when none.</summary>
+        public string status;
     }
 
     /// <summary>S → C, op 4.</summary>
@@ -181,6 +226,15 @@ namespace CollectionGame.Net
         public int energyMax;
         /// <summary>Faz 4.</summary>
         public RodView rod;
+        /// <summary>Status emote worn right now; empty when none.</summary>
+        public string status;
+        /// <summary>Non-free status emotes this player owns.</summary>
+        public string[] emotesOwned;
+        public int level;
+        /// <summary>XP inside the level.</summary>
+        public int xp;
+        /// <summary>XP this level needs; 0 at the top level.</summary>
+        public int xpNext;
     }
 
     // --- Faz 2: fishing (docs/protokol.md, Balık tutma) ---
@@ -296,6 +350,8 @@ namespace CollectionGame.Net
         public float @float;
         public string source;
         public long obtainedAt;
+        /// <summary>Protected by its owner: cannot be sold, salvaged, merged, crafted or traded.</summary>
+        public bool locked;
     }
 
     [Serializable]
@@ -320,6 +376,38 @@ namespace CollectionGame.Net
         public FishBookMsg book;
         /// <summary>Faz 4: the rod after this catch when it wore; max is 0 when absent.</summary>
         public RodView rod;
+        /// <summary>XP for this catch; gained is 0 when absent or when the cast had no energy.</summary>
+        public XpGainMsg xpGain;
+        /// <summary>A diamond dropped with this catch; gained is 0 when absent.</summary>
+        public DiamondGain diamond;
+    }
+
+    [Serializable]
+    public class DiamondGain
+    {
+        public int gained;
+        public long total;
+    }
+
+    [Serializable]
+    public class LevelUpInfo
+    {
+        public int level;
+        /// <summary>What the new level opens: "trade"...</summary>
+        public string[] unlocks;
+    }
+
+    [Serializable]
+    public class XpGainMsg
+    {
+        public int gained;
+        public int level;
+        /// <summary>XP inside the level.</summary>
+        public int xp;
+        /// <summary>XP this level needs; 0 at the top level.</summary>
+        public int xpNext;
+        /// <summary>level is 0 when this catch did not reach a new level.</summary>
+        public LevelUpInfo levelUp;
     }
 
     // --- Faz 3: Collection Book (docs/protokol.md, Collection Book) ---
@@ -407,6 +495,7 @@ namespace CollectionGame.Net
         public string username;
         public int score;
         public string[] pagesComplete;
+        public int level;
         public ItemInstance[] showcase;
         public string hunting;
     }
@@ -457,6 +546,456 @@ namespace CollectionGame.Net
         public string defId;
     }
 
+    /// <summary>C → S, op 36. emote empty = remove the status emote (JsonUtility cannot send null).</summary>
+    [Serializable]
+    public class EmoteStatusMsg
+    {
+        public string emote;
+    }
+
+    /// <summary>S → C, op 37. emote empty = none worn. reason set = refused (NOT_OWNED, RATE_LIMITED) and only to us, emote is what we still wear.</summary>
+    [Serializable]
+    public class EmoteStatusShowMsg
+    {
+        public string id;
+        public string emote;
+        public string reason;
+    }
+
+    /// <summary>S → C, op 38. Server-wide announcement; kind is "rare_catch" for now. condition is a name only, never the raw Float.</summary>
+    [Serializable]
+    public class AnnounceMsg
+    {
+        public string kind;
+        public string id;
+        public string name;
+        public string defId;
+        public string tier;
+        public string condition;
+    }
+
+    /// <summary>C → S, op 48.</summary>
+    [Serializable]
+    public class ItemLockMsg
+    {
+        public string instanceId;
+        public bool locked;
+    }
+
+    /// <summary>S → C, op 49. Only to the asker. reason: BAD_REQUEST, NOT_OWNED.</summary>
+    [Serializable]
+    public class ItemLockResultMsg
+    {
+        public string instanceId;
+        public bool locked;
+        public bool ok;
+        public string reason;
+    }
+
+    // --- Faz 5: trade (docs/protokol.md, Takas) ---
+
+    /// <summary>C → S, op 39.</summary>
+    [Serializable]
+    public class TradeOfferMsg
+    {
+        public string userId;
+    }
+
+    /// <summary>C → S, op 40.</summary>
+    [Serializable]
+    public class TradeReplyMsg
+    {
+        public bool accept;
+    }
+
+    /// <summary>C → S, op 41: my whole side of the window.</summary>
+    [Serializable]
+    public class TradeSetMsg
+    {
+        public string[] items;
+        public ItemStack[] stacks;
+        public int coin;
+    }
+
+    /// <summary>C → S, op 42.</summary>
+    [Serializable]
+    public class TradeLockMsg
+    {
+        public bool locked;
+    }
+
+    [Serializable]
+    public class TradeOfferView
+    {
+        public ItemInstance[] items;
+        public ItemStack[] stacks;
+        public int coin;
+    }
+
+    /// <summary>S → C, op 45.</summary>
+    [Serializable]
+    public class TradeInviteMsg
+    {
+        public string tradeId;
+        public string from;
+        public string name;
+        public int expiresInMs;
+    }
+
+    /// <summary>S → C, op 46. confirmInMs is -1 when the server omits it (not both locked).</summary>
+    [Serializable]
+    public class TradeStateMsg
+    {
+        public string tradeId;
+        public string withId;
+        public string withName;
+        public TradeOfferView you;
+        public TradeOfferView them;
+        public bool youLocked;
+        public bool themLocked;
+        public bool youConfirmed;
+        public bool themConfirmed;
+        public int confirmInMs = -1;
+        /// <summary>Set only when our TRADE_SET / TRADE_LOCK was refused: BAD_REQUEST, TOO_MANY, NOT_OWNED, NOT_ENOUGH.</summary>
+        public string reason;
+    }
+
+    [Serializable]
+    public class TradeGave
+    {
+        public string[] items;
+        public ItemStack[] stacks;
+        public int coin;
+    }
+
+    [Serializable]
+    public class TradeBookResult : FishBookMsg
+    {
+        public string instanceId;
+    }
+
+    /// <summary>S → C, op 47. result: done, cancelled, declined, expired, failed. got, gave and book only when done.</summary>
+    [Serializable]
+    public class TradeEndMsg
+    {
+        public string tradeId;
+        public string result;
+        public string reason;
+        /// <summary>failed / BAG_FULL: which side.</summary>
+        public string userId;
+        public TradeOfferView got;
+        public TradeGave gave;
+        public TradeBookResult[] book;
+    }
+
+    // --- Faz 5: pet stalls (docs/protokol.md, Pazar) ---
+
+    [Serializable]
+    public class StallOpenItem
+    {
+        public string instanceId;
+        public int price;
+    }
+
+    /// <summary>price is per unit.</summary>
+    [Serializable]
+    public class StallOpenStack
+    {
+        public string defId;
+        public int count;
+        public int price;
+    }
+
+    /// <summary>C → S, op 50.</summary>
+    [Serializable]
+    public class StallOpenMsg
+    {
+        public string title;
+        public StallOpenItem[] items;
+        public StallOpenStack[] stacks;
+    }
+
+    /// <summary>C → S, op 52 (view) and op 53 (buy). Buy: instanceId for a Float item, or defId + count for a stack; leave the other empty / 0.</summary>
+    [Serializable]
+    public class StallBuyMsg
+    {
+        public string userId;
+        public string instanceId;
+        public string defId;
+        public int count;
+    }
+
+    /// <summary>tier is empty for stacks; price is per unit for stacks.</summary>
+    [Serializable]
+    public class StallEntry
+    {
+        public string defId;
+        public string tier;
+        public int count;
+        public int price;
+    }
+
+    [Serializable]
+    public class StallView
+    {
+        public string userId;
+        public string name;
+        public int spot;
+        public float x;
+        public float y;
+        public string title;
+        public StallEntry[] top;
+        public int total;
+        public long expiresInMs;
+    }
+
+    /// <summary>S → C, op 55. full: the list is complete, clear first.</summary>
+    [Serializable]
+    public class StallsMsg
+    {
+        public bool full;
+        public StallView[] stalls;
+        public string[] removed;
+    }
+
+    [Serializable]
+    public class StallListItem
+    {
+        public ItemInstance item;
+        public int price;
+    }
+
+    /// <summary>S → C, op 54.</summary>
+    [Serializable]
+    public class StallListMsg
+    {
+        public string userId;
+        public string name;
+        public string title;
+        public StallListItem[] items;
+        public StallOpenStack[] stacks;
+        public long expiresInMs;
+    }
+
+    [Serializable]
+    public class StallReturned
+    {
+        public ItemInstance[] items;
+        public ItemStack[] stacks;
+    }
+
+    /// <summary>S → C, op 56. action: open, recall, view, buy. Absent parts come as defaults: item.instanceId, defId and book.page are empty when absent.</summary>
+    [Serializable]
+    public class StallResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public int spot;
+        public StallReturned returned;
+        public ItemInstance item;
+        public string defId;
+        public int count;
+        public int paid;
+        public int coin;
+        public FishBookMsg book;
+    }
+
+    /// <summary>Content of a stall sale notification (code 103, subject stall_sold). price is the sale total; fee was taken from it.</summary>
+    [Serializable]
+    public class StallSoldNotice
+    {
+        public string defId;
+        public int count;
+        public int price;
+        public int fee;
+        public string buyer;
+    }
+
+    // --- Market board (docs/protokol.md, Pazar Panosu) ---
+
+    [Serializable]
+    public class BoardHighlight
+    {
+        /// <summary>A Float item by instanceId, or leave empty and set defId for a stack.</summary>
+        public string instanceId;
+        public string defId;
+    }
+
+    /// <summary>C → S, op 60. action: "set" (new ad, or change a running one for free) or "remove".</summary>
+    [Serializable]
+    public class BoardAdMsg
+    {
+        public string action;
+        public BoardHighlight[] highlights;
+    }
+
+    [Serializable]
+    public class BoardAd
+    {
+        public string userId;
+        public string name;
+        public string title;
+        public int spot;
+        public float x;
+        public float y;
+        public StallEntry[] top;
+        public int total;
+        public long startedAt;
+        public long expiresInMs;
+    }
+
+    /// <summary>S → C, op 61. full: replace the whole list. Ads come oldest first.</summary>
+    [Serializable]
+    public class BoardStateMsg
+    {
+        public bool full;
+        public BoardAd[] ads;
+        public string[] removed;
+    }
+
+    /// <summary>S → C, op 62. reason: NO_STALL, BAD_REQUEST, NOT_IN_STALL, BOARD_FULL, NOT_ENOUGH_DIAMOND, ERROR. diamond is the balance after a charge (0 when absent).</summary>
+    [Serializable]
+    public class BoardResultMsg
+    {
+        public string action;
+        public bool ok;
+        public string reason;
+        public long diamond;
+    }
+
+    /// <summary>transfer_code_create answer (docs/protokol.md, Taşıma kodu RPC'leri). code looks like ABCD-EFGH.</summary>
+    [Serializable]
+    public class TransferCodeResponse
+    {
+        public string code;
+        public long expiresInMs;
+    }
+
+    // --- Account deletion RPCs (docs/protokol.md, Hesap silme RPC'leri) ---
+
+    /// <summary>account_delete_request: name must be the account's username exactly.</summary>
+    [Serializable]
+    public class AccountDeleteRequest
+    {
+        public string name;
+    }
+
+    /// <summary>Answer of account_delete_request (runAt) and account_delete_status (pending, runAt; runAt 0 = none).</summary>
+    [Serializable]
+    public class AccountDeleteStatus
+    {
+        public bool pending;
+        public long runAt;
+    }
+
+    // --- Whisper and reports (docs/protokol.md, Fısıltı) ---
+
+    /// <summary>Nakama notification code of a whisper (subject "whisper", content WhisperNotice).</summary>
+    public static class NotifyCode
+    {
+        public const int LoginLinked = 101;
+        public const int LoginUnlinked = 102;
+        public const int StallSold = 103;
+        public const int DeletionCancelled = 104;
+        public const int Whisper = 110;
+    }
+
+    /// <summary>whisper_send. Set userId or username (leave the other empty). context "stall" when written from a pet stall.</summary>
+    [Serializable]
+    public class WhisperSendRequest
+    {
+        public string userId;
+        public string username;
+        public string text;
+        public string context;
+    }
+
+    /// <summary>Answer of whisper_send. text is what the receiver got (personal info masked); show it in your own window.</summary>
+    [Serializable]
+    public class WhisperSendResponse
+    {
+        public bool ok;
+        public string to;
+        public string toName;
+        public string text;
+        public bool masked;
+    }
+
+    /// <summary>Content of a whisper notification (code 110).</summary>
+    [Serializable]
+    public class WhisperNotice
+    {
+        public string from;
+        public string fromName;
+        public string text;
+        public string context;
+        public long at;
+    }
+
+    /// <summary>whisper_settings request and answer. Send {} to only read.</summary>
+    [Serializable]
+    public class WhisperSettings
+    {
+        public bool pmOff;
+    }
+
+    /// <summary>report_player. reason: spam, abuse, scam, personal_info, cheating, other.</summary>
+    [Serializable]
+    public class ReportPlayerRequest
+    {
+        public string userId;
+        public string reason;
+        public string note;
+        public string text;
+    }
+
+    // --- Faz 6: daily quests (docs/protokol.md, Günlük görev) ---
+
+    [Serializable]
+    public class QuestProgress
+    {
+        public string id;
+        public string @event;
+        public int progress;
+        public int target;
+    }
+
+    /// <summary>S → C, op 57.</summary>
+    [Serializable]
+    public class QuestStateMsg
+    {
+        public int day;
+        public QuestProgress[] quests;
+        public bool complete;
+        public bool claimed;
+        public int streak;
+        public int chestDay;
+        public long resetInMs;
+    }
+
+    /// <summary>kind: coin, dust or stack (defId set for stack).</summary>
+    [Serializable]
+    public class QuestReward
+    {
+        public string kind;
+        public string defId;
+        public int count;
+    }
+
+    /// <summary>S → C, op 59. reason: NOT_DONE, ALREADY_CLAIMED, BAG_FULL, ERROR. coin and dust are the balances after the reward.</summary>
+    [Serializable]
+    public class QuestClaimResultMsg
+    {
+        public bool ok;
+        public string reason;
+        public int streak;
+        public int chestDay;
+        public QuestReward[] rewards;
+        public int coin;
+        public int dust;
+    }
+
     [Serializable]
     public class FriendStatus
     {
@@ -490,6 +1029,8 @@ namespace CollectionGame.Net
         /// <summary>Faz 4.</summary>
         public long coin;
         public long dust;
+        /// <summary>Diamonds; not tradeable.</summary>
+        public long diamond;
         public RodView rod;
     }
 

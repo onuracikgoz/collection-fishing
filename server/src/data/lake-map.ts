@@ -5,7 +5,7 @@ import lakeFile from '../../../content/maps/lake.json';
 import { loadMapFile, MapFile, pointById } from '../rules/mapFile';
 
 /** Point ids the server code depends on; the map must have them. */
-export const REQUIRED_POINTS = ['bank'];
+export const REQUIRED_POINTS = ['bank', 'market'];
 
 export const LAKE = loadMapFile(lakeFile as MapFile, REQUIRED_POINTS);
 
@@ -13,3 +13,6 @@ export const LAKE_MAP = LAKE.data;
 
 /** Banka: the stash only opens near it. */
 export const BANK_POINT = pointById(LAKE, 'bank');
+
+/** Pazar: pet stalls stand on a grid around this point. */
+export const MARKET_POINT = pointById(LAKE, 'market');

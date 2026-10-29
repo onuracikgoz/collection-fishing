@@ -60,3 +60,4 @@ Sunucu ağırlıkları (10000 = %100): çöp 2500, sıradan balık 3805, Common 
 
 - Görev ödülüne arada toz, yem veya düşük ihtimalle recipe eklensin mi?
 - Sosyal görevler ("birinin defterine bak", `03-balik-tutma.md` 5.2) bu listeye girsin mi, sandık ödülü kalsın mı?
+- Kodda şu an `03-balik-tutma.md` 5.2'deki görevler var (günde 3 karışık görev, seri ve sandık; `docs/protokol.md` Günlük görev, 29.10.2026). Onur: şimdilik kalsın. Bu taslak koda girince ikisi birleştirilecek (balık teslimi görev türü olarak eklenebilir).

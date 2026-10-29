@@ -41,7 +41,7 @@ Her eşyanın verisinde neyin, nerede, ne zaman çıktığı yazar. Sunucu drop'
 
 - Yem yeni eşya eklemez (5.0.0): `baits` sadece havuzdaki bir eşyanın ağırlığını artırır.
 - `waters` id'leri harita dosyasındaki isimli sulardır (`docs/protokol.md`, Harita dosyası, `waters`). Şimdilik haritada sadece `buyuk_gol` var; diğer sular haritaya çizildikçe eklenir.
-- Level sistemi (04) gelene kadar herkes level 1 sayılır (`LEVEL.start`), yani `minLevel`'lı eşya henüz çıkmaz.
+- `minLevel` oyuncunun XP level'ıyla karşılaştırılır (`04-xp-level.md`); yeni oyuncu level 1'dir.
 - Defter bu alanları **göstermez** ("Mavi kristal nerede çıkıyor?" keşif ve sohbet konusu kalır). Sadece eşya bir kez yakalanınca nerede tutulduğu deftere işlenebilir (sonra konuşulacak).
 
 #### Bantların dengesi (Öneri, 28.10.2026)
@@ -171,5 +171,5 @@ Her işaretin ağırlığı vardır; inceleme listesi ağırlık toplamına gör
 - Sandıklarda garanti ödüller olabilir (ör. "garanti 1 recipe").
 - **Seri (streak):** görevler art arda yapıldıkça sandık değerlenir. 1–10 günlük takvim, **10. gün sandığı en iyisidir** (ör. garanti İyi recipe).
 - **(Öneri)** Bir gün kaçırılınca seri sıfırlanmaz, 3 gün geri düşer.
-- Sandık içerikleri ve seri ödülleri **admin panelinden** ayarlanır (bkz. 18).
+- Sandık içerikleri ve seri ödülleri **admin panelinden** ayarlanır (bkz. 18). Şimdilik `server/src/data/quests.ts` (Öneri değerler): günde 3 görev, gün 00:00 Türkiye saati, sandık Coin + toz + malzeme / yem / recipe verir, Float'lı eşya vermez. Mesajlar: `protokol.md` Günlük görev.
 - Sandık veya anahtar **asla gerçek parayla satılmaz.** Eşyaların gerçek para değeri olduğu için bu doğrudan kumar sayılır.

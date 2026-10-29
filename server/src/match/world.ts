@@ -1,12 +1,13 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { EMOTES, ENERGY, FRIENDS, ROD, SERVERS, WATCH, WATER, WORLD } from '../config';
-import { LAKE_MAP } from '../data/lake-map';
+import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
+import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
 import {
   BubbleMsg,
   CorrectionMsg,
   Dir,
   EmoteShowMsg,
+  EmoteStatusShowMsg,
   OpCode,
   PlayerEnterMsg,
   PlayerLeaveMsg,
@@ -16,17 +17,25 @@ import {
   WelcomeMsg,
 } from '../protocol';
 import { canSpeak, sanitizeChat } from '../rules/chat';
+import { maskPersonal } from '../rules/whisper';
 import { checkJoin } from '../rules/join';
+import { buildSpots } from '../rules/market';
 import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
-import { canEmote, parseEmote } from '../rules/emote';
+import { levelOf } from '../rules/xp';
+import { canEmote, canWear, parseEmote, parseStatus } from '../rules/emote';
 import { areFriends } from './friends';
 import { applyMove, MoveState, newMoveState, parseMove } from '../rules/movement';
 import { SpatialGrid, updateVisibility } from '../rules/proximity';
 import { buildWaterMap, WaterMap } from '../rules/water';
 import { BagSummary } from '../rules/bag';
+import { QuestState } from '../rules/quest';
 import { FishState } from '../rules/fishing';
-import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
-import { currentEnergy, energyWrite, loadBag, readBook, readRod } from './playerData';
+import { Fisher, FishingContext, cancelFishing, flushEnergy, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
+import { handleItemLock } from './lock';
+import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
+import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendBoard, sendStalls, settleEnded, tickMarket } from './market';
+import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
+import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readMutedUntil, readRod, readXp, sessionWrite, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
@@ -36,6 +45,7 @@ import { Rod, rodView } from '../rules/rod';
 import { BookEntries } from '../rules/book';
 import { WorldLabel } from './servers';
 import { devSignal } from '../debug/signal';
+import { sweepDeletions } from '../rpc/accountDelete';
 import { WatchStats, changeMark, recordChat } from '../rules/watch';
 import { readWatch, saveWatch } from './watch';
 
@@ -50,20 +60,37 @@ interface Player {
   moving: boolean;
   move: MoveState;
   lastSpokeAt?: number;
+  /** Muted (wall-clock ms) until; re-read from storage now and then while the player talks. */
+  mutedUntil: number;
+  muteCheckedAt: number;
   /** Ids this player currently sees. */
   visible: { [id: string]: true };
   /** Changed since the last SNAPSHOT. */
   dirty: boolean;
   energy: number;
+  /** Cast energy not saved yet. */
+  energyDirty?: boolean;
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
+  /** Total XP; the level comes from it. */
+  xp: number;
+  /** Today's quests, the streak and the last claimed day. */
+  quest?: QuestState;
   /** Loaded the first time the stash is used at the bank. */
   stash?: StashCache;
   fish?: FishState;
   /** Last thing caught, for the show_fish emote. */
   lastCatch?: string;
   lastEmoteAt?: number;
+  /** Status emote worn above the head; kept in storage. */
+  status?: string;
+  /** Non-free status emotes this player owns. */
+  emotesOwned: string[];
+  lastStatusAt?: number;
+  /** The trade this player is in (invite or open window). */
+  tradeId?: string;
+  lastOfferAt?: number;
   lastTeleportAt?: number;
   /** Bot signals (rules/watch.ts), saved every WATCH.flushMs and on leave. */
   watch: WatchStats;
@@ -87,6 +114,14 @@ export interface WorldState {
   players: { [userId: string]: Player };
   /** Join metadata accepted in matchJoinAttempt, keyed by session. */
   pending: { [sessionId: string]: PendingJoin };
+  /** Trade sessions between players of this server. */
+  trades: { [tradeId: string]: TradeRec };
+  /** Pet stalls standing in this server. */
+  market: MarketState;
+  /** Wall-clock ms of the last account deletion sweep (only the first server sweeps). */
+  sweptAt: number;
+  /** Wall-clock ms of the last energy save (ENERGY.saveEveryMs). */
+  energySavedAt: number;
 }
 
 const tickMs = 1000 / WORLD.tickRate;
@@ -146,15 +181,28 @@ function savePositions(nk: nkruntime.Nakama, logger: nkruntime.Logger, players: 
 
 export function worldInit(
   _ctx: nkruntime.Context,
-  _logger: nkruntime.Logger,
-  _nk: nkruntime.Nakama,
+  logger: nkruntime.Logger,
+  nk: nkruntime.Nakama,
   params: { [key: string]: any },
 ): { state: WorldState; tickRate: number; label: string } {
   const serverId = String(params.serverId);
   const def = SERVERS.filter((s) => s.id === serverId)[0];
   const label: WorldLabel = { kind: 'world', serverId };
+  const map = buildCollisionMap(LAKE_MAP);
+  const spots = buildSpots(MARKET_POINT, MARKET, (x, y) => isWalkable(map, x, y));
   return {
-    state: { serverId, serverName: def ? def.name : serverId, map: buildCollisionMap(LAKE_MAP), water: buildWaterMap(LAKE_MAP, WATER), players: {}, pending: {} },
+    state: {
+      serverId,
+      serverName: def ? def.name : serverId,
+      map,
+      water: buildWaterMap(LAKE_MAP, WATER),
+      players: {},
+      pending: {},
+      trades: {},
+      market: initMarket(nk, logger, serverId, spots),
+      sweptAt: 0,
+      energySavedAt: Date.now(),
+    },
     tickRate: WORLD.tickRate,
     label: JSON.stringify(label),
   };
@@ -220,13 +268,24 @@ export function worldJoin(
       }
     }
 
+    // A stall that ended while the owner was away comes home before the bag is loaded.
+    if (!old) settleEnded(nk, logger, presence.userId);
     // A reconnect keeps the live energy and bag; a fresh join loads them.
     const energy = old ? old.energy : currentEnergy(nk, presence.userId);
     const bag = old ? old.bag : loadBag(nk, presence.userId);
     const book = old ? old.book : readBook(nk, presence.userId);
     const rod = old ? old.rod : readRod(nk, presence.userId);
+    const xp = old ? old.xp : readXp(nk, presence.userId);
+    const emotes = old ? { status: old.status, owned: old.emotesOwned } : readEmotes(nk, presence.userId);
     const watch = old ? old.watch : readWatch(nk, presence.userId);
-    if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
+    if (!old) {
+      saveEnergy(nk, logger, presence.userId, energy, true);
+      try {
+        nk.storageWrite([sessionWrite(presence.userId, state.serverId)]);
+      } catch (e) {
+        logger.error('Saving session failed: %s', String(e));
+      }
+    }
 
     state.players[presence.userId] = {
       presence,
@@ -238,17 +297,31 @@ export function worldJoin(
       visible: {},
       dirty: true,
       energy,
+      energyDirty: old ? old.energyDirty : false,
       bag,
       book,
       rod,
+      xp,
+      status: emotes.status,
+      emotesOwned: emotes.owned,
+      mutedUntil: old ? old.mutedUntil : readMutedUntil(nk, presence.userId),
+      muteCheckedAt: old ? old.muteCheckedAt : Date.now(),
+      quest: old ? old.quest : loadQuestState(nk, logger, presence.userId, xp, Date.now()),
+      tradeId: old ? old.tradeId : undefined,
+      lastOfferAt: old ? old.lastOfferAt : undefined,
       stash: old ? old.stash : undefined,
       watch,
       watchSavedAt: old ? old.watchSavedAt : now,
       // What storage already holds, so a player who only stands around never writes.
       watchMark: old ? old.watchMark : changeMark(watch),
     };
-    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD) };
+    const lv = levelOf(xp, XP);
+    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned, level: lv.level, xp: lv.xp, xpNext: lv.xpNext };
+    if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
+    sendStalls(marketEnv(nk, logger, dispatcher, state), presence);
+    sendBoard(marketEnv(nk, logger, dispatcher, state), presence);
+    sendQuests(dispatcher, state.players[presence.userId], Date.now());
   }
   return { state };
 }
@@ -270,6 +343,8 @@ export function worldLeave(
     if (!p || p.presence.sessionId !== presence.sessionId) continue;
     gone.push(p);
     delete state.players[presence.userId];
+    cancelTradeOf(tradeEnv(nk, logger, dispatcher, state), presence.userId);
+    ownerLeft(marketEnv(nk, logger, dispatcher, state), p);
     saveEnergy(nk, logger, presence.userId, p.energy, false);
     const msg: PlayerLeaveMsg = { id: presence.userId };
     const watchers: nkruntime.Presence[] = [];
@@ -312,6 +387,7 @@ function fishingContext(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatch
     logger,
     dispatcher,
     water: state.water,
+    everyone: () => Object.keys(state.players).map((id) => state.players[id].presence),
     audience: (f: Fisher) => {
       const out = [f.presence];
       for (const id in state.players) {
@@ -323,6 +399,7 @@ function fishingContext(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatch
 }
 
 function handleSay(
+  nk: nkruntime.Nakama,
   dispatcher: nkruntime.MatchDispatcher,
   state: WorldState,
   grid: SpatialGrid,
@@ -334,8 +411,18 @@ function handleSay(
   if (text === null || !canSpeak(p.lastSpokeAt, now)) return;
   p.lastSpokeAt = now;
   recordChat(p.watch);
+  const wall = Date.now();
+  if (wall - p.muteCheckedAt >= MODERATION.muteRecheckMs) {
+    p.muteCheckedAt = wall;
+    try {
+      p.mutedUntil = readMutedUntil(nk, p.presence.userId);
+    } catch (_e) {
+      // Keep the cached value if storage is briefly unavailable.
+    }
+  }
+  if (p.mutedUntil > wall) return;
   const to = grid.near(p.move.x, p.move.y, WORLD.chatRadius).map((q) => state.players[q.id].presence);
-  const msg: BubbleMsg = { id: p.presence.userId, text };
+  const msg: BubbleMsg = { id: p.presence.userId, text: maskPersonal(text, WHISPER).text };
   send(dispatcher, OpCode.BUBBLE, msg, to);
 }
 
@@ -370,7 +457,29 @@ function handleGotoFriend(
   send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
 }
 
-function handleEmote(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
+/** BOARD_GOTO: a click on an ad moves the player next to the advertised stall (this server only). */
+function handleBoardGoto(dispatcher: nkruntime.MatchDispatcher, fishing: FishingContext, state: WorldState, p: Player, body: unknown, now: number): void {
+  const refuse = (reason: string) => {
+    const msg: TeleportMsg = { x: p.move.x, y: p.move.y, reason };
+    send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+  };
+  const owner = typeof body === 'object' && body !== null ? (body as { userId?: unknown }).userId : undefined;
+  if (typeof owner !== 'string') return;
+  if (p.lastTeleportAt !== undefined && now - p.lastTeleportAt < FRIENDS.teleportCooldownMs) return refuse('RATE_LIMITED');
+  p.lastTeleportAt = now;
+  const stall = state.market.stalls[owner];
+  if (!stall || !state.market.ads[owner]) return refuse('NOT_HERE');
+  const spot = spotNear(state.map, stall.doc.x, stall.doc.y, FRIENDS.landRadius, FRIENDS.landMinDistance);
+  if (!spot) return refuse('NO_SPOT');
+  cancelFishing(fishing, p);
+  p.move = newMoveState(spot.x, spot.y, now, moveCfg);
+  p.moving = false;
+  p.dirty = true;
+  const msg: TeleportMsg = { x: spot.x, y: spot.y };
+  send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+}
+
+function handleEmote(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
   const emote = parseEmote(body, EMOTES);
   if (emote === null || !canEmote(p.lastEmoteAt, now, EMOTES)) return;
   if (emote === 'show_fish' && !p.lastCatch) return;
@@ -380,7 +489,63 @@ function handleEmote(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p
   const to = [p.presence];
   for (const id in state.players) if (state.players[id].visible[p.presence.userId]) to.push(state.players[id].presence);
   send(dispatcher, OpCode.EMOTE_SHOW, msg, to);
+  trackQuest(nk, logger, dispatcher, p, { event: 'emote' });
 }
+
+/** EMOTE_STATUS: wear or remove the persistent emote above the head. */
+function handleEmoteStatus(
+  nk: nkruntime.Nakama,
+  logger: nkruntime.Logger,
+  dispatcher: nkruntime.MatchDispatcher,
+  state: WorldState,
+  p: Player,
+  body: unknown,
+  now: number,
+): void {
+  const req = parseStatus(body, EMOTES);
+  if (!req) return;
+  const refuse = (reason: string) => {
+    const msg: EmoteStatusShowMsg = { id: p.presence.userId, emote: p.status === undefined ? null : p.status, reason };
+    send(dispatcher, OpCode.EMOTE_STATUS_SHOW, msg, [p.presence]);
+  };
+  if (p.lastStatusAt !== undefined && now - p.lastStatusAt < EMOTES.statusCooldownMs) return refuse('RATE_LIMITED');
+  if (req.emote !== null && !canWear(req.emote, p.emotesOwned, EMOTES)) return refuse('NOT_OWNED');
+  p.lastStatusAt = now;
+  p.status = req.emote === null ? undefined : req.emote;
+  try {
+    nk.storageWrite([statusEmoteWrite(p.presence.userId, req.emote)]);
+  } catch (e) {
+    logger.error('Saving status emote failed: %s', String(e));
+  }
+  const msg: EmoteStatusShowMsg = { id: p.presence.userId, emote: req.emote };
+  const to = [p.presence];
+  for (const id in state.players) if (state.players[id].visible[p.presence.userId]) to.push(state.players[id].presence);
+  send(dispatcher, OpCode.EMOTE_STATUS_SHOW, msg, to);
+}
+
+function tradeEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): TradeEnv {
+  return { nk, logger, dispatcher, fishing: fishingContext(nk, logger, dispatcher, state), serverId: state.serverId, players: state.players, trades: state.trades };
+}
+
+function marketEnv(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState): MarketEnv {
+  return { nk, logger, dispatcher, serverId: state.serverId, market: state.market, players: state.players };
+}
+
+const STALL_OPS: { [op: number]: true } = {
+  [OpCode.STALL_OPEN]: true,
+  [OpCode.STALL_RECALL]: true,
+  [OpCode.STALL_VIEW]: true,
+  [OpCode.STALL_BUY]: true,
+  [OpCode.BOARD_AD]: true,
+};
+
+const TRADE_OPS: { [op: number]: true } = {
+  [OpCode.TRADE_OFFER]: true,
+  [OpCode.TRADE_REPLY]: true,
+  [OpCode.TRADE_SET]: true,
+  [OpCode.TRADE_LOCK]: true,
+  [OpCode.TRADE_CONFIRM]: true,
+};
 
 function buildGrid(state: WorldState): SpatialGrid {
   const points = Object.keys(state.players).map((id) => ({ id, x: state.players[id].move.x, y: state.players[id].move.y }));
@@ -401,6 +566,8 @@ export function worldLoop(
   const storageActions: { [userId: string]: true } = {};
   const says: { p: Player; body: unknown }[] = [];
   const fishing = fishingContext(nk, logger, dispatcher, state);
+  const trade = tradeEnv(nk, logger, dispatcher, state);
+  const market = marketEnv(nk, logger, dispatcher, state);
 
   for (const m of messages) {
     const p = state.players[m.sender.userId];
@@ -411,7 +578,12 @@ export function worldLoop(
     } catch (_e) {
       continue;
     }
-    if (m.opCode === OpCode.MOVE) {
+    if (m.opCode === OpCode.MOVE && p.tradeId) {
+      // The trade window holds the player still.
+      continue;
+    } else if (m.opCode === OpCode.CAST && p.tradeId) {
+      continue;
+    } else if (m.opCode === OpCode.MOVE) {
       moves[m.sender.userId] = (moves[m.sender.userId] || 0) + 1;
       if (moves[m.sender.userId] <= WORLD.maxMovesPerTick && handleMove(dispatcher, state.map, p, body, now)) {
         cancelFishing(fishing, p);
@@ -445,15 +617,49 @@ export function worldLoop(
       handleStash(nk, logger, dispatcher, p, STASH_OPS[m.opCode], body);
     } else if (m.opCode === OpCode.GOTO_FRIEND) {
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
+    } else if (m.opCode === OpCode.BOARD_GOTO) {
+      handleBoardGoto(dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
-      handleEmote(dispatcher, state, p, body, now);
+      handleEmote(nk, logger, dispatcher, state, p, body, now);
+    } else if (m.opCode === OpCode.ITEM_LOCK && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleItemLock(nk, logger, dispatcher, p, body);
+    } else if (TRADE_OPS[m.opCode] && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleTradeOp(trade, p, m.opCode, body, now);
+    } else if (m.opCode === OpCode.QUEST_CLAIM && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleQuestClaim(nk, logger, dispatcher, p);
+    } else if (STALL_OPS[m.opCode] && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleStallOp(market, p, m.opCode, body);
+    } else if (m.opCode === OpCode.TRADE_CANCEL) {
+      handleTradeOp(trade, p, m.opCode, body, now);
+    } else if (m.opCode === OpCode.EMOTE_STATUS) {
+      handleEmoteStatus(nk, logger, dispatcher, state, p, body, now);
+    }
+  }
+  tickTrades(trade, now);
+  tickMarket(market);
+  if (state.serverId === SERVERS[0].id && Date.now() - state.sweptAt >= ACCOUNT_DELETE.sweepEveryMs) {
+    state.sweptAt = Date.now();
+    try {
+      sweepDeletions(nk, logger, Date.now());
+    } catch (e) {
+      logger.error('Account deletion sweep failed: %s', String(e));
     }
   }
   for (const id in state.players) tickFishing(fishing, state.players[id], now);
+  const wall = Date.now();
+  if (wall - state.energySavedAt >= ENERGY.saveEveryMs) {
+    state.energySavedAt = wall;
+    flushEnergy(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
+  }
+  for (const id in state.players) rollQuestDay(nk, logger, dispatcher, state.players[id], wall);
 
   // Positions are final for this tick; chat and visibility use them.
   const grid = buildGrid(state);
-  for (const s of says) handleSay(dispatcher, state, grid, s.p, s.body, now);
+  for (const s of says) handleSay(nk, dispatcher, state, grid, s.p, s.body, now);
 
   for (const id in state.players) {
     const p = state.players[id];
@@ -463,6 +669,7 @@ export function worldLoop(
       const o = state.players[otherId];
       const enter: PlayerEnterMsg = { ...view(otherId, o), name: o.name, characterId: o.characterId };
       if (o.fish) enter.bobber = { x: o.fish.x, y: o.fish.y, band: o.fish.band };
+      if (o.status) enter.status = o.status;
       send(dispatcher, OpCode.PLAYER_ENTER, enter, [p.presence]);
     }
     for (const otherId of change.left) {
@@ -491,11 +698,13 @@ export function worldTerminate(
   _ctx: nkruntime.Context,
   logger: nkruntime.Logger,
   nk: nkruntime.Nakama,
-  _dispatcher: nkruntime.MatchDispatcher,
+  dispatcher: nkruntime.MatchDispatcher,
   tick: number,
   state: WorldState,
   _graceSeconds: number,
 ): { state: WorldState } | null {
+  const market = marketEnv(nk, logger, dispatcher, state);
+  for (const id in state.players) ownerLeft(market, state.players[id], true);
   savePositions(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
   for (const id in state.players) saveEnergy(nk, logger, id, state.players[id].energy, false);
   saveWatch(nk, logger, Object.keys(state.players).map((id) => state.players[id]), tick * tickMs);

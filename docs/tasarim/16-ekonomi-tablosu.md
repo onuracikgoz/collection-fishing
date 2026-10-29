@@ -68,7 +68,7 @@ Tier başına aşağı yukarı ×5 artış: avda bir üst Tier ~3–10 kat daha 
 
 Float dağılımıyla (05, 7.2) ortalama çarpan ≈ ×0.97, yani ortalama satış fiyatı tablodakine çok yakındır. Toz Float'tan etkilenmez: temiz eşyayı parçalamak kötü bir seçim olur, oyuncu onu tutar veya satar.
 
-**Otomatik kural (Worn / Damaged):** oyuncunun kurduğu "otomatik sat / parçala" kuralı aynı fiyat ve toz tablosunu kullanır, ek ücret veya indirim yoktur.
+**Otomatik kural (Worn / Damaged, ertelendi):** oyuncunun kurduğu "otomatik sat / parçala" kuralı aynı fiyat ve toz tablosunu kullanır, ek ücret veya indirim yoktur.
 
 ## 4. Yem, tamir, birleştirme, craft, depo fiyatları
 

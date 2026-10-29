@@ -23,6 +23,7 @@ import {
   WATCH,
   WATER,
   WORLD,
+  XP,
 } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_MAP } from '../data/lake-map';
@@ -37,6 +38,7 @@ import { buildCollisionMap, isWalkable } from '../rules/map';
 import { reelParamsFor } from '../rules/fishing';
 import { simulateReel } from '../rules/reel';
 import { buildWaterMap, bandAt, Band } from '../rules/water';
+import { levelOf, totalForLevel } from '../rules/xp';
 import { placeNewItem } from '../match/items';
 import { findWorldMatches } from '../match/servers';
 import {
@@ -53,6 +55,7 @@ import {
   readProfile,
   readWallet,
   stacksWrite,
+  xpWrite,
 } from '../match/playerData';
 import { rpcGetBook } from '../rpc/getBook';
 import { rpcGetProfile } from '../rpc/profile';
@@ -74,6 +77,8 @@ function fail(message: string, code = 3): nkruntime.Error {
 }
 
 /** Every dev RPC starts with this: off unless DEV_TOOLS=true. */
+const SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
+
 function devOnly(ctx: nkruntime.Context): void {
   if (!isDevEnabled(ctx)) throw { message: JSON.stringify({ code: 'DEV_TOOLS_OFF', message: 'developer tools are off on this server' }), code: 7 } as nkruntime.Error;
 }
@@ -202,7 +207,7 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
     serverTime: Date.now(),
     node: ctx.node,
     opCodes: OpCode,
-    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT, WATCH },
+    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, CATCH, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT, XP, WATCH },
     servers,
     defs: allDefs(),
     pages: BOOK_PAGES,
@@ -408,14 +413,14 @@ export function rpcDevStacks(ctx: nkruntime.Context, logger: nkruntime.Logger, n
   return JSON.stringify({ ok: true, stacks, live: reload(nk, logger, userId) });
 }
 
-/** Coin and dust: `set: { coin?, dust? }` or `add: { coin?, dust? }`. Written to the ledger as dev. */
+/** Coin, dust and diamonds: `set: { coin?, dust?, diamond? }` or `add: { ... }`. Written to the ledger as dev. */
 export function rpcDevWallet(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const now = readWallet(nk, userId);
   const change: { [k: string]: number } = {};
-  for (const k of ['coin', 'dust'] as const) {
+  for (const k of ['coin', 'dust', 'diamond'] as const) {
     if (body.set && typeof body.set[k] === 'number') change[k] = Math.max(0, Math.floor(body.set[k])) - now[k];
     else if (body.add && typeof body.add[k] === 'number') change[k] = Math.max(-now[k], Math.floor(body.add[k]));
   }
@@ -435,6 +440,19 @@ export function rpcDevEnergy(ctx: nkruntime.Context, logger: nkruntime.Logger, n
   // Offline: saved as offline, so refill starts counting from now.
   if (!live) nk.storageWrite([energyWrite(userId, value, false)]);
   return JSON.stringify({ ok: true, energy: live ? live.energy : currentEnergy(nk, userId), live: !!live });
+}
+
+/** Sets a player's total XP (live match player if online, else storage). `level` sets the level's starting XP instead. */
+export function rpcDevXp(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  devOnly(ctx);
+  const body = parse(payload);
+  const userId = target(ctx, nk, body);
+  let total = Number(body.value);
+  if (body.level !== undefined) total = totalForLevel(Number(body.level), XP);
+  if (!isFinite(total) || total < 0 || total > 100_000_000) throw fail('bad value');
+  const live = signalPlayer(nk, logger, { type: 'dev_xp', userId, value: total });
+  if (!live) nk.storageWrite([xpWrite(userId, Math.floor(total))]);
+  return JSON.stringify({ ok: true, ...levelOf(Math.floor(total), XP), total: Math.floor(total), live: !!live });
 }
 
 /**
@@ -567,7 +585,7 @@ export function rpcDevReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
   for (const s of STARTER_RECIPES) stacks[s.defId] = s.count;
   nk.storageWrite([stacksWrite(userId, stacks)]);
   const w = readWallet(nk, userId);
-  if (w.coin !== 0 || w.dust !== 0) nk.walletUpdate(userId, { coin: -w.coin, dust: -w.dust }, { action: 'dev_reset' }, true);
+  if (w.coin !== 0 || w.dust !== 0 || w.diamond !== 0) nk.walletUpdate(userId, { coin: -w.coin, dust: -w.dust, diamond: -w.diamond }, { action: 'dev_reset' }, true);
   // An online player keeps standing where they are; energy goes back to full.
   const live = signalPlayer(nk, logger, { type: 'dev_energy', userId, value: ENERGY.max });
   reload(nk, logger, userId);
@@ -664,6 +682,36 @@ export function rpcDevCraftPreview(ctx: nkruntime.Context, _logger: nkruntime.Lo
     mergeDust: CRAFT.mergeDust,
     craftDust: CRAFT.craftDust,
     recipe,
+  });
+}
+
+/** A player's trade and stall log, newest first, plus reports about them and by them (moderation view). */
+export function rpcDevTrades(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  devOnly(ctx);
+  const body = parse(payload);
+  const userId = target(ctx, nk, body);
+  const limit = Math.max(1, Math.min(500, Math.floor(Number(body.limit) || 100)));
+  const all = (owner: string, collection: string, max: number) => {
+    const out: nkruntime.StorageObject[] = [];
+    let cursor: string | undefined = undefined;
+    for (let page = 0; page < 50 && out.length < max; page++) {
+      const res: nkruntime.StorageObjectList = nk.storageList(owner, collection, 100, cursor);
+      for (const o of res.objects || []) out.push(o);
+      cursor = res.cursor;
+      if (!cursor) break;
+    }
+    return out;
+  };
+  const trades = all(userId, 'trades', 5000)
+    .sort((a, b) => (a.key < b.key ? 1 : a.key > b.key ? -1 : 0))
+    .slice(0, limit)
+    .map((o) => o.value);
+  const reports = all(SYSTEM_USER, 'reports', 5000).map((o) => o.value as { target?: string; reporter?: string });
+  return JSON.stringify({
+    userId,
+    trades,
+    reportsAbout: reports.filter((r) => r.target === userId),
+    reportsBy: reports.filter((r) => r.reporter === userId),
   });
 }
 

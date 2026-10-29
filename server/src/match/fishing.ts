@@ -1,10 +1,13 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
-import { BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, WATCH } from '../config';
+import { QuestState } from '../rules/quest';
+import { trackQuest } from './quest';
+import { ANNOUNCE, BAG, BAIT, DIAMOND, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, WATCH, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
-import { BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
+import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
+import { shouldAnnounce } from '../rules/announce';
 import { applyBait, baitDef, baitFavour } from '../rules/bait';
 import { Rod, isBroken, rodView, wearRod } from '../rules/rod';
 import { BookEntries, applyLuck, luckOf } from '../rules/book';
@@ -15,20 +18,26 @@ import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
 import { WatchStats, recordCast, recordHook, recordReel } from '../rules/watch';
 import { placeNewItem } from './items';
-import { energyWrite, rodWrite, stacksWrite } from './playerData';
+import { addXp, levelOf, xpForCatch } from '../rules/xp';
+import { energyWrite, rodWrite, stacksWrite, xpWrite } from './playerData';
+import { rollDiamond } from '../rules/diamond';
 
 /** The part of a match player that fishing needs. */
 export interface Fisher {
   presence: nkruntime.Presence;
   move: { x: number; y: number };
   energy: number;
+  /** Energy changed since it was last saved (see ENERGY.saveEveryMs). */
+  energyDirty?: boolean;
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
-  /** Player level; LEVEL.start until XP arrives (04-xp-level.md). */
-  level?: number;
+  /** Total XP. */
+  xp: number;
   fish?: FishState;
   lastCatch?: string;
+  /** Today's quests; absent until loaded at join. */
+  quest?: QuestState;
   /** Bot signals, saved by the world match now and then. */
   watch: WatchStats;
 }
@@ -40,6 +49,8 @@ export interface FishingContext {
   water: WaterMap;
   /** Everyone who should see this fisher's bobber, including the fisher. */
   audience: (f: Fisher) => nkruntime.Presence[];
+  /** Everyone in this server, for announcements. */
+  everyone: () => nkruntime.Presence[];
 }
 
 function send(ctx: FishingContext, op: number, body: unknown, to: nkruntime.Presence[]): void {
@@ -88,7 +99,6 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
   }
   const writes: nkruntime.StorageWriteRequest[] = [];
   const stacks = { ...f.bag.stacks };
-  if (spent.hasEnergy) writes.push(energyWrite(f.presence.userId, spent.value, true));
   if (target.bait) {
     // One special bait per cast, gone whatever happens next (03-balik-tutma.md 5.0.0.1).
     if (stacks[target.bait] > 1) stacks[target.bait]--;
@@ -104,6 +114,7 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
       if (target.bait) return end(ctx, f, 'rejected', { reason: 'NO_BAIT' });
     }
   }
+  if (spent.hasEnergy) f.energyDirty = true;
   f.energy = spent.value;
   f.bag.stacks = stacks;
   const wait = planWait(now, check.band, FISHING, Math.random);
@@ -157,7 +168,7 @@ export function cancelFishing(ctx: FishingContext, f: Fisher): void {
 }
 
 /** Puts the catch in the bag and tells everyone. */
-function give(ctx: FishingContext, f: Fisher): void {
+export function give(ctx: FishingContext, f: Fisher): void {
   const roll = f.fish!.roll!;
   const userId = f.presence.userId;
   const writes: nkruntime.StorageWriteRequest[] = [];
@@ -169,12 +180,14 @@ function give(ctx: FishingContext, f: Fisher): void {
     writes.push(rodWrite(userId, rod));
     extra.rod = rodView(rod, ROD);
   }
+  let announce: AnnounceMsg | undefined;
   if (roll.tier) {
+    const fl = rollFloat(FLOAT_TABLE, Math.random);
     const item: ItemInstance = {
       instanceId: ctx.nk.uuidv4(),
       defId: roll.def.id,
       tier: roll.tier,
-      float: rollFloat(FLOAT_TABLE, Math.random).value,
+      float: fl.value,
       source: 'fishing',
       obtainedAt: Date.now(),
     };
@@ -183,24 +196,56 @@ function give(ctx: FishingContext, f: Fisher): void {
     book = placed.book;
     if (placed.msg) extra.book = placed.msg;
     extra.item = item;
+    if (shouldAnnounce(roll.tier, ANNOUNCE.minTier)) {
+      announce = { kind: 'rare_catch', id: userId, name: f.presence.username, defId: roll.def.id, tier: roll.tier, condition: fl.condition };
+    }
   } else {
     const stacks = { ...f.bag.stacks };
     stacks[roll.def.id] = (stacks[roll.def.id] || 0) + 1;
     writes.push(stacksWrite(userId, stacks));
     extra.stack = { defId: roll.def.id, count: stacks[roll.def.id] };
   }
+  const xpResult = addXp(f.xp, xpForCatch(roll.def.category, f.fish!.hasEnergy, XP), XP);
+  if (xpResult.gain.gained > 0) writes.push(xpWrite(userId, xpResult.total));
+  // The cast's energy rides along with the catch instead of costing a write of its own.
+  const energySaved = !!f.energyDirty;
+  if (energySaved) writes.push(energyWrite(userId, f.energy, true));
+  // A diamond drop is paid in the same transaction as the catch.
+  const diamonds = rollDiamond(DIAMOND, f.fish!.hasEnergy, Math.random);
   try {
-    ctx.nk.storageWrite(writes);
+    if (diamonds > 0) {
+      const res = ctx.nk.multiUpdate(null, writes, [], [{ userId, changeset: { diamond: diamonds }, metadata: { action: 'fishing', defId: roll.def.id } }]);
+      extra.diamond = { gained: diamonds, total: res.walletUpdateAcks[0].updated.diamond || diamonds };
+    } else {
+      ctx.nk.storageWrite(writes);
+    }
   } catch (e) {
     ctx.logger.error('Saving catch failed: %s', String(e));
     return end(ctx, f, 'escaped');
   }
+  if (energySaved) f.energyDirty = false;
   if (book) f.book = book;
   else if (extra.item) f.bag.items++;
   if (rod) f.rod = rod;
   if (extra.stack) f.bag.stacks[extra.stack.defId] = extra.stack.count;
   f.lastCatch = roll.def.id;
+  f.xp = xpResult.total;
+  extra.xpGain = xpResult.gain;
   end(ctx, f, 'caught', extra);
+  trackQuest(ctx.nk, ctx.logger, ctx.dispatcher, f, { event: 'catch', tier: roll.tier || undefined });
+  if (announce) send(ctx, OpCode.ANNOUNCE, announce, ctx.everyone());
+}
+
+/** Saves the cast energy of everyone who has unsaved energy. Runs every ENERGY.saveEveryMs. */
+export function flushEnergy(nk: nkruntime.Nakama, logger: nkruntime.Logger, fishers: Fisher[]): void {
+  const dirty = fishers.filter((f) => f.energyDirty);
+  if (dirty.length === 0) return;
+  try {
+    nk.storageWrite(dirty.map((f) => energyWrite(f.presence.userId, f.energy, true)));
+    for (const f of dirty) f.energyDirty = false;
+  } catch (e) {
+    logger.error('Saving energy failed: %s', String(e));
+  }
 }
 
 /** Runs timers once per tick: twitches, the bite, missed hooks and reel timeouts. */
@@ -216,7 +261,7 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
       const bait = fs.bait ? baitDef(fs.bait, BAIT) : null;
       const lucky = applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK);
       const table = applyBait(applyBand(lucky, fs.band, CATCH), bait, fs.band);
-      const spot = { band: fs.band, water: fs.water || null, level: f.level || LEVEL.start };
+      const spot = { band: fs.band, water: fs.water || null, level: levelOf(f.xp, XP).level };
       const roll = rollCatch(LAKE_POOL, table, spot, fs.hasEnergy, Math.random, baitFavour(fs.bait, fs.band, BAIT, CATCH.baitItemFactor));
       if (!roll) return end(ctx, f, 'escaped');
       fs.roll = roll;

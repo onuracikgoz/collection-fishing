@@ -25,7 +25,7 @@ Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → conte
    - Set yüklüyse soldaki liste setin sırasıdır: yeşil nokta onaylı, sarı aday var, gri **görsel yok**. Üstteki sayaç kaç eşyanın hazır olduğunu gösterir. Sette olmayan görseller listenin sonunda "not in set" olarak durur; ortadaki *Item id* alanından doğru id'yi seçebilirsin.
 2. **Hazırla** (sağ panel, her görsel için ayrı; *Use these settings for all* hepsine uygular):
    - **Arka plan:** kenara değen düz arka plan (Perchance'in beyazı) silinir, kenardaki hale temizlenir. Nesnenin içindeki aynı renkli alanlara dokunulmaz. Kalan alanlar için **sihirli silgi** (E): tıklanan renge benzeyen bitişik alan silinir.
-   - **Boyut:** nesne kırpılır, ortalanır, 128×128'e küçültülür. Küçültme her bloğun baskın rengini alır; bulanıklaşma ve ara renk olmaz. Küçük görsel büyütülmez.
+   - **Boyut:** nesne kırpılır, ortalanır, seçilen boyuta küçültülür: **Item 128** (defter eşyası, varsayılan), 32, **Icon 16** (HUD, menü, emote ikonu, 1 px kenar), **Inline 8** (yazı yanındaki Coin / toz / kupa, kenarsız). Arayüz 1x çizilip 2x gösterilir; 16'lık ikon ekranda 32 px görünür. Küçük boyutta AI görseli çamurlaşabilir, gerekirse Aseprite / Piskel'de elle düzeltilir. UI ikonları `client/Assets/Art/UI/Icons/` altına konur (`icon_<ad>.png`, `emote_<ad>.png`). Küçültme her bloğun baskın rengini alır; bulanıklaşma ve ara renk olmaz. Küçük görsel büyütülmez.
    - **Palet:** her piksel ortak paletteki en yakın renge (OKLab) çekilir. Dithering yok.
 3. **Onayla.** Ortada orijinal, oyun ikonu ve oyundaki boyutları (32 / 48 / 96 px). Klavye: **A** onayla, **X** reddet (ve sıradakine geç), **← / →** gez. Bir eşyanın en fazla bir onaylı adayı olur.
 4. **Export ZIP.** Onaylı görseller tek ZIP'te iner.

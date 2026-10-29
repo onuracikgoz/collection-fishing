@@ -4,7 +4,7 @@
 
 ## 24. Geliştirme Fazları
 
-**Şu anki faz: 0 (Hazırlık)**
+**Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas ve takas kayıtları, pet tezgahı, eşya kilidi, XP / level, taşıma kodu, hesap silme, fısıltı, rapor / susturma, RPC hız sınırı ve elmas (balıkla kazanılır) sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
 
 Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinden test edilir.
 
@@ -15,7 +15,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 | **2. Balık tutma** | Atış / bekleme / sahte kıpırdama / vuruş / çekme, sunucu tarafı drop, item instance + Tier + Float, çanta, enerji, temel yem | Balık tutulup eşya kazanılıyor |
 | **3. Collection** | Collection Book (yuvalar, 3 durum, "Yeni keşif!"), şans bonusu, Collection Score, profil kartı, showcase, arkadaşlar, ışınlanma, emote | Statü ve koleksiyon döngüsü çalışıyor |
 | **4. Ekonomi** | Coin, NPC satış, toz, birleştirme, recipe + craft, olta tamiri, özel yemler, depo | Kopyalar anlamlı, craft yapılıyor |
-| **5. Ticaret ve güvenlik** | Takas penceresi, tezgah pazarı ve reklam panosu, whisper, moderasyon, bot önlemleri, takas kayıtları | Oyuncular arası ekonomi açık |
+| **5. Ticaret ve güvenlik** | Takas penceresi, pet tezgahı (pazar) ve reklam panosu (alım ilanı yok), whisper, moderasyon, bot önlemleri, takas kayıtları | Oyuncular arası ekonomi açık |
 | **6. İçerik ve araçlar** | Günlük görev, sandık, seri; admin paneli; Item Art Studio JSON / şeffaf arka plan; ilk 3 set | Canlı oyun yönetilebiliyor |
 | **7. Yayın** | Tutorial / ilk deneyim, Steam sayfası, Steam Playtest, kozmetik mağaza, hukuki kontrol | Steam'de açık test |
 
@@ -89,7 +89,7 @@ Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti
 Onur'un istediği kontroller (19.10.2026). Faz 5 (ticaret ve güvenlik) başlamadan bir test/review oturumu bunları inceler:
 
 - [ ] **Güvenlik açıkları:** sunucu otoritesi (client'tan gelen her alan doğrulanıyor mu), RPC girdileri, başka oyuncunun verisine erişim (defter / profil herkese açık, çanta değil), Nakama ayarları (`defaultkey`, konsol şifresi, yayın öncesi değişmeli), web build'de https/wss.
-- [ ] **DB'yi döngüye sokan istekler:** match içi mesajlar sınırlı (MOVE tick başına 4, chat 1/sn, emote 2 sn, ışınlanma 3 sn, defter işlemi tick başına 1) ama RPC'lerde (`get_book`, `get_profile`, `get_inventory`, `friends_status`, `set_profile`) oyuncu başına hız sınırı yok; döngüyle çağrılırsa her çağrı DB okur. Atış / toplama döngüsü her atışta enerji yazar. Oyuncu başına RPC ve atış hız sınırı eklenmeli.
+- [ ] **DB'yi döngüye sokan istekler:** match içi mesajlar sınırlı (MOVE tick başına 4, chat 1/sn, emote 2 sn, ışınlanma 3 sn, defter işlemi tick başına 1) ama RPC'lerde (`get_book`, `get_profile`, `get_inventory`, `friends_status`, `set_profile`) oyuncu başına hız sınırı yok; döngüyle çağrılırsa her çağrı DB okur. Atış / toplama döngüsü her atışta enerji yazar. Oyuncu başına RPC ve atış hız sınırı eklenmeli. **(29.10.2026)** RPC hız sınırı eklendi (`protokol.md` RPC hız sınırı, bellekte sayılır); atışın enerjisi artık avla birlikte ya da dakikada bir yazılıyor (`ENERGY.saveEveryMs`).
 - [ ] **Cache:** match oyuncu durumunu (konum, enerji, çanta özeti, defter) bellekte tutar, DB'ye sadece değişince yazar. RPC'ler her çağrıda DB okur, client da pencere açılınca yeniden ister (arkadaş listesi açıkken 5 sn'de bir). Sık okunanlar (defter, profil) için kısa süreli cache ve client tarafında "değişmediyse tekrar isteme" değerlendirilmeli.
 - [ ] **Kod düzeni:** client'ta `WorldController` mesaj yönlendirmesi büyüyor; faz sayısı arttıkça op koduna göre dağıtan küçük bir mesaj yönlendiricisine bölünmeli.
 

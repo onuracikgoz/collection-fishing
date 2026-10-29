@@ -24,6 +24,7 @@ Oyuncular arası takas vardır ve takasla gelen eşya deftere işlenir.
   4. **Kilitle:** iki taraf da kilitler. Sonrasında bir şey değişirse iki kilit de açılır (son anda eşya değiştirme dolandırıcılığına karşı).
   5. **Onayla:** iki kilitten sonra 3 sn geri sayım, ardından iki taraf onaylar; takas tek seferde gerçekleşir.
   6. **Kayıt:** her takas sunucuda kaydedilir (dolandırıcılık şikayetleri için).
+- **Ekleme:** takas penceresi açıkken eşya çantadan sürükle-bırakla konur; yığında adet sorulur. Kilitli eşya konamaz (bkz. 9.3).
 - **Takas edilebilir:** eşyalar, recipe'ler, Coin. **Edilemez:** toz, parayla alınan kozmetikler.
 
 **Ertelendi:** bir grup tek bir nadir eşyayı elden ele dolaştırıp hepsinin defterine işletebilir. Takas kısıtı (tekrar takas yok veya 7 gün bekleme) şimdilik kararlaştırılmadı, sonra konuşulacak.
@@ -40,7 +41,8 @@ Oyuncular arası takas vardır ve takasla gelen eşya deftere işlenir.
 
 - **Çanta:** **(Öneri)** 40 kutu. Float'lı eşyalar (balık, kristal, craft eşyası) tek tek kutu kaplar. Malzemeler, çöp ve yem **yığılır** (kutu başına 99). **Craft malzemelerinin Float'ı yoktur.**
 - **Çanta dolunca av olmaz.** Ekranda "çanta dolu" uyarısı çıkar. Yere düşürme yoktur.
-- **Otomatik kurallar:** oyuncu "Worn ve Damaged Common kopyaları otomatik sat / parçala" gibi kurallar ayarlayabilir.
+- **Eşya kilidi:** oyuncu çantadaki bir eşyayı kilitleyebilir (koruma). Kilitli eşya satılmaz, parçalanmaz, takasa ve pazara konamaz, otomatik kurallara takılmaz. Önce kilit açılır.
+- **Otomatik kurallar (ertelendi, 28.10.2026):** oyuncu "Worn ve Damaged Common kopyaları otomatik sat / parçala" gibi kurallar ayarlayabilir. İlk sürümde yok, sonra düşünülecek.
 - **Depo:** **(Öneri)** 100 kutu. **Yalnızca uzaktaki belirli yerlerden** açılır (ör. banka); her yerden açılmaz. Depodaki eşya satılamaz, parçalanamaz, craft'ta kullanılamaz; önce çantaya alınır. Defter yuvasındaki eşya depoya konamaz.
 - **Genişletme:** Coin ile pahalı kademeler (Coin harcatır) ve destekçi paketi ile ekstra depo (kolaylık ürünü).
 

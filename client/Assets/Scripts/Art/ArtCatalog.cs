@@ -6,7 +6,8 @@ namespace CollectionGame.Art
 {
     /// <summary>
     /// Every texture under Assets/Art/LPC/, by path relative to that folder
-    /// (e.g. "Terrain/terrain_summer.png"). The editor keeps
+    /// (e.g. "Terrain/terrain_summer.png"), and the UI kit under Assets/Art/UI/
+    /// as "ui/&lt;name&gt;" (e.g. "ui/window"). The editor keeps
     /// Assets/Resources/ArtCatalog.asset up to date (ArtCatalogBuilder), so
     /// runtime code can build sprites and tiles without scene references.
     /// </summary>
@@ -14,6 +15,9 @@ namespace CollectionGame.Art
     {
         public const string Root = "Assets/Art/LPC/";
         public const string ResourceName = "ArtCatalog";
+        public const string UiRoot = "Assets/Art/UI/";
+        /// <summary>Catalog path prefix of the UI kit; LPC folders are capitalised, so it never clashes.</summary>
+        public const string UiPrefix = "ui/";
 
         [Serializable]
         public struct Entry
@@ -36,7 +40,12 @@ namespace CollectionGame.Art
             sprites.Clear();
         }
 
-        public static Texture2D Texture(string path)
+        /// <summary>A UI kit texture by file name without ".png" (Assets/Art/UI/), or null.</summary>
+        public static Texture2D Ui(string name) => Find(UiPrefix + name, UiRoot + name + ".png", false);
+
+        public static Texture2D Texture(string path) => Find(path, Root + path, true);
+
+        static Texture2D Find(string path, string assetPath, bool complain)
         {
             if (byPath == null)
             {
@@ -49,14 +58,15 @@ namespace CollectionGame.Art
             if (byPath.TryGetValue(path, out var tex)) return tex;
 #if UNITY_EDITOR
             // Catalog not refreshed yet (new file): read straight from the project.
-            tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(Root + path);
+            tex = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
             if (tex != null)
             {
                 byPath[path] = tex;
                 return tex;
             }
 #endif
-            Debug.LogError($"[Art] Missing texture: {Root}{path}");
+            if (complain) Debug.LogError($"[Art] Missing texture: {assetPath}");
+            byPath[path] = null; // ask once
             return null;
         }
 

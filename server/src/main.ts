@@ -1,4 +1,24 @@
-import { afterAuthenticateDevice, beforeAuthenticateDevice } from './hooks/auth';
+import {
+  afterAuthenticateCustom,
+  afterAuthenticateDevice,
+  afterAuthenticateFacebook,
+  afterAuthenticateGoogle,
+  afterAuthenticateSteam,
+  afterLinkCustom,
+  afterLinkDevice,
+  afterLinkFacebook,
+  afterLinkGoogle,
+  afterUnlinkCustom,
+  afterUnlinkDevice,
+  afterUnlinkFacebook,
+  afterUnlinkGoogle,
+  afterUnlinkSteam,
+  beforeAuthenticateDevice,
+  beforeLinkSteam,
+} from './hooks/auth';
+import { rpcAccountDeleteCancel, rpcAccountDeleteRequest, rpcAccountDeleteStatus } from './rpc/accountDelete';
+import { rpcReportPlayer, rpcWhisperSend, rpcWhisperSettings } from './rpc/whisper';
+import { rpcTransferCodeCreate, rpcTransferCodeRedeem } from './rpc/transferCode';
 import { ensureServers } from './match/servers';
 import {
   worldInit,
@@ -20,6 +40,7 @@ import { isDevEnabled } from './debug/gate';
 import {
   rpcDevBook,
   rpcDevCraftPreview,
+  rpcDevTrades,
   rpcDevEnergy,
   rpcDevFriends,
   rpcDevGive,
@@ -38,6 +59,7 @@ import {
   rpcDevWallet,
   rpcDevWatch,
   rpcDevWorld,
+  rpcDevXp,
 } from './debug/rpc';
 
 // Nakama finds handlers by their global function names, so every handler is
@@ -58,6 +80,28 @@ function InitModule(
   initializer.registerRpc('get_catalog', rpcGetCatalog);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
+  initializer.registerRpc('transfer_code_create', rpcTransferCodeCreate);
+  initializer.registerRpc('transfer_code_redeem', rpcTransferCodeRedeem);
+  initializer.registerAfterAuthenticateGoogle(afterAuthenticateGoogle);
+  initializer.registerAfterAuthenticateFacebook(afterAuthenticateFacebook);
+  initializer.registerAfterAuthenticateSteam(afterAuthenticateSteam);
+  initializer.registerAfterAuthenticateCustom(afterAuthenticateCustom);
+  initializer.registerRpc('account_delete_request', rpcAccountDeleteRequest);
+  initializer.registerRpc('account_delete_cancel', rpcAccountDeleteCancel);
+  initializer.registerRpc('account_delete_status', rpcAccountDeleteStatus);
+  initializer.registerRpc('whisper_send', rpcWhisperSend);
+  initializer.registerRpc('whisper_settings', rpcWhisperSettings);
+  initializer.registerRpc('report_player', rpcReportPlayer);
+  initializer.registerBeforeLinkSteam(beforeLinkSteam);
+  initializer.registerAfterLinkDevice(afterLinkDevice);
+  initializer.registerAfterLinkGoogle(afterLinkGoogle);
+  initializer.registerAfterLinkFacebook(afterLinkFacebook);
+  initializer.registerAfterLinkCustom(afterLinkCustom);
+  initializer.registerAfterUnlinkDevice(afterUnlinkDevice);
+  initializer.registerAfterUnlinkGoogle(afterUnlinkGoogle);
+  initializer.registerAfterUnlinkFacebook(afterUnlinkFacebook);
+  initializer.registerAfterUnlinkSteam(afterUnlinkSteam);
+  initializer.registerAfterUnlinkCustom(afterUnlinkCustom);
   initializer.registerMatch('world', {
     matchInit: worldInit,
     matchJoinAttempt: worldJoinAttempt,
@@ -79,6 +123,7 @@ function InitModule(
   initializer.registerRpc('dev_stacks', rpcDevStacks);
   initializer.registerRpc('dev_wallet', rpcDevWallet);
   initializer.registerRpc('dev_energy', rpcDevEnergy);
+  initializer.registerRpc('dev_xp', rpcDevXp);
   initializer.registerRpc('dev_book', rpcDevBook);
   initializer.registerRpc('dev_profile', rpcDevProfile);
   initializer.registerRpc('dev_friends', rpcDevFriends);
@@ -88,6 +133,7 @@ function InitModule(
   initializer.registerRpc('dev_sim_catch', rpcDevSimCatch);
   initializer.registerRpc('dev_reel', rpcDevReel);
   initializer.registerRpc('dev_craft_preview', rpcDevCraftPreview);
+  initializer.registerRpc('dev_trades', rpcDevTrades);
   initializer.registerRpc('dev_suspects', rpcDevSuspects);
   initializer.registerRpc('dev_watch', rpcDevWatch);
   if (isDevEnabled(ctx)) logger.warn('DEV_TOOLS on: dev_* RPCs work. Never enable this on a test or live server.');

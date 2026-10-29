@@ -27,21 +27,22 @@ Knight Online pazarı gibi gezilen bir pazar, ama satıcı başında beklemez: *
 #### Pet tezgahı
 
 - **Pazar alanı:** meydanın kuzeyinde ayrılmış bir bölge (`16-ilk-harita.md`). Pet yalnızca burada tezgah açar; her pet bir yer kaplar, yerler dolunca yeni tezgah açılmaz (Öneri: sunucu başına ~40 yer).
-- Oyuncu pazar alanına gidip petini bırakır, bir **başlık** yazar ("Taze sazan, ucuz!", chat filtresinden geçer) ve satacağı eşyaları fiyatıyla koyar. Eşyalar tezgaha kilitlenir. Sonra istediği yere gider.
+- Oyuncu pazar alanına gidip petini bırakır, bir **başlık** yazar ("Taze sazan, ucuz!", chat filtresinden geçer) ve satacağı eşyaları fiyatıyla koyar. Eşyalar tezgaha ayrılır: çantadan düşer, satılamaz, takas edilemez. Kilitli eşya (`07-kopya-envanter.md` 9.3) konamaz. Sonra istediği yere gider.
 - **Görünüm:** pete yaklaşınca başlık ve **ilk 4 eşya** (ikon + fiyat) görünür. Tıklayınca (büyütünce) satılan **tüm eşyalar** açılır; Float'lı eşyada Float ve kondisyon görünür.
 - Pet ekranında satıcının **profili** de açılır: oradan whisper atılır, arkadaş eklenir, defterine bakılır (bkz. `10-sosyal.md`).
-- Alıcı tek tıkla satın alır; Coin satıcıya gelir (çevrimdışıysa da). **(Öneri)** Pazar ücreti satıştan %5, tezgah açma ücretsiz.
+- Alıcı tek tıkla satın alır; Coin satıcıya gelir (başka sunucudaysa da). **(Öneri)** Pazar ücreti satıştan %5, tezgah açma ücretsiz.
 - Sıradan balık, malzeme ve recipe gibi yığılanlar **adetle** konur ("10 sazan, tanesi 12 Coin"); alıcı istediği kadarını alır.
-- **(Öneri)** Tezgahta en fazla 12 kalem. Pet oyuncu çevrimdışıyken de durur, en fazla 24 saat; süre bitince ya da oyuncu geri çağırınca kalkar, satılmayanlar depoya döner.
-- Oyuncu başına tek tezgah. Pet tezgahtayken oyuncunun yanında dolaşmaz.
+- **(Öneri)** Tezgahta en fazla 12 kalem. Karar 29.10.2026, Onur: tezgah **oyuncu oyundayken** durur; **sunucu değiştirince kapanmaz** (açıldığı sunucuda satar, geri çağırmak için o sunucuya dönmek gerekir), **oyundan tamamen çıkınca kapanır**. En fazla 24 saat (Öneri). Kapanınca satılmayanlar **çantaya** döner (çanta dolu olsa da; aşım serbest, Öneri); oyuncu başka sunucudayken ya da sunucu durunca kapanırsa eşyalar bir sonraki girişinde döner.
+- Oyuncu başına **tek** tezgah: başka sunucuda ikinci tezgah açılamaz. Pet tezgahtayken oyuncunun yanında dolaşmaz.
 - Her sunucunun kendi pazarı vardır; sunucular arası fiyat farkı doğaldır.
-- Level 10 ve kısıtlı olmayan Steam hesabı şartı geçerlidir.
+- Level 10 ve kısıtlı olmayan Steam hesabı şartı geçerlidir (hem açan hem alan için).
+- Alıcı pete en fazla 7 tile yakında olmalı (Öneri); oyuncu tezgahı pazar noktasının 14 tile yakınında açar. Satıcıya satışta bildirim gider. Mesajlar: `protokol.md` Pazar.
 
 #### Petler
 
 - Her oyuncunun **bedava bir başlangıç peti** vardır; pazar herkese açıktır.
 - Başka pet türleri Coin veya elmasla alınır. Petlerin hepsi **aynı işi yapar**, fark sadece görünümdür (kural 2: kozmetik). Elmasla alınan pet takas edilemez.
-- Pet sistemi ve pet listesi ayrı tasarlanacak (`acik-sorular.md` 22).
+- Pet sistemi ve pet listesi ayrı tasarlanacak (`acik-sorular.md` 23).
 
 #### Pazar Panosu (reklam)
 
@@ -49,7 +50,8 @@ Knight Online pazarı gibi gezilen bir pazar, ama satıcı başında beklemez: *
 - İlan **yalnızca tezgah açıkken** durur; tezgah kalkınca ilan da kalkar.
 - Panodaki ilana tıklayan alıcı **satıcının petinin yanına ışınlanır** (aynı sunucuda; "Yanına git" kuralları, `10-sosyal.md` 13.2.1).
 - Pano arama ve fiyat sıralaması yapmaz; ilanlar sırayla döner.
-- **Alım ilanı** ("Mavi Kristal arıyorum, 500 Coin'e kadar") panoda kalsın mı: açık soru.
+- **Ücret ve yer (Öneri, config'den ayarlanır, `server/src/config.ts` `BOARD`):** ilan 10 elmas, en fazla 24 saat, panoda aynı anda 8 ilan; elmas günde ortalama 5 düştüğü için 10 elmas birkaç günlük oyun demek (`11-monetization.md`, Elmas). Elmasın gerçek parayla satış fiyatı ayrıca konuşulacak. İlan erken kalkarsa elmas iade edilmez.
+- **Alım ilanı yok** (karar 29.10.2026, Onur). Panoda sadece tezgah reklamı olur; arayan kişi "Arıyorum" etiketini (`10-sosyal.md` 13.4) ve fısıltıyı kullanır.
 
 Dış sitelerde gerçek parayla satılan eşyalar pet tezgahından değil **takas penceresinden** teslim edilir. Tezgah yalnızca Coin ile çalışır.
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { eraseAt, removeBackground } from '../src/engine/background'
 import { countColors } from '../src/engine/color'
-import { prepareBase, DEFAULT_PREPARE } from '../src/engine/pipeline'
+import { prepareBase, DEFAULT_PREPARE, paddingFor } from '../src/engine/pipeline'
 import { quantizeToPalette, parseHexPalette } from '../src/engine/quantize'
 import { fitToSquare } from '../src/engine/resize'
 import { fromRows, px, solid } from './helpers'
@@ -75,3 +75,21 @@ describe('palette', () => {
   })
 })
 
+
+describe('icon sizes', () => {
+  it('uses less padding for small UI icons', () => {
+    expect(paddingFor(128)).toBe(4)
+    expect(paddingFor(16)).toBe(1)
+    expect(paddingFor(8)).toBe(0)
+  })
+
+  it('shrinks a large image to a 16 px icon with a 1 px border', () => {
+    const img = solid(160, 160, R)
+    const { buffer } = prepareBase(img, { ...DEFAULT_PREPARE, removeBackground: false, quantize: false, size: 16, padding: paddingFor(16) }, [])
+    expect(buffer.width).toBe(16)
+    expect(px(buffer, 0, 0)[3]).toBe(0)
+    expect(px(buffer, 1, 1)[3]).toBe(255)
+    expect(px(buffer, 14, 14)[3]).toBe(255)
+    expect(px(buffer, 15, 15)[3]).toBe(0)
+  })
+})
