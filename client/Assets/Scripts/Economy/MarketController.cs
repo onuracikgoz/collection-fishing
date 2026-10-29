@@ -4,6 +4,7 @@ using System.Linq;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
 using CollectionGame.World;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -33,8 +34,6 @@ namespace CollectionGame.Economy
         readonly FishingController fishing;
         readonly Func<Prices> prices;
         readonly Func<Vector2?> myPosition;
-        readonly KitWindow window = new KitWindow("Pazar", 640, 430);
-        readonly KitWindow stallWindow = new KitWindow("Tezgah", 560, 400);
 
         public bool Open { get; set; }
         public Tab Current { get; set; }
@@ -67,7 +66,7 @@ namespace CollectionGame.Economy
         readonly Dictionary<string, int> buyCount = new Dictionary<string, int>();
         string armedBuy;
         float gotoAt = -10f;
-        Vector2 scroll, scroll2;
+        bool hadStall;
 
         public MarketController(Connection net, FishingController fishing, Func<Prices> prices, Func<Vector2?> myPosition)
         {
@@ -75,6 +74,7 @@ namespace CollectionGame.Economy
             this.fishing = fishing;
             this.prices = prices;
             this.myPosition = myPosition;
+            fishing.BagChanged += Dirty;
         }
 
         // ---------- input ----------
@@ -95,6 +95,7 @@ namespace CollectionGame.Economy
             Open = true;
             Current = tab;
             adPanel = false;
+            dirty = true;
             fishing.RefreshBag();
         }
 
@@ -117,16 +118,18 @@ namespace CollectionGame.Economy
                 if (Viewing != null && Viewing.userId == id) Viewing = null;
             }
             foreach (var s in m.stalls ?? Array.Empty<StallView>()) Stalls[s.userId] = s;
+            // The setup form only needs a rebuild when my own stall came or went.
+            if (Current == Tab.Board || MyStall != null || hadStall) Dirty();
+            hadStall = MyStall != null;
         }
 
         public void OnStallList(StallListMsg m)
         {
             var opening = Viewing == null || Viewing.userId != m.userId;
             Viewing = m;
-            stallWindow.Title = $"{m.name} tezgahı";
+            stallDirty = true;
             if (opening)
             {
-                stallWindow.Center();
                 buyCount.Clear();
                 armedBuy = null;
             }
@@ -135,6 +138,7 @@ namespace CollectionGame.Economy
         public void OnStallResult(StallResultMsg r)
         {
             LastResult = r;
+            Dirty();
             Debug.Log($"[Market] STALL_RESULT {r.action} ok {r.ok} {r.reason}");
             if (!r.ok)
             {
@@ -176,11 +180,13 @@ namespace CollectionGame.Economy
             Ads.RemoveAll(a => removed.Contains(a.userId));
             Ads.AddRange(m.ads ?? Array.Empty<BoardAd>());
             Ads.Sort((a, b) => a.startedAt.CompareTo(b.startedAt)); // oldest first, as the server lists them
+            if (Current == Tab.Board || MyStall != null) dirty = true;
         }
 
         public void OnBoardResult(BoardResultMsg r)
         {
             LastBoard = r;
+            dirty = true;
             Debug.Log($"[Market] BOARD_RESULT {r.action} ok {r.ok} {r.reason} diamond {r.diamond}");
             if (!r.ok)
             {
@@ -292,184 +298,232 @@ namespace CollectionGame.Economy
                 var w = Mathf.Max(MarkerStyle.CalcSize(content).x + 4f, 60f);
                 var h = MarkerStyle.CalcHeight(content, w);
                 var r = new Rect(at.x - w / 2f, at.y - h - 4f, w, h);
+                if (UiRoot.Covers(Gui.ToScreen(r.center))) continue;
                 Gui.Block(r);
                 if (GUI.Button(r, content, MarkerStyle)) ViewStall(s.userId);
             }
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: Resources/UI/Market and Stall, PanelViews) ----------
 
-        public void DrawGui()
+        PanelView view, stallView;
+        bool dirty = true, stallDirty = true;
+        UnityEngine.UI.Text setupCount;
+        UnityEngine.UI.Button openButton;
+
+        PanelView Spawn(string name, Action closed)
         {
-            if (Viewing != null) DrawStallList();
-            if (!Open) return;
-            if (!window.Begin())
+            var v = UiRoot.Get().Spawn<PanelView>(name);
+            if (v == null) return null;
+            v.window.Closed = closed;
+            v.Open = false;
+            return v;
+        }
+
+        public void Destroy()
+        {
+            if (view != null) UnityEngine.Object.Destroy(view.gameObject);
+            if (stallView != null) UnityEngine.Object.Destroy(stallView.gameObject);
+        }
+
+        void Dirty()
+        {
+            dirty = true;
+            stallDirty = true;
+        }
+
+        public void Tick()
+        {
+            if (view == null) view = Spawn("Market", Close);
+            if (stallView == null) stallView = Spawn("Stall", () => Viewing = null);
+            if (view == null || stallView == null) return;
+            if (view.Open != Open)
             {
-                window.End();
-                Close();
-                return;
+                view.Open = Open;
+                dirty = true;
             }
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Tezgahım", Current == Tab.Stall ? Kit.TabOn : Kit.Tab, GUILayout.Width(110), GUILayout.Height(22))) Current = Tab.Stall;
-            if (GUILayout.Button($"Pazar Panosu ({Ads.Count})", Current == Tab.Board ? Kit.TabOn : Kit.Tab, GUILayout.Width(150), GUILayout.Height(22))) Current = Tab.Board;
-            GUILayout.FlexibleSpace();
-            GUILayout.Label($"{Kit.Num(fishing.Bag?.coin ?? 0)} Coin   ·   {Kit.Num(Diamond)} elmas", Kit.Bold);
-            GUILayout.EndHorizontal();
-            GUILayout.Space(4);
+            if (stallView.Open != (Viewing != null))
+            {
+                stallView.Open = Viewing != null;
+                stallDirty = true;
+            }
+            // A rebuild would drop the field being typed in; wait until it is left.
+            if (UiRoot.Typing) return;
+            if (Open && dirty) Redraw(view);
+            if (Viewing != null && stallDirty) RedrawStall(stallView);
+        }
+
+        void Redraw(PanelView v)
+        {
+            dirty = false;
+            setupCount = null;
+            openButton = null;
+            v.ClearRows();
+            v.ClearFooter();
+            v.Tabs(new[] { "Tezgahım", $"Pazar Panosu ({Ads.Count})" }, (int)Current, i =>
+            {
+                Current = (Tab)i;
+                adPanel = false;
+                dirty = true;
+            });
+            v.headerRight.text = $"{Kit.Num(fishing.Bag?.coin ?? 0)} Coin · {Kit.Num(Diamond)} elmas";
+            v.footer.text = "";
             if (Current == Tab.Stall)
             {
-                if (MyStall != null) DrawMyStall(MyStall);
-                else DrawSetup();
+                if (MyStall != null) DrawMyStall(v, MyStall);
+                else DrawSetup(v);
             }
-            else DrawBoard();
-            window.End();
+            else DrawBoard(v);
         }
 
         // ----- Tezgah kur -----
 
-        void DrawSetup()
+        void DrawSetup(PanelView v)
         {
+            v.header.text = "Tezgah kur";
             var bag = fishing.Bag;
             if (bag == null)
             {
-                GUILayout.Label("Yükleniyor...", Kit.Faint);
+                v.Line("Yükleniyor...");
                 return;
             }
             var p = prices();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Başlık", Kit.Text, GUILayout.Width(50));
-            title = GUILayout.TextField(title, 40, Kit.Input, GUILayout.Height(22));
-            GUILayout.EndHorizontal();
-            GUILayout.Label("Satmak istediğine fiyat yaz (yığında adet başı). Kilitli eşya konamaz.", Kit.Faint);
-
-            scroll = GUILayout.BeginScrollView(scroll, GUILayout.Height(250));
+            v.Row().Title("Başlık").Input(title, 300, t => title = t, 40, false);
+            v.Line("Satmak istediğine fiyat yaz (yığında adet başı). Kilitli eşya konamaz.");
             foreach (var it in (bag.items ?? Array.Empty<ItemInstance>()).OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId))
             {
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(it.tier, it.locked ? "kilit" : "");
-                GUILayout.Label(ItemText.Long(it, p), Kit.Small);
-                GUI.enabled = !it.locked;
-                itemPrice.TryGetValue(it.instanceId, out var price);
-                price = Digits(GUILayout.TextField(price ?? "", 10, Kit.Input, GUILayout.Width(80), GUILayout.Height(20)));
-                if (price.Length > 0) itemPrice[it.instanceId] = price;
-                else itemPrice.Remove(it.instanceId);
-                GUILayout.Label("Coin", Kit.Faint, GUILayout.Width(30));
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
+                var id = it.instanceId;
+                itemPrice.TryGetValue(id, out var price);
+                var row = v.Row().Mark(it.defId, it.tier, 1, it.locked).Title(FishingController.ItemName(it.defId)).Sub(ItemText.Long(it, p));
+                if (it.locked) row.Note("kilitli");
+                else
+                {
+                    row.Input(price, 90, t => SetPick(itemPrice, id, t), 10);
+                    row.Note("Coin");
+                }
             }
             foreach (var st in bag.stacks ?? Array.Empty<ItemStack>())
             {
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(null, st.count.ToString());
-                GUILayout.Label(FishingController.ItemName(st.defId), Kit.Small);
-                stackCount.TryGetValue(st.defId, out var n);
-                GUILayout.Label("adet", Kit.Faint, GUILayout.Width(28));
-                n = Digits(GUILayout.TextField(n ?? "", 6, Kit.Input, GUILayout.Width(44), GUILayout.Height(20)));
-                if (n.Length > 0) stackCount[st.defId] = n;
-                else stackCount.Remove(st.defId);
-                stackPrice.TryGetValue(st.defId, out var sp);
-                GUILayout.Label("tanesi", Kit.Faint, GUILayout.Width(36));
-                sp = Digits(GUILayout.TextField(sp ?? "", 10, Kit.Input, GUILayout.Width(70), GUILayout.Height(20)));
-                if (sp.Length > 0) stackPrice[st.defId] = sp;
-                else stackPrice.Remove(st.defId);
-                GUILayout.EndHorizontal();
+                var def = st.defId;
+                stackCount.TryGetValue(def, out var n);
+                stackPrice.TryGetValue(def, out var sp);
+                var row = v.Row().Mark(def, "", st.count).Title(FishingController.ItemName(def)).Sub($"çantada {st.count}");
+                row.Note("adet");
+                row.Input(n, 50, t => SetPick(stackCount, def, t), 6);
+                row.Note("tanesi");
+                row.Input(sp, 80, t => SetPick(stackPrice, def, t), 10);
             }
-            if ((bag.items?.Length ?? 0) + (bag.stacks?.Length ?? 0) == 0) GUILayout.Label("Çanta boş", Kit.Faint);
-            GUILayout.EndScrollView();
+            if ((bag.items?.Length ?? 0) + (bag.stacks?.Length ?? 0) == 0) v.Line("Çanta boş");
 
-            var items = itemPrice.Where(x => int.TryParse(x.Value, out var v) && v > 0 && (bag.items ?? Array.Empty<ItemInstance>()).Any(i => i.instanceId == x.Key && !i.locked))
+            v.footer.text = "Pet sen oyundan çıkana kadar satar; satıştan pazar ücreti kesilir, satılmayanlar çantana döner.";
+            setupCount = v.Line("", 0, false);
+            setupCount.transform.SetParent(v.footerBar, false);
+            v.FooterSpace();
+            openButton = v.FooterButton("Tezgahı aç", "green", OpenStall, 140);
+            UpdateSetupCount();
+        }
+
+        void SetPick(Dictionary<string, string> picks, string key, string value)
+        {
+            value = Digits(value);
+            if (value.Length > 0) picks[key] = value;
+            else picks.Remove(key);
+            UpdateSetupCount();
+        }
+
+        (StallOpenItem[] items, StallOpenStack[] stacks) Picks()
+        {
+            var bag = fishing.Bag;
+            var bagItems = bag?.items ?? Array.Empty<ItemInstance>();
+            var items = itemPrice.Where(x => int.TryParse(x.Value, out var v) && v > 0 && bagItems.Any(i => i.instanceId == x.Key && !i.locked))
                 .Select(x => new StallOpenItem { instanceId = x.Key, price = int.Parse(x.Value) }).ToArray();
             var stacks = stackPrice.Where(x => int.TryParse(x.Value, out var v) && v > 0 && stackCount.TryGetValue(x.Key, out var c) && int.TryParse(c, out var cn) && cn > 0)
                 .Select(x => new StallOpenStack { defId = x.Key, count = Mathf.Min(int.Parse(stackCount[x.Key]), fishing.StackCount(x.Key)), price = int.Parse(x.Value) })
-                .Where(s => s.count > 0).ToArray();
+                .Where(st => st.count > 0).ToArray();
+            return (items, stacks);
+        }
 
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label($"Tezgahta {items.Length + stacks.Length} kalem. Pet sen oyundan çıkana kadar satar; satıştan pazar ücreti kesilir, satılmayanlar çantana döner.", Kit.Faint, GUILayout.Width(400));
-            GUILayout.FlexibleSpace();
-            GUI.enabled = items.Length + stacks.Length > 0;
-            if (GUILayout.Button("Tezgahı aç", Kit.Green, GUILayout.Width(140), GUILayout.Height(28)))
-            {
-                net.Send(OpCode.StallOpen, new StallOpenMsg { title = title.Trim(), items = items, stacks = stacks });
-                offered.Clear();
-                offered.AddRange(items.Select(i => new BoardHighlight { instanceId = i.instanceId, defId = "" }));
-                offered.AddRange(stacks.Select(s => new BoardHighlight { instanceId = "", defId = s.defId }));
-                highlightPick.Clear();
-            }
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
+        void UpdateSetupCount()
+        {
+            var (items, stacks) = Picks();
+            if (setupCount != null) setupCount.text = $"Tezgahta {items.Length + stacks.Length} kalem";
+            if (openButton != null) openButton.interactable = items.Length + stacks.Length > 0;
+        }
+
+        void OpenStall()
+        {
+            var (items, stacks) = Picks();
+            if (items.Length + stacks.Length == 0) return;
+            net.Send(OpCode.StallOpen, new StallOpenMsg { title = (title ?? "").Trim(), items = items, stacks = stacks });
+            offered.Clear();
+            offered.AddRange(items.Select(i => new BoardHighlight { instanceId = i.instanceId, defId = "" }));
+            offered.AddRange(stacks.Select(st => new BoardHighlight { instanceId = "", defId = st.defId }));
+            highlightPick.Clear();
         }
 
         static string Digits(string s) => new string((s ?? "").Where(char.IsDigit).ToArray());
 
-        void DrawMyStall(StallView s)
+        void DrawMyStall(PanelView v, StallView s)
         {
-            GUILayout.BeginVertical(Kit.Card);
-            GUILayout.Label(string.IsNullOrEmpty(s.title) ? "Tezgahın açık" : $"\"{s.title}\"", Kit.Header);
+            v.header.text = string.IsNullOrEmpty(s.title) ? "Tezgahın açık" : $"\"{s.title}\"";
             var hours = s.expiresInMs / 3600000f;
-            GUILayout.Label($"Yer {s.spot} · {s.total} kalem · kalan süre {(hours >= 1f ? $"{hours:0.#} saat" : $"{s.expiresInMs / 60000} dk")}", Kit.Text);
+            v.Line($"Yer {s.spot} · {s.total} kalem · kalan süre {(hours >= 1f ? $"{hours:0.#} saat" : $"{s.expiresInMs / 60000} dk")}", 0, false);
             foreach (var e in s.top ?? Array.Empty<StallEntry>())
-                GUILayout.Label($"{ItemText.Entry(e)}   {Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}", Kit.Small);
-            if (s.total > (s.top?.Length ?? 0)) GUILayout.Label($"+{s.total - s.top.Length} kalem daha", Kit.Faint);
-            GUILayout.EndVertical();
-
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Tam liste", Kit.Wood, GUILayout.Height(26))) ViewStall(s.userId);
-            if (GUILayout.Button("Peti geri çağır", Kit.Red, GUILayout.Height(26))) net.Send(OpCode.StallRecall, new EmptyMsg());
-            GUILayout.EndHorizontal();
-            GUILayout.Space(8);
-            DrawAdControls();
+                v.Row().Mark(e.defId, e.tier, e.count).Title(ItemText.Entry(e)).Right($"{Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}");
+            if (s.total > (s.top?.Length ?? 0)) v.Line($"+{s.total - s.top.Length} kalem daha");
+            DrawAdControls(v);
+            v.FooterButton("Tam liste", "wood", () => ViewStall(s.userId));
+            v.FooterSpace();
+            v.FooterButton("Peti geri çağır", "red", () => net.Send(OpCode.StallRecall, new EmptyMsg()), 140);
         }
 
         // ----- Pano -----
 
-        void DrawAdControls()
+        void DrawAdControls(PanelView v)
         {
             if (MyStall == null)
             {
-                GUILayout.Label("Tezgahın açıkken kendini panoda ilan edebilirsin (elmasla).", Kit.Faint);
+                v.Line("Tezgahın açıkken kendini panoda ilan edebilirsin (elmasla).");
                 return;
             }
+            var row = v.Row();
             if (MyAd)
             {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label("İlanın panoda. Öne çıkanları değiştirmek ücretsizdir.", Kit.Good);
-                if (GUILayout.Button("Öne çıkanlar", Kit.Wood, GUILayout.Width(110), GUILayout.Height(24))) adPanel = !adPanel;
-                if (GUILayout.Button("İlanı kaldır", Kit.Red, GUILayout.Width(100), GUILayout.Height(24)))
-                    net.Send(OpCode.BoardAd, new BoardAdMsg { action = "remove", highlights = Array.Empty<BoardHighlight>() });
-                GUILayout.EndHorizontal();
+                row.Title("İlanın panoda").Sub("Öne çıkanları değiştirmek ücretsizdir.");
+                row.Button("Öne çıkanlar", "wood", () =>
+                {
+                    adPanel = !adPanel;
+                    dirty = true;
+                }, 110);
+                row.Button("İlanı kaldır", "red", () => net.Send(OpCode.BoardAd, new BoardAdMsg { action = "remove", highlights = Array.Empty<BoardHighlight>() }), 100);
             }
             else
             {
-                GUILayout.BeginHorizontal();
-                GUILayout.Label($"Panoya ilan ver: elmasla ödenir, tezgah kapanınca ilan da kalkar (elmasın: {Kit.Num(Diamond)}).", Kit.Faint, GUILayout.Width(400));
-                if (GUILayout.Button("Reklam ver", Kit.Wood, GUILayout.Height(24))) adPanel = !adPanel;
-                GUILayout.EndHorizontal();
+                row.Title("Panoya ilan ver").Sub($"Elmasla ödenir, tezgah kapanınca ilan da kalkar. Elmasın: {Kit.Num(Diamond)}");
+                row.Button("Reklam ver", "wood", () =>
+                {
+                    adPanel = !adPanel;
+                    dirty = true;
+                }, 100);
             }
             if (!adPanel) return;
-
-            GUILayout.BeginVertical(Kit.Card);
-            if (offered.Count == 0) GUILayout.Label("Öne çıkacak kalemi seçmezsen ilan tezgahın ilk kalemlerini gösterir.", Kit.Faint);
-            else
+            if (offered.Count == 0) v.Line("Öne çıkacak kalemi seçmezsen ilan tezgahın ilk kalemlerini gösterir.");
+            else v.Line("Öne çıkacak en fazla 3 kalem seç (boş bırakırsan ilk kalemler):");
+            for (var i = 0; i < offered.Count; i++)
             {
-                GUILayout.Label("Öne çıkacak en fazla 3 kalem seç (boş bırakırsan ilk kalemler):", Kit.Small);
-                var bag = fishing.Bag;
-                for (var i = 0; i < offered.Count; i++)
+                var h = offered[i];
+                var index = i;
+                var on = highlightPick.Contains(i);
+                var name = !string.IsNullOrEmpty(h.defId) ? FishingController.ItemName(h.defId) : DescribeOffered(h.instanceId);
+                v.Row().Title(name).Button(on ? "Seçili" : "Seç", on ? "green" : "wood", () =>
                 {
-                    var h = offered[i];
-                    var name = !string.IsNullOrEmpty(h.defId) ? FishingController.ItemName(h.defId) : DescribeOffered(h.instanceId);
-                    var on = highlightPick.Contains(i);
-                    var now = GUILayout.Toggle(on, " " + name, Kit.Text);
-                    if (now && !on && highlightPick.Count < 3) highlightPick.Add(i);
-                    else if (!now && on) highlightPick.Remove(i);
-                }
+                    if (highlightPick.Contains(index)) highlightPick.Remove(index);
+                    else if (highlightPick.Count < 3) highlightPick.Add(index);
+                    dirty = true;
+                }, 70);
             }
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button(MyAd ? "Güncelle" : "İlanı ver (elmas)", Kit.Green, GUILayout.Width(150), GUILayout.Height(26)))
-                net.Send(OpCode.BoardAd, new BoardAdMsg { action = "set", highlights = highlightPick.OrderBy(i => i).Select(i => offered[i]).ToArray() });
-            GUILayout.EndHorizontal();
-            GUILayout.EndVertical();
+            v.Row().Title(MyAd ? "Öne çıkanları güncelle" : "İlanı ver").Button(MyAd ? "Güncelle" : "İlanı ver (elmas)", "green",
+                () => net.Send(OpCode.BoardAd, new BoardAdMsg { action = "set", highlights = highlightPick.OrderBy(x => x).Select(x => offered[x]).ToArray() }), 140);
         }
 
         string DescribeOffered(string instanceId)
@@ -479,112 +533,90 @@ namespace CollectionGame.Economy
             return it != null ? ItemText.Short(it, prices()) : "Float'lı eşya";
         }
 
-        void DrawBoard()
+        void DrawBoard(PanelView v)
         {
-            GUILayout.Label("İlanlar eskiden yeniye. Tıkla, tezgahın yanına git.", Kit.Faint);
-            scroll2 = GUILayout.BeginScrollView(scroll2, GUILayout.Height(270));
-            if (Ads.Count == 0) GUILayout.Label("Panoda ilan yok.", Kit.Text);
+            v.header.text = "İlanlar (eskiden yeniye)";
+            if (Ads.Count == 0) v.Line("Panoda ilan yok.", 0, false);
             foreach (var a in Ads)
             {
-                GUILayout.BeginHorizontal(Kit.Card);
-                GUILayout.BeginVertical();
-                GUILayout.Label(string.IsNullOrEmpty(a.title) ? $"{a.name} tezgahı" : $"\"{a.title}\"", Kit.Bold);
-                GUILayout.Label($"{a.name} tezgahı · {a.total} kalem", Kit.Faint);
-                GUILayout.BeginHorizontal();
-                foreach (var e in a.top ?? Array.Empty<StallEntry>())
+                var id = a.userId;
+                var top = a.top ?? Array.Empty<StallEntry>();
+                var row = v.Row().Title(string.IsNullOrEmpty(a.title) ? $"{a.name} tezgahı" : $"\"{a.title}\"")
+                    .Sub($"{a.name} tezgahı · {a.total} kalem   " + string.Join("   ", top.Select(e => $"{ItemText.Entry(e)} {Kit.Num(e.price)}")));
+                if (top.Length > 0) row.Mark(top[0].defId, top[0].tier, top[0].count);
+                row.Button("Yanına git", "green", a.userId == net.UserId ? (Action)null : () =>
                 {
-                    Kit.TierMark(e.tier);
-                    GUILayout.Label($"{ItemText.Entry(e)} {Kit.Num(e.price)}", Kit.Small, GUILayout.Width(130));
-                }
-                GUILayout.EndHorizontal();
-                GUILayout.EndVertical();
-                GUILayout.FlexibleSpace();
-                GUI.enabled = a.userId != net.UserId;
-                if (GUILayout.Button("Yanına git", Kit.Green, GUILayout.Width(100), GUILayout.Height(26)))
-                {
-                    net.Send(OpCode.BoardGoto, new GotoFriendMsg { userId = a.userId });
+                    net.Send(OpCode.BoardGoto, new GotoFriendMsg { userId = id });
                     gotoAt = Time.time;
-                }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
+                }, 100);
             }
-            GUILayout.EndScrollView();
-            GUILayout.FlexibleSpace();
-            DrawAdControls();
-            GUILayout.Label("İlan eşya miktarını ya da kalitesini değiştirmez. Alım ilanı yok.", Kit.Faint);
+            DrawAdControls(v);
+            v.footer.text = "İlan eşya miktarını ya da kalitesini değiştirmez. Alım ilanı yok.";
         }
 
         // ----- Bir tezgahın tam listesi -----
 
-        void DrawStallList()
+        void RedrawStall(PanelView v)
         {
-            var v = Viewing;
-            if (!stallWindow.Begin())
-            {
-                stallWindow.End();
-                Viewing = null;
-                return;
-            }
-            var mine = v.userId == net.UserId;
-            GUILayout.BeginHorizontal();
-            GUILayout.Label(string.IsNullOrEmpty(v.title) ? v.name : $"\"{v.title}\"  ·  {v.name}", Kit.Header);
-            GUILayout.FlexibleSpace();
-            if (!mine)
-            {
-                if (GUILayout.Button("Profil", Kit.Wood, GUILayout.Height(22))) OpenProfile?.Invoke(v.userId);
-                if (GUILayout.Button("Fısılda", Kit.Wood, GUILayout.Height(22))) Whisper?.Invoke(v.userId, v.name, "stall");
-                if (GUILayout.Button("Arkadaş", Kit.Green, GUILayout.Height(22))) AddFriend?.Invoke(v.userId, v.name);
-            }
-            GUILayout.EndHorizontal();
-            GUILayout.Label($"Coin'in: {Kit.Num(fishing.Bag?.coin ?? 0)}", Kit.Faint);
-
-            var p = prices();
+            stallDirty = false;
+            var s = Viewing;
+            var mine = s.userId == net.UserId;
+            v.window.title.text = $"{s.name} tezgahı";
+            v.header.text = string.IsNullOrEmpty(s.title) ? s.name : $"\"{s.title}\"  ·  {s.name}";
             var coin = fishing.Bag?.coin ?? 0;
-            scroll = GUILayout.BeginScrollView(scroll);
-            foreach (var li in v.items ?? Array.Empty<StallListItem>())
+            v.headerRight.text = $"Coin'in: {Kit.Num(coin)}";
+            v.ClearRows();
+            v.ClearFooter();
+            var p = prices();
+            foreach (var li in s.items ?? Array.Empty<StallListItem>())
             {
                 if (li.item == null) continue;
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(li.item.tier);
-                GUILayout.Label(ItemText.Long(li.item, p), Kit.Small);
-                GUILayout.Label($"{Kit.Num(li.price)} Coin", Kit.Bold, GUILayout.Width(90));
                 var key = "i:" + li.item.instanceId;
-                GUI.enabled = !mine && coin >= li.price;
-                if (GUILayout.Button(armedBuy == key ? "Emin misin?" : "Satın al", Kit.Green, GUILayout.Width(90), GUILayout.Height(22)))
+                var id = li.item.instanceId;
+                var row = v.Row().Mark(li.item.defId, li.item.tier).Title(FishingController.ItemName(li.item.defId)).Sub(ItemText.Long(li.item, p))
+                    .Right($"{Kit.Num(li.price)} Coin");
+                row.Button(armedBuy == key ? "Emin misin?" : "Satın al", "green", mine || coin < li.price ? (Action)null : () =>
                 {
-                    if (armedBuy == key) net.Send(OpCode.StallBuy, new StallBuyMsg { userId = v.userId, instanceId = li.item.instanceId, defId = "", count = 0 });
+                    if (armedBuy == key) net.Send(OpCode.StallBuy, new StallBuyMsg { userId = s.userId, instanceId = id, defId = "", count = 0 });
                     else armedBuy = key;
-                }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
+                    stallDirty = true;
+                }, 100);
             }
-            foreach (var st in v.stacks ?? Array.Empty<StallOpenStack>())
+            foreach (var st in s.stacks ?? Array.Empty<StallOpenStack>())
             {
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(null, st.count.ToString());
-                GUILayout.Label($"{FishingController.ItemName(st.defId)} · tanesi {Kit.Num(st.price)}", Kit.Small);
                 if (!buyCount.TryGetValue(st.defId, out var n)) n = 1;
-                if (GUILayout.Button("-", Kit.Wood, GUILayout.Width(22), GUILayout.Height(20))) n--;
-                GUILayout.Label(n.ToString(), Kit.Text, GUILayout.Width(28));
-                if (GUILayout.Button("+", Kit.Wood, GUILayout.Width(22), GUILayout.Height(20))) n++;
-                if (GUILayout.Button("max", Kit.Flat, GUILayout.Width(36), GUILayout.Height(20))) n = st.count;
                 n = Mathf.Clamp(n, 1, Mathf.Max(1, st.count));
-                buyCount[st.defId] = n;
-                var total = (long)n * st.price;
-                var key = $"s:{st.defId}:{n}";
-                GUI.enabled = !mine && coin >= total;
-                if (GUILayout.Button(armedBuy == key ? "Emin misin?" : $"Al ({Kit.Num(total)})", Kit.Green, GUILayout.Width(100), GUILayout.Height(22)))
+                var def = st.defId;
+                var max = st.count;
+                var price = st.price;
+                var total = (long)n * price;
+                var key = $"s:{def}:{n}";
+                var row = v.Row().Mark(def, "", st.count).Title(FishingController.ItemName(def)).Sub($"{st.count} adet · tanesi {Kit.Num(price)} Coin");
+                void Count(int value)
                 {
-                    if (armedBuy == key) net.Send(OpCode.StallBuy, new StallBuyMsg { userId = v.userId, instanceId = "", defId = st.defId, count = n });
-                    else armedBuy = key;
+                    buyCount[def] = Mathf.Clamp(value, 1, Mathf.Max(1, max));
+                    stallDirty = true;
                 }
-                GUI.enabled = true;
-                GUILayout.EndHorizontal();
+                row.Button("-", "wood", () => Count(n - 1), 22);
+                row.Note(n.ToString());
+                row.Button("+", "wood", () => Count(n + 1), 22);
+                row.Button("max", "wood", () => Count(max), 40);
+                row.Button(armedBuy == key ? "Emin misin?" : $"Al ({Kit.Num(total)})", "green", mine || coin < total ? (Action)null : () =>
+                {
+                    if (armedBuy == key) net.Send(OpCode.StallBuy, new StallBuyMsg { userId = s.userId, instanceId = "", defId = def, count = n });
+                    else armedBuy = key;
+                    stallDirty = true;
+                }, 100);
             }
-            if ((v.items?.Length ?? 0) + (v.stacks?.Length ?? 0) == 0) GUILayout.Label("Tezgah boş", Kit.Faint);
-            GUILayout.EndScrollView();
-            GUILayout.Label(mine ? "Kendi tezgahın." : $"Coin {v.name}'e gider, çevrimdışı olsa da. Float'lı eşyada Float ve kondisyon yazar.", Kit.Faint);
-            stallWindow.End();
+            if ((s.items?.Length ?? 0) + (s.stacks?.Length ?? 0) == 0) v.Line("Tezgah boş");
+            v.footer.text = mine ? "Kendi tezgahın." : $"Coin {s.name}'e gider, çevrimdışı olsa da. Float'lı eşyada Float ve kondisyon yazar.";
+            if (!mine)
+            {
+                v.FooterButton("Profil", "wood", () => OpenProfile?.Invoke(s.userId), 80);
+                v.FooterButton("Fısılda", "wood", () => Whisper?.Invoke(s.userId, s.name, "stall"), 80);
+                v.FooterButton("Arkadaş ekle", "green", () => AddFriend?.Invoke(s.userId, s.name), 110);
+            }
+            v.FooterSpace();
         }
     }
 }

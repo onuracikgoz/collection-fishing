@@ -141,6 +141,11 @@ namespace CollectionGame.World
         {
             hud?.Destroy();
             bagPanel?.Destroy();
+            quests?.Destroy();
+            settings?.Destroy();
+            trade?.Destroy();
+            market?.Destroy();
+            whispers?.Destroy();
         }
         public void WalkTo(Vector2 target) => mover?.SetTarget(target);
         public void Say(string text) => net.Send(OpCode.Say, new SayMsg { text = text });
@@ -196,6 +201,11 @@ namespace CollectionGame.World
                 market.Update(Typing);
                 quests.Update(Typing);
                 bagPanel.Update();
+                quests.Tick();
+                settings.Tick();
+                trade.Tick();
+                market.Tick();
+                whispers.Tick();
                 hud.Tick(serverName, others.Count + 1, fishing, collection.Score, quests.State != null && quests.State.complete && !quests.State.claimed);
                 if (!Typing) hud.TryOpenChat();
             }
@@ -461,6 +471,8 @@ namespace CollectionGame.World
             var nameStyle = isMe ? Gui.NameMe : Gui.Name;
             var nameSize = nameStyle.CalcSize(new GUIContent(view.DisplayName)) + new Vector2(6f, 4f);
             var nameRect = new Rect(namePos.x - nameSize.x / 2f, namePos.y - nameSize.y, nameSize.x, nameSize.y);
+            // Behind a uGUI window: no name, emote or bubble drawn over it.
+            if (UiRoot.Covers(Gui.ToScreen(nameRect.center))) return;
             GUI.Label(new Rect(nameRect.x + 1, nameRect.y + 1, nameRect.width, nameRect.height), view.DisplayName, Gui.Shadow);
             GUI.Label(nameRect, view.DisplayName, nameStyle);
             // Click a name to see that player's profile card.
@@ -494,11 +506,6 @@ namespace CollectionGame.World
                 collection.DrawGui();
                 social.DrawGui();
                 economy.DrawGui();
-                quests.DrawGui();
-                market.DrawGui();
-                settings.DrawGui();
-                trade.DrawGui();
-                whispers.DrawGui();
             }
             Toasts.Draw();
         }

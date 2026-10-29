@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
 using UnityEngine;
 
 namespace CollectionGame.Social
@@ -27,7 +28,7 @@ namespace CollectionGame.Social
 
         sealed class Line
         {
-            public string Text;
+            public string Text, Name;
             public bool Mine, System, Masked;
         }
 
@@ -38,10 +39,10 @@ namespace CollectionGame.Social
             public string Name;
             public string Context;
             public readonly List<Line> Lines = new List<Line>();
-            public KitWindow Window;
-            public bool Minimized, Menu, Report, Sending;
-            public string Input = "";
-            public Vector2 Scroll;
+            /// <summary>New message in a minimised or back window: the title blinks.</summary>
+            public bool Flash;
+            public WhisperView View;
+            public bool Minimized, Menu, Report, Sending, LogDirty;
             public string LastTheirs;
             /// <summary>Stable text field name while windows change order.</summary>
             public int Id;
@@ -67,7 +68,7 @@ namespace CollectionGame.Social
             var c = Find(userId, name) ?? Create(userId, name);
             if (!string.IsNullOrEmpty(context)) c.Context = context;
             c.Minimized = false;
-            c.Window.Flash = false;
+            c.Flash = false;
             Focus(c);
             focusField = c;
         }
@@ -112,11 +113,7 @@ namespace CollectionGame.Social
                 UserId = userId ?? "",
                 Name = name,
                 Id = ++nextId,
-                Window = new KitWindow(name, 270f, 190f) { Extra = new[] { "_", "≡" } },
             };
-            // Cascade new windows from the lower right so they do not cover the middle of the screen.
-            var n = chats.Count % 5;
-            c.Window.Rect.position = new Vector2(Gui.Width - 290f - n * 24f, Gui.Height - 330f - n * 24f);
             chats.Add(c);
             return c;
         }
@@ -124,10 +121,8 @@ namespace CollectionGame.Social
         void Focus(Chat c)
         {
             focused = c;
-            c.Window.Flash = false;
-            // Drawn last = on top.
-            chats.Remove(c);
-            chats.Add(c);
+            c.Flash = false;
+            if (c.View != null) c.View.window.Raise();
         }
 
         // ---------- server ----------
@@ -139,10 +134,9 @@ namespace CollectionGame.Social
             var c = Find(n.from, n.fromName) ?? Create(n.from, n.fromName);
             c.UserId = n.from;
             c.Name = n.fromName;
-            c.Window.Title = n.fromName;
-            Add(c, new Line { Text = n.text });
+            Add(c, new Line { Text = n.text, Name = n.fromName });
             c.LastTheirs = n.text;
-            if (c.Minimized || focused != c) c.Window.Flash = true;
+            if (c.Minimized || focused != c) c.Flash = true;
             if (focused == null) focused = c;
         }
 
@@ -163,15 +157,11 @@ namespace CollectionGame.Social
                     if (other != null)
                     {
                         other.Lines.AddRange(c.Lines);
-                        chats.Remove(c);
+                        CloseChat(c);
                         c = other;
                     }
                     c.UserId = r.to;
-                    if (!string.IsNullOrEmpty(r.toName))
-                    {
-                        c.Name = r.toName;
-                        c.Window.Title = r.toName;
-                    }
+                    if (!string.IsNullOrEmpty(r.toName)) c.Name = r.toName;
                 }
                 Add(c, new Line { Text = r.text ?? text, Mine = true });
                 if (r.masked) Add(c, new Line { Text = "Kişisel bilgi gizlendi", System = true, Masked = true });
@@ -206,7 +196,7 @@ namespace CollectionGame.Social
         {
             c.Lines.Add(line);
             while (c.Lines.Count > MaxLines) c.Lines.RemoveAt(0);
-            c.Scroll.y = float.MaxValue;
+            c.LogDirty = true;
         }
 
         async void Block(Chat c)
@@ -242,127 +232,135 @@ namespace CollectionGame.Social
             }
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: one Resources/UI/Whisper per conversation) ----------
 
-        /// <summary>Draw before the chat line so Enter in a whisper field is not read as "open chat".</summary>
-        public void DrawGui()
+        WhisperView ViewOf(Chat c)
         {
-            Kit.Begin();
-            var strip = 0;
-            foreach (var c in chats.ToList())
+            if (c.View != null) return c.View;
+            var v = UiRoot.Get().Spawn<WhisperView>("Whisper");
+            if (v == null) return null;
+            c.View = v;
+            var rt = (RectTransform)v.window.transform;
+            var n = (c.Id - 1) % 5;
+            rt.anchoredPosition += new Vector2(-n * 24f, n * 24f); // cascade
+            v.window.Closed = () => CloseChat(c);
+            v.minimize.onClick.AddListener(() =>
             {
-                if (c.Minimized) DrawStrip(c, strip++);
-                else DrawWindow(c);
+                c.Minimized = true;
+                Leave(c);
+            });
+            v.menuButton.onClick.AddListener(() =>
+            {
+                c.Menu = !c.Menu;
+                c.Report = false;
+            });
+            v.block.onClick.AddListener(() => Block(c));
+            v.report.onClick.AddListener(() => c.Report = true);
+            for (var i = 0; i < v.reasons.Length && i < ReportReasons.Length; i++)
+            {
+                var id = ReportReasons[i].id;
+                v.reasons[i].onClick.AddListener(() => Report(c, id));
             }
-        }
-
-        void DrawStrip(Chat c, int index)
-        {
-            var r = new Rect(10f + index * 134f, Gui.Height - Gui.CanvasToGui(96f) - 60f, 128f, 22f);
-            Gui.Block(r);
-            var old = GUI.color;
-            if (c.Window.Flash && Mathf.Repeat(Time.unscaledTime, 0.8f) < 0.4f) GUI.color = new Color(1f, 0.85f, 0.45f);
-            if (GUI.Button(r, c.Name, Kit.Plate))
+            v.send.onClick.AddListener(() => SendInput(c));
+            v.input.onEndEdit.AddListener(_ =>
+            {
+                var k = UnityEngine.InputSystem.Keyboard.current;
+                if (k != null && (k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame))
+                {
+                    SendInput(c);
+                    v.input.ActivateInputField(); // keep writing
+                }
+            });
+            v.strip.onClick.AddListener(() =>
             {
                 c.Minimized = false;
                 Focus(c);
                 focusField = c;
-            }
-            GUI.color = old;
+            });
+            v.window.Raise();
+            c.LogDirty = true;
+            return v;
         }
 
-        void DrawWindow(Chat c)
+        void SendInput(Chat c)
         {
-            var w = c.Window;
-            var open = w.Begin();
-            if (w.Clicked && focused != c) Focus(c);
-            if (focused == c) w.Flash = false;
-            if (!open)
-            {
-                w.End();
-                chats.Remove(c);
-                if (focused == c) focused = null;
-                GUIUtility.keyboardControl = 0;
-                return;
-            }
-            if (w.PressedExtra == 0)
-            {
-                w.End();
-                c.Minimized = true;
-                GUIUtility.keyboardControl = 0;
-                return;
-            }
-            if (w.PressedExtra == 1) c.Menu = !c.Menu;
-
-            if (c.Menu)
-            {
-                GUILayout.BeginVertical(Kit.Card);
-                if (!c.Report)
-                {
-                    GUI.enabled = !string.IsNullOrEmpty(c.UserId);
-                    GUILayout.BeginHorizontal();
-                    if (GUILayout.Button("Engelle", Kit.Red, GUILayout.Height(20))) Block(c);
-                    if (GUILayout.Button("Raporla", Kit.Wood, GUILayout.Height(20))) c.Report = true;
-                    GUILayout.EndHorizontal();
-                    GUI.enabled = true;
-                }
-                else
-                {
-                    GUILayout.Label("Neden?", Kit.Small);
-                    for (var i = 0; i < ReportReasons.Length; i += 3)
-                    {
-                        GUILayout.BeginHorizontal();
-                        for (var j = i; j < Mathf.Min(i + 3, ReportReasons.Length); j++)
-                            if (GUILayout.Button(ReportReasons[j].label, Kit.Flat, GUILayout.Height(18))) Report(c, ReportReasons[j].id);
-                        GUILayout.EndHorizontal();
-                    }
-                }
-                GUILayout.EndVertical();
-            }
-
-            c.Scroll = GUILayout.BeginScrollView(c.Scroll);
-            foreach (var l in c.Lines)
-                GUILayout.Label(l.System ? l.Text : l.Mine ? $"Sen: {l.Text}" : $"{c.Name}: {l.Text}", l.System ? (l.Masked ? Kit.Faint : Kit.Warn) : l.Mine ? Kit.Small : SmallBold);
-            GUILayout.EndScrollView();
-
-            var field = "whisper_" + c.Id;
-            var e = Event.current;
-            var enter = e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter) && GUI.GetNameOfFocusedControl() == field;
-            if (enter)
-            {
-                e.Use();
-                var text = c.Input;
-                c.Input = "";
-                Send(c, text);
-            }
-            else if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape && GUI.GetNameOfFocusedControl() == field)
-            {
-                e.Use();
-                GUIUtility.keyboardControl = 0;
-            }
-            GUILayout.BeginHorizontal();
-            GUI.SetNextControlName(field);
-            c.Input = GUILayout.TextField(c.Input, TextMax, Kit.Input, GUILayout.Height(22));
-            GUI.enabled = !c.Sending && c.Input.Trim().Length > 0;
-            if (GUILayout.Button("↵", Kit.Wood, GUILayout.Width(28), GUILayout.Height(22)))
-            {
-                var text = c.Input;
-                c.Input = "";
-                Send(c, text);
-            }
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            if (focusField == c && e.type == EventType.Repaint)
-            {
-                GUI.FocusControl(field);
-                focusField = null;
-            }
-            w.End();
+            var text = c.View.input.text;
+            c.View.input.text = "";
+            Send(c, text);
         }
 
-        static GUIStyle smallBold;
-        static GUIStyle SmallBold => smallBold != null && smallBold.normal.textColor == Kit.Small.normal.textColor
-            ? smallBold
-            : smallBold = new GUIStyle(Kit.Small) { fontStyle = FontStyle.Bold };
+        static void Leave(Chat c)
+        {
+            if (c.View == null) return;
+            c.View.input.DeactivateInputField();
+            if (UnityEngine.EventSystems.EventSystem.current != null) UnityEngine.EventSystems.EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        void CloseChat(Chat c)
+        {
+            Leave(c);
+            chats.Remove(c);
+            if (focused == c) focused = null;
+            if (c.View != null) UnityEngine.Object.Destroy(c.View.gameObject);
+        }
+
+        public void Destroy()
+        {
+            foreach (var c in chats)
+                if (c.View != null) UnityEngine.Object.Destroy(c.View.gameObject);
+            chats.Clear();
+        }
+
+        /// <summary>Call every frame: shows each conversation as a window or a strip, blinks new ones.</summary>
+        public void Tick()
+        {
+            var blink = Mathf.Repeat(Time.unscaledTime, 0.8f) < 0.4f;
+            var strip = 0;
+            foreach (var c in chats.ToList())
+            {
+                var v = ViewOf(c);
+                if (v == null) continue;
+                if (v.window.Open == c.Minimized) v.window.Open = !c.Minimized;
+                if (v.strip.gameObject.activeSelf != c.Minimized) v.strip.gameObject.SetActive(c.Minimized);
+                if (v.window.title.text != c.Name) v.window.title.text = c.Name;
+                if (v.stripText.text != c.Name) v.stripText.text = c.Name;
+                if (c.Minimized) ((RectTransform)v.strip.transform).anchoredPosition = new Vector2(12f + strip++ * 134f, 96f);
+                if (v.menuRow.gameObject.activeSelf != (c.Menu && !c.Report)) v.menuRow.gameObject.SetActive(c.Menu && !c.Report);
+                if (v.reasonRow.gameObject.activeSelf != (c.Menu && c.Report)) v.reasonRow.gameObject.SetActive(c.Menu && c.Report);
+                var known = !string.IsNullOrEmpty(c.UserId);
+                v.block.interactable = v.report.interactable = known;
+                v.send.interactable = !c.Sending;
+
+                // Clicking a window brings it forward and stops its blink.
+                if (v.input.isFocused && focused != c) Focus(c);
+                if (focused == c) c.Flash = false;
+                var tint = c.Flash && blink ? new Color(1f, 0.85f, 0.45f) : Color.white;
+                if (v.plateImage.color != tint) v.plateImage.color = tint;
+                if (v.strip.targetGraphic.color != tint) v.strip.targetGraphic.color = tint;
+
+                if (c.LogDirty)
+                {
+                    c.LogDirty = false;
+                    v.log.text = string.Join("\n", c.Lines.Select(Format));
+                    Canvas.ForceUpdateCanvases();
+                    v.scroll.verticalNormalizedPosition = 0f;
+                }
+                if (focusField == c && !c.Minimized)
+                {
+                    focusField = null;
+                    v.window.Raise();
+                    v.input.Select();
+                    v.input.ActivateInputField();
+                }
+            }
+        }
+
+        string Format(Line l)
+        {
+            if (l.System) return l.Masked ? $"<color=#7f708a><i>{Escape(l.Text)}</i></color>" : $"<color=#9e4539>{Escape(l.Text)}</color>";
+            return l.Mine ? $"<b>Sen:</b> {Escape(l.Text)}" : $"<color=#1e6f50><b>{Escape(l.Name)}:</b></color> {Escape(l.Text)}";
+        }
+
+        static string Escape(string s) => (s ?? "").Replace("<", "<\u200B");
     }
 }

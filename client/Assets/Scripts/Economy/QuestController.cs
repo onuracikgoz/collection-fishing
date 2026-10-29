@@ -4,6 +4,7 @@ using System.Linq;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -18,7 +19,6 @@ namespace CollectionGame.Economy
     {
         readonly Connection net;
         readonly FishingController fishing;
-        readonly KitWindow window = new KitWindow("Günlük görevler", 460, 330);
 
         public bool Open { get; set; }
         public QuestStateMsg State { get; private set; }
@@ -44,6 +44,7 @@ namespace CollectionGame.Economy
         {
             claimSentAt = Time.time;
             net.Send(OpCode.QuestClaim, new EmptyMsg());
+            dirty = true;
         }
 
         bool ClaimPending => Time.time - claimSentAt < 3f;
@@ -55,6 +56,8 @@ namespace CollectionGame.Economy
             var wasComplete = State != null && State.day == m.day && State.complete;
             State = m;
             stateAt = Time.time;
+            dirty = true;
+            shownSecond = -1;
             if (m.complete && !m.claimed && !wasComplete) Toasts.Show("Günlük görevler bitti: sandığın hazır (G)");
         }
 
@@ -62,6 +65,7 @@ namespace CollectionGame.Economy
         {
             LastClaim = r;
             claimSentAt = -10f;
+            dirty = true;
             Debug.Log($"[Quest] CLAIM ok {r.ok} {r.reason} day {r.chestDay}");
             if (!r.ok)
             {
@@ -102,70 +106,76 @@ namespace CollectionGame.Economy
             }
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: Resources/UI/Quests, a PanelView) ----------
 
-        public void DrawGui()
+        PanelView view;
+        bool dirty = true;
+        int shownSecond = -1;
+
+        PanelView View
         {
-            if (!Open) return;
-            if (!window.Begin())
+            get
             {
-                window.End();
-                Open = false;
-                return;
+                if (view != null) return view;
+                view = UiRoot.Get().Spawn<PanelView>("Quests");
+                if (view != null)
+                {
+                    view.window.Closed = () => Open = false;
+                    view.Open = false;
+                }
+                return view;
             }
-            var s = State;
-            if (s == null)
-            {
-                GUILayout.Label("Görevler yükleniyor...", Kit.Text);
-                window.End();
-                return;
-            }
-
-            var left = Mathf.Max(0f, s.resetInMs / 1000f - (Time.time - stateAt));
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Bugünün görevleri", Kit.Header);
-            GUILayout.FlexibleSpace();
-            GUILayout.Label($"Yenilenmeye {(int)(left / 3600)} sa {(int)(left % 3600 / 60)} dk", Kit.Faint);
-            GUILayout.EndHorizontal();
-
-            foreach (var q in s.quests ?? Array.Empty<QuestProgress>())
-            {
-                GUILayout.BeginVertical(Kit.Card);
-                GUILayout.BeginHorizontal();
-                GUILayout.Label(Describe(q), Kit.Bold);
-                GUILayout.FlexibleSpace();
-                GUILayout.Label($"{q.progress} / {q.target}", q.progress >= q.target ? Kit.Good : Kit.Text);
-                GUILayout.EndHorizontal();
-                Bar(q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
-                GUILayout.EndVertical();
-            }
-
-            GUILayout.FlexibleSpace();
-            GUILayout.Label($"Seri: {s.streak} gün · bugünün sandığı {s.chestDay}. gün sandığı (10. gün en iyisi). Bir gün kaçırırsan seri biraz geri düşer.", Kit.Faint);
-            GUILayout.BeginHorizontal();
-            GUILayout.FlexibleSpace();
-            GUI.enabled = s.complete && !s.claimed && !ClaimPending;
-            var quests = s.quests ?? Array.Empty<QuestProgress>();
-            var label = s.claimed ? "Sandık alındı" : s.complete ? "Sandığı aç" : $"{quests.Count(q => q.progress >= q.target)} / {quests.Length} bitti";
-            if (GUILayout.Button(label, Kit.Green, GUILayout.Width(150), GUILayout.Height(28))) Claim();
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            window.End();
         }
 
-        static void Bar(float fill)
+        public void Destroy()
         {
-            var r = GUILayoutUtility.GetRect(100f, 10f, GUILayout.ExpandWidth(true));
-            var back = Art.ArtCatalog.Ui("bar_back");
-            var front = Art.ArtCatalog.Ui(fill >= 1f ? "bar_fill_green" : "bar_fill_yellow");
-            if (back == null || front == null)
+            if (view != null) UnityEngine.Object.Destroy(view.gameObject);
+        }
+
+        /// <summary>Call every frame: follows Open and redraws after a change.</summary>
+        public void Tick()
+        {
+            var v = View;
+            if (v == null) return;
+            if (v.Open != Open)
             {
-                GUI.Box(r, GUIContent.none);
-                GUI.Box(new Rect(r.x, r.y, r.width * fill, r.height), GUIContent.none, Gui.Fill);
+                v.Open = Open;
+                dirty = true;
+            }
+            if (!Open) return;
+            if (dirty) Redraw(v);
+            var s = State;
+            if (s == null) return;
+            var left = Mathf.Max(0f, s.resetInMs / 1000f - (Time.time - stateAt));
+            var sec = (int)left;
+            if (sec == shownSecond) return;
+            shownSecond = sec;
+            v.headerRight.text = $"Yenilenmeye {sec / 3600} sa {sec % 3600 / 60} dk";
+        }
+
+        void Redraw(PanelView v)
+        {
+            dirty = false;
+            v.ClearRows();
+            v.ClearFooter();
+            var s = State;
+            v.header.text = "Bugünün görevleri";
+            if (s == null)
+            {
+                v.Line("Görevler yükleniyor...");
                 return;
             }
-            GUI.DrawTexture(r, back, ScaleMode.StretchToFill);
-            if (fill > 0f) GUI.DrawTexture(new Rect(r.x + 1, r.y + 1, (r.width - 2) * fill, r.height - 2), front, ScaleMode.StretchToFill);
+            var quests = s.quests ?? Array.Empty<QuestProgress>();
+            foreach (var q in quests)
+            {
+                var done = q.progress >= q.target;
+                v.Row().Title(Describe(q)).Right($"{q.progress} / {q.target}", done ? new Color(0.12f, 0.44f, 0.31f) : (Color?)null)
+                    .Bar(q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
+            }
+            v.footer.text = $"Seri: {s.streak} gün · bugünün sandığı {s.chestDay}. gün sandığı (10. gün en iyisi). Bir gün kaçırırsan seri biraz geri düşer.";
+            v.FooterSpace();
+            var label = s.claimed ? "Sandık alındı" : s.complete ? "Sandığı aç" : $"{quests.Count(q => q.progress >= q.target)} / {quests.Length} bitti";
+            v.FooterButton(label, "green", s.complete && !s.claimed && !ClaimPending ? Claim : (Action)null, 160);
         }
     }
 }

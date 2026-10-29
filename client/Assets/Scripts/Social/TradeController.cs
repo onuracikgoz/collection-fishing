@@ -5,6 +5,7 @@ using CollectionGame.Economy;
 using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
+using CollectionGame.UI.Views;
 using UnityEngine;
 
 namespace CollectionGame.Social
@@ -20,7 +21,6 @@ namespace CollectionGame.Social
         readonly Connection net;
         readonly FishingController fishing;
         readonly Func<Prices> prices;
-        readonly KitWindow window = new KitWindow("Takas", 660, 420);
 
         public TradeInviteMsg Invite { get; private set; }
         public TradeStateMsg State { get; private set; }
@@ -33,13 +33,13 @@ namespace CollectionGame.Social
 
         float inviteAt, stateAt;
         string coinText = "0";
-        Vector2 bagScroll, mineScroll, theirScroll;
 
         public TradeController(Connection net, FishingController fishing, Func<Prices> prices)
         {
             this.net = net;
             this.fishing = fishing;
             this.prices = prices;
+            fishing.BagChanged += () => dirty = true;
         }
 
         // ---------- intents ----------
@@ -124,12 +124,8 @@ namespace CollectionGame.Social
             stateAt = Time.time;
             Invite = null;
             coinText = (m.you?.coin ?? 0).ToString();
-            window.Title = $"Takas: {m.withName}";
-            if (opening)
-            {
-                window.Center();
-                fishing.RefreshBag();
-            }
+            dirty = true;
+            if (opening) fishing.RefreshBag();
             if (!string.IsNullOrEmpty(m.reason)) Toasts.Show(StateReason(m.reason), true);
             Debug.Log($"[Trade] STATE locks {m.youLocked}/{m.themLocked} confirmed {m.youConfirmed}/{m.themConfirmed} in {m.confirmInMs} {m.reason}");
         }
@@ -199,96 +195,95 @@ namespace CollectionGame.Social
             }
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: Resources/UI/Trade and TradeInvite, PanelViews) ----------
 
-        public void DrawGui()
+        PanelView view, invite;
+        bool dirty = true;
+        UnityEngine.UI.Button confirmButton;
+
+        PanelView Spawn(string name, Action closed)
         {
-            if (Invite != null) DrawInvite();
-            if (State != null) DrawWindow();
+            var v = UiRoot.Get().Spawn<PanelView>(name);
+            if (v == null) return null;
+            v.window.Closed = closed;
+            v.Open = false;
+            return v;
         }
 
-        void DrawInvite()
+        public void Destroy()
         {
-            var left = Invite.expiresInMs / 1000f - (Time.time - inviteAt);
-            if (left <= 0f)
+            if (view != null) UnityEngine.Object.Destroy(view.gameObject);
+            if (invite != null) UnityEngine.Object.Destroy(invite.gameObject);
+        }
+
+        public void Tick()
+        {
+            if (view == null) view = Spawn("Trade", Cancel);
+            if (invite == null) invite = Spawn("TradeInvite", () => Reply(false));
+            if (view == null || invite == null) return;
+
+            // Invite box.
+            var inviteLeft = Invite == null ? 0f : Invite.expiresInMs / 1000f - (Time.time - inviteAt);
+            if (Invite != null && inviteLeft <= 0f) Invite = null;
+            if (invite.Open != (Invite != null))
             {
-                Invite = null;
-                return;
+                invite.Open = Invite != null;
+                if (Invite != null)
+                {
+                    invite.ClearFooter();
+                    invite.FooterButton("Kabul", "green", () => Reply(true));
+                    invite.FooterButton("Reddet", "red", () => Reply(false));
+                }
             }
-            Kit.Begin();
-            var r = new Rect((Gui.Width - 300f) / 2f, 70f, 300f, 74f);
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Kit.Dark);
-            GUILayout.Label($"{Invite.name} sana takas teklif ediyor ({Mathf.CeilToInt(left)})", Kit.Light);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Kabul", Kit.Green, GUILayout.Height(24))) Reply(true);
-            if (GUILayout.Button("Reddet", Kit.Red, GUILayout.Height(24))) Reply(false);
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
+            if (Invite != null) invite.header.text = $"{Invite.name} sana takas teklif ediyor ({Mathf.CeilToInt(inviteLeft)})";
+
+            // Trade window.
+            if (view.Open != Active)
+            {
+                view.Open = Active;
+                dirty = true;
+            }
+            if (!Active) return;
+            if (dirty) Redraw(view);
+            if (confirmButton != null)
+            {
+                var s = State;
+                var left = ConfirmLeft(s);
+                confirmButton.interactable = s.youLocked && s.themLocked && left <= 0f && !s.youConfirmed;
+                var label = s.youConfirmed ? "Onaylandı" : s.youLocked && s.themLocked && left > 0f ? $"Onayla ({Mathf.CeilToInt(left)})" : "Onayla";
+                var text = confirmButton.GetComponentInChildren<UnityEngine.UI.Text>();
+                if (text.text != label) text.text = label;
+            }
         }
 
-        void DrawWindow()
+        void Redraw(PanelView v)
         {
+            dirty = false;
             var s = State;
-            if (!window.Begin())
-            {
-                window.End();
-                Cancel();
-                return;
-            }
+            v.window.title.text = $"Takas: {s.withName}";
+            v.header.text = Status(s);
+            v.headerRight.text = $"{Kit.Num(fishing.Bag?.coin ?? 0)} Coin";
+            v.ClearRows();
+            v.ClearFooter();
+            v.ColumnTitle(1, s.youLocked ? "Sen (kilitli)" : "Sen");
+            v.ColumnTitle(2, s.themLocked ? $"{s.withName} (kilitli)" : s.withName);
+            DrawBag(v, s);
+            DrawSide(v, 1, s.you, true, s.youLocked);
+            DrawSide(v, 2, s.them, false, true);
+            v.Line($"Coin: {Kit.Num(s.you?.coin ?? 0)}", 1, false);
+            v.Line($"Coin: {Kit.Num(s.them?.coin ?? 0)}", 2, false);
+            v.footer.text = "Kilitli eşya ve toz takasa konamaz. Bir şey değişirse iki kilit de açılır.";
 
-            GUILayout.BeginHorizontal();
-            // Bag: what I can still add.
-            GUILayout.BeginVertical(GUILayout.Width(220));
-            GUILayout.Label($"Çanta  ·  {Kit.Num(fishing.Bag?.coin ?? 0)} Coin", Kit.Header);
-            bagScroll = GUILayout.BeginScrollView(bagScroll);
-            DrawBag(s);
-            GUILayout.EndScrollView();
-            GUILayout.EndVertical();
-
-            GUILayout.Space(8);
-            GUILayout.BeginVertical(GUILayout.Width(190));
-            GUILayout.Label(s.youLocked ? "Sen  (kilitli)" : "Sen", s.youLocked ? Kit.Good : Kit.Header);
-            mineScroll = GUILayout.BeginScrollView(mineScroll, GUILayout.Height(220));
-            DrawSide(s.you, true, s.youLocked);
-            GUILayout.EndScrollView();
-            GUILayout.BeginHorizontal();
-            GUILayout.Label("Coin", Kit.Text, GUILayout.Width(34));
-            GUI.enabled = !s.youLocked;
-            coinText = GUILayout.TextField(coinText, 10, Kit.Input, GUILayout.Width(80), GUILayout.Height(22));
-            coinText = new string(coinText.Where(char.IsDigit).ToArray());
-            if (GUILayout.Button("Koy", Kit.Wood, GUILayout.Height(22)))
+            v.FooterInput(coinText, 90, t => coinText = t, 10, true, "Coin");
+            v.FooterButton("Coin koy", "wood", s.youLocked ? (Action)null : () =>
             {
                 var coin = (int)Math.Min(int.MaxValue, Math.Min(long.TryParse(coinText, out var c) ? c : 0, fishing.Bag?.coin ?? 0));
                 SendSide(MyItems, MyStacks, coin);
-            }
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            GUILayout.EndVertical();
-
-            GUILayout.Space(8);
-            GUILayout.BeginVertical();
-            GUILayout.Label(s.themLocked ? $"{s.withName}  (kilitli)" : s.withName, s.themLocked ? Kit.Good : Kit.Header);
-            theirScroll = GUILayout.BeginScrollView(theirScroll, GUILayout.Height(220));
-            DrawSide(s.them, false, true);
-            GUILayout.EndScrollView();
-            GUILayout.Label($"Coin: {Kit.Num(s.them?.coin ?? 0)}", Kit.Bold);
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-
-            GUILayout.FlexibleSpace();
-            GUILayout.Label(Status(s), Kit.Faint);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button(s.youLocked ? "Kilidi aç" : "Kilitle", Kit.Wood, GUILayout.Height(26)))
-                net.Send(OpCode.TradeLock, new TradeLockMsg { locked = !s.youLocked });
-            var left = ConfirmLeft(s);
-            GUI.enabled = s.youLocked && s.themLocked && left <= 0f && !s.youConfirmed;
-            var label = s.youConfirmed ? "Onaylandı" : s.youLocked && s.themLocked && left > 0f ? $"Onayla ({Mathf.CeilToInt(left)})" : "Onayla";
-            if (GUILayout.Button(label, Kit.Green, GUILayout.Height(26))) net.Send(OpCode.TradeConfirm, new EmptyMsg());
-            GUI.enabled = true;
-            if (GUILayout.Button("İptal", Kit.Red, GUILayout.Height(26))) Cancel();
-            GUILayout.EndHorizontal();
-            window.End();
+            }, 90);
+            v.FooterSpace();
+            v.FooterButton(s.youLocked ? "Kilidi aç" : "Kilitle", "wood", () => net.Send(OpCode.TradeLock, new TradeLockMsg { locked = !s.youLocked }));
+            confirmButton = v.FooterButton("Onayla", "green", () => net.Send(OpCode.TradeConfirm, new EmptyMsg()));
+            v.FooterButton("İptal", "red", Cancel, 80);
         }
 
         float ConfirmLeft(TradeStateMsg s) => s.confirmInMs < 0 ? 0f : s.confirmInMs / 1000f - (Time.time - stateAt);
@@ -297,78 +292,66 @@ namespace CollectionGame.Social
         {
             if (s.youConfirmed && !s.themConfirmed) return "Onayladın. Karşı tarafın onayı bekleniyor.";
             if (s.themConfirmed && !s.youConfirmed) return "Karşı taraf onayladı.";
-            if (s.youLocked && s.themLocked) return "İkiniz de kilitlediniz. Geri sayımdan sonra Onayla'ya bas. Bir şey değişirse kilitler açılır.";
+            if (s.youLocked && s.themLocked) return "İkiniz de kilitlediniz: geri sayımdan sonra Onayla.";
             if (s.youLocked) return "Kilitledin. Karşı tarafın kilidi bekleniyor.";
-            return "Çantadan eşya ekle, sonra Kilitle. Bir şey değişirse kilitler açılır.";
+            return "Çantadan eşya ekle, sonra Kilitle.";
         }
 
-        void DrawBag(TradeStateMsg s)
+        void DrawBag(PanelView v, TradeStateMsg s)
         {
             var bag = fishing.Bag;
             if (bag == null)
             {
-                GUILayout.Label("Yükleniyor...", Kit.Faint);
+                v.Line("Yükleniyor...");
                 return;
             }
             var offered = new HashSet<string>(MyItems);
             var stacks = MyStacks;
             var p = prices();
-            GUI.enabled = !s.youLocked;
             foreach (var it in (bag.items ?? Array.Empty<ItemInstance>()).Where(i => !offered.Contains(i.instanceId))
                          .OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId))
             {
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(it.tier, it.locked ? "kilit" : "");
-                GUILayout.Label(ItemText.Short(it, p), Kit.Small);
-                var was = GUI.enabled;
-                GUI.enabled = was && !it.locked;
-                if (GUILayout.Button("+", Kit.Wood, GUILayout.Width(26), GUILayout.Height(20))) AddItem(it.instanceId);
-                GUI.enabled = was;
-                GUILayout.EndHorizontal();
+                var id = it.instanceId;
+                v.Row().Mark(it.defId, it.tier, 1, it.locked).Title(FishingController.ItemName(it.defId)).Sub(ItemText.Short(it, p))
+                    .Button("+", "wood", s.youLocked || it.locked ? (Action)null : () => AddItem(id), 26);
             }
             foreach (var st in bag.stacks ?? Array.Empty<ItemStack>())
             {
                 stacks.TryGetValue(st.defId, out var used);
                 var free = st.count - used;
                 if (free <= 0) continue;
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(null);
-                GUILayout.Label($"{FishingController.ItemName(st.defId)} x{free}", Kit.Small);
-                if (GUILayout.Button("+1", Kit.Wood, GUILayout.Width(30), GUILayout.Height(20))) ChangeStack(st.defId, 1, st.count);
-                if (GUILayout.Button("Hepsi", Kit.Wood, GUILayout.Width(46), GUILayout.Height(20))) ChangeStack(st.defId, free, st.count);
-                GUILayout.EndHorizontal();
+                var def = st.defId;
+                var total = st.count;
+                var row = v.Row().Mark(def, "", free).Title(FishingController.ItemName(def)).Sub($"{free} adet");
+                row.Button("+1", "wood", s.youLocked ? (Action)null : () => ChangeStack(def, 1, total), 30);
+                row.Button("Hepsi", "wood", s.youLocked ? (Action)null : () => ChangeStack(def, free, total), 50);
             }
-            GUI.enabled = true;
-            GUILayout.Label("Kilitli eşya ve toz takasa konamaz.", Kit.Faint);
         }
 
-        void DrawSide(TradeOfferView side, bool mine, bool locked)
+        void DrawSide(PanelView v, int column, TradeOfferView side, bool mine, bool locked)
         {
             var p = prices();
             var any = false;
             foreach (var it in side?.items ?? Array.Empty<ItemInstance>())
             {
                 any = true;
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(it.tier);
-                GUILayout.Label(ItemText.Long(it, p), Kit.Small);
-                if (mine && !locked && GUILayout.Button("-", Kit.Red, GUILayout.Width(24), GUILayout.Height(20))) RemoveItem(it.instanceId);
-                GUILayout.EndHorizontal();
+                var id = it.instanceId;
+                var row = v.Row(column).Mark(it.defId, it.tier).Title(FishingController.ItemName(it.defId)).Sub($"{ItemText.Short(it, p)} · Float {it.@float:0.0000}");
+                if (mine && !locked) row.Button("-", "red", () => RemoveItem(id), 24);
             }
             foreach (var st in side?.stacks ?? Array.Empty<ItemStack>())
             {
                 any = true;
-                GUILayout.BeginHorizontal(Kit.Card);
-                Kit.TierMark(null, st.count.ToString());
-                GUILayout.Label(FishingController.ItemName(st.defId), Kit.Small);
+                var def = st.defId;
+                var count = st.count;
+                var row = v.Row(column).Mark(def, "", count).Title(FishingController.ItemName(def)).Sub($"{count} adet");
                 if (mine && !locked)
                 {
-                    if (GUILayout.Button("-1", Kit.Red, GUILayout.Width(28), GUILayout.Height(20))) ChangeStack(st.defId, -1, st.count);
-                    if (GUILayout.Button("x", Kit.Red, GUILayout.Width(24), GUILayout.Height(20))) ChangeStack(st.defId, -st.count, st.count);
+                    row.Button("-1", "red", () => ChangeStack(def, -1, count), 28);
+                    row.Button("x", "red", () => ChangeStack(def, -count, count), 24);
                 }
-                GUILayout.EndHorizontal();
             }
-            if (!any) GUILayout.Label("Boş", Kit.Faint);
+            if (!any) v.Line("Boş", column);
         }
     }
 }

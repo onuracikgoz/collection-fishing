@@ -9,7 +9,7 @@ namespace CollectionGame.UI
     /// wood frame + sage linen windows, wood / green / red buttons, cards for rows, Tier slots.
     /// The 9-slice borders come from ui-borders.json (same numbers as the importer). If the kit
     /// is missing, the old flat <see cref="Gui"/> styles are used so the windows still work.
-    /// One place for the new look, until the windows move to uGUI.
+    /// Now only used by IMGUI leftovers (map labels of stalls) and for <see cref="Num"/>; windows are uGUI.
     /// </summary>
     public static class Kit
     {
@@ -159,100 +159,7 @@ namespace CollectionGame.UI
         static Color Hex(int rgb) => new Color(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f);
 
         /// <summary>Thousands with dots, as the drafts show coin ("1.240").</summary>
-        public static string Num(long n) => n.ToString("#,0", System.Globalization.CultureInfo.GetCultureInfo("tr-TR"));
-    }
-
-    /// <summary>
-    /// A kit window: wood frame, title on the plate above it, close button, dragged by the plate
-    /// or the top edge. Begin returns false when the close button was pressed this frame.
-    /// </summary>
-    public sealed class KitWindow
-    {
-        public Rect Rect;
-        public string Title;
-        public bool Draggable = true;
-        /// <summary>Small buttons left of the close button ("_" to minimise, "≡" for a menu...).</summary>
-        public string[] Extra;
-        /// <summary>Index into <see cref="Extra"/> pressed this frame, or -1.</summary>
-        public int PressedExtra { get; private set; } = -1;
-        /// <summary>The title plate blinks (a new whisper in a window in the back).</summary>
-        public bool Flash;
-        /// <summary>A click landed on this window this frame (to bring it to the front, stop a flash).</summary>
-        public bool Clicked { get; private set; }
-        bool dragging;
-        Vector2 grab;
-
-        public KitWindow(string title, float width, float height)
-        {
-            Title = title;
-            Rect = new Rect((Gui.Width - width) / 2f, Mathf.Max(40f, (Gui.Height - height) / 2f - 20f), width, height);
-        }
-
-        public void Center()
-        {
-            Rect.x = (Gui.Width - Rect.width) / 2f;
-            Rect.y = Mathf.Max(40f, (Gui.Height - Rect.height) / 2f - 20f);
-        }
-
-        Rect PlateRect
-        {
-            get
-            {
-                var reserve = 2f * (30f + (Extra?.Length ?? 0) * 20f);
-                var w = Mathf.Min(Rect.width - reserve, Mathf.Max(90f, Kit.Plate.CalcSize(new GUIContent(Title)).x + 8f));
-                return new Rect(Rect.x + (Rect.width - w) / 2f, Rect.y - 9f, w, 22f);
-            }
-        }
-
-        /// <summary>Draws the frame and starts a GUILayout area inside it. Always call <see cref="End"/>.</summary>
-        public bool Begin()
-        {
-            Kit.Begin();
-            var plate = PlateRect;
-            var e = Event.current;
-            Clicked = e.type == EventType.MouseDown && (Rect.Contains(e.mousePosition) || plate.Contains(e.mousePosition));
-            HandleDrag(plate);
-            Gui.Block(Rect);
-            Gui.Block(plate);
-            GUI.Box(Rect, GUIContent.none, Kit.Window);
-            var old = GUI.color;
-            if (Flash && Mathf.Repeat(Time.unscaledTime, 0.8f) < 0.4f) GUI.color = new Color(1f, 0.85f, 0.45f);
-            GUI.Box(plate, Title, Kit.Plate);
-            GUI.color = old;
-            var open = !GUI.Button(new Rect(Rect.xMax - 22f, Rect.y + 4f, 16f, 16f), Kit.HasKit ? "" : "x", Kit.Close);
-            PressedExtra = -1;
-            for (var i = 0; Extra != null && i < Extra.Length; i++)
-                if (GUI.Button(new Rect(Rect.xMax - 42f - i * 20f, Rect.y + 4f, 18f, 16f), Extra[i], Kit.Flat)) PressedExtra = i;
-            var pad = Kit.Window.padding;
-            GUILayout.BeginArea(new Rect(Rect.x + pad.left, Rect.y + pad.top, Rect.width - pad.horizontal, Rect.height - pad.vertical));
-            return open;
-        }
-
-        public void End() => GUILayout.EndArea();
-
-        void HandleDrag(Rect plate)
-        {
-            if (!Draggable) return;
-            var e = Event.current;
-            var top = new Rect(Rect.x, Rect.y, Rect.width - 26f - (Extra?.Length ?? 0) * 20f, 14f);
-            switch (e.type)
-            {
-                case EventType.MouseDown when e.button == 0 && (plate.Contains(e.mousePosition) || top.Contains(e.mousePosition)):
-                    dragging = true;
-                    grab = e.mousePosition - Rect.position;
-                    e.Use();
-                    break;
-                case EventType.MouseDrag when dragging:
-                    Rect.position = e.mousePosition - grab;
-                    Rect.x = Mathf.Clamp(Rect.x, -Rect.width + 60f, Gui.Width - 60f);
-                    Rect.y = Mathf.Clamp(Rect.y, 12f, Gui.Height - 30f);
-                    e.Use();
-                    break;
-                case EventType.MouseUp when dragging:
-                    dragging = false;
-                    e.Use();
-                    break;
-            }
-        }
+        public static string Num(long n) =>
+            n.ToString("#,0", System.Globalization.CultureInfo.InvariantCulture).Replace(',', '.'); // no culture data needed (WebGL)
     }
 }

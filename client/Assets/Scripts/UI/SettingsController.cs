@@ -1,7 +1,9 @@
 using System;
 using System.Globalization;
 using CollectionGame.Net;
+using CollectionGame.UI.Views;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace CollectionGame.UI
 {
@@ -16,7 +18,6 @@ namespace CollectionGame.UI
         public enum Tab { General, Account }
 
         readonly Connection net;
-        readonly KitWindow window = new KitWindow("Ayarlar", 520, 380);
 
         public bool Open { get; private set; }
         public Tab Current { get; private set; }
@@ -35,7 +36,6 @@ namespace CollectionGame.UI
         {
             Open = true;
             Select(tab);
-            window.Center();
             if (!pmLoaded) LoadPm();
         }
 
@@ -57,6 +57,7 @@ namespace CollectionGame.UI
 
         void Select(Tab tab)
         {
+            dirty = true;
             Current = tab;
             error = null;
             // The account page opens hidden every time.
@@ -72,6 +73,7 @@ namespace CollectionGame.UI
             try
             {
                 PmOff = await net.WhisperSettingsAsync(null);
+                dirty = true;
                 pmLoaded = true;
             }
             catch (Exception e)
@@ -86,6 +88,7 @@ namespace CollectionGame.UI
             try
             {
                 PmOff = await net.WhisperSettingsAsync(off);
+                dirty = true;
                 pmLoaded = true;
             }
             catch (Exception e)
@@ -93,6 +96,7 @@ namespace CollectionGame.UI
                 error = Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Biraz bekle, sonra tekrar dene" : "Ayar kaydedilemedi";
             }
             busy = false;
+            dirty = true;
         }
 
         async void LoadDeletion()
@@ -100,6 +104,7 @@ namespace CollectionGame.UI
             try
             {
                 Deletion = await net.RpcAsync<AccountDeleteStatus>("account_delete_status", null);
+                dirty = true;
             }
             catch (Exception e)
             {
@@ -127,6 +132,7 @@ namespace CollectionGame.UI
                     : "Silme isteği gönderilemedi";
             }
             busy = false;
+            dirty = true;
         }
 
         async void CancelDeletion()
@@ -144,6 +150,7 @@ namespace CollectionGame.UI
                 error = Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Çok fazla deneme, biraz bekle" : "İptal edilemedi";
             }
             busy = false;
+            dirty = true;
         }
 
         async void MakeCode()
@@ -160,6 +167,7 @@ namespace CollectionGame.UI
                 error = Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Bu saat çok kod ürettin, sonra tekrar dene" : "Kod üretilemedi";
             }
             busy = false;
+            dirty = true;
         }
 
         static string When(long ms) =>
@@ -169,136 +177,147 @@ namespace CollectionGame.UI
         public void OnDeletionCancelled()
         {
             Deletion = new AccountDeleteStatus();
+            dirty = true;
             Toasts.Show("Tekrar giriş yaptığın için hesap silme iptal edildi");
         }
 
-        // ---------- UI ----------
+        // ---------- UI (uGUI: Resources/UI/Settings, a PanelView) ----------
 
-        public void DrawGui()
+        PanelView view;
+        bool dirty = true;
+        Text codeLine;
+        UnityEngine.UI.Button deleteButton;
+
+        PanelView View
         {
-            if (!Open) return;
-            if (!window.Begin())
+            get
             {
-                window.End();
-                Close();
-                return;
+                if (view != null) return view;
+                view = UiRoot.Get().Spawn<PanelView>("Settings");
+                if (view != null)
+                {
+                    view.window.Closed = Close;
+                    view.Open = false;
+                }
+                return view;
             }
-            GUILayout.BeginHorizontal();
-            GUILayout.BeginVertical(GUILayout.Width(110));
-            if (GUILayout.Button("Genel", Current == Tab.General ? Kit.TabOn : Kit.Tab, GUILayout.Height(24))) Select(Tab.General);
-            if (GUILayout.Button("Hesap", Current == Tab.Account ? Kit.TabOn : Kit.Tab, GUILayout.Height(24))) Select(Tab.Account);
-            GUILayout.FlexibleSpace();
-            GUILayout.Label(net.Username, Kit.Faint);
-            GUILayout.EndVertical();
-            GUILayout.Space(10);
-            GUILayout.BeginVertical();
-            if (Current == Tab.General) DrawGeneral();
-            else if (!revealed) DrawHidden();
-            else DrawAccount();
-            if (!string.IsNullOrEmpty(error)) GUILayout.Label(error, Kit.Warn);
-            GUILayout.EndVertical();
-            GUILayout.EndHorizontal();
-            window.End();
         }
 
-        void DrawGeneral()
+        public void Destroy()
         {
-            GUILayout.Label("Sohbet", Kit.Header);
-            GUILayout.BeginHorizontal(Kit.Card);
-            GUILayout.BeginVertical();
-            GUILayout.Label("PM kapalı", Kit.Bold);
-            GUILayout.Label("Açıkken sadece arkadaşların sana fısıldayabilir. Yabancılar zaten sadece tezgahın açıkken yazabilir.", Kit.Faint);
-            GUILayout.EndVertical();
-            GUI.enabled = pmLoaded && !busy;
-            if (GUILayout.Button(PmOff ? "Açık" : "Kapalı", PmOff ? Kit.Green : Kit.Wood, GUILayout.Width(70), GUILayout.Height(24))) SetPm(!PmOff);
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            GUILayout.Space(6);
-            GUILayout.Label("Fısıltı: sohbete /w Ad mesaj yaz, ya da bir oyuncunun kartında Fısılda'ya bas.", Kit.Faint);
+            if (view != null) UnityEngine.Object.Destroy(view.gameObject);
         }
 
-        void DrawHidden()
-        {
-            GUILayout.FlexibleSpace();
-            GUILayout.BeginVertical(Kit.Dark);
-            GUILayout.Label("Hesap bilgilerin gizlendi", Kit.Light);
-            var small = new GUIStyle(Kit.Small);
-            small.normal.textColor = Kit.Light.normal.textColor;
-            GUILayout.Label("Yayın yapıyorsan ya da yanında biri varsa açma. Bu sayfada hesabını taşıyan kod ve silme ayarı var.", small);
-            if (GUILayout.Button("Göster", Kit.Wood, GUILayout.Width(100), GUILayout.Height(24))) revealed = true;
-            GUILayout.EndVertical();
-            GUILayout.FlexibleSpace();
-        }
+        void Changed() => dirty = true;
 
-        void DrawAccount()
+        public void Tick()
         {
-            GUILayout.Label("Giriş yöntemleri", Kit.Header);
-            GUILayout.Label("Google, Facebook ve Discord bağlama yakında. Hepsi aynı karaktere girer.", Kit.Faint);
-            GUILayout.BeginHorizontal(Kit.Card);
-            GUILayout.Label("Steam", Kit.Bold, GUILayout.Width(60));
-            GUILayout.Label("Steam'de bu hesapla oynamak için kod üret", Kit.Small);
-            GUI.enabled = !busy;
-            if (GUILayout.Button("Kod üret", Kit.Green, GUILayout.Width(80), GUILayout.Height(22))) MakeCode();
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            if (code != null)
+            var v = View;
+            if (v == null) return;
+            if (v.Open != Open)
+            {
+                v.Open = Open;
+                dirty = true;
+            }
+            if (!Open) return;
+            if (dirty) Redraw(v);
+            if (codeLine != null && code != null)
             {
                 var left = code.expiresInMs / 1000f - (Time.time - codeAt);
-                GUILayout.BeginVertical(Kit.Dark);
-                if (left > 0f)
+                codeLine.text = left > 0f
+                    ? $"Steam'de bu kodu yaz:  <b>{code.code}</b>   ({(int)left / 60}:{(int)left % 60:00} kaldı · tek kullanımlık)"
+                    : "Kodun süresi doldu, yenisini üret.";
+            }
+        }
+
+        void Redraw(PanelView v)
+        {
+            dirty = false;
+            codeLine = null;
+            deleteButton = null;
+            v.ClearRows();
+            v.ClearFooter();
+            v.Tabs(new[] { "Genel", "Hesap" }, (int)Current, i =>
+            {
+                Select((Tab)i);
+                dirty = true;
+            });
+            v.header.text = Current == Tab.General ? "Sohbet" : "Hesap";
+            v.headerRight.text = net.Username;
+            v.footer.text = error ?? "";
+            if (Current == Tab.General) DrawGeneral(v);
+            else if (!revealed) DrawHidden(v);
+            else DrawAccount(v);
+        }
+
+        void DrawGeneral(PanelView v)
+        {
+            var row = v.Row().Title("PM kapalı").Sub("Açıkken sadece arkadaşların sana fısıldayabilir. Yabancılar zaten sadece tezgahın açıkken yazabilir.");
+            row.Button(PmOff ? "Açık" : "Kapalı", PmOff ? "green" : "wood", pmLoaded && !busy ? () => SetPm(!PmOff) : (Action)null, 80);
+            v.Line("Fısıltı: sohbete /w Ad mesaj yaz, ya da bir oyuncunun kartında Fısılda'ya bas.");
+        }
+
+        void DrawHidden(PanelView v)
+        {
+            v.Row().Title("Hesap bilgilerin gizlendi")
+                .Sub("Yayın yapıyorsan ya da yanında biri varsa açma. Bu sayfada hesabını taşıyan kod ve silme ayarı var.")
+                .Button("Göster", "wood", () =>
                 {
-                    GUILayout.Label($"Steam'de bu kodu yaz:  {code.code}    ({(int)left / 60}:{(int)left % 60:00} kaldı · tek kullanımlık)", Kit.Light);
-                }
-                else GUILayout.Label("Kodun süresi doldu, yenisini üret.", Kit.Light);
-                var warn = new GUIStyle(Kit.Small);
-                warn.normal.textColor = new Color(1f, 0.6f, 0.55f);
-                GUILayout.Label("Bu kodu kimseyle paylaşma. Yetkililer asla istemez.", warn);
-                GUILayout.EndVertical();
+                    revealed = true;
+                    dirty = true;
+                }, 90);
+        }
+
+        void DrawAccount(PanelView v)
+        {
+            v.Line("Giriş yöntemleri: Google, Facebook ve Discord bağlama yakında. Hepsi aynı karaktere girer.");
+            v.Row().Title("Steam").Sub("Steam'de bu hesapla oynamak için kod üret").Button("Kod üret", "green", busy ? (Action)null : MakeCode, 90);
+            if (code != null)
+            {
+                codeLine = v.Line("", 0, false);
+                codeLine.supportRichText = true;
+                v.Line("Bu kodu kimseyle paylaşma. Yetkililer asla istemez.").color = new Color(0.62f, 0.27f, 0.22f);
             }
 
-            GUILayout.Space(8);
-            GUILayout.Label("Hesap", Kit.Header);
-            GUILayout.Label($"Kullanıcı adı: {net.Username}  (değişmez)", Kit.Text);
+            v.Line($"Kullanıcı adı: {net.Username}  (değişmez)", 0, false);
             if (Deletion == null)
             {
-                GUILayout.Label("Yükleniyor...", Kit.Faint);
+                v.Line("Yükleniyor...");
                 return;
             }
             if (Deletion.pending)
             {
-                GUILayout.BeginVertical(Kit.Card);
-                GUILayout.Label($"Hesabın {When(Deletion.runAt)} tarihinde silinecek.", Kit.Warn);
-                GUILayout.Label("O tarihten önce tekrar giriş yaparsan silme iptal olur.", Kit.Faint);
-                GUI.enabled = !busy;
-                if (GUILayout.Button("Silmeyi iptal et", Kit.Green, GUILayout.Width(150), GUILayout.Height(24))) CancelDeletion();
-                GUI.enabled = true;
-                GUILayout.EndVertical();
+                v.Row().Title($"Hesabın {When(Deletion.runAt)} tarihinde silinecek.")
+                    .Sub("O tarihten önce tekrar giriş yaparsan silme iptal olur.")
+                    .Button("Silmeyi iptal et", "green", busy ? (Action)null : CancelDeletion, 140);
                 return;
             }
             if (!confirmDelete)
             {
-                GUILayout.BeginHorizontal();
-                GUILayout.FlexibleSpace();
-                if (GUILayout.Button("Hesabı sil", Kit.Red, GUILayout.Width(130), GUILayout.Height(24))) confirmDelete = true;
-                GUILayout.EndHorizontal();
-                GUILayout.Label("Silme hemen olmaz: bir süre bekler, bu sürede geri alınır.", Kit.Faint);
+                v.Row().Title("Hesabı sil").Sub("Silme hemen olmaz: bir süre bekler, bu sürede geri alınır.")
+                    .Button("Hesabı sil", "red", () =>
+                    {
+                        confirmDelete = true;
+                        dirty = true;
+                    }, 110);
                 return;
             }
-            GUILayout.BeginVertical(Kit.Card);
-            GUILayout.Label("Karakterin, defterin, eşyaların, Coin'in ve bu hesaptaki kozmetikler kalıcı olarak gider. Silinen hesabın adı ve giriş yolları bir süre yeni hesap açamaz.", Kit.Warn);
-            GUILayout.Label("Onaylamak için kullanıcı adını aynen yaz:", Kit.Small);
-            typedName = GUILayout.TextField(typedName, 32, Kit.Input, GUILayout.Height(22));
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Vazgeç", Kit.Wood, GUILayout.Height(24)))
+            var row = v.Row().Title("Karakterin, defterin, eşyaların, Coin'in ve bu hesaptaki kozmetikler kalıcı olarak gider.")
+                .Sub("Silinen hesabın adı ve giriş yolları bir süre yeni hesap açamaz. Onaylamak için kullanıcı adını aynen yaz:");
+            row.Input(typedName, 130, t =>
+            {
+                typedName = t;
+                if (deleteButton != null) deleteButton.interactable = !busy && typedName == net.Username;
+            }, 32, false);
+            v.FooterButton("Vazgeç", "wood", () =>
             {
                 confirmDelete = false;
                 typedName = "";
-            }
-            GUI.enabled = !busy && typedName == net.Username;
-            if (GUILayout.Button("Hesabımı sil", Kit.Red, GUILayout.Height(24))) RequestDeletion();
-            GUI.enabled = true;
-            GUILayout.EndHorizontal();
-            GUILayout.EndVertical();
+                dirty = true;
+            });
+            v.FooterSpace();
+            deleteButton = v.FooterButton("Hesabımı sil", "red", RequestDeletion, 140);
+            deleteButton.interactable = !busy && typedName == net.Username;
         }
     }
 }
