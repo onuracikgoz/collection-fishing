@@ -15,6 +15,10 @@ namespace CollectionGame.UI
         public static float Width => Screen.width / Scale;
         public static float Height => Screen.height / Scale;
 
+        /// <summary>uGUI canvas units (UiRoot, 1408x896 layout) in IMGUI units: keeps IMGUI text clear of the HUD bar.</summary>
+        public static float CanvasToGui(float units) => units * UiRoot.ScaleFor(Screen.width, Screen.height) / Scale;
+
+        public static GUIStyle HudBold;
         public static GUIStyle Name, NameMe, Shadow, Bubble, Hud, Input, Title, Error, Button, Alert, Toast, Fill, Water, FishMark, Header, Faint, Discover, Celebrate, Window, Emote, Warn, Good;
 
         // Styles hold a runtime texture; without a domain reload it is gone next Play.
@@ -41,6 +45,7 @@ namespace CollectionGame.UI
 
             Hud = new GUIStyle(GUI.skin.label) { fontSize = 14 };
             Hud.normal.textColor = Color.white;
+            HudBold = new GUIStyle(Hud) { fontSize = 15, fontStyle = FontStyle.Bold };
 
             Input = new GUIStyle(GUI.skin.textField) { fontSize = 15, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(8, 8, 4, 4) };
             Title = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };

@@ -96,6 +96,7 @@ namespace CollectionGame.Collection
                 if (e.book.pageComplete) ShowBanner($"Sayfa tamamlandı: {PageName(e.book.page)}!  ({name})", true);
                 else ShowBanner($"Yeni keşif! {name} · {PageName(e.book.page)}", false);
                 Debug.Log($"[Book] discovered {e.defId} on {e.book.page}, complete {e.book.pageComplete}, luck {e.book.luck}, score {e.book.score}");
+                if (MyProfile != null && e.book.score > 0) MyProfile.score = e.book.score;
                 if (BookOpen && bookIsMine) Refresh();
             }
             else if (e.book.kind == BookKind.Copy && e.book.better && e.item != null && !string.IsNullOrEmpty(e.item.instanceId))
@@ -109,7 +110,11 @@ namespace CollectionGame.Collection
         {
             LastResult = r;
             Debug.Log($"[Book] BOOK_RESULT ok {r.ok} {r.reason} {r.defId} score {r.score}");
-            if (r.ok) ShowNote($"Deftere kondu: {FishingController.ItemName(r.defId)} (Score {r.score})");
+            if (r.ok)
+            {
+                ShowNote($"Deftere kondu: {FishingController.ItemName(r.defId)} (Score {r.score})");
+                if (MyProfile != null && r.score > 0) MyProfile.score = r.score;
+            }
             else ShowNote(r.reason == "NOT_OWNED" ? "Eşya çantanda değil" : $"Deftere konamadı ({r.reason})");
             if (BookOpen && bookIsMine) Refresh();
         }
@@ -159,6 +164,22 @@ namespace CollectionGame.Collection
                 Debug.LogWarning($"[Book] get_profile failed: {ex.Message}");
             }
         }
+
+        /// <summary>Own profile for the HUD score, without opening the card.</summary>
+        public async void LoadMine()
+        {
+            try
+            {
+                MyProfile = await net.GetProfileAsync(null);
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[Book] get_profile failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>The Collection Score as last heard from the server (profile, book results).</summary>
+        public int Score => MyProfile?.score ?? 0;
 
         async void Refresh()
         {

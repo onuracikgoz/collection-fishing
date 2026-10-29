@@ -84,7 +84,8 @@ namespace CollectionGame.Social
 
         int MyCoin => State?.you?.coin ?? 0;
 
-        void AddItem(string id)
+        /// <summary>Adds a bag item to my side (bag right-click "Takasa ekle").</summary>
+        public void AddItem(string id)
         {
             var items = MyItems;
             if (!items.Contains(id)) items.Add(id);
@@ -98,7 +99,8 @@ namespace CollectionGame.Social
             SendSide(items, MyStacks, MyCoin);
         }
 
-        void ChangeStack(string defId, int delta, int max)
+        /// <summary>Moves delta of a stack to (or from) my side, kept within [0, max].</summary>
+        public void ChangeStack(string defId, int delta, int max)
         {
             var stacks = MyStacks;
             stacks.TryGetValue(defId, out var n);

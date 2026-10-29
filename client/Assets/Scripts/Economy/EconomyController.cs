@@ -345,7 +345,7 @@ namespace CollectionGame.Economy
             if (note != null && Time.time < noteUntil)
             {
                 var size = Gui.Toast.CalcSize(new GUIContent(note)) + new Vector2(24f, 12f);
-                GUI.Box(new Rect((Gui.Width - size.x) / 2f, Gui.Height - 150, size.x, size.y), note, Gui.Toast);
+                GUI.Box(new Rect((Gui.Width - size.x) / 2f, Gui.Height - Gui.CanvasToGui(230), size.x, size.y), note, Gui.Toast);
             }
             if (!Open) return;
 

@@ -37,7 +37,7 @@ namespace CollectionGame.UI
         public static void Draw()
         {
             entries.RemoveAll(e => Time.time > e.Until);
-            var y = Gui.Height - 190f;
+            var y = Gui.Height - Gui.CanvasToGui(190f);
             for (var i = entries.Count - 1; i >= 0; i--)
             {
                 var e = entries[i];

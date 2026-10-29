@@ -40,6 +40,10 @@ namespace CollectionGame.Fishing
         public Phase State { get; private set; } = Phase.Idle;
         public int Energy { get; private set; }
         public int EnergyMax { get; private set; }
+        public int Level { get; private set; }
+        /// <summary>XP inside the level, and what the level needs (0 at the top level).</summary>
+        public int Xp { get; private set; }
+        public int XpNext { get; private set; }
         public ReelModel Reel { get; private set; }
         public InventoryResponse Bag { get; private set; }
         /// <summary>Faz 4: our rod; max 0 until the server sent it.</summary>
@@ -78,6 +82,9 @@ namespace CollectionGame.Fishing
         {
             Energy = w.energy;
             EnergyMax = w.energyMax;
+            Level = w.level;
+            Xp = w.xp;
+            XpNext = w.xpNext;
             if (w.rod != null && w.rod.max > 0) Rod = w.rod;
             RefreshBag(); // bait counts and balances for the HUD
         }
@@ -99,7 +106,7 @@ namespace CollectionGame.Fishing
         }
 
         /// <summary>Y: next special bait in the bag, then basic bait again.</summary>
-        void CycleBait()
+        public void CycleBait()
         {
             var owned = new List<string>();
             if (Bag?.stacks != null)
@@ -142,7 +149,7 @@ namespace CollectionGame.Fishing
                         charge = 0f;
                         SetState(Phase.Charging);
                     }
-                    else if (mouse != null && mouse.rightButton.wasPressedThisFrame && cam != null)
+                    else if (mouse != null && mouse.rightButton.wasPressedThisFrame && cam != null && !UiRoot.PointerOverUi)
                     {
                         var screen = mouse.position.ReadValue();
                         var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
@@ -290,6 +297,13 @@ namespace CollectionGame.Fishing
 
             Energy = e.energy;
             SetRod(e.rod);
+            if (e.xpGain != null && e.xpGain.level > 0)
+            {
+                Level = e.xpGain.level;
+                Xp = e.xpGain.xp;
+                XpNext = e.xpGain.xpNext;
+                if (e.xpGain.levelUp != null && e.xpGain.levelUp.level > 0) ShowToast($"Level atladın: {e.xpGain.levelUp.level}!");
+            }
             LastOutcome = e.outcome;
             LastEnd = e;
             Debug.Log($"[Fish] FISH_END {e.outcome} {e.reason} {e.defId} energy {e.energy}");
@@ -401,17 +415,13 @@ namespace CollectionGame.Fishing
 
         public void DrawGui(Vector2 me)
         {
-            GUI.Label(new Rect(10, 30, 300, 24), $"Enerji: {Energy}/{EnergyMax}", Gui.Hud);
-            if (Rod != null && Rod.max > 0)
-                GUI.Label(new Rect(10, 52, 360, 24), RodBroken ? "Olta KIRIK: sadece çöp çıkar (E: tamir)" : $"Olta: {Rod.durability}/{Rod.max}", RodBroken ? Gui.Warn : Gui.Hud);
-            GUI.Label(new Rect(10, 74, 360, 24), SelectedBait == null ? "Yem: temel" : $"Yem: {ItemName(SelectedBait)} x {StackCount(SelectedBait)}", Gui.Hud);
-
+            // Energy, rod and bait are on the uGUI HUD (World/WorldHud.cs); the bag is UI/BagPanel.cs.
             var hint = Hint(me);
-            if (hint != null) GUI.Label(new Rect(10, Gui.Height - 56, 700, 24), hint, State == Phase.Bite ? Gui.Alert : Gui.Hud);
+            if (hint != null) GUI.Label(new Rect(10, Gui.Height - Gui.CanvasToGui(184) - 30, 700, 28), hint, State == Phase.Bite ? Gui.Alert : Gui.HudBold);
 
             if (State == Phase.Charging)
             {
-                var r = new Rect(Gui.Width / 2f - 100, Gui.Height - 110, 200, 14);
+                var r = new Rect(Gui.Width / 2f - 100, Gui.Height - Gui.CanvasToGui(200), 200, 14);
                 GUI.Box(r, GUIContent.none);
                 GUI.Box(new Rect(r.x, r.y, r.width * charge, r.height), GUIContent.none, Gui.Fill);
             }
@@ -424,7 +434,6 @@ namespace CollectionGame.Fishing
                 GUI.Box(new Rect((Gui.Width - size.x) / 2f - 12, 60, size.x + 24, size.y + 12), toast, Gui.Toast);
             }
 
-            if (BagOpen) DrawBag();
         }
 
         string Hint(Vector2 me)
@@ -458,38 +467,6 @@ namespace CollectionGame.Fishing
             var progress = Mathf.Clamp01(Reel.Progress / (float)ReelModel.Field);
             GUI.Box(new Rect(x + w + 10, y, 14, h), GUIContent.none);
             GUI.Box(new Rect(x + w + 10, y + h * (1 - progress), 14, h * progress), GUIContent.none, Gui.Fill);
-        }
-
-        void DrawBag()
-        {
-            // Below the profile card so both fit on screen.
-            var r = new Rect(Gui.Width - 340, 310, 320, Mathf.Max(160, Gui.Height - 380));
-            Gui.Block(r);
-            GUILayout.BeginArea(r, Gui.Window);
-            if (Bag == null)
-            {
-                GUILayout.Label("Çanta yükleniyor...", Gui.Hud);
-            }
-            else
-            {
-                GUILayout.Label($"Çanta {Bag.slotsUsed}/{Bag.slotsMax} · Enerji {Bag.energy}/{Bag.energyMax}", Gui.Hud);
-                GUILayout.Label($"Coin {Bag.coin} · Toz {Bag.dust}", Gui.Hud);
-                GUILayout.Space(6);
-                if (Bag.items != null)
-                    for (var i = Bag.items.Length - 1; i >= 0 && i >= Bag.items.Length - 10; i--)
-                    {
-                        var it = Bag.items[i];
-                        GUILayout.Label($"{ItemName(it.defId)} · {it.tier} · Float {it.@float:0.0000}", Gui.Hud);
-                    }
-                if (Bag.stacks != null)
-                    foreach (var s in Bag.stacks)
-                        GUILayout.Label($"{ItemName(s.defId)} x {s.count}", Gui.Hud);
-                if ((Bag.items == null || Bag.items.Length == 0) && (Bag.stacks == null || Bag.stacks.Length == 0))
-                    GUILayout.Label("Boş", Gui.Hud);
-            }
-            GUILayout.FlexibleSpace();
-            GUILayout.Label("B: kapat", Gui.Hud);
-            GUILayout.EndArea();
         }
     }
 }

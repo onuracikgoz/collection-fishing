@@ -258,7 +258,7 @@ namespace CollectionGame.Social
 
         void DrawStrip(Chat c, int index)
         {
-            var r = new Rect(10f + index * 134f, Gui.Height - 86f, 128f, 22f);
+            var r = new Rect(10f + index * 134f, Gui.Height - Gui.CanvasToGui(96f) - 60f, 128f, 22f);
             Gui.Block(r);
             var old = GUI.color;
             if (c.Window.Flash && Mathf.Repeat(Time.unscaledTime, 0.8f) < 0.4f) GUI.color = new Color(1f, 0.85f, 0.45f);

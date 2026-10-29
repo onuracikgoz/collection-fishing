@@ -40,10 +40,9 @@ namespace CollectionGame.World
         QuestController quests;
         WhisperController whispers;
         SettingsController settings;
+        WorldHud hud;
+        BagPanel bagPanel;
         bool inputLatched;
-        bool chatOpen;
-        bool focusChat;
-        string chatText = "";
 
         /// <param name="switchServer">Joins another server beside a friend: (matchId, serverName, friendUserId).</param>
         public static WorldController Create(Connection net, string serverName, Action<string> onDisconnected, Action<string, string, string> switchServer)
@@ -70,6 +69,7 @@ namespace CollectionGame.World
             world.settings = new SettingsController(net);
             world.collection.OfferTrade = world.trade.Offer;
             world.collection.Whisper = (id, name) => world.whispers.OpenWith(id, name);
+            world.BuildHud();
             go.AddComponent<MapView>();
             return world;
         }
@@ -89,10 +89,59 @@ namespace CollectionGame.World
         public MarketController Market => market;
         public QuestController Quests => quests;
         public WhisperController Whispers => whispers;
+        public SettingsController Settings => settings;
         public Connection Net => net;
 
-        /// <summary>Chat or any IMGUI text field has the keyboard: game keys are off.</summary>
-        bool Typing => chatOpen || GUIUtility.keyboardControl != 0;
+        /// <summary>The chat line, a uGUI field or any IMGUI text field has the keyboard: game keys are off.</summary>
+        bool Typing => (hud != null && hud.ChatFocused) || UiRoot.Typing || GUIUtility.keyboardControl != 0;
+
+        void BuildHud()
+        {
+            hud = new WorldHud
+            {
+                Submit = text =>
+                {
+                    if (!whispers.TryCommand(text)) net.Send(OpCode.Say, new SayMsg { text = text });
+                },
+            };
+            bagPanel = new BagPanel(net, fishing, trade, () => economy.Prices, hud.Popup);
+            var v = hud.View;
+            if (v == null) return;
+            WorldHud.On(v.quests, () => quests.Open = !quests.Open);
+            WorldHud.On(v.market, () =>
+            {
+                if (market.Open) market.Open = false;
+                else market.Show(MarketController.Tab.Stall);
+            });
+            WorldHud.On(v.friends, () =>
+            {
+                social.FriendsOpen = !social.FriendsOpen;
+                if (social.FriendsOpen) social.Refresh();
+            });
+            WorldHud.On(v.profile, () =>
+            {
+                if (collection.ProfileOpen) collection.ProfileOpen = false;
+                else collection.OpenProfile(null);
+            });
+            WorldHud.On(v.book, () =>
+            {
+                if (collection.BookOpen) collection.BookOpen = false;
+                else collection.OpenBook(null, net.Username);
+            });
+            WorldHud.On(v.bag, () =>
+            {
+                fishing.BagOpen = !fishing.BagOpen;
+                if (fishing.BagOpen) fishing.RefreshBag();
+            });
+            WorldHud.On(v.settings, settings.Toggle);
+            v.bait.Clicked = _ => fishing.CycleBait();
+        }
+
+        void OnDestroy()
+        {
+            hud?.Destroy();
+            bagPanel?.Destroy();
+        }
         public void WalkTo(Vector2 target) => mover?.SetTarget(target);
         public void Say(string text) => net.Send(OpCode.Say, new SayMsg { text = text });
         public int Corrections { get; private set; }
@@ -146,6 +195,9 @@ namespace CollectionGame.World
                 economy.Update(Typing);
                 market.Update(Typing);
                 quests.Update(Typing);
+                bagPanel.Update();
+                hud.Tick(serverName, others.Count + 1, fishing, collection.Score, quests.State != null && quests.State.complete && !quests.State.claimed);
+                if (!Typing) hud.TryOpenChat();
             }
 
             foreach (var (view, remote) in others.Values)
@@ -183,6 +235,7 @@ namespace CollectionGame.World
                     mover = new LocalMover(start);
                     fishing.OnWelcome(w);
                     economy.OnWelcome();
+                    collection.LoadMine();
                     if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username);
                     me.SetState(start, mover.Facing, false);
                     break;
@@ -283,6 +336,9 @@ namespace CollectionGame.World
                     social.OnEmote(e, who);
                     break;
                 }
+                case OpCode.ItemLockResult:
+                    bagPanel.OnLockResult(JsonUtility.FromJson<ItemLockResultMsg>(m.Json));
+                    break;
                 case OpCode.TradeInvite:
                     trade.OnInvite(JsonUtility.FromJson<TradeInviteMsg>(m.Json));
                     break;
@@ -317,8 +373,16 @@ namespace CollectionGame.World
                 {
                     var b = JsonUtility.FromJson<BubbleMsg>(m.Json);
                     BubblesHeard++;
-                    if (b.id == net.UserId) me?.Say(b.text, BubbleSeconds);
-                    else if (others.TryGetValue(b.id, out var o)) o.view.Say(b.text, BubbleSeconds);
+                    if (b.id == net.UserId)
+                    {
+                        me?.Say(b.text, BubbleSeconds);
+                        hud.AddLog(net.Username, b.text, "f9c22b");
+                    }
+                    else if (others.TryGetValue(b.id, out var o))
+                    {
+                        o.view.Say(b.text, BubbleSeconds);
+                        hud.AddLog(o.view.DisplayName, b.text, "8fd3ff");
+                    }
                     break;
                 }
             }
@@ -367,9 +431,9 @@ namespace CollectionGame.World
             var mouse = Mouse.current;
             if (mouse == null || cam == null || !mouse.leftButton.isPressed) return;
             var screen = mouse.position.ReadValue();
-            // Clicks on the chat box, windows and name tags are not walking.
-            if (Gui.ToGui(screen).y > Gui.Height - 60f || Gui.IsOverUi(screen)) return;
-            if (!chatOpen) GUIUtility.keyboardControl = 0; // clicking the world leaves a text field
+            // Clicks on the HUD, windows and name tags are not walking.
+            if (UiRoot.PointerOverUi || Gui.IsOverUi(screen)) return;
+            GUIUtility.keyboardControl = 0; // clicking the world leaves a text field
             var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
             mover.SetTarget(Coords.ToServer(world));
         }
@@ -379,7 +443,6 @@ namespace CollectionGame.World
             Gui.Begin();
             DrawLabels();
             DrawHud();
-            DrawChat();
         }
 
         void DrawLabels()
@@ -424,9 +487,7 @@ namespace CollectionGame.World
 
         void DrawHud()
         {
-            var info = mover == null ? "Bağlanıyor..." : $"{serverName} · {others.Count + 1} kişi görüşte";
-            GUI.Label(new Rect(10, 8, 400, 24), info, Gui.Hud);
-            if (!chatOpen) GUI.Label(new Rect(10, Gui.Height - 30, 760, 24), "WASD / tıkla: yürü · Enter: konuş (/w ad: fısılda) · E: dükkan · M: pazar · G: görev", Gui.Hud);
+            if (mover == null) GUI.Label(new Rect(10, 80, 400, 24), "Bağlanıyor...", Gui.HudBold);
             if (mover != null)
             {
                 fishing.DrawGui(mover.Position);
@@ -438,70 +499,8 @@ namespace CollectionGame.World
                 settings.DrawGui();
                 trade.DrawGui();
                 whispers.DrawGui();
-                DrawMenuButtons();
             }
             Toasts.Draw();
-        }
-
-        /// <summary>Top right: the new windows, until the bottom bar of hud3 is built.</summary>
-        void DrawMenuButtons()
-        {
-            Kit.Begin();
-            var r = new Rect(Gui.Width - 286, 8, 278, 26);
-            Gui.Block(r);
-            GUILayout.BeginArea(r);
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button(quests.State != null && quests.State.complete && !quests.State.claimed ? "Görev !" : "Görev", Kit.Wood, GUILayout.Height(24))) quests.Open = !quests.Open;
-            if (GUILayout.Button("Pazar", Kit.Wood, GUILayout.Height(24)))
-            {
-                if (market.Open) market.Open = false;
-                else market.Show(MarketController.Tab.Stall);
-            }
-            if (GUILayout.Button("Ayarlar", Kit.Wood, GUILayout.Height(24))) settings.Toggle();
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
-        }
-
-        void DrawChat()
-        {
-            var e = Event.current;
-            var enter = e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter);
-            if (!chatOpen)
-            {
-                if (enter && mover != null)
-                {
-                    chatOpen = true;
-                    focusChat = true;
-                    chatText = "";
-                    e.Use();
-                }
-                return;
-            }
-
-            if (enter)
-            {
-                var text = chatText.Trim();
-                if (text.Length > 0 && !whispers.TryCommand(text)) net.Send(OpCode.Say, new SayMsg { text = text });
-                chatOpen = false;
-                GUI.FocusControl(null);
-                e.Use();
-                return;
-            }
-            if (e.type == EventType.KeyDown && e.keyCode == KeyCode.Escape)
-            {
-                chatOpen = false;
-                GUI.FocusControl(null);
-                e.Use();
-                return;
-            }
-
-            GUI.SetNextControlName("chat");
-            chatText = GUI.TextField(new Rect(10, Gui.Height - 44, Mathf.Min(600, Gui.Width - 20), 32), chatText, ChatMaxLength, Gui.Input);
-            if (focusChat)
-            {
-                GUI.FocusControl("chat");
-                focusChat = false;
-            }
         }
     }
 }
