@@ -70,33 +70,9 @@ namespace CollectionGame.EditorTools
                 p.FooterSpace();
                 p.FooterButton("2 / 3 bitti", "green", null, 160);
             });
-            Shot(outDir, "takas", Path.Combine(drafts, "takas-b.png"), canvas =>
-            {
-                FillHud(Spawn<HudView>(canvas, "Hud"));
-                var p = Spawn<PanelView>(canvas, "Trade");
-                p.window.title.text = "Takas: Mert";
-                p.header.text = "İkiniz de kilitlediniz: geri sayımdan sonra Onayla.";
-                p.headerRight.text = "1.240 Coin";
-                p.Row(0).Mark("lake.fish.sazan", "rare").Title("sazan").Sub("rare · Temiz").Button("+", "wood", () => { }, 26);
-                p.Row(0).Mark("lake.fish.levrek", "common", 1, true).Title("levrek").Sub("common · Yıpranmış").Button("+", "wood", null, 26);
-                var r = p.Row(0).Mark("lake.mat.scale", "", 12).Title("scale").Sub("12 adet");
-                r.Button("+1", "wood", () => { }, 30);
-                r.Button("Hepsi", "wood", () => { }, 50);
-                p.ColumnTitle(1, "Sen (kilitli)");
-                p.Row(1).Mark("lake.gem.kristal", "epic").Title("kristal").Sub("epic · Pristine · Float 0.0412");
-                p.Line("Coin: 200", 1, false);
-                p.ColumnTitle(2, "Mert (kilitli)");
-                p.Row(2).Mark("lake.fish.sazan", "legendary").Title("sazan").Sub("legendary · Temiz · Float 0.1033");
-                p.Row(2).Mark("lake.mat.scale", "", 3).Title("scale").Sub("3 adet");
-                p.Line("Coin: 0", 2, false);
-                p.footer.text = "Kilitli eşya ve toz takasa konamaz. Bir şey değişirse iki kilit de açılır.";
-                p.FooterInput("200", 90, null, 10, true, "Coin");
-                p.FooterButton("Coin koy", "wood", null, 90);
-                p.FooterSpace();
-                p.FooterButton("Kilidi aç", "wood", () => { });
-                p.FooterButton("Onayla (2)", "green", null);
-                p.FooterButton("İptal", "red", () => { }, 80);
-            });
+            Shot(outDir, "takas-a", Path.Combine(drafts, "takas-a.png"), canvas => FillTrade(canvas, false, false));
+            Shot(outDir, "takas-b", Path.Combine(drafts, "takas-b.png"), canvas => FillTrade(canvas, false, true));
+            Shot(outDir, "takas-c", Path.Combine(drafts, "takas-c.png"), canvas => FillTrade(canvas, true, false));
             Shot(outDir, "tezgah-kur", Path.Combine(drafts, "tezgah-kur.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
@@ -206,6 +182,44 @@ namespace CollectionGame.EditorTools
             var prefab = AssetDatabase.LoadAssetAtPath<GameObject>($"Assets/Resources/UI/{name}.prefab");
             var go = (GameObject)UnityEngine.Object.Instantiate(prefab, canvas.transform, false);
             return go.GetComponent<T>();
+        }
+
+        static void FillTrade(Canvas canvas, bool bothLocked, bool askCount)
+        {
+            FillHud(Spawn<HudView>(canvas, "Hud"));
+            var t = Spawn<TradeView>(canvas, "Trade");
+            t.window.title.text = "Takas · Mert";
+            void Side(TradeView.Side side, string name, string level, (string, string, int)[] items, string coin, bool locked)
+            {
+                side.name.text = name;
+                side.level.text = level;
+                side.back.sprite = locked ? t.locked : t.open;
+                for (var i = 0; i < side.slots.Length; i++)
+                    if (i < items.Length) side.slots[i].SetItem(items[i].Item1, items[i].Item2, items[i].Item3, false);
+                    else side.slots[i].SetEmpty();
+                side.count.text = $"{items.Length} / 8 eşya";
+                side.coin.SetTextWithoutNotify(coin);
+                side.status.text = locked ? "Kilitledi" : "Hazırlanıyor...";
+                side.status.color = locked ? new Color32(0x7a, 0x30, 0x45, 255) : new Color(0.27f, 0.16f, 0.25f, 0.65f);
+            }
+            var mine = bothLocked
+                ? new[] { ("lake.gem.kristal", "legendary", 1), ("lake.fish.sazan", "", 2), ("lake.junk.bottle", "", 2) }
+                : new[] { ("lake.gem.kristal", "legendary", 1), ("lake.fish.sazan", "", 2) };
+            Side(t.me, "Sen", "", mine, bothLocked ? "250" : "0", bothLocked);
+            Side(t.them, "Mert", "Lv 12", new[] { ("lake.fish.altin", "epic", 1), ("lake.fish.tunek", "rare", 1), ("lake.mat.scale", "rare", 1) }, "1.500", true);
+            t.strip.SetActive(bothLocked);
+            t.hint.gameObject.SetActive(!bothLocked);
+            t.stripText.text = "İki taraf kilitledi. Onay 3 sn sonra açılır: 2";
+            t.lockText.text = bothLocked ? "Kilidi aç" : "Kilitle";
+            t.confirm.interactable = false;
+            t.confirmText.text = bothLocked ? "Onayla (2)" : "Onayla";
+            if (askCount)
+            {
+                var c = Spawn<CountView>(canvas, "Count");
+                c.question.text = "Kaç tane? (Sazan, 3 var)";
+                c.dim.SetActive(true);
+                c.value.text = "2";
+            }
         }
 
         static void SettingsTabs(SettingsView v, bool general)

@@ -6,6 +6,7 @@ using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.UI;
 using CollectionGame.UI.Views;
+using UnityEngine.EventSystems;
 using UnityEngine;
 
 namespace CollectionGame.Social
@@ -32,7 +33,6 @@ namespace CollectionGame.Social
         public bool Active => State != null;
 
         float inviteAt, stateAt;
-        string coinText = "0";
 
         public TradeController(Connection net, FishingController fishing, Func<Prices> prices)
         {
@@ -123,7 +123,6 @@ namespace CollectionGame.Social
             State = m;
             stateAt = Time.time;
             Invite = null;
-            coinText = (m.you?.coin ?? 0).ToString();
             dirty = true;
             if (opening) fishing.RefreshBag();
             if (!string.IsNullOrEmpty(m.reason)) Toasts.Show(StateReason(m.reason), true);
@@ -195,32 +194,116 @@ namespace CollectionGame.Social
             }
         }
 
-        // ---------- UI (uGUI: Resources/UI/Trade and TradeInvite, PanelViews) ----------
+        // ---------- UI (uGUI: Resources/UI/Trade after takas-a/b/c, TradeInvite, Count) ----------
 
-        PanelView view, invite;
+        static readonly Color Brown = new Color32(0x7a, 0x30, 0x45, 255);
+        static readonly Color Green = new Color32(0x1e, 0x6f, 0x50, 255);
+        static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
+
+        TradeView view;
+        PanelView invite;
+        CountView count;
         bool dirty = true;
-        UnityEngine.UI.Button confirmButton;
-
-        PanelView Spawn(string name, Action closed)
-        {
-            var v = UiRoot.Get().Spawn<PanelView>(name);
-            if (v == null) return null;
-            v.window.Closed = closed;
-            v.Open = false;
-            return v;
-        }
+        /// <summary>Tooltip / menu shared by the windows (set by the world).</summary>
+        public PopupView Popup { get; set; }
 
         public void Destroy()
         {
             if (view != null) UnityEngine.Object.Destroy(view.gameObject);
             if (invite != null) UnityEngine.Object.Destroy(invite.gameObject);
+            if (count != null) UnityEngine.Object.Destroy(count.gameObject);
+        }
+
+        bool Ensure()
+        {
+            if (view != null && invite != null && count != null) return true;
+            var ui = UiRoot.Get();
+            if (view == null && (view = ui.Spawn<TradeView>("Trade")) != null)
+            {
+                view.window.Closed = Cancel;
+                view.window.Open = false;
+                view.lockButton.onClick.AddListener(() => net.Send(OpCode.TradeLock, new TradeLockMsg { locked = State != null && !State.youLocked }));
+                view.confirm.onClick.AddListener(() => net.Send(OpCode.TradeConfirm, new EmptyMsg()));
+                view.cancel.onClick.AddListener(Cancel);
+                view.me.coin.onEndEdit.AddListener(t =>
+                {
+                    if (State == null || State.youLocked) return;
+                    var coin = (int)Math.Min(int.MaxValue, Math.Min(long.TryParse(t, out var c) ? c : 0, fishing.Bag?.coin ?? 0));
+                    if (coin != MyCoin) SendSide(MyItems, MyStacks, coin);
+                });
+                foreach (var slot in view.me.slots)
+                {
+                    slot.Clicked = RemoveFromSlot;
+                    slot.Hovered = Hover;
+                    slot.Left = _ => Popup?.HideTooltip();
+                }
+                foreach (var slot in view.them.slots)
+                {
+                    slot.Hovered = Hover;
+                    slot.Left = _ => Popup?.HideTooltip();
+                }
+            }
+            if (invite == null && (invite = ui.Spawn<PanelView>("TradeInvite")) != null)
+            {
+                invite.window.Closed = () => Reply(false);
+                invite.Open = false;
+            }
+            if (count == null && (count = ui.Spawn<CountView>("Count")) != null) count.Close();
+            return view != null && invite != null && count != null;
+        }
+
+        /// <summary>Screen point over my side of the open trade window: a bag item dropped here goes in.</summary>
+        public bool OverMySide(Vector2 screen) =>
+            Active && view != null && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)view.me.back.transform, screen, null);
+
+        /// <summary>From the bag (drop or click): Float items go straight in, stacks ask how many.</summary>
+        public void Offer(ItemInstance item)
+        {
+            if (!Active || State.youLocked || item == null || item.locked) return;
+            AddItem(item.instanceId);
+        }
+
+        public void Offer(ItemStack stack)
+        {
+            if (!Active || State.youLocked || stack == null || !Ensure()) return;
+            MyStacks.TryGetValue(stack.defId, out var used);
+            var free = stack.count - used;
+            if (free <= 0) return;
+            if (free == 1)
+            {
+                ChangeStack(stack.defId, 1, stack.count);
+                return;
+            }
+            count.Ask($"Kaç tane? ({FishingController.ItemName(stack.defId)}, {free} var)", free, free, n => ChangeStack(stack.defId, n, stack.count));
+            count.transform.SetAsLastSibling();
+        }
+
+        void RemoveFromSlot(SlotView slot)
+        {
+            if (State == null || State.youLocked) return;
+            if (slot.Data is ItemInstance it) RemoveItem(it.instanceId);
+            else if (slot.Data is ItemStack st) ChangeStack(st.defId, -st.count, st.count);
+        }
+
+        void Hover(SlotView slot)
+        {
+            if (Popup == null || slot.Data == null) return;
+            var p = prices();
+            switch (slot.Data)
+            {
+                case ItemInstance it:
+                    var cond = p != null ? $" · {Prices.ConditionName(p.ConditionOf(it.@float))}" : "";
+                    Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}\nFloat {it.@float:0.0000}{cond}");
+                    break;
+                case ItemStack st:
+                    Popup.ShowTooltip($"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet");
+                    break;
+            }
         }
 
         public void Tick()
         {
-            if (view == null) view = Spawn("Trade", Cancel);
-            if (invite == null) invite = Spawn("TradeInvite", () => Reply(false));
-            if (view == null || invite == null) return;
+            if (!Ensure()) return;
 
             // Invite box.
             var inviteLeft = Invite == null ? 0f : Invite.expiresInMs / 1000f - (Time.time - inviteAt);
@@ -238,120 +321,67 @@ namespace CollectionGame.Social
             if (Invite != null) invite.header.text = $"{Invite.name} sana takas teklif ediyor ({Mathf.CeilToInt(inviteLeft)})";
 
             // Trade window.
-            if (view.Open != Active)
+            if (view.window.Open != Active)
             {
-                view.Open = Active;
+                view.window.Open = Active;
+                if (!Active) count.Close();
                 dirty = true;
             }
             if (!Active) return;
-            if (dirty) Redraw(view);
-            if (confirmButton != null)
-            {
-                var s = State;
-                var left = ConfirmLeft(s);
-                confirmButton.interactable = s.youLocked && s.themLocked && left <= 0f && !s.youConfirmed;
-                var label = s.youConfirmed ? "Onaylandı" : s.youLocked && s.themLocked && left > 0f ? $"Onayla ({Mathf.CeilToInt(left)})" : "Onayla";
-                var text = confirmButton.GetComponentInChildren<UnityEngine.UI.Text>();
-                if (text.text != label) text.text = label;
-            }
-        }
+            if (dirty && !view.me.coin.isFocused) Redraw();
 
-        void Redraw(PanelView v)
-        {
-            dirty = false;
             var s = State;
-            v.window.title.text = $"Takas: {s.withName}";
-            v.header.text = Status(s);
-            v.headerRight.text = $"{Kit.Num(fishing.Bag?.coin ?? 0)} Coin";
-            v.ClearRows();
-            v.ClearFooter();
-            v.ColumnTitle(1, s.youLocked ? "Sen (kilitli)" : "Sen");
-            v.ColumnTitle(2, s.themLocked ? $"{s.withName} (kilitli)" : s.withName);
-            DrawBag(v, s);
-            DrawSide(v, 1, s.you, true, s.youLocked);
-            DrawSide(v, 2, s.them, false, true);
-            v.Line($"Coin: {Kit.Num(s.you?.coin ?? 0)}", 1, false);
-            v.Line($"Coin: {Kit.Num(s.them?.coin ?? 0)}", 2, false);
-            v.footer.text = "Kilitli eşya ve toz takasa konamaz. Bir şey değişirse iki kilit de açılır.";
-
-            v.FooterInput(coinText, 90, t => coinText = t, 10, true, "Coin");
-            v.FooterButton("Coin koy", "wood", s.youLocked ? (Action)null : () =>
+            var bothLocked = s.youLocked && s.themLocked;
+            var left = ConfirmLeft(s);
+            var ready = bothLocked && left <= 0f && !s.youConfirmed;
+            view.confirm.interactable = ready;
+            var label = s.youConfirmed ? "Onaylandı" : bothLocked && left > 0f ? $"Onayla ({Mathf.CeilToInt(left)})" : "Onayla";
+            if (view.confirmText.text != label) view.confirmText.text = label;
+            view.strip.SetActive(bothLocked);
+            view.hint.gameObject.SetActive(!bothLocked);
+            if (bothLocked)
             {
-                var coin = (int)Math.Min(int.MaxValue, Math.Min(long.TryParse(coinText, out var c) ? c : 0, fishing.Bag?.coin ?? 0));
-                SendSide(MyItems, MyStacks, coin);
-            }, 90);
-            v.FooterSpace();
-            v.FooterButton(s.youLocked ? "Kilidi aç" : "Kilitle", "wood", () => net.Send(OpCode.TradeLock, new TradeLockMsg { locked = !s.youLocked }));
-            confirmButton = v.FooterButton("Onayla", "green", () => net.Send(OpCode.TradeConfirm, new EmptyMsg()));
-            v.FooterButton("İptal", "red", Cancel, 80);
+                var strip = s.youConfirmed && !s.themConfirmed ? "Onayladın. Karşı tarafın onayı bekleniyor."
+                    : s.themConfirmed && !s.youConfirmed ? "Karşı taraf onayladı."
+                    : left > 0f ? $"İki taraf kilitledi. Onay {Mathf.CeilToInt(left)} sn sonra açılır" : "İki taraf kilitledi. Onaylayabilirsin.";
+                if (view.stripText.text != strip) view.stripText.text = strip;
+            }
         }
 
         float ConfirmLeft(TradeStateMsg s) => s.confirmInMs < 0 ? 0f : s.confirmInMs / 1000f - (Time.time - stateAt);
 
-        static string Status(TradeStateMsg s)
+        void Redraw()
         {
-            if (s.youConfirmed && !s.themConfirmed) return "Onayladın. Karşı tarafın onayı bekleniyor.";
-            if (s.themConfirmed && !s.youConfirmed) return "Karşı taraf onayladı.";
-            if (s.youLocked && s.themLocked) return "İkiniz de kilitlediniz: geri sayımdan sonra Onayla.";
-            if (s.youLocked) return "Kilitledin. Karşı tarafın kilidi bekleniyor.";
-            return "Çantadan eşya ekle, sonra Kilitle.";
+            dirty = false;
+            var s = State;
+            view.window.title.text = $"Takas · {s.withName}";
+            DrawSide(view.me, s.you, "Sen", "", s.youLocked, s.youConfirmed);
+            DrawSide(view.them, s.them, s.withName, "", s.themLocked, s.themConfirmed);
+            view.me.coin.SetTextWithoutNotify((s.you?.coin ?? 0).ToString());
+            view.them.coin.SetTextWithoutNotify(Kit.Num(s.them?.coin ?? 0));
+            view.me.coin.interactable = !s.youLocked;
+            view.lockText.text = s.youLocked ? "Kilidi aç" : "Kilitle";
         }
 
-        void DrawBag(PanelView v, TradeStateMsg s)
+        void DrawSide(TradeView.Side side, TradeOfferView offer, string name, string level, bool locked, bool confirmed)
         {
-            var bag = fishing.Bag;
-            if (bag == null)
+            side.name.text = name;
+            side.level.text = level;
+            side.back.sprite = locked ? view.locked : view.open;
+            var entries = new List<object>();
+            entries.AddRange(offer?.items ?? Array.Empty<ItemInstance>());
+            entries.AddRange(offer?.stacks ?? Array.Empty<ItemStack>());
+            for (var i = 0; i < side.slots.Length; i++)
             {
-                v.Line("Yükleniyor...");
-                return;
+                var slot = side.slots[i];
+                if (i >= entries.Count) slot.SetEmpty();
+                else if (entries[i] is ItemInstance it) slot.SetItem(it.defId, it.tier, 1, false);
+                else if (entries[i] is ItemStack st) slot.SetItem(st.defId, "", st.count, false);
+                slot.Data = i < entries.Count ? entries[i] : null;
             }
-            var offered = new HashSet<string>(MyItems);
-            var stacks = MyStacks;
-            var p = prices();
-            foreach (var it in (bag.items ?? Array.Empty<ItemInstance>()).Where(i => !offered.Contains(i.instanceId))
-                         .OrderBy(i => Tiers.Rank(i.tier)).ThenBy(i => i.defId))
-            {
-                var id = it.instanceId;
-                v.Row().Mark(it.defId, it.tier, 1, it.locked).Title(FishingController.ItemName(it.defId)).Sub(ItemText.Short(it, p))
-                    .Button("+", "wood", s.youLocked || it.locked ? (Action)null : () => AddItem(id), 26);
-            }
-            foreach (var st in bag.stacks ?? Array.Empty<ItemStack>())
-            {
-                stacks.TryGetValue(st.defId, out var used);
-                var free = st.count - used;
-                if (free <= 0) continue;
-                var def = st.defId;
-                var total = st.count;
-                var row = v.Row().Mark(def, "", free).Title(FishingController.ItemName(def)).Sub($"{free} adet");
-                row.Button("+1", "wood", s.youLocked ? (Action)null : () => ChangeStack(def, 1, total), 30);
-                row.Button("Hepsi", "wood", s.youLocked ? (Action)null : () => ChangeStack(def, free, total), 50);
-            }
-        }
-
-        void DrawSide(PanelView v, int column, TradeOfferView side, bool mine, bool locked)
-        {
-            var p = prices();
-            var any = false;
-            foreach (var it in side?.items ?? Array.Empty<ItemInstance>())
-            {
-                any = true;
-                var id = it.instanceId;
-                var row = v.Row(column).Mark(it.defId, it.tier).Title(FishingController.ItemName(it.defId)).Sub($"{ItemText.Short(it, p)} · Float {it.@float:0.0000}");
-                if (mine && !locked) row.Button("-", "red", () => RemoveItem(id), 24);
-            }
-            foreach (var st in side?.stacks ?? Array.Empty<ItemStack>())
-            {
-                any = true;
-                var def = st.defId;
-                var count = st.count;
-                var row = v.Row(column).Mark(def, "", count).Title(FishingController.ItemName(def)).Sub($"{count} adet");
-                if (mine && !locked)
-                {
-                    row.Button("-1", "red", () => ChangeStack(def, -1, count), 28);
-                    row.Button("x", "red", () => ChangeStack(def, -count, count), 24);
-                }
-            }
-            if (!any) v.Line("Boş", column);
+            side.count.text = $"{entries.Count} / {side.slots.Length} eşya";
+            side.status.text = confirmed ? "Onayladı" : locked ? "Kilitledi" : "Hazırlanıyor...";
+            side.status.color = confirmed ? Green : locked ? Brown : Faint;
         }
     }
 }

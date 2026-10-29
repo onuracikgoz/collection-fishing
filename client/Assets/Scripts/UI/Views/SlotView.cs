@@ -10,7 +10,8 @@ namespace CollectionGame.UI.Views
     /// One 40x40 item slot (kit slot_*): frame shows the Tier, a short name stands in for the icon
     /// until item icons exist, the count sits in the corner. Made by UiPrefabBuilder.
     /// </summary>
-    public sealed class SlotView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
+    public sealed class SlotView : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler,
+        IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public Image frame;
         public Text label;
@@ -21,6 +22,8 @@ namespace CollectionGame.UI.Views
         public Sprite[] tiers;
 
         public Action<SlotView> Clicked, RightClicked, Hovered, Left;
+        /// <summary>Drag from this slot (bag → trade window): began, moved, dropped, with the pointer event.</summary>
+        public Action<SlotView, PointerEventData> DragBegan, Dragged, Dropped;
         public object Data { get; set; }
 
         public void SetEmpty(bool lockedSlot = false)
@@ -47,6 +50,10 @@ namespace CollectionGame.UI.Views
             var name = Fishing.FishingController.ItemName(defId);
             return name.Length <= 5 ? name : name.Substring(0, 4);
         }
+
+        public void OnBeginDrag(PointerEventData e) => DragBegan?.Invoke(this, e);
+        public void OnDrag(PointerEventData e) => Dragged?.Invoke(this, e);
+        public void OnEndDrag(PointerEventData e) => Dropped?.Invoke(this, e);
 
         public void OnPointerEnter(PointerEventData e) => Hovered?.Invoke(this);
         public void OnPointerExit(PointerEventData e) => Left?.Invoke(this);

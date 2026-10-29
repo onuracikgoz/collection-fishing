@@ -81,7 +81,11 @@ namespace CollectionGame.UI
                 s.gameObject.SetActive(true);
                 s.Hovered = Hover;
                 s.Left = _ => popup?.HideTooltip();
-                s.Clicked = s.RightClicked = Menu;
+                s.Clicked = Click;
+                s.RightClicked = Menu;
+                s.DragBegan = BeginDrag;
+                s.Dragged = MoveDrag;
+                s.Dropped = Drop;
                 slots.Add(s);
             }
             for (var i = 0; i < slots.Count; i++)
@@ -105,6 +109,63 @@ namespace CollectionGame.UI
         {
             if (popup == null || s.Data == null) return;
             popup.ShowTooltip(Describe(s.Data));
+        }
+
+        /// <summary>Left click: with a trade open the item goes to the trade, else the menu opens.</summary>
+        void Click(SlotView s)
+        {
+            if (CanTrade && Give(s.Data)) return;
+            Menu(s);
+        }
+
+        bool Give(object data)
+        {
+            switch (data)
+            {
+                case ItemInstance it when !it.locked:
+                    trade.Offer(it);
+                    return true;
+                case ItemStack st:
+                    trade.Offer(st);
+                    return true;
+                default:
+                    return false;
+            }
+        }
+
+        // ----- drag a slot onto the trade window (takas: "Çantadan sürükle bırak") -----
+
+        SlotView ghost;
+
+        void BeginDrag(SlotView s, UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (s.Data == null || !CanTrade) return;
+            popup?.HideTooltip();
+            ghost = UnityEngine.Object.Instantiate(s, UiRoot.Get().transform, false);
+            ghost.name = "DragGhost";
+            var group = ghost.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            group.alpha = 0.85f;
+            ghost.transform.SetAsLastSibling();
+            MoveDrag(s, e);
+        }
+
+        void MoveDrag(SlotView s, UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (ghost == null) return;
+            var rt = (RectTransform)ghost.transform;
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(UiRoot.Get().Rect, e.position, null, out var local);
+            rt.anchoredPosition = local - UiRoot.Get().Rect.rect.min;
+        }
+
+        void Drop(SlotView s, UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (ghost == null) return;
+            UnityEngine.Object.Destroy(ghost.gameObject);
+            ghost = null;
+            if (trade.OverMySide(e.position)) Give(s.Data);
         }
 
         string Describe(object data)

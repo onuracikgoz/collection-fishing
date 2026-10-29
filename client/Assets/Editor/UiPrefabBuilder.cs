@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 9;
+        public const int Version = 11;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -71,7 +71,8 @@ namespace CollectionGame.EditorTools
             Save(BuildPopup(), "Popup");
             Save(BuildPanel("Quests", "Günlük görevler", new Vector2(600, 330), 1), "Quests");
             Save(BuildSettings(), "Settings");
-            Save(BuildPanel("Trade", "Takas", new Vector2(780, 480), 3, new[] { "Çanta", "Sen", "Karşı taraf" }), "Trade");
+            Save(BuildTrade(), "Trade");
+            Save(BuildCount(), "Count");
             Save(BuildPanel("TradeInvite", "Takas teklifi", new Vector2(400, 128), 1), "TradeInvite");
             Save(BuildPanel("Market", "Pazar", new Vector2(760, 520), 1), "Market");
             Save(BuildPanel("Stall", "Tezgah", new Vector2(660, 450), 1), "Stall");
@@ -879,6 +880,106 @@ namespace CollectionGame.EditorTools
             hint.horizontalOverflow = HorizontalWrapMode.Wrap;
             view.reveal = Btn(cover, "Reveal", "wood", "Göster", 15);
             At((RectTransform)view.reveal.transform, Center, new Vector2(0, -45), new Vector2(120, 32), Center);
+            return wrap.gameObject;
+        }
+
+        // ================= Trade (drafts takas-a, takas-b, takas-c) =================
+
+        static TradeView.Side TradeSide(Transform w, string name, float x, bool mine)
+        {
+            var side = new TradeView.Side();
+            var panel = Abs(w, name, x, 30, 195, 268);
+            side.back = Img(panel, "outline");
+            side.name = TextAt(panel, "Name", "Sen", 12, 18, 110, 16, Ink);
+            side.level = TextAt(panel, "Level", "", 72, 19, 100, 13, Faint);
+            side.slots = new SlotView[8];
+            for (var i = 0; i < 8; i++)
+            {
+                var slot = Slot(panel, "Slot" + i);
+                At((RectTransform)slot.transform, TopLeft, new Vector2(12 + i % 4 * 44, -(36 + i / 4 * 44)), new Vector2(40, 40));
+                side.slots[i] = slot;
+            }
+            side.count = TextAt(panel, "Count", "0 / 8 eşya", 12, 141, 170, 14, Faint);
+            TextAt(panel, "CoinLabel", "Coin", 12, 168, 100, 14, Ink);
+            var field = Abs(panel, "Coin", 12, 181, 171, 30);
+            side.coin = Field(field, "0", 15);
+            field.GetComponent<Image>().sprite = S("input_focus"); // gold edge: Coin
+            side.coin.contentType = mine ? InputField.ContentType.IntegerNumber : InputField.ContentType.Standard;
+            side.coin.characterLimit = 10;
+            ((RectTransform)side.coin.textComponent.transform).offsetMin = new Vector2(28, 1);
+            ((RectTransform)side.coin.placeholder.transform).offsetMin = new Vector2(28, 1);
+            Icon(field, "CoinIcon", new Vector2(0, 0.5f), new Vector2(8, 0), CoinColour, 12);
+            side.coin.interactable = mine;
+            side.status = TextAt(panel, "Status", "", 12, 234, 170, 15, Hex("7a3045"));
+            return side;
+        }
+
+        static GameObject BuildTrade()
+        {
+            // takas-a: window 465x418 at (510, 262) on the 1408x896 draft.
+            var size = new Vector2(465, 418);
+            var wrap = Stretch(Node("Trade", null));
+            var view = wrap.gameObject.AddComponent<TradeView>();
+            view.window = Window(wrap, "Window", "Takas", size);
+            At((RectTransform)view.window.transform, Center, new Vector2(38, -23), size, Center);
+            var w = view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = (RectTransform)w;
+            view.open = S("outline");
+            view.locked = S("panel_locked");
+            view.me = TradeSide(w, "Me", 22, true);
+            view.them = TradeSide(w, "Them", 250, false);
+
+            view.hint = TextAt(w, "Hint", "Çantadan sürükle bırak. Bir şey değişirse kilitler açılır.", 22, 345, 423, 14, Faint, TextAnchor.MiddleCenter);
+            var strip = Abs(w, "Strip", 22, 334, 423, 24);
+            Img(strip, "box_dark");
+            view.strip = strip.gameObject;
+            view.stripText = Txt(Stretch(Node("Text", strip)), "", 14, Hex("fbff86"), TextAnchor.MiddleCenter, true);
+            strip.gameObject.SetActive(false);
+
+            view.lockButton = Btn(w, "Lock", "wood", "Kilitle", 16);
+            At((RectTransform)view.lockButton.transform, TopLeft, new Vector2(22, -366), new Vector2(138, 40));
+            view.lockText = view.lockButton.GetComponentInChildren<Text>();
+            view.confirm = Btn(w, "Confirm", "green", "Onayla", 16);
+            At((RectTransform)view.confirm.transform, TopLeft, new Vector2(175, -366), new Vector2(157, 40));
+            view.confirmText = view.confirm.GetComponentInChildren<Text>();
+            view.cancel = Btn(w, "Cancel", "red", "İptal", 16);
+            At((RectTransform)view.cancel.transform, TopLeft, new Vector2(336, -366), new Vector2(109, 40));
+            return wrap.gameObject;
+        }
+
+        static GameObject BuildCount()
+        {
+            // takas-b: the "Kaç tane?" box, 296x150 at (590, 392).
+            var size = new Vector2(296, 150);
+            var wrap = Stretch(Node("Count", null));
+            var view = wrap.gameObject.AddComponent<CountView>();
+            // takas-b dims what is behind the question (and catches clicks there).
+            var dim = Stretch(Node("Dim", wrap));
+            Img(dim, "box_dark", Image.Type.Sliced, true);
+            view.dim = dim.gameObject;
+            view.window = Window(wrap, "Window", "", size);
+            Object.DestroyImmediate(view.window.plate.gameObject);
+            Object.DestroyImmediate(view.window.close.gameObject);
+            At((RectTransform)view.window.transform, Center, new Vector2(34, -19), size, Center);
+            var w = view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = (RectTransform)w;
+            view.question = TextAt(w, "Question", "Kaç tane?", 26, 34, 250, 16, Ink);
+            view.minus = Btn(w, "Minus", "wood", "-", 18);
+            At((RectTransform)view.minus.transform, TopLeft, new Vector2(34, -56), new Vector2(38, 32));
+            var field = Abs(w, "Value", 98, 56, 98, 32);
+            view.value = Field(field, "1", 16);
+            field.GetComponent<Image>().sprite = S("input_focus");
+            view.value.contentType = InputField.ContentType.IntegerNumber;
+            view.value.characterLimit = 6;
+            view.value.textComponent.alignment = TextAnchor.MiddleCenter;
+            view.plus = Btn(w, "Plus", "wood", "+", 18);
+            At((RectTransform)view.plus.transform, TopLeft, new Vector2(222, -56), new Vector2(38, 32));
+            view.ok = Btn(w, "Ok", "green", "Tamam", 15);
+            At((RectTransform)view.ok.transform, TopLeft, new Vector2(34, -100), new Vector2(106, 34));
+            view.cancel = Btn(w, "Cancel", "wood", "Vazgeç", 15);
+            At((RectTransform)view.cancel.transform, TopLeft, new Vector2(154, -100), new Vector2(106, 34));
             return wrap.gameObject;
         }
 
