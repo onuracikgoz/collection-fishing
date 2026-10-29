@@ -90,10 +90,17 @@ for variant, ramp in RAMPS.items():
 
 X = ["..........", ".x......x.", ".xx....xx.", "..xx..xx..", "...xxxx...",
      "....xx....", "...xxxx...", "..xx..xx..", ".xx....xx.", ".x......x."]
-for state in ("normal", "hover", "pressed"):
-    im = button(RAMPS["red"], state, 12, 12)
-    cross = from_ascii(X, {"x": WHITE if state != "pressed" else c("f68181")})
-    im.alpha_composite(cross, (1, 1 + (1 if state == "pressed" else 0)) if state == "pressed" else (1, 0))
+# Close button: same wood as the window frame, so it sits on the frame instead of shouting.
+CLOSE = {"normal": (WD, WM, WL), "hover": (WM, W, WH), "pressed": (INK, WD, WM)}
+for state, (deep, face, light) in CLOSE.items():
+    im = new(12, 12)
+    r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, face)
+    r(im, 1, 1, 10, 1, light)                            # light top edge like the buttons
+    if state != "pressed": r(im, 1, 10, 10, 10, deep)    # bottom shade
+    im.putpixel((1, 1), NAIL)                            # same brass peg as the frame corners
+    dy = 1 if state == "pressed" else 0
+    im.alpha_composite(from_ascii(X, {"x": PAPER if state != "hover" else WHITE}).crop((1, 1, 9, 9)), (2, 2 + dy))
+    round_corners(im)
     put(f"button_close_{state}", im)
 
 # ---------- window: plank frame, sage linen, drop shadow ----------
