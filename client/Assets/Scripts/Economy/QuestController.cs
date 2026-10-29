@@ -175,7 +175,7 @@ namespace CollectionGame.Economy
             dirty = false;
             shownSecond = -1;
             v.coin.text = Kit.Num(fishing.Bag?.coin ?? 0);
-            v.diamond.text = Kit.Num(fishing.Bag?.diamond ?? 0);
+            v.diamond.text = Kit.Num(fishing.Bag?.dust ?? 0); // toz, as on the merchant tabs
             var s = State;
             var quests = s?.quests ?? Array.Empty<QuestProgress>();
             for (var i = 0; i < v.quests.Length; i++)
