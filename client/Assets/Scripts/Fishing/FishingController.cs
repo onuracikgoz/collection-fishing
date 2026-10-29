@@ -69,8 +69,6 @@ namespace CollectionGame.Fishing
         float stateSince;
         float reelStartedAt;
         bool reelPressed;
-        string toast;
-        float toastUntil;
 
         public FishingController(Connection net, Transform root, Func<string, Vector2?> playerPos, Func<bool> movementSynced)
         {
@@ -304,12 +302,13 @@ namespace CollectionGame.Fishing
                 Level = e.xpGain.level;
                 Xp = e.xpGain.xp;
                 XpNext = e.xpGain.xpNext;
-                if (e.xpGain.levelUp != null && e.xpGain.levelUp.level > 0) ShowToast($"Level atladın: {e.xpGain.levelUp.level}!");
+                if (e.xpGain.levelUp != null && e.xpGain.levelUp.level > 0) Toasts.LevelUp(e.xpGain.levelUp.level, e.xpGain.levelUp.unlocks);
             }
             LastOutcome = e.outcome;
             LastEnd = e;
             Debug.Log($"[Fish] FISH_END {e.outcome} {e.reason} {e.defId} energy {e.energy}");
             ShowToast(e.outcome == FishOutcome.Missed ? (hookedEarly ? "Erken çektin: kıpırdama sahte, şamandıra batınca çek" : "Geç kaldın: şamandıra batınca hemen Space") : Describe(e));
+            Warnings(e);
             hookedEarly = false;
             if (keepsBobber) return;
             Reel = null;
@@ -359,10 +358,21 @@ namespace CollectionGame.Fishing
             stateSince = Time.time;
         }
 
-        void ShowToast(string text)
+        void ShowToast(string text) => Toasts.Show(text);
+
+        // Client-state warnings of bildirim-yigin, once when crossing (display thresholds only).
+        bool energyWarned, rodWarned;
+
+        void Warnings(FishEndMsg e)
         {
-            toast = text;
-            toastUntil = Time.time + ToastSeconds;
+            if (e.outcome == FishOutcome.Rejected && e.reason == "BAG_FULL")
+                Toasts.Notify($"Çanta dolu {Bag?.slotsUsed}/{Bag?.slotsMax}", "Av yapılamaz. Sat veya parçala.", Toasts.Kind.Block);
+            var lowEnergy = EnergyMax > 0 && Energy <= EnergyMax / 10;
+            if (lowEnergy && !energyWarned) Toasts.Notify($"Enerji azaldı: {Energy}/{EnergyMax}", "Bitince sadece çöp çıkar.", Toasts.Kind.Warn);
+            energyWarned = lowEnergy;
+            var lowRod = Rod != null && Rod.max > 0 && Rod.durability * 100 / Rod.max <= 15;
+            if (lowRod && !rodWarned) Toasts.Notify($"Olta yıpranıyor: %{Rod.durability * 100 / Rod.max}", "Tüccar'da (Dükkan) tamir et.", Toasts.Kind.Warn);
+            rodWarned = lowRod;
         }
 
         static Vector2 DirVector(string facing)
@@ -420,11 +430,6 @@ namespace CollectionGame.Fishing
             // Energy, rod and bait are on the uGUI HUD (World/WorldHud.cs); the hint, the cast meter,
             // the bite mark and the reel are drawn next to the player by World/FishingHud.cs.
 
-            if (toast != null && Time.time < toastUntil)
-            {
-                var size = Gui.Toast.CalcSize(new GUIContent(toast));
-                GUI.Box(new Rect((Gui.Width - size.x) / 2f - 12, 60, size.x + 24, size.y + 12), toast, Gui.Toast);
-            }
 
         }
 

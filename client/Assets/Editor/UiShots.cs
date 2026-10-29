@@ -442,6 +442,48 @@ namespace CollectionGame.EditorTools
                 v.newCondition.text = "Excellent";
                 v.swapCaption.text = "Tünek · Rare · eski kopya çantaya düşer";
             });
+            Shot(outDir, "bildirim-yigin", Path.Combine(drafts, "bildirim-yigin.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<NoticesView>(canvas, "Notices");
+                (string, string, Color32, bool)[] rows =
+                {
+                    ("Çanta dolu 100/100", "Av yapılamaz. Sat veya parçala.", new Color32(0xe8, 0x3b, 0x3b, 255), false),
+                    ("Enerji azaldı: 10/100", "Bitince sadece çöp çıkar.", new Color32(0xf9, 0xc2, 0x2b, 255), false),
+                    ("Olta yıpranıyor: %12", "Tüccar'da (Dükkan) tamir et.", new Color32(0xf9, 0xc2, 0x2b, 255), false),
+                    ("Tezgahta satış: +240", "Mert Kral Sazan'ı aldı.", new Color32(0xf7, 0x96, 0x17, 255), false),
+                };
+                for (var i = 0; i < 4; i++)
+                {
+                    var b = v.boxes[i];
+                    b.root.gameObject.SetActive(true);
+                    b.icon.color = rows[i].Item3;
+                    b.timer.color = rows[i].Item3;
+                    b.title.text = rows[i].Item1;
+                    b.sub.text = rows[i].Item2;
+                    if (i == 0) b.sub.color = rows[i].Item3;
+                    b.timer.rectTransform.localScale = new Vector3(i == 0 ? 1f : 0.7f - i * 0.1f, 1, 1);
+                }
+                v.more.SetActive(true);
+                v.moreText.text = "+3 bildirim daha";
+            });
+            Shot(outDir, "bildirim-ust", Path.Combine(drafts, "bildirim-ust.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<NoticesView>(canvas, "Notices");
+                v.announce.SetActive(true);
+                v.announceTitle.text = "<color=#8fd3ff>Ece</color>  Mythic Altın Sazan yakaladı!";
+                v.announceSub.text = "Pristine";
+                v.levelUp.gameObject.SetActive(true);
+                v.level.text = "Lv 8";
+                string[] t = { "+5 enerji", "Yeni olta", "Yeni alan:" }, sub = { "sınırı", "açıldı", "Göl derinleri" };
+                for (var i = 0; i < 3; i++)
+                {
+                    v.unlocks[i].SetActive(true);
+                    v.unlockTitles[i].text = t[i];
+                    v.unlockSubs[i].text = sub[i];
+                }
+            });
             Shot(outDir, "ayarlar-genel", Path.Combine(drafts, "ayarlar-genel.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));

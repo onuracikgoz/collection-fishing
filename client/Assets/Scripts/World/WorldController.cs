@@ -235,6 +235,7 @@ namespace CollectionGame.World
                 collection.Tick();
                 social.Tick();
                 economy.Tick();
+                Toasts.Tick();
                 if (social.FriendsOpen && settings.PmNeedsLoad) settings.LoadPm();
                 settings.Tick();
                 trade.Tick();
@@ -383,6 +384,13 @@ namespace CollectionGame.World
                 case OpCode.ItemLockResult:
                     bagPanel.OnLockResult(JsonUtility.FromJson<ItemLockResultMsg>(m.Json));
                     break;
+                case OpCode.Announce:
+                {
+                    var a = JsonUtility.FromJson<AnnounceMsg>(m.Json);
+                    var cond = economy.Prices != null ? Prices.ConditionName(a.condition) : a.condition;
+                    Toasts.Announce(a.name, $"{a.tier} {FishingController.ItemName(a.defId)}", cond);
+                    break;
+                }
                 case OpCode.TradeInvite:
                     trade.OnInvite(JsonUtility.FromJson<TradeInviteMsg>(m.Json));
                     break;
@@ -432,6 +440,15 @@ namespace CollectionGame.World
             }
         }
 
+        /// <summary>Nakama's own friend notifications: a request came in, a request was accepted.</summary>
+        const int FriendRequestCode = -2, FriendAcceptedCode = -3;
+
+        [Serializable]
+        class FriendNotice
+        {
+            public string username;
+        }
+
         /// <summary>Live Nakama notifications (docs/protokol.md, bildirim kodları).</summary>
         void HandleNotice(Connection.Notice n)
         {
@@ -446,6 +463,20 @@ namespace CollectionGame.World
                 case NotifyCode.DeletionCancelled:
                     settings.OnDeletionCancelled();
                     break;
+                case FriendRequestCode:
+                {
+                    var who = JsonUtility.FromJson<FriendNotice>(string.IsNullOrEmpty(n.Json) ? "{}" : n.Json)?.username ?? "Bir oyuncu";
+                    var id = n.SenderId;
+                    Toasts.Notify($"{who} arkadaş istedi", null, Toasts.Kind.Info, "Kabul", () => social.AddFriend(id, who));
+                    if (social.FriendsOpen) social.Refresh();
+                    break;
+                }
+                case FriendAcceptedCode:
+                {
+                    var who = JsonUtility.FromJson<FriendNotice>(string.IsNullOrEmpty(n.Json) ? "{}" : n.Json)?.username ?? "Bir oyuncu";
+                    Toasts.Show($"{who} arkadaşlığını kabul etti");
+                    break;
+                }
                 case NotifyCode.LoginLinked:
                     Toasts.Show("Hesabına yeni bir giriş yolu bağlandı");
                     break;
@@ -542,7 +573,7 @@ namespace CollectionGame.World
                 social.DrawGui();
                 economy.DrawGui();
             }
-            Toasts.Draw();
+
         }
     }
 }

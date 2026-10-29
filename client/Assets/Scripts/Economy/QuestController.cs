@@ -81,7 +81,7 @@ namespace CollectionGame.Economy
             var parts = new List<string>();
             foreach (var w in r.rewards ?? Array.Empty<QuestReward>())
                 parts.Add(w.kind == "coin" ? $"{Kit.Num(w.count)} Coin" : w.kind == "dust" ? $"{w.count} toz" : $"{FishingController.ItemName(w.defId)} x{w.count}");
-            Toasts.Show($"{r.chestDay}. gün sandığı: {string.Join(", ", parts)}");
+            Toasts.Money($"{r.chestDay}. gün sandığı açıldı", string.Join(", ", parts));
             if (fishing.Bag != null)
             {
                 fishing.Bag.coin = r.coin;

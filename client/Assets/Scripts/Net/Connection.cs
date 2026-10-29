@@ -29,8 +29,8 @@ namespace CollectionGame.Net
         public readonly struct Notice
         {
             public readonly int Code;
-            public readonly string Subject, Json;
-            public Notice(int code, string subject, string json) { Code = code; Subject = subject; Json = json; }
+            public readonly string Subject, Json, SenderId;
+            public Notice(int code, string subject, string json, string senderId) { Code = code; Subject = subject; Json = json; SenderId = senderId; }
         }
 
         readonly IClient client;
@@ -238,7 +238,7 @@ namespace CollectionGame.Net
             socket = s;
             s.ReceivedNotification += n =>
             {
-                lock (notices) notices.Enqueue(new Notice(n.Code, n.Subject, n.Content));
+                lock (notices) notices.Enqueue(new Notice(n.Code, n.Subject, n.Content, n.SenderId));
             };
             s.ReceivedMatchState += state =>
             {

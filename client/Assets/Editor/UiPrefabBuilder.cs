@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 22;
+        public const int Version = 23;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -78,6 +78,7 @@ namespace CollectionGame.EditorTools
             Save(BuildBank(), "Bank");
             Save(BuildFishing(), "Fishing");
             Save(BuildCatch(), "Catch");
+            Save(BuildNotices(), "Notices");
             Save(BuildSettings(), "Settings");
             Save(BuildTrade(), "Trade");
             Save(BuildCount(), "Count");
@@ -1874,6 +1875,75 @@ namespace CollectionGame.EditorTools
             Img(cap, "box_dark");
             view.swapCaption = Txt(Stretch(Node("Text", cap)), "", 12, Paper, TextAnchor.MiddleCenter);
             return wrap.gameObject;
+        }
+
+        // ================= Notifications (drafts bildirim-yigin, bildirim-ust) =================
+
+        static GameObject BuildNotices()
+        {
+            var root = Stretch(Node("Notices", null));
+            var view = root.gameObject.AddComponent<NoticesView>();
+
+            // Stack: 348x50 boxes from (1042, 74), 60 apart; "+N bildirim daha" under them.
+            view.boxes = new NoticesView.Box[4];
+            for (var i = 0; i < 4; i++)
+            {
+                var rt = At(Node("Box" + i, root), TopRight, new Vector2(-18, -(74 + i * 60)), new Vector2(348, 50));
+                var b = new NoticesView.Box { root = rt };
+                Img(rt, "box_dark", Image.Type.Sliced, true);
+                b.hover = rt.gameObject.AddComponent<CardHover>();
+                b.icon = Solid(Abs(rt, "Icon", 5, 5, 36, 36), Hex("e83b3b"));
+                b.title = TextAt(rt, "Title", "", 52, 14, 290, 14, Paper, TextAnchor.MiddleLeft, true);
+                b.sub = TextAt(rt, "Sub", "", 52, 33, 290, 13, Paper);
+                var timer = Abs(rt, "Timer", 4, 45, 340, 3);
+                timer.pivot = new Vector2(0, 1);
+                b.timer = Solid(timer, Hex("f9c22b"));
+                b.action = SmallButton(rt, "Action", "green", "Kabul", 250, 10, 88, 26, 13);
+                b.actionText = b.action.GetComponentInChildren<Text>();
+                b.action.gameObject.SetActive(false);
+                rt.gameObject.SetActive(false);
+                view.boxes[i] = b;
+            }
+            var more = At(Node("More", root), TopRight, new Vector2(-18, -(74 + 4 * 60)), new Vector2(150, 24));
+            Img(more, "box_dark");
+            view.moreText = Txt(Stretch(Node("Text", more)), "", 13, Paper, TextAnchor.MiddleCenter, true);
+            view.more = more.gameObject;
+            more.gameObject.SetActive(false);
+
+            // Rare catch: 497x40 at the top centre with a red edge.
+            var ann = At(Node("Announce", root), Top, new Vector2(0, -18), new Vector2(497, 40));
+            Img(ann, "box_dark");
+            Solid(Abs(ann, "Edge", 0, 0, 4, 40), Hex("e83b3b"));
+            Solid(Abs(ann, "Icon", 14, 8, 24, 24), Hex("f79617"));
+            view.announceTitle = TextAt(ann, "Title", "", 48, 13, 440, 14, Hex("e83b3b"), TextAnchor.MiddleLeft, true);
+            view.announceTitle.supportRichText = true;
+            view.announceSub = TextAt(ann, "Sub", "", 48, 30, 440, 12, Paper);
+            view.announce = ann.gameObject;
+            ann.gameObject.SetActive(false);
+
+            // Level up: 505x187 at (450, 118), three unlock cards.
+            var holder = Stretch(Node("LevelUp", root));
+            view.levelUp = DraftWindow(holder, "", 450, 118, 505, 187);
+            Object.DestroyImmediate(view.levelUp.plate.gameObject);
+            Object.DestroyImmediate(view.levelUp.close.gameObject);
+            var w = view.levelUp.transform;
+            TextAt(w, "Head", "SEVİYE ATLADIN", 0, 24, 505, 14, Faint, TextAnchor.MiddleCenter, true);
+            view.level = TextAt(w, "Level", "Lv 1", 0, 56, 505, 34, Ink, TextAnchor.MiddleCenter, true);
+            view.unlocks = new GameObject[3];
+            view.unlockTitles = new Text[3];
+            view.unlockSubs = new Text[3];
+            for (var i = 0; i < 3; i++)
+            {
+                var c = Abs(w, "Unlock" + i, 20 + i * 158, 126, 150, 42);
+                Img(c, "card");
+                Img(Stretch(Node("Outline", c)), "outline");
+                Solid(Abs(c, "Icon", 10, 13, 14, 14), Gold);
+                view.unlockTitles[i] = TextAt(c, "Title", "", 32, 13, 112, 13, Ink, TextAnchor.MiddleLeft, true);
+                view.unlockSubs[i] = TextAt(c, "Sub", "", 32, 29, 112, 12, Faint);
+                view.unlocks[i] = c.gameObject;
+            }
+            view.levelUp.Open = false;
+            return root.gameObject;
         }
 
         // ================= Whisper window =================

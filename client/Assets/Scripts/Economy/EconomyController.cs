@@ -158,7 +158,8 @@ namespace CollectionGame.Economy
                 ShowNote(Reason(r.reason), true);
                 return;
             }
-            ShowNote(r.action == "sell" ? $"Sattın: +{r.gained} Coin" : $"Parçaladın: +{r.gained} toz", false);
+            if (r.action == "sell") Toasts.Money($"Sattın: +{r.gained} Coin");
+            else Toasts.Money($"Parçaladın: +{r.gained} toz");
             sellItems.Clear();
             sellStacks.Clear();
             fishing.RefreshBag();

@@ -228,7 +228,7 @@ namespace CollectionGame.Economy
             if (e.diamond != null && e.diamond.gained > 0)
             {
                 if (fishing.Bag != null) fishing.Bag.diamond = e.diamond.total;
-                Toasts.Show($"Elmas buldun! (+{e.diamond.gained})");
+                Toasts.Money($"Elmas buldun! (+{e.diamond.gained})");
             }
         }
 
@@ -236,7 +236,7 @@ namespace CollectionGame.Economy
         public void OnSold(StallSoldNotice n)
         {
             var what = n.count > 1 ? $"{FishingController.ItemName(n.defId)} x{n.count}" : FishingController.ItemName(n.defId);
-            Toasts.Show($"Tezgahından satıldı: {what} → {n.buyer}, +{Kit.Num(n.price - n.fee)} Coin");
+            Toasts.Money($"Tezgahta satış: +{Kit.Num(n.price - n.fee)}", $"{n.buyer} {what} aldı.");
             fishing.RefreshBag();
         }
 

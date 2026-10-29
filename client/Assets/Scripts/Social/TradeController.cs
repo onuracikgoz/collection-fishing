@@ -144,7 +144,7 @@ namespace CollectionGame.Social
                     foreach (var it in got?.items ?? Array.Empty<ItemInstance>()) parts.Add(FishingController.ItemName(it.defId));
                     foreach (var st in got?.stacks ?? Array.Empty<ItemStack>()) parts.Add($"{FishingController.ItemName(st.defId)} x{st.count}");
                     if (got != null && got.coin > 0) parts.Add($"{Kit.Num(got.coin)} Coin");
-                    Toasts.Show(parts.Count > 0 ? $"Takas tamam. Aldın: {string.Join(", ", parts)}" : "Takas tamam");
+                    Toasts.Money("Takas tamam", parts.Count > 0 ? $"Aldın: {string.Join(", ", parts)}" : null);
                     foreach (var b in m.book ?? Array.Empty<TradeBookResult>())
                     {
                         var item = got?.items?.FirstOrDefault(i => i.instanceId == b.instanceId);
