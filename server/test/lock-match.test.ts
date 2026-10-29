@@ -22,7 +22,7 @@ function fake() {
   };
   const dispatcher: any = { broadcastMessage: (op: number, data: string) => sent.push({ op, body: JSON.parse(data) }) };
   const logger: any = { error: () => undefined };
-  const f: TradePlayer = { presence: { userId: 'A', sessionId: 's', username: 'A', node: 'n' } as any, name: 'A', move: { x: 1, y: 1 }, energy: 1, bag: { items: 3, stacks: {} }, book: {}, rod: {} as any };
+  const f: TradePlayer = { presence: { userId: 'A', sessionId: 's', username: 'A', node: 'n' } as any, name: 'A', move: { x: 1, y: 1 }, energy: 1, xp: 1_000_000, bag: { items: 3, stacks: {} }, book: {}, rod: {} as any };
   const put = (id: string, extra: object = {}) => store.set(key('items', id, 'A'), { instanceId: id, defId: 'lake.fish.carp', tier: 'common', float: 0.5, source: 'fishing', obtainedAt: 1, ...extra });
   return { store, key, sent, nk, dispatcher, logger, f, put };
 }

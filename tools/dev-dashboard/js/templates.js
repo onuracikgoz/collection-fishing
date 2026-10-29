@@ -89,6 +89,7 @@ export function rpcTemplates(ctx) {
     dev_stacks: { userId, stacks: { 'lake.mat.scale': 99 }, clear: false },
     dev_wallet: { userId, set: { coin: 10000, dust: 10000 } },
     dev_energy: { userId, value: 100 },
+    dev_xp: { userId, level: 10 },
     dev_book: { userId, action: 'fill_page', page: 'lake_fish' },
     dev_profile: { userId, showcase: ['lake.fish.pike'], hunting: 'lake.item.blue_crystal' },
     dev_friends: { a: userId, b: ctx.otherId || '', action: 'befriend' },

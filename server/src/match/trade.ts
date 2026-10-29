@@ -1,7 +1,7 @@
 // The safe trade window inside the world match (docs/protokol.md, Takas).
 // Rules are in rules/trade.ts. This file moves messages around and makes the swap one storage transaction.
 // The match is the only writer of both bags, so their cached stacks and item counts stay true.
-import { BAG, TRADE } from '../config';
+import { BAG, TRADE, XP } from '../config';
 import { FishBookMsg, ItemInstance, OpCode, TradeEndMsg, TradeInviteMsg, TradeOfferView, TradeResult, TradeStateMsg } from '../protocol';
 import { BookEntries } from '../rules/book';
 import {
@@ -18,6 +18,7 @@ import {
   setOffer,
   slots,
 } from '../rules/trade';
+import { levelOf } from '../rules/xp';
 import { FishingContext, Fisher, cancelFishing } from './fishing';
 import { placeNewItem } from './items';
 import { StoredItem, bookWrite, inBag, publicItem, readTradeLock, readWallet, stacksWrite } from './playerData';
@@ -100,6 +101,15 @@ function refuse(env: TradeEnv, p: TradePlayer, reason: string): void {
   send(env, OpCode.TRADE_END, msg, [p.presence]);
 }
 
+/** The first of these players below the trade level, or null. */
+function belowLevel(env: TradeEnv, ids: string[]): string | null {
+  for (const id of ids) {
+    const p = env.players[id];
+    if (p && levelOf(p.xp, XP).level < TRADE.minLevel) return id;
+  }
+  return null;
+}
+
 /** The first of these players whose account may not trade yet (a newly linked Steam account), or null. */
 function tradeLocked(env: TradeEnv, ids: string[]): string | null {
   const now = Date.now();
@@ -123,6 +133,8 @@ function handleOffer(env: TradeEnv, p: TradePlayer, body: unknown, now: number):
   if (!target) return refuse(env, p, 'NOT_HERE');
   if (p.tradeId || target.tradeId) return refuse(env, p, 'BUSY');
   if (distance(p, target) > TRADE.maxDistance) return refuse(env, p, 'TOO_FAR');
+  const low = belowLevel(env, [p.presence.userId, targetId]);
+  if (low !== null) return refuse(env, p, low === p.presence.userId ? 'LEVEL_TOO_LOW' : 'TARGET_LEVEL_TOO_LOW');
   const held = tradeLocked(env, [p.presence.userId, targetId]);
   if (held !== null) return refuse(env, p, held === p.presence.userId ? 'TRADE_LOCKED' : 'TARGET_TRADE_LOCKED');
   cancelFishing(env.fishing, p);

@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { EMOTES, ENERGY, FRIENDS, ROD, SERVERS, WATER, WORLD } from '../config';
+import { EMOTES, ENERGY, FRIENDS, ROD, SERVERS, WATER, WORLD, XP } from '../config';
 import { LAKE_MAP } from '../data/lake-map';
 import {
   BubbleMsg,
@@ -19,6 +19,7 @@ import {
 import { canSpeak, sanitizeChat } from '../rules/chat';
 import { checkJoin } from '../rules/join';
 import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
+import { levelOf } from '../rules/xp';
 import { canEmote, canWear, parseEmote, parseStatus } from '../rules/emote';
 import { areFriends } from './friends';
 import { applyMove, MoveState, newMoveState, parseMove } from '../rules/movement';
@@ -29,7 +30,7 @@ import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
-import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, statusEmoteWrite } from './playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, readEmotes, readRod, readXp, statusEmoteWrite } from './playerData';
 import { handleBookPlace } from './book';
 import { handleCraft } from './craft';
 import { handleEconomy } from './economy';
@@ -59,6 +60,8 @@ interface Player {
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
+  /** Total XP; the level comes from it. */
+  xp: number;
   /** Loaded the first time the stash is used at the bank. */
   stash?: StashCache;
   fish?: FishState;
@@ -232,6 +235,7 @@ export function worldJoin(
     const bag = old ? old.bag : loadBag(nk, presence.userId);
     const book = old ? old.book : readBook(nk, presence.userId);
     const rod = old ? old.rod : readRod(nk, presence.userId);
+    const xp = old ? old.xp : readXp(nk, presence.userId);
     const emotes = old ? { status: old.status, owned: old.emotesOwned } : readEmotes(nk, presence.userId);
     if (!old) saveEnergy(nk, logger, presence.userId, energy, true);
 
@@ -248,13 +252,15 @@ export function worldJoin(
       bag,
       book,
       rod,
+      xp,
       status: emotes.status,
       emotesOwned: emotes.owned,
       tradeId: old ? old.tradeId : undefined,
       lastOfferAt: old ? old.lastOfferAt : undefined,
       stash: old ? old.stash : undefined,
     };
-    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned };
+    const lv = levelOf(xp, XP);
+    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned, level: lv.level, xp: lv.xp, xpNext: lv.xpNext };
     if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
   }

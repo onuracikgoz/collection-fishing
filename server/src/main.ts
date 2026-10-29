@@ -50,6 +50,7 @@ import {
   rpcDevUsers,
   rpcDevWallet,
   rpcDevWorld,
+  rpcDevXp,
 } from './debug/rpc';
 
 // Nakama finds handlers by their global function names, so every handler is
@@ -103,6 +104,7 @@ function InitModule(
   initializer.registerRpc('dev_stacks', rpcDevStacks);
   initializer.registerRpc('dev_wallet', rpcDevWallet);
   initializer.registerRpc('dev_energy', rpcDevEnergy);
+  initializer.registerRpc('dev_xp', rpcDevXp);
   initializer.registerRpc('dev_book', rpcDevBook);
   initializer.registerRpc('dev_profile', rpcDevProfile);
   initializer.registerRpc('dev_friends', rpcDevFriends);

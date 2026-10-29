@@ -1,6 +1,7 @@
 // The trade window against a fake Nakama: messages, storage and the swap itself.
 import { describe, expect, it } from 'vitest';
-import { BAG, TRADE } from '../src/config';
+import { BAG, TRADE, XP } from '../src/config';
+import { totalForLevel } from '../src/rules/xp';
 import { OpCode } from '../src/protocol';
 import { TradeEnv, TradePlayer, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from '../src/match/trade';
 
@@ -40,6 +41,7 @@ function world() {
       name: userId,
       move: { x, y: 10 },
       energy: 100,
+      xp: totalForLevel(TRADE.minLevel, XP),
       bag: { items: items.filter((i) => !i.inBook).length, stacks: { ...stacks } },
       book,
       rod: {} as any,
@@ -111,6 +113,17 @@ describe('trade window (fake Nakama)', () => {
     w.store.set(w.key('player', 'trade_lock', 'A'), { until: Date.now() - 1 });
     handleTradeOp(w.env, w.players.A, OpCode.TRADE_OFFER, { userId: 'B' }, 10000);
     expect(w.take(OpCode.TRADE_INVITE).length).toBe(1);
+  });
+
+  it('needs the trade level on both sides', () => {
+    const w = world();
+    w.addPlayer('A', 10);
+    w.addPlayer('B', 12);
+    w.players.B.xp = totalForLevel(TRADE.minLevel, XP) - 1;
+    handleTradeOp(w.env, w.players.A, OpCode.TRADE_OFFER, { userId: 'B' }, 0);
+    handleTradeOp(w.env, w.players.B, OpCode.TRADE_OFFER, { userId: 'A' }, 0);
+    expect(w.take(OpCode.TRADE_END).map((m) => [m.to[0], m.body.reason])).toEqual([['A', 'TARGET_LEVEL_TOO_LOW'], ['B', 'LEVEL_TOO_LOW']]);
+    expect(w.take(OpCode.TRADE_INVITE).length).toBe(0);
   });
 
   it('declines, expires and cancels cleanly', () => {

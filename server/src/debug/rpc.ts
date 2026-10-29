@@ -20,6 +20,7 @@ import {
   USERNAME,
   WATER,
   WORLD,
+  XP,
 } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_MAP } from '../data/lake-map';
@@ -33,6 +34,7 @@ import { planEconomy } from '../rules/economy';
 import { buildCollisionMap, isWalkable } from '../rules/map';
 import { simulateReel } from '../rules/reel';
 import { buildWaterMap, bandAt, Band } from '../rules/water';
+import { levelOf, totalForLevel } from '../rules/xp';
 import { placeNewItem } from '../match/items';
 import { findWorldMatches } from '../match/servers';
 import {
@@ -49,6 +51,7 @@ import {
   readProfile,
   readWallet,
   stacksWrite,
+  xpWrite,
 } from '../match/playerData';
 import { rpcGetBook } from '../rpc/getBook';
 import { rpcGetProfile } from '../rpc/profile';
@@ -195,7 +198,7 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
     serverTime: Date.now(),
     node: ctx.node,
     opCodes: OpCode,
-    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT },
+    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT, XP },
     servers,
     defs: allDefs(),
     pages: BOOK_PAGES,
@@ -427,6 +430,19 @@ export function rpcDevEnergy(ctx: nkruntime.Context, logger: nkruntime.Logger, n
   // Offline: saved as offline, so refill starts counting from now.
   if (!live) nk.storageWrite([energyWrite(userId, value, false)]);
   return JSON.stringify({ ok: true, energy: live ? live.energy : currentEnergy(nk, userId), live: !!live });
+}
+
+/** Sets a player's total XP (live match player if online, else storage). `level` sets the level's starting XP instead. */
+export function rpcDevXp(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  devOnly(ctx);
+  const body = parse(payload);
+  const userId = target(ctx, nk, body);
+  let total = Number(body.value);
+  if (body.level !== undefined) total = totalForLevel(Number(body.level), XP);
+  if (!isFinite(total) || total < 0 || total > 100_000_000) throw fail('bad value');
+  const live = signalPlayer(nk, logger, { type: 'dev_xp', userId, value: total });
+  if (!live) nk.storageWrite([xpWrite(userId, Math.floor(total))]);
+  return JSON.stringify({ ok: true, ...levelOf(Math.floor(total), XP), total: Math.floor(total), live: !!live });
 }
 
 /**

@@ -164,8 +164,21 @@ export const ANNOUNCE = {
   minTier: 'epic' as Tier, // (Öneri) Epic and above
 };
 
+// XP and level (docs/tasarim/04-xp-level.md). All Öneri. xpToNext(level) = base + perLevel * level.
+export const XP = {
+  maxLevel: 50,
+  base: 250,
+  perLevel: 250,
+  /** XP per successful catch by category. A cast without energy gives none (only junk comes out, and it must not be farmable). */
+  catchXp: { junk: 1, material: 3, common: 10, rare: 25, recipe: 40, epic: 60, legendary: 150, mythic: 400 } as { [c in Category]: number },
+  /** What a level opens, by level (shown on the level-up banner). */
+  unlocks: { 10: ['trade'] } as { [level: number]: string[] },
+};
+
 // Safe trade window (docs/tasarim/07-kopya-envanter.md 9.1, docs/protokol.md Takas). All Öneri.
 export const TRADE = {
+  /** Both players need this level (04-xp-level.md; also a bot guard). */
+  minLevel: 10,
   maxSlots: 8,
   maxDistance: 5,
   inviteMs: 15000,

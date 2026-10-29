@@ -127,6 +127,10 @@ export interface WelcomeMsg {
   status?: string;
   /** Status emotes the player owns beyond the free set. */
   emotesOwned: string[];
+  /** Level and XP inside the level (xpNext 0 at the top level). */
+  level: number;
+  xp: number;
+  xpNext: number;
 }
 
 /** The player's rod (Faz 4). */
@@ -196,6 +200,17 @@ export interface FishEndMsg {
   book?: FishBookMsg;
   /** The rod after this catch, when it wore. */
   rod?: RodView;
+  /** XP for this catch and where the player stands now. */
+  xpGain?: XpGainMsg;
+}
+
+export interface XpGainMsg {
+  gained: number;
+  level: number;
+  xp: number;
+  xpNext: number;
+  /** Set when this catch reached a new level. */
+  levelUp?: { level: number; unlocks: string[] };
 }
 
 export interface FishBookMsg {
@@ -282,6 +297,7 @@ export interface ProfileResponse {
   score: number;
   /** Pages whose every record was found. */
   pagesComplete: string[];
+  level: number;
   /** Showcase items as they sit in the book now. */
   showcase: ItemInstance[];
   hunting?: string;

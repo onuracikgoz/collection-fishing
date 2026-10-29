@@ -201,6 +201,11 @@ namespace CollectionGame.Net
         public string status;
         /// <summary>Non-free status emotes this player owns.</summary>
         public string[] emotesOwned;
+        public int level;
+        /// <summary>XP inside the level.</summary>
+        public int xp;
+        /// <summary>XP this level needs; 0 at the top level.</summary>
+        public int xpNext;
     }
 
     // --- Faz 2: fishing (docs/protokol.md, Balık tutma) ---
@@ -342,6 +347,29 @@ namespace CollectionGame.Net
         public FishBookMsg book;
         /// <summary>Faz 4: the rod after this catch when it wore; max is 0 when absent.</summary>
         public RodView rod;
+        /// <summary>XP for this catch; gained is 0 when absent or when the cast had no energy.</summary>
+        public XpGainMsg xpGain;
+    }
+
+    [Serializable]
+    public class LevelUpInfo
+    {
+        public int level;
+        /// <summary>What the new level opens: "trade"...</summary>
+        public string[] unlocks;
+    }
+
+    [Serializable]
+    public class XpGainMsg
+    {
+        public int gained;
+        public int level;
+        /// <summary>XP inside the level.</summary>
+        public int xp;
+        /// <summary>XP this level needs; 0 at the top level.</summary>
+        public int xpNext;
+        /// <summary>level is 0 when this catch did not reach a new level.</summary>
+        public LevelUpInfo levelUp;
     }
 
     // --- Faz 3: Collection Book (docs/protokol.md, Collection Book) ---
@@ -429,6 +457,7 @@ namespace CollectionGame.Net
         public string username;
         public int score;
         public string[] pagesComplete;
+        public int level;
         public ItemInstance[] showcase;
         public string hunting;
     }

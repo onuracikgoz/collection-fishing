@@ -46,6 +46,7 @@ Hepsi `{ userId? }` alır (boşsa çağıran). Kaynak: `server/src/debug/rpc.ts`
 | `dev_item_delete` | `{ instanceIds }` ya da `{ all: true }` (çantadakiler) |
 | `dev_stacks` | `{ stacks: { defId: count }, clear? }`, 0 siler |
 | `dev_wallet` | `{ set: { coin?, dust? } }` ya da `{ add: … }`, cüzdan geçmişine `action: dev` yazar |
+| `dev_xp` | `{ value }` ya da `{ level }` (toplam XP'yi ya da o level'ın başlangıcını yazar) |
 | `dev_energy` | `{ value }` |
 | `dev_book` | `{ action: discover \| fill \| unslot \| forget \| fill_page \| reset, defId?, page?, float? }` |
 | `dev_profile` | `{ showcase?, hunting? }` kontrolsüz yazar |

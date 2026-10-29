@@ -5,6 +5,7 @@
 //   player/rod  { level, durability }
 //   player/status_emote  { emote }         (worn status emote; absent = none)
 //   player/trade_lock  { until }           (ms since epoch; a newly linked Steam account cannot trade until then)
+//   player/xp  { total }                   (total XP; level comes from it; public: the level shows on the profile)
 //   player/emotes_owned  { ids: [] }       (non-free status emotes owned; written by shop / supporter / book systems)
 //   stash/state  { level, stacks: { defId: count } }
 //   book/entries  { entries: BookEntries }  (public: the Collection Book is public)
@@ -18,6 +19,7 @@ import { ProfileDoc } from '../rules/profile';
 import { BagSummary, slotsUsed } from '../rules/bag';
 import { regenOffline } from '../rules/energy';
 import { canWear, normalizeOwned } from '../rules/emote';
+import { normalizeXp } from '../rules/xp';
 
 const READ_OWNER = 1 as nkruntime.ReadPermissionValues;
 const READ_PUBLIC = 2 as nkruntime.ReadPermissionValues;
@@ -185,6 +187,16 @@ export function readEmotes(nk: nkruntime.Nakama, userId: string): EmoteData {
 
 export function statusEmoteWrite(userId: string, emote: string | null): nkruntime.StorageWriteRequest {
   return { collection: 'player', key: 'status_emote', userId, value: { emote }, permissionRead: READ_OWNER, permissionWrite: WRITE_SERVER };
+}
+
+/** Total XP (0 for a new account). */
+export function readXp(nk: nkruntime.Nakama, userId: string): number {
+  const objs = nk.storageRead([{ collection: 'player', key: 'xp', userId }]);
+  return normalizeXp(objs.length > 0 ? objs[0].value : null);
+}
+
+export function xpWrite(userId: string, total: number): nkruntime.StorageWriteRequest {
+  return { collection: 'player', key: 'xp', userId, value: { total }, permissionRead: READ_PUBLIC, permissionWrite: WRITE_SERVER };
 }
 
 /** Time until which this account may not trade (0 = free). */

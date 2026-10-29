@@ -48,7 +48,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
 | `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
-| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], showcase: [ItemInstance], hunting? }` | 3 |
+| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting? }` | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
@@ -84,7 +84,7 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 | 5 | C → S | `SAY` | `{ text }` | 1 |
 | 6 | S → C | `BUBBLE` | `{ id, text }` (konuşanın kendisi de alır) | 1 |
 | 7 | S → C | `CORRECTION` | `{ seq, x, y }` (sunucu konumu düzeltti) | 1 |
-| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod, status?, emotesOwned }` (katılım sonrası ilk mesaj; `rod` Faz 4; `status` ve `emotesOwned` durum emote'u) | 1 |
+| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod, status?, emotesOwned, level, xp, xpNext }` (katılım sonrası ilk mesaj; `rod` Faz 4; `status` ve `emotesOwned` durum emote'u; `level`, `xp` (bu level içindeki), `xpNext` (bu level için gereken, son level'da 0)) | 1 |
 
 ### Hareket kuralları
 
@@ -116,7 +116,7 @@ Yem: `bait` verilmeyen atış temel yemle yapılır (bedava, sınırsız, oranla
 | 11 | C → S | `HOOK` | `{}` (oyuncu çekti) |
 | 12 | S → C | `REEL_START` | `{ seed, params }` (sadece oyuncunun kendisi) |
 | 13 | C → S | `REEL_DONE` | `{ inputs: [ms, ...] }` |
-| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?` |
+| 14 | S → C | `FISH_END` | Görenlere `{ id, outcome, defId? }`; oyuncunun kendisine ayrıca `reason?, item?, stack?, energy, book?, rod?, xpGain?` |
 | 15 | C → S | `CANCEL` | `{}` (oltayı topla) |
 
 - `band`: `"shore"`, `"mid"`, `"deep"`. `state`: `"cast"` (şamandıra suda), `"twitch"` (sahte kıpırdama), `"bite"` (gerçek vuruş, şamandıra battı).
@@ -231,7 +231,8 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.1. Sunucu: `rules/trade.ts` (saf
 - **Onay:** iki kilit kapandıktan **3 sn** (Öneri) sonra `TRADE_CONFIRM` kabul edilir; öncesinde gönderilen yok sayılır. İki taraf da onaylayınca takas **tek işlemde** (eşyalar, yığınlar, Coin, kayıt) gerçekleşir. Sunucu o an her şeyi yeniden doğrular: eşya hâlâ çantada mı, yığın ve Coin yeterli mi, iki tarafın çantasında yer var mı.
 - **Gelen eşya deftere işlenir:** ilk kopyaysa defter yuvasına gider ("Yeni keşif", çantada yer tutmaz), değilse çantaya. Çanta doluluğu hesabında her gelen Float eşya bir yuva sayılır (temkinli). `ItemInstance.source` = `trade`.
 - **Kayıt:** her başarılı takas iki tarafın `trades/<tradeId>` kaydına yazılır (kim, ne verdi, ne aldı, ne zaman). Sadece sunucu okur.
-- **Henüz yok (Öneri):** level 10 şartı (XP sistemi gelince), takas kısıtı (`acik-sorular.md` 4).
+- **Level şartı:** iki taraf da en az level 10 olmalı (`TRADE.minLevel`, Öneri). Değilse teklif `LEVEL_TOO_LOW` (kendin) / `TARGET_LEVEL_TOO_LOW` (karşı taraf) ile reddedilir.
+- **Henüz yok (Öneri):** takas kısıtı (`acik-sorular.md` 4).
 
 ```
 TradeOfferView = { items: ItemInstance[], stacks: [{ defId, count }], coin }
@@ -260,6 +261,16 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.
 - Sadece **çantadaki** Float eşya kilitlenir (defter yuvası ve depo hariç). Aynı duruma tekrar istek `ok` döner. `reason`: `BAD_REQUEST`, `NOT_OWNED`.
 - Kilit eşyanın kendisinde durur: `ItemInstance.locked?: true` (`get_inventory`, takas görünümü). Kilitli eşya **satılamaz** (`SELL`), **parçalanamaz** (`SALVAGE`), `MERGE` ve `CRAFT` girdisi olamaz, takasa konamaz: bu işlemler `reason: "LOCKED"` ile reddedilir. Depoya ve deftere konabilir, kilit korunur. Önce kilit açılır.
 - Yeni eşyalar (av, craft, birleştirme, takas) kilitsiz gelir.
+
+## XP ve level
+
+Kurallar: `docs/tasarim/04-xp-level.md`. Sunucu: `rules/xp.ts`. Saklanan değer toplam XP'dir (`player/xp`, herkese açık okunur); level ondan hesaplanır.
+
+- Enerjili her başarılı av XP verir (`config.ts` `XP.catchXp`, Öneri): çöp 1, malzeme 3, Common 10, Rare 25, recipe 40, Epic 60, Legendary 150, Mythic 400. **Enerjisiz av XP vermez** (sadece çöp çıkar ve çiftliği yapılmasın). Kaçan ve ıskalanan av vermez.
+- Level `n` → `n+1` için gereken XP: `250 + 250·n` (Öneri). En yüksek level 50. Level drop şansını artırmaz.
+- `FISH_END` (sadece avlayana) `xpGain: { gained, level, xp, xpNext, levelUp?: { level, unlocks: [string] } }` taşır; `levelUp` seviye atlanan avda gelir. `unlocks` o seviyelerin açtığı özelliklerdir (şimdilik `trade`, level 10).
+- `WELCOME` ve `get_profile` level'ı taşır.
+- Level şartları: takas (level 10). Olta, derin su ve yem şartları eşyanın `minLevel` alanıyla gelir (`03-balik-tutma.md`), henüz yok.
 
 ## Ekonomi: Coin, NPC satış, toz (Faz 4)
 

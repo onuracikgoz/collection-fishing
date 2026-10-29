@@ -1,9 +1,10 @@
 // Profile card (docs/tasarim/10-sosyal.md 13.3): get_profile for anyone, set_profile for yourself.
-import { PROFILE, SCORE } from '../config';
+import { PROFILE, SCORE, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
-import { profileWrite, readBook, readBookItems, readProfile } from '../match/playerData';
+import { profileWrite, readBook, readBookItems, readProfile, readXp } from '../match/playerData';
 import { ErrorCode, ItemInstance, ProfileResponse, SetProfileRequest, errorMessage } from '../protocol';
 import { scoreOf } from '../rules/book';
+import { levelOf } from '../rules/xp';
 import { checkHunting, checkShowcase, completedPages, visibleShowcase } from '../rules/profile';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -39,6 +40,7 @@ function buildProfile(nk: nkruntime.Nakama, userId: string): ProfileResponse {
     username: users[0].username,
     score: scoreOf(entries, BOOK_PAGES, SCORE),
     pagesComplete: completedPages(entries, BOOK_PAGES),
+    level: levelOf(readXp(nk, userId), XP).level,
     showcase,
   };
   if (doc.hunting) res.hunting = doc.hunting;

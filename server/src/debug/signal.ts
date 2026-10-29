@@ -8,7 +8,7 @@ import { CatchRoll, tierOf } from '../rules/catch';
 import { isWalkable } from '../rules/map';
 import { newMoveState } from '../rules/movement';
 import { Fisher, FishingContext, cancelFishing } from '../match/fishing';
-import { currentEnergy, energyWrite, loadBag, readBook } from '../match/playerData';
+import { currentEnergy, energyWrite, loadBag, readBook, xpWrite } from '../match/playerData';
 import type { WorldState } from '../match/world';
 import { isDevEnabled } from './gate';
 
@@ -111,6 +111,13 @@ export function devSignal(
       p.energy = v;
       nk.storageWrite([energyWrite(userId, v, true)]);
       return reply({ found: true, energy: p.energy });
+    }
+    case 'dev_xp': {
+      const v = Number(req.value);
+      if (!isFinite(v) || v < 0) return reply({ found: true, error: 'bad value' });
+      p.xp = Math.floor(v);
+      nk.storageWrite([xpWrite(userId, p.xp)]);
+      return reply({ found: true, xp: p.xp });
     }
     case 'dev_teleport': {
       const x = Number(req.x);

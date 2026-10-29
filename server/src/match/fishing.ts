@@ -1,6 +1,6 @@
 // Fishing inside the world match. Decisions come from rules/; this file only
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
-import { ANNOUNCE, BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD } from '../config';
+import { ANNOUNCE, BAG, BAIT, BOOK_LUCK, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, XP } from '../config';
 import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_POOL } from '../data/lake-pool';
 import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
@@ -15,7 +15,8 @@ import { FishState, checkBait, checkCast, hookWindow, judgeReel, onHook, parseCa
 import { parseInputs, simulateReel } from '../rules/reel';
 import { WaterMap } from '../rules/water';
 import { placeNewItem } from './items';
-import { energyWrite, rodWrite, stacksWrite } from './playerData';
+import { addXp, xpForCatch } from '../rules/xp';
+import { energyWrite, rodWrite, stacksWrite, xpWrite } from './playerData';
 
 /** The part of a match player that fishing needs. */
 export interface Fisher {
@@ -25,6 +26,8 @@ export interface Fisher {
   bag: BagSummary;
   book: BookEntries;
   rod: Rod;
+  /** Total XP. */
+  xp: number;
   fish?: FishState;
   lastCatch?: string;
 }
@@ -186,6 +189,8 @@ function give(ctx: FishingContext, f: Fisher): void {
     writes.push(stacksWrite(userId, stacks));
     extra.stack = { defId: roll.def.id, count: stacks[roll.def.id] };
   }
+  const xpResult = addXp(f.xp, xpForCatch(roll.def.category, f.fish!.hasEnergy, XP), XP);
+  if (xpResult.gain.gained > 0) writes.push(xpWrite(userId, xpResult.total));
   try {
     ctx.nk.storageWrite(writes);
   } catch (e) {
@@ -197,6 +202,8 @@ function give(ctx: FishingContext, f: Fisher): void {
   if (rod) f.rod = rod;
   if (extra.stack) f.bag.stacks[extra.stack.defId] = extra.stack.count;
   f.lastCatch = roll.def.id;
+  f.xp = xpResult.total;
+  extra.xpGain = xpResult.gain;
   end(ctx, f, 'caught', extra);
   if (announce) send(ctx, OpCode.ANNOUNCE, announce, ctx.everyone());
 }
