@@ -20,19 +20,28 @@ Bulut oturumu Unity'yi derleyemediği için pencereler ilk başta Unity'de yazı
 4. `Protocol.cs` Unity'nin derleyicisiyle (editörün `.rsp` dosyasıyla) hatasız derleniyor.
 5. `Energy = Bag.energy;` kaldırıldı (Onur).
 
-## Yazılanlar (IMGUI + kit, 29.10.2026)
+## Yol: uGUI (karar 29.10.2026, Onur)
 
-Pencereler hâlâ IMGUI, ama kit dokularıyla: `UI/Kit.cs` (pencere, başlık plakası, sürükleme, kapat, kart, Tier yuvası, butonlar), `UI/Toasts.cs` (en fazla 4 kutu), `UI/ItemText.cs`. Kit dokuları çalışma anında `ArtCatalog.Ui("window")` ile gelir (katalog `Assets/Art/UI/`'yi de tutar). uGUI'ye geçiş sonra.
+Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencereleri sırayla kaldırılır. Pixel art kit'i için en uygun yol bu: 9-slice ve Tiled Image doğrudan çalışır.
 
-| Pencere | Dosya | Açılış |
+- **Ölçek:** tek Canvas (`UI/UiRoot.cs`). Düzen birimi kit pikselidir: taslaklar 1408x896 ve kit 1:1, Canvas bunu **tam sayı** ölçekle büyütür (`CanvasScaler` Constant Pixel Size, `referencePixelsPerUnit` 32 = sprite'larla aynı). 1080p'de 1x, Retina'da 2x.
+- **Prefab'lar kodla üretilir:** `Editor/UiPrefabBuilder.cs` kit parçalarından pencere çerçevesi (başlık plakası, kapat, sürükleme), buton, yuva, kart, çubukları kurar ve `Assets/Resources/UI/*.prefab` olarak kaydeder. Editör açılırken `Version` yeniyse kendiliğinden çalışır; menü: CollectionGame > UI > Build Prefabs. Düzeni değiştirmek = builder'ı düzenleyip `Version`'ı artırmak. Prefab'ı elle düzenlemek mümkün ama bir sonraki build üzerine yazar.
+- **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları `World/WorldHud.cs`, `UI/BagPanel.cs` gibi sınıflar doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
+- **Kontrol (Play'e basmadan):** `Editor/UiShots.cs` prefab'ları örnek veriyle, taslağın üstüne bindirerek PNG'ye çizer (CollectionGame > UI > Capture Shots → `ui-shots/`). Batchmode'da projenin bir kopyasında da çalışır. Gerçek oyunda görmek için Autopilot: `-cgUser x -cgServer Mercan -cgShot a.png -cgOpen bag,quests,market,settings`.
+- **Yazı:** şimdilik Unity'nin yerleşik fontu (LegacyRuntime). Türkçe harfli pixel font gelince builder'da tek yerden değişir.
+- **İkonlar:** yok; HUD'da renkli kareler, yuvalarda eşya adının ilk harfleri yer tutucu.
+
+### uGUI'ye geçenler
+
+| Parça | Dosyalar | Not |
 |---|---|---|
-| Takas (davet kutusu, 3 sütun, kilit, geri sayım, onay) | `Social/TradeController.cs` | Profil kartında "Takas teklif et" |
-| Pazar: tezgah kur / tezgahım / pano / bir tezgahın tam listesi | `Economy/MarketController.cs` | M, sağ üst "Pazar"; haritadaki tezgah etiketine tıkla |
-| Günlük görev | `Economy/QuestController.cs` | G, sağ üst "Görev" |
-| Fısıltı pencereleri | `Social/WhisperController.cs` | `/w Ad mesaj`, profil kartında "Fısılda", tezgahta "Fısılda" |
-| Ayarlar (Genel: PM kapalı; Hesap: bulanık açılış, Steam kodu, hesap silme) | `UI/SettingsController.cs` | sağ üst "Ayarlar" |
+| HUD (hud3): yer kutusu, Score/Coin/elmas, XP şeridi + level, enerji, olta, yem yuvası, sohbet satırı ve geçmişi, pencere butonları | `Hud.prefab`, `Views/HudView.cs`, `World/WorldHud.cs` | Enter sohbeti açar; `/w` fısıltı. Yem yuvasına tıkla: yem değiştir (Y) |
+| Çanta (canta-v2) | `Bag.prefab`, `Views/BagView.cs`, `UI/BagPanel.cs` | Üstüne gel: ayrıntı. Tıkla / sağ tık: Deftere koy, Kilitle, Takasa ekle, yem seç |
+| İpucu ve sağ tık menüsü | `Popup.prefab`, `Views/PopupView.cs` | Bütün pencereler ortak kullanır |
 
-Takas açıkken client yürümez ve olta atmaz. Bildirimler socket'ten: 110 fısıltı, 103 tezgah satışı, 104 silme iptali, 101/102 giriş yolu (sadece canlı gelenler; kalıcı bildirimleri girişte listelemek henüz yok).
+### Hâlâ IMGUI (sırayla taşınacak)
+
+Takas, Pazar (tezgah + pano + tezgah listesi), Günlük görev, Fısıltı pencereleri, Ayarlar (bunlar kit görünümlü IMGUI: `UI/Kit.cs`); Defter, Profil, Arkadaşlar, NPC pencereleri (sat, parçala, birleştir, craft, depo, dükkan), balık tutma (ipucu, şarj, çekme oyunu), bildirim kutuları (`UI/Toasts.cs`), dünyadaki isim etiketleri ve balonlar. Taslağı olup hiç yapılmayanlar: emote menüsü, oyuncu sağ tık menüsü, giriş akışı.
 
 **Sunucudan eksik (client uydurmadı):** `get_catalog` pano fiyatını (`BOARD.priceDiamonds`), tezgaha bakma yarıçapını (`MARKET.interactRadius`) ve pazar noktasını vermiyor. Client "Reklam ver (elmas)" yazıyor, fiyat göstermiyor; harita etiketi 7 tile'dan yakında ilk kalemleri gösteriyor (sadece görüntü, karar sunucuda). Kataloğa eklenirse client oradan okur.
 
