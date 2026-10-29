@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 1;
+        public const int Version = 3;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -69,6 +69,13 @@ namespace CollectionGame.EditorTools
             Save(BuildHud(), "Hud");
             Save(BuildBag(), "Bag");
             Save(BuildPopup(), "Popup");
+            Save(BuildPanel("Quests", "Günlük görevler", new Vector2(600, 330), 1), "Quests");
+            Save(BuildPanel("Settings", "Ayarlar", new Vector2(640, 470), 1), "Settings");
+            Save(BuildPanel("Trade", "Takas", new Vector2(780, 480), 3, new[] { "Çanta", "Sen", "Karşı taraf" }), "Trade");
+            Save(BuildPanel("TradeInvite", "Takas teklifi", new Vector2(400, 128), 1), "TradeInvite");
+            Save(BuildPanel("Market", "Pazar", new Vector2(760, 520), 1), "Market");
+            Save(BuildPanel("Stall", "Tezgah", new Vector2(660, 450), 1), "Stall");
+            Save(BuildWhisper(), "Whisper");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
@@ -177,7 +184,7 @@ namespace CollectionGame.EditorTools
                 highlightedSprite = S($"button_{colour}_hover"),
                 pressedSprite = S($"button_{colour}_pressed"),
                 selectedSprite = S($"button_{colour}_normal"),
-                disabledSprite = AssetDatabase.LoadAssetAtPath<Sprite>(Kit + $"button_{colour}_disabled.png") ?? S($"button_{colour}_normal"),
+                disabledSprite = File.Exists(Kit + $"button_{colour}_disabled.png") ? S($"button_{colour}_disabled") : S($"button_{colour}_normal"),
             };
             var nav = b.navigation;
             nav.mode = Navigation.Mode.None;
@@ -188,6 +195,52 @@ namespace CollectionGame.EditorTools
                 text.horizontalOverflow = HorizontalWrapMode.Wrap;
             }
             return b;
+        }
+
+        /// <summary>Kit text field (input_normal / input_focus) on an existing node.</summary>
+        static InputField Field(RectTransform rt, string placeholderText, int size = 13)
+        {
+            var img = Img(rt, "input_normal", Image.Type.Sliced, true);
+            var field = rt.gameObject.AddComponent<InputField>();
+            field.targetGraphic = img;
+            field.transition = Selectable.Transition.SpriteSwap;
+            field.spriteState = new SpriteState { selectedSprite = S("input_focus"), highlightedSprite = S("input_normal") };
+            field.lineType = InputField.LineType.SingleLine;
+            var nav = field.navigation;
+            nav.mode = Navigation.Mode.None;
+            field.navigation = nav;
+            var text = Txt(Stretch(Node("Text", rt), 6, 1, 6, 1), "", size, Ink);
+            text.supportRichText = false;
+            text.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var placeholder = Txt(Stretch(Node("Placeholder", rt), 6, 1, 6, 1), placeholderText, size, Faint);
+            placeholder.fontStyle = FontStyle.Italic;
+            field.textComponent = text;
+            field.placeholder = placeholder;
+            return field;
+        }
+
+        static LayoutElement Size(Component c, float minW = -1, float minH = -1, float prefW = -1, float prefH = -1, float flexW = -1, float flexH = -1)
+        {
+            var le = c.GetComponent<LayoutElement>();
+            if (le == null) le = c.gameObject.AddComponent<LayoutElement>();
+            le.minWidth = minW;
+            le.minHeight = minH;
+            le.preferredWidth = prefW;
+            le.preferredHeight = prefH;
+            le.flexibleWidth = flexW;
+            le.flexibleHeight = flexH;
+            return le;
+        }
+
+        static T Layout<T>(RectTransform rt, int spacing, RectOffset padding = null, TextAnchor align = TextAnchor.UpperLeft) where T : HorizontalOrVerticalLayoutGroup
+        {
+            var g = rt.gameObject.AddComponent<T>();
+            g.spacing = spacing;
+            g.padding = padding ?? new RectOffset(0, 0, 0, 0);
+            g.childAlignment = align;
+            g.childControlWidth = g.childControlHeight = true;
+            g.childForceExpandWidth = g.childForceExpandHeight = false;
+            return g;
         }
 
         /// <summary>Kit window: tiled frame, title plate above the top edge, close button. Content goes in body.</summary>
@@ -331,23 +384,8 @@ namespace CollectionGame.EditorTools
             chat.pivot = new Vector2(0, 0);
             chat.offsetMin = new Vector2(505, 12);
             chat.offsetMax = new Vector2(-418, 46);
-            var chatImg = Img(chat, "input_normal", Image.Type.Sliced, true);
-            var field = chat.gameObject.AddComponent<InputField>();
-            field.targetGraphic = chatImg;
-            field.transition = Selectable.Transition.SpriteSwap;
-            field.spriteState = new SpriteState { selectedSprite = S("input_focus"), highlightedSprite = S("input_normal") };
+            var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
             field.characterLimit = 120;
-            field.lineType = InputField.LineType.SingleLine;
-            var fnav = field.navigation;
-            fnav.mode = Navigation.Mode.None;
-            field.navigation = fnav;
-            var chatText = Txt(Stretch(Node("Text", chat), 8, 2, 8, 2), "", 14, Ink);
-            chatText.supportRichText = false;
-            chatText.horizontalOverflow = HorizontalWrapMode.Overflow;
-            var placeholder = Txt(Stretch(Node("Placeholder", chat), 8, 2, 8, 2), "Enter ile yaz...  /w ad ile fısılda", 14, Faint);
-            placeholder.fontStyle = FontStyle.Italic;
-            field.textComponent = chatText;
-            field.placeholder = placeholder;
             view.chat = field;
             view.send = Btn(bar, "Send", "square_wood", "↵", 16);
             At((RectTransform)view.send.transform, BottomRight, new Vector2(-372, 12), new Vector2(34, 34), BottomRight);
@@ -455,6 +493,233 @@ namespace CollectionGame.EditorTools
             itemText.horizontalOverflow = HorizontalWrapMode.Overflow;
             view.itemTemplate = b;
             return root.gameObject;
+        }
+
+        // ================= Generic panel window (list screens) =================
+
+        /// <summary>
+        /// Window with header line, tabs (hidden until used), N scrolling columns of rows, footer line
+        /// and footer bar. Centered; the player can drag it by the title plate.
+        /// </summary>
+        static GameObject BuildPanel(string name, string title, Vector2 size, int columns, string[] columnTitles = null)
+        {
+            var wrap = Stretch(Node(name, null));
+            var view = wrap.gameObject.AddComponent<PanelView>();
+            view.window = Window(wrap, "Window", title, size);
+            At((RectTransform)view.window.transform, Center, new Vector2(0, 20), size, Center);
+            var body = view.window.body;
+            Layout<VerticalLayoutGroup>(body, 6).childForceExpandWidth = true;
+
+            var head = Node("Header", body);
+            Layout<HorizontalLayoutGroup>(head, 8, new RectOffset(0, 26, 0, 0), TextAnchor.MiddleLeft);
+            Size(head, minH: 22);
+            view.header = Label(head, "Text", "", 15, Ink, TextAnchor.MiddleLeft, true);
+            Size(view.header, flexW: 1);
+            view.headerRight = Label(head, "Right", "", 13, Ink, TextAnchor.MiddleRight, true);
+
+            var tabs = Node("Tabs", body);
+            Layout<HorizontalLayoutGroup>(tabs, 2, null, TextAnchor.LowerLeft);
+            Size(tabs, minH: 24);
+            view.tabs = tabs;
+            var tab = Node("TabTemplate", tabs);
+            var tabImg = Img(tab, "tab_inactive", Image.Type.Sliced, true);
+            var tb = tab.gameObject.AddComponent<Button>();
+            tb.targetGraphic = tabImg;
+            var tnav = tb.navigation;
+            tnav.mode = Navigation.Mode.None;
+            tb.navigation = tnav;
+            var ts = tab.gameObject.AddComponent<TabSprites>();
+            ts.active = S("tab_active");
+            ts.inactive = S("tab_inactive");
+            ts.activeText = Ink;   // tab_active is the light linen tab
+            ts.inactiveText = Paper; // tab_inactive is wood
+            Txt(Stretch(Node("Label", tab), 6, 2, 6, 2), "Sekme", 13, Paper, TextAnchor.MiddleCenter, true);
+            Size(tab, minH: 24, prefW: 130);
+            view.tabTemplate = tb;
+            tab.gameObject.SetActive(false);
+            tabs.gameObject.SetActive(false);
+
+            var cols = Node("Columns", body);
+            var cl = Layout<HorizontalLayoutGroup>(cols, 12);
+            cl.childForceExpandWidth = true;
+            cl.childForceExpandHeight = true;
+            Size(cols, flexH: 1);
+            view.columns = new RectTransform[columns];
+            view.columnTitles = new Text[columns];
+            for (var i = 0; i < columns; i++)
+            {
+                var col = Node("Column" + i, cols);
+                Layout<VerticalLayoutGroup>(col, 4).childForceExpandWidth = true;
+                Size(col, flexW: 1, flexH: 1);
+                if (columnTitles != null && i < columnTitles.Length)
+                {
+                    view.columnTitles[i] = Label(col, "Title", columnTitles[i], 14, Ink, TextAnchor.MiddleLeft, true);
+                    Size(view.columnTitles[i], minH: 20);
+                }
+                var scroll = Node("Scroll", col);
+                Size(scroll, flexH: 1, flexW: 1);
+                var sr = scroll.gameObject.AddComponent<ScrollRect>();
+                sr.horizontal = false;
+                sr.movementType = ScrollRect.MovementType.Clamped;
+                sr.scrollSensitivity = 24;
+                var viewport = Stretch(Node("Viewport", scroll));
+                viewport.gameObject.AddComponent<RectMask2D>();
+                var hit = viewport.gameObject.AddComponent<Image>();
+                hit.color = new Color(0, 0, 0, 0);
+                var content = Node("Content", viewport);
+                content.anchorMin = new Vector2(0, 1);
+                content.anchorMax = new Vector2(1, 1);
+                content.pivot = new Vector2(0.5f, 1);
+                content.offsetMin = content.offsetMax = Vector2.zero;
+                Layout<VerticalLayoutGroup>(content, 3).childForceExpandWidth = true;
+                content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                sr.viewport = viewport;
+                sr.content = content;
+                view.columns[i] = content;
+            }
+            view.rowTemplate = BuildRow(view.columns[0]);
+            view.rowTemplate.gameObject.SetActive(false);
+
+            view.footer = Label(body, "Footer", "", 12, Faint);
+            view.footer.horizontalOverflow = HorizontalWrapMode.Wrap;
+            Size(view.footer, minH: 16);
+            var bar = Node("FooterBar", body);
+            Layout<HorizontalLayoutGroup>(bar, 6, null, TextAnchor.MiddleRight);
+            Size(bar, minH: 28);
+            view.footerBar = bar;
+            view.wood = Templ(Btn(bar, "Wood", "wood", "Tamam"), 110, 28);
+            view.green = Templ(Btn(bar, "Green", "green", "Tamam"), 110, 28);
+            view.red = Templ(Btn(bar, "Red", "red", "Tamam"), 110, 28);
+            var input = Node("Input", bar);
+            view.input = Field(input, "");
+            Size(view.input, minH: 26, prefW: 120);
+            input.gameObject.SetActive(false);
+            return wrap.gameObject;
+        }
+
+        static Button Templ(Button b, float w, float h)
+        {
+            Size(b, minH: h, prefW: w);
+            b.gameObject.SetActive(false);
+            return b;
+        }
+
+        static RowView BuildRow(Transform parent)
+        {
+            var row = Node("RowTemplate", parent);
+            Img(row, "card");
+            Layout<HorizontalLayoutGroup>(row, 6, new RectOffset(6, 6, 4, 4), TextAnchor.MiddleLeft);
+            Size(row, minH: 32);
+            var view = row.gameObject.AddComponent<RowView>();
+            view.mark = Slot(row, "Mark", 26);
+            Size(view.mark, minW: 26, minH: 26, prefW: 26, prefH: 26);
+            view.mark.label.fontSize = 8;
+
+            var col = Node("Text", row);
+            Layout<VerticalLayoutGroup>(col, 1, null, TextAnchor.MiddleLeft).childForceExpandWidth = true;
+            Size(col, flexW: 1);
+            view.title = Label(col, "Title", "", 13, Ink);
+            view.title.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.sub = Label(col, "Sub", "", 11, Faint);
+            view.sub.horizontalOverflow = HorizontalWrapMode.Wrap;
+            var back = Node("Bar", col);
+            Size(back, minH: 8, prefH: 8);
+            view.barFill = Bar(back, "bar_fill_green", out _);
+            view.bar = back;
+
+            view.right = Label(row, "Right", "", 13, Ink, TextAnchor.MiddleRight, true);
+            var tail = Node("Tail", row);
+            Layout<HorizontalLayoutGroup>(tail, 3, null, TextAnchor.MiddleRight);
+            view.tail = tail;
+            view.wood = Templ(Btn(tail, "Wood", "wood", "", 12), 70, 22);
+            view.green = Templ(Btn(tail, "Green", "green", "", 12), 70, 22);
+            view.red = Templ(Btn(tail, "Red", "red", "", 12), 70, 22);
+            var input = Node("Input", tail);
+            view.input = Field(input, "", 12);
+            Size(view.input, minH: 22, prefW: 70);
+            input.gameObject.SetActive(false);
+            return view;
+        }
+
+        // ================= Whisper window =================
+
+        static GameObject BuildWhisper()
+        {
+            var wrap = Stretch(Node("Whisper", null));
+            var view = wrap.gameObject.AddComponent<WhisperView>();
+            var size = new Vector2(300, 210);
+            view.window = Window(wrap, "Window", "Fısıltı", size);
+            At((RectTransform)view.window.transform, BottomRight, new Vector2(-420, 190), size, BottomRight);
+            view.plateImage = view.window.plate.GetComponent<Image>();
+            view.minimize = Btn(view.window.transform, "Minimize", "flat", "_", 12);
+            At((RectTransform)view.minimize.transform, TopRight, new Vector2(-54, -8), new Vector2(20, 18));
+            view.menuButton = Btn(view.window.transform, "Menu", "flat", "≡", 12);
+            At((RectTransform)view.menuButton.transform, TopRight, new Vector2(-32, -8), new Vector2(20, 18));
+
+            var body = view.window.body;
+            Layout<VerticalLayoutGroup>(body, 4).childForceExpandWidth = true;
+            var menu = Node("MenuRow", body);
+            Layout<HorizontalLayoutGroup>(menu, 4).childForceExpandWidth = true;
+            Size(menu, minH: 22);
+            view.block = Btn(menu, "Block", "red", "Engelle", 12);
+            view.report = Btn(menu, "Report", "wood", "Raporla", 12);
+            Size(view.block, minH: 22, flexW: 1);
+            Size(view.report, minH: 22, flexW: 1);
+            view.menuRow = menu;
+            menu.gameObject.SetActive(false);
+
+            var reasons = Node("Reasons", body);
+            var grid = reasons.gameObject.AddComponent<GridLayoutGroup>();
+            grid.cellSize = new Vector2(84, 20);
+            grid.spacing = new Vector2(3, 3);
+            grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+            grid.constraintCount = 3;
+            Size(reasons, minH: 43);
+            string[] labels = { "Spam", "Hakaret", "Dolandırıcılık", "Kişisel bilgi", "Hile", "Diğer" };
+            view.reasons = new Button[labels.Length];
+            for (var i = 0; i < labels.Length; i++) view.reasons[i] = Btn(reasons, "Reason" + i, "flat", labels[i], 11);
+            view.reasonRow = reasons;
+            reasons.gameObject.SetActive(false);
+
+            var scroll = Node("Scroll", body);
+            Size(scroll, flexH: 1, flexW: 1);
+            var sr = scroll.gameObject.AddComponent<ScrollRect>();
+            sr.horizontal = false;
+            sr.movementType = ScrollRect.MovementType.Clamped;
+            sr.scrollSensitivity = 24;
+            var viewport = Stretch(Node("Viewport", scroll));
+            viewport.gameObject.AddComponent<RectMask2D>();
+            viewport.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            var content = Node("Log", viewport);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.offsetMin = content.offsetMax = Vector2.zero;
+            view.log = Txt(content, "", 12, Ink, TextAnchor.UpperLeft);
+            view.log.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.log.supportRichText = true;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            sr.viewport = viewport;
+            sr.content = content;
+            view.scroll = sr;
+
+            var line = Node("Line", body);
+            Layout<HorizontalLayoutGroup>(line, 3);
+            Size(line, minH: 24, prefH: 24);
+            var input = Node("Input", line);
+            view.input = Field(input, "Yaz, Enter ile gönder", 12);
+            view.input.characterLimit = 120;
+            Size(view.input, minH: 24, flexW: 1);
+            view.send = Btn(line, "Send", "square_wood", "↵", 14);
+            Size(view.send, minW: 26, prefW: 26, minH: 24);
+
+            var strip = At(Node("Strip", wrap), BottomLeft, new Vector2(12, 96), new Vector2(128, 22));
+            var stripImg = Img(strip, "button_wood_normal", Image.Type.Sliced, true);
+            view.strip = strip.gameObject.AddComponent<Button>();
+            view.strip.targetGraphic = stripImg;
+            view.stripText = Txt(Stretch(Node("Label", strip), 4, 1, 4, 1), "", 12, Paper, TextAnchor.MiddleCenter, true);
+            strip.gameObject.SetActive(false);
+            return wrap.gameObject;
         }
 
         static Color Hex(string h) => ColorUtility.TryParseHtmlString("#" + h, out var c) ? c : Color.magenta;
