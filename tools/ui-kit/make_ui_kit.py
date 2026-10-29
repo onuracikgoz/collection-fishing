@@ -210,6 +210,10 @@ put("checkbox_off", checkbox(False)); put("checkbox_on", checkbox(True))
 im = new(16, 4); r(im, 0, 1, 15, 1, SAGE); r(im, 0, 2, 15, 2, SAGE_L); im.putpixel((0, 1), CLR); im.putpixel((15, 1), CLR)
 put("divider", im, (2, 0, 2, 0))
 
+# outlined linen box: unselected tab, unlinked login row (drafts ayarlar-*); the window linen shows through
+im = new(8, 8); r(im, 0, 0, 7, 7, SAGE); r(im, 1, 1, 6, 6, CLR)
+put("outline", im, 1)
+
 # ---------- item slots (40x40 holds a 32 px icon) ----------
 TIERS = {"common": "9babb2", "rare": "4d9be6", "epic": "a884f3", "legendary": "f79617", "mythic": "e83b3b"}
 def slot(outline=WM, fill=SAGE_L, inner=SAGE):
