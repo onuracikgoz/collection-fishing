@@ -24,7 +24,11 @@ namespace CollectionGame.UI.Views
         public Button openBlocked;
 
         [Header("Hesap")]
-        public GameObject hidden;
+        /// <summary>
+        /// Account page: AccountContent holds everything (put hand-made pieces inside it) and stays off
+        /// while AccountCover (<see cref="hidden"/>, opaque) is shown.
+        /// </summary>
+        public GameObject hidden, accountContent;
         public Button reveal;
         public LoginRow google, facebook, discord, steam;
         public GameObject codeBox;

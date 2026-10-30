@@ -44,6 +44,7 @@ namespace CollectionGame.World
         WorldHud hud;
         FishingHud fishingHud;
         BagPanel bagPanel;
+        NpcController npcs;
         bool inputLatched;
 
         /// <param name="switchServer">Joins another server beside a friend: (matchId, serverName, friendUserId).</param>
@@ -68,6 +69,7 @@ namespace CollectionGame.World
                 BookOutcome = world.collection.OnFishEnd,
             };
             world.quests = new QuestController(net, world.fishing);
+            world.npcs = new NpcController(go.transform);
             world.settings = new SettingsController(net)
             {
                 BlockedCount = () => world.social.Friends.Count(f => f.State == Connection.FriendBlocked),
@@ -106,6 +108,9 @@ namespace CollectionGame.World
         /// <summary>The chat line, a uGUI field or any IMGUI text field has the keyboard: game keys are off.</summary>
         bool Typing => (hud != null && hud.ChatFocused) || UiRoot.Typing || GUIUtility.keyboardControl != 0;
 
+        /// <summary>No walking or casting: typing, or a window is open (UiRoot.BlocksWorld).</summary>
+        bool WorldBlocked => Typing || UiRoot.BlocksWorld;
+
         void BuildHud()
         {
             hud = new WorldHud
@@ -127,7 +132,11 @@ namespace CollectionGame.World
             collection.Popup = hud.Popup;
             social.Popup = hud.Popup;
             economy.Popup = hud.Popup;
-            economy.OpenQuests = () => quests.Open = true;
+            // NPC windows open only next to their NPC (E or a click), see NpcController.
+            npcs.Bind("quests", new NpcController.Window { IsOpen = () => quests.Open, Open = () => quests.Open = true, Close = () => quests.Open = false });
+            npcs.Bind("merchant", new NpcController.Window { IsOpen = () => economy.MerchantOpen, Open = () => economy.Show(EconomyController.Tab.Sell), Close = economy.Hide });
+            npcs.Bind("crafter", new NpcController.Window { IsOpen = () => economy.CrafterOpen, Open = () => economy.Show(EconomyController.Tab.Craft), Close = economy.Hide });
+            npcs.Bind("banker", new NpcController.Window { IsOpen = () => economy.BankOpen, Open = () => economy.Show(EconomyController.Tab.Stash), Close = economy.Hide });
             social.Whisper = (id, name) => whispers.OpenWith(id, name);
             social.OpenProfile = collection.OpenProfile;
             social.OpenBook = collection.OpenBook;
@@ -135,7 +144,6 @@ namespace CollectionGame.World
             social.SetPmOff = settings.SetPm;
             var v = hud.View;
             if (v == null) return;
-            WorldHud.On(v.quests, () => quests.Open = !quests.Open);
             WorldHud.On(v.emote, () => social.EmoteMenuOpen = !social.EmoteMenuOpen);
             WorldHud.On(v.market, () =>
             {
@@ -173,6 +181,7 @@ namespace CollectionGame.World
             fishingHud?.Destroy();
             bagPanel?.Destroy();
             quests?.Destroy();
+            npcs?.Destroy();
             collection?.Destroy();
             social?.Destroy();
             social?.DestroyEmotes();
@@ -218,24 +227,26 @@ namespace CollectionGame.World
             {
                 // Keys or the mouse button still held from before a cast must not walk
                 // (walking reels the line in): they count again once released.
+                var blocked = WorldBlocked;
                 var keys = Typing ? Vector2.zero : ReadKeys();
                 var mouseHeld = Mouse.current != null && Mouse.current.leftButton.isPressed;
-                // The trade window holds both players in place (the server ignores MOVE and CAST).
-                if (fishing.BlocksMovement || trade.Active) inputLatched = true;
+                // The trade window holds both players in place (the server ignores MOVE and CAST);
+                // an open window holds this player. Keys or a click held from then count after release.
+                if (fishing.BlocksMovement || trade.Active || blocked) inputLatched = true;
                 else if (inputLatched && keys == Vector2.zero && !mouseHeld) inputLatched = false;
-                var frozen = fishing.BlocksMovement || trade.Active || inputLatched;
+                var frozen = fishing.BlocksMovement || trade.Active || blocked || inputLatched;
                 if (frozen) mover.ClearTarget();
                 else ReadMouse();
                 var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
-                fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, cam);
+                fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, blocked, cam);
                 fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
                 social.Update(Typing);
                 economy.Update(Typing);
                 market.Update(Typing);
-                quests.Update(Typing);
+                npcs.Update(mover.Position, Typing);
                 bagPanel.Update();
                 quests.Tick();
                 collection.Tick();
@@ -248,7 +259,8 @@ namespace CollectionGame.World
                 trade.Tick();
                 market.Tick();
                 whispers.Tick();
-                hud.Tick(serverName, others.Count + 1, fishing, quests.State != null && quests.State.complete && !quests.State.claimed);
+                npcs.QuestsReady = quests.State != null && quests.State.complete && !quests.State.claimed;
+                hud.Tick(serverName, others.Count + 1, fishing);
                 if (!Typing) hud.TryOpenChat();
             }
 
@@ -553,7 +565,11 @@ namespace CollectionGame.World
             if (UiRoot.PointerOverUi || Gui.IsOverUi(screen)) return;
             GUIUtility.keyboardControl = 0; // clicking the world leaves a text field
             var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
-            mover.SetTarget(Coords.ToServer(world));
+            var point = Coords.ToServer(world);
+            // A click on an NPC walks there and talks on arrival.
+            if (mouse.leftButton.wasPressedThisFrame && npcs.Click(point, mover.Position)) { }
+            else if (mouse.leftButton.wasPressedThisFrame) npcs.CancelWalk();
+            mover.SetTarget(point);
         }
 
         void OnGUI()
@@ -569,8 +585,23 @@ namespace CollectionGame.World
             economy.DrawMarkers(cam);
             market.DrawMarkers(cam);
             if (me != null) DrawLabel(me, true);
+            if (npcs != null && mover != null)
+                foreach (var view in npcs.Views) DrawNpcLabel(view);
             foreach (var (view, _) in others.Values)
                 if (ClientSettings.ShowNames) DrawLabel(view, false);
+        }
+
+        void DrawNpcLabel(CharacterView view)
+        {
+            var label = npcs.Label(view, mover.Position);
+            var at = Gui.ToGui(cam.WorldToScreenPoint(view.transform.position + new Vector3(0f, 1.75f, 0f)));
+            var size = Gui.NameMe.CalcSize(new GUIContent(label)) + new Vector2(6f, 4f);
+            var r = new Rect(at.x - size.x / 2f, at.y - size.y, size.x, size.y);
+            if (UiRoot.Covers(Gui.ToScreen(r.center))) return;
+            GUI.Label(new Rect(r.x + 1, r.y + 1, r.width, r.height), label, Gui.Shadow);
+            GUI.Label(r, label, Gui.NameMe);
+            Gui.Block(r);
+            if (GUI.Button(r, GUIContent.none, GUIStyle.none)) npcs.Click(view.ServerPos, mover.Position);
         }
 
         void DrawLabel(CharacterView view, bool isMe)

@@ -38,8 +38,7 @@ namespace CollectionGame.World
             Show(view.charge, charging, at + new Vector2(0, 64)); // balik-at: box bottom 64 above the feet
             if (charging)
             {
-                HudView.Fill(view.chargeFill, fishing.Charge);
-                view.chargeMarker.anchorMin = view.chargeMarker.anchorMax = new Vector2(fishing.Charge, 0.5f);
+                view.SetCharge(fishing.Charge);
             }
             Show(view.bite, biting, at + new Vector2(0, 76));
             Show(view.reel, reeling, at + new Vector2(-90, 0)); // balik-cekme: panel beside the player, feet level

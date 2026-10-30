@@ -36,9 +36,7 @@ namespace CollectionGame.Economy
 
         public void Update(bool typing)
         {
-            var k = Keyboard.current;
-            if (typing || k == null) return;
-            if (k.gKey.wasPressedThisFrame) Open = !Open;
+            // No key: the quest giver NPC opens this window (World/NpcController).
         }
 
         public void Claim()
@@ -59,7 +57,7 @@ namespace CollectionGame.Economy
             stateAt = Time.time;
             dirty = true;
             shownSecond = -1;
-            if (m.complete && !m.claimed && !wasComplete) Toasts.Show("Günlük görevler bitti: sandığın hazır (G)");
+            if (m.complete && !m.claimed && !wasComplete) Toasts.Show("Günlük görevler bitti: sandığın Görevci'de hazır");
         }
 
         public void OnClaimResult(QuestClaimResultMsg r)

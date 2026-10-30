@@ -197,7 +197,7 @@ namespace CollectionGame.UI
                         ("Deftere koy", () => net.Send(OpCode.BookPlace, new BookPlaceMsg { instanceId = it.instanceId })),
                         (it.locked ? "Kilidi aç" : "Kilitle", () => net.Send(OpCode.ItemLock, new ItemLockMsg { instanceId = it.instanceId, locked = !it.locked })),
                         ("Takasa ekle", CanTrade && !it.locked ? () => trade.AddItem(it.instanceId) : (Action)null),
-                        ("Sat / Parçala (NPC yanında, E)", null),
+                        ("Sat / Parçala (Tüccar'da)", null),
                     };
                     popup.ShowMenu($"{FishingController.ItemName(it.defId)} · {it.tier}", entries);
                     break;
@@ -209,7 +209,7 @@ namespace CollectionGame.UI
                         entries.Add((fishing.SelectedBait == st.defId ? "Temel yeme dön" : "Yem olarak kullan",
                             () => fishing.SelectedBait = fishing.SelectedBait == st.defId ? null : st.defId));
                     entries.Add(("Takasa ekle", CanTrade ? () => trade.ChangeStack(st.defId, st.count, st.count) : (Action)null));
-                    entries.Add(("Sat / Parçala (NPC yanında, E)", null));
+                    entries.Add(("Sat / Parçala (Tüccar'da)", null));
                     popup.ShowMenu($"{FishingController.ItemName(st.defId)} · {st.count} adet", entries);
                     break;
                 }

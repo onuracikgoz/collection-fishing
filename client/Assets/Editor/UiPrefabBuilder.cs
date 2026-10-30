@@ -19,7 +19,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 27;
+        public const int Version = 30;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -411,8 +411,9 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
 
             // Window buttons 40x40, 50 apart, ending at 1280; settings apart at 1350 (hud3).
-            string[] names = { "Emote", "Quests", "Market", "Friends", "Profile", "Book", "Bag" };
-            string[] labels = { "Emote\n(T)", "Görev\n(G)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
+            // No quest button: the quest window opens at the quest giver NPC (29.10.2026).
+            string[] names = { "Emote", "Market", "Friends", "Profile", "Book", "Bag" };
+            string[] labels = { "Emote\n(T)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
             var buttons = new Button[names.Length];
             for (var i = 0; i < names.Length; i++)
             {
@@ -421,16 +422,11 @@ namespace CollectionGame.EditorTools
                 At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
             }
             view.emote = buttons[0];
-            view.quests = buttons[1];
-            view.market = buttons[2];
-            view.friends = buttons[3];
-            view.profile = buttons[4];
-            view.book = buttons[5];
-            view.bag = buttons[6];
-            var alert = At(Node("Alert", view.quests.transform), TopRight, new Vector2(-2, -2), new Vector2(8, 8));
-            Solid(alert, Hex("e83b3b"));
-            view.questsAlert = alert.gameObject;
-            alert.gameObject.SetActive(false);
+            view.market = buttons[1];
+            view.friends = buttons[2];
+            view.profile = buttons[3];
+            view.book = buttons[4];
+            view.bag = buttons[5];
             view.settings = Btn(bar, "Settings", "flat", "Ayar", 10);
             view.settings.GetComponentInChildren<Text>().color = Paper;
             At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
@@ -680,8 +676,12 @@ namespace CollectionGame.EditorTools
             view.openBlocked.targetGraphic = linkText;
 
             // ---- Hesap ----
-            var a = Stretch(Node("Account", w));
-            view.account = a.gameObject;
+            // Account > AccountContent (everything on the page; hand-added pieces go here too) and
+            // AccountCover on top: opaque, and the content is switched off until "Göster".
+            var acc = Stretch(Node("Account", w));
+            view.account = acc.gameObject;
+            var a = Stretch(Node("AccountContent", acc));
+            view.accountContent = a.gameObject;
             Section(a, "Giriş yöntemleri", 42, 57);
             TextAt(a, "Subtitle", "Hepsi aynı karaktere girer. En az biri kalmalı.", 203, 72, 447, 14, Faint);
             view.google = LoginRow(a, "Google", Hex("4d9be6"), 92);
@@ -727,9 +727,9 @@ namespace CollectionGame.EditorTools
             view.pending.gameObject.SetActive(false);
             view.cancelDeletion.gameObject.SetActive(false);
 
-            // Hidden cover: the account page opens behind it every time.
-            var cover = Abs(a, "Hidden", 203, 30, 447, 480);
-            Img(cover, "box_dark", Image.Type.Sliced, true);
+            // AccountCover: the account page opens behind it every time.
+            var cover = Abs(acc, "AccountCover", 203, 30, 447, 480);
+            Img(cover, "panel_cover", Image.Type.Sliced, true);
             view.hidden = cover.gameObject;
             Txt(At(Node("Title", cover), Center, new Vector2(0, 40), new Vector2(400, 24), Center), "Hesap bilgilerin gizlendi", 17, Paper, TextAnchor.MiddleCenter, true);
             var hint = Txt(At(Node("Hint", cover), Center, new Vector2(0, 5), new Vector2(380, 40), Center),
@@ -1614,20 +1614,36 @@ namespace CollectionGame.EditorTools
             var root = Stretch(Node("Fishing", null));
             var view = root.gameObject.AddComponent<FishingView>();
 
-            // balik-at: 212x64 dark box, band labels, yellow fill with a white marker, a small line under it.
-            var charge = At(Node("Charge", root), BottomLeft, Vector2.zero, new Vector2(212, 64), new Vector2(0.5f, 0));
+            // balik-at: 214x66 dark box, band labels over thirds, two framed sage boxes (Kıyı + Orta with a
+            // faint line between them, Derin apart), yellow fill, a white marker standing out above and below.
+            var charge = At(Node("Charge", root), BottomLeft, Vector2.zero, new Vector2(214, 66), new Vector2(0.5f, 0));
             Img(charge, "box_dark");
-            TextAt(charge, "Shore", "Kıyı", 18, 15, 60, 13, Paper);
-            TextAt(charge, "Mid", "Orta", 82, 15, 60, 13, Paper, TextAnchor.MiddleCenter);
-            TextAt(charge, "Deep", "Derin", 140, 15, 60, 13, Paper, TextAnchor.MiddleRight);
-            var back = Abs(charge, "Bar", 11, 32, 190, 14);
-            view.chargeFill = Bar(back, "bar_fill_yellow", out _);
-            var marker = Node("Marker", back);
-            marker.anchorMin = marker.anchorMax = new Vector2(0.6f, 0.5f);
-            marker.sizeDelta = new Vector2(4, 18);
+            TextAt(charge, "Shore", "Kıyı", 13, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Mid", "Orta", 78, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Deep", "Derin", 142, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            RectTransform MeterBox(string name, float x, float w)
+            {
+                var box = Abs(charge, name, x, 32, w, 16);
+                Img(box, "meter_back", Image.Type.Sliced);
+                var inner = Stretch(Node("Inner", box), 2, 2, 2, 2);
+                var fill = Node("Fill", inner);
+                fill.anchorMin = Vector2.zero;
+                fill.anchorMax = new Vector2(0.5f, 1f);
+                fill.offsetMin = fill.offsetMax = Vector2.zero;
+                Img(fill, "bar_fill_yellow", Image.Type.Sliced);
+                return fill;
+            }
+            view.chargeFill = MeterBox("ShoreMid", 12, 126);
+            var line = Abs(charge, "Line", 74, 34, 2, 12);
+            Solid(line, new Color(0.27f, 0.16f, 0.25f, 0.35f));
+            view.chargeFillDeep = MeterBox("Deep", 140, 62);
+            view.chargeTrack = Abs(charge, "Track", 14, 28, 186, 24);
+            var marker = Node("Marker", view.chargeTrack);
+            marker.anchorMin = marker.anchorMax = new Vector2(0.55f, 0.5f);
+            marker.sizeDelta = new Vector2(4, 24);
             Solid(marker, Color.white);
             view.chargeMarker = marker;
-            view.chargeSub = TextAt(charge, "Sub", "atış mesafesi", 0, 56, 212, 12, Paper, TextAnchor.MiddleCenter);
+            view.chargeSub = TextAt(charge, "Sub", "atış mesafesi", 0, 57, 214, 13, Hex("9babb2"), TextAnchor.MiddleCenter, true);
             view.charge = charge;
 
             // balik-vurus: "!" over the head and "Şimdi tıkla!" in a bubble beside it.
@@ -1769,6 +1785,7 @@ namespace CollectionGame.EditorTools
             // Level up: 505x187 at (450, 118), three unlock cards.
             var holder = Stretch(Node("LevelUp", root));
             view.levelUp = DraftWindow(holder, "", 450, 118, 505, 187);
+            view.levelUp.blocksWorld = false; // closes by itself, the game does not stop
             Object.DestroyImmediate(view.levelUp.plate.gameObject);
             Object.DestroyImmediate(view.levelUp.close.gameObject);
             var w = view.levelUp.transform;
@@ -1981,6 +1998,7 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<WhisperView>();
             var size = new Vector2(300, 210);
             view.window = Window(wrap, "Window", "Fısıltı", size);
+            view.window.blocksWorld = false; // a whisper stays open while playing
             At((RectTransform)view.window.transform, BottomRight, new Vector2(-420, 190), size, BottomRight);
             view.plateImage = view.window.plate.GetComponent<Image>();
             view.minimize = Btn(view.window.transform, "Minimize", "flat", "_", 12);

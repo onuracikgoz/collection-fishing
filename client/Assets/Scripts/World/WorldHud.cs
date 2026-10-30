@@ -100,7 +100,7 @@ namespace CollectionGame.World
 
         // ---------- per frame ----------
 
-        public void Tick(string serverName, int peopleInView, FishingController fishing, bool questsReady)
+        public void Tick(string serverName, int peopleInView, FishingController fishing)
         {
             if (View == null) return;
             Set(View.place, serverName ?? "");
@@ -123,7 +123,7 @@ namespace CollectionGame.World
             var low = fishing.RodBroken || share < 0.25f;
             var sprite = low ? View.rodLow : View.rodGood;
             if (View.rodFillImage.sprite != sprite) View.rodFillImage.sprite = sprite;
-            Set(View.rodText, fishing.RodBroken ? "Olta KIRIK (E: tamir)" : $"Olta %{Mathf.RoundToInt(share * 100)}");
+            Set(View.rodText, fishing.RodBroken ? "Olta KIRIK (Tüccar: tamir)" : $"Olta %{Mathf.RoundToInt(share * 100)}");
             var rodColour = low ? new Color(0.91f, 0.23f, 0.23f) : new Color(0.95f, 0.91f, 0.82f);
             if (View.rodText.color != rodColour) View.rodText.color = rodColour;
 
@@ -143,7 +143,6 @@ namespace CollectionGame.World
                 View.bait.Data = key;
                 Set(View.baitText, $"Yem\n{FishingController.ItemName(bait)}");
             }
-            if (View.questsAlert.activeSelf != questsReady) View.questsAlert.SetActive(questsReady);
         }
 
         static void Set(Text t, string s)

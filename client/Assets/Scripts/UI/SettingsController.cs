@@ -347,6 +347,7 @@ namespace CollectionGame.UI
             }
 
             v.hidden.SetActive(!revealed);
+            v.accountContent.SetActive(revealed);
             if (!logins.HasValue && !loadingLogins) LoadLogins();
             var l = logins;
             Login(v.google, l?.Google ?? false, l?.Google == true ? $"✓ {l?.Email}" : null);

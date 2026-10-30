@@ -376,8 +376,8 @@ namespace CollectionGame.EditorTools
                 var feet = new Vector2(945, 896 - 455);
                 v.charge.gameObject.SetActive(true);
                 v.charge.anchoredPosition = feet + new Vector2(0, 64);
-                HudView.Fill(v.chargeFill, 0.6f);
-                v.chargeMarker.anchorMin = v.chargeMarker.anchorMax = new Vector2(0.6f, 0.5f);
+                Canvas.ForceUpdateCanvases();
+                v.SetCharge(0.55f);
                 v.hint.gameObject.SetActive(true);
                 v.hint.anchoredPosition = feet + new Vector2(110, -8);
                 v.hintText.text = "basılı tut, bırak";
@@ -570,6 +570,13 @@ namespace CollectionGame.EditorTools
                 v.blocked.text = "Engellenenler: 2 kişi";
                 v.version.text = "v0.4 · Liman";
             });
+            Shot(outDir, "ayarlar-hesap-ortu", Path.Combine(drafts, "ayarlar-hesap.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<SettingsView>(canvas, "Settings");
+                SettingsTabs(v, false);
+                v.accountContent.SetActive(false);
+            });
             Shot(outDir, "ayarlar-hesap", Path.Combine(drafts, "ayarlar-hesap.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
@@ -682,7 +689,6 @@ namespace CollectionGame.EditorTools
             h.bait.SetItem("lake.bait.worm", "", 12, false);
             h.baitText.text = "Yem";
             h.chatLog.text = "<color=#e6904e>Ece:</color> göl kenarı bugün çok kalabalık\n<color=#8fd3ff>Mert:</color> kristal setini bitirdin mi?\n<color=#f9c22b>Sistem:</color> Kaan bir Pristine Epic yakaladı!";
-            h.questsAlert.SetActive(true);
         }
 
         static void FillBag(BagView b)

@@ -20,8 +20,8 @@ namespace CollectionGame.Economy
     /// REPAIR_ROD, BUY_BAIT, STASH_*); balances, Float and every outcome come from
     /// the server. Prices shown before a click come from get_catalog. Placeholder UI.
     ///
-    /// Keys: E opens and closes the window. The stash only works near the bank,
-    /// which is marked on the map.
+    /// The windows open only next to their NPC (World/NpcController: E or a click);
+    /// the stash also needs the server's bank range.
     /// </summary>
     public sealed class EconomyController
     {
@@ -84,20 +84,15 @@ namespace CollectionGame.Economy
 
         public void Update(bool typing)
         {
-            var k = Keyboard.current;
-            if (typing || k == null) return;
-            // E: the bank when standing at it, else the merchant. C: the crafter.
-            if (k.eKey.wasPressedThisFrame)
-            {
-                if (Open && Current != Tab.Merge && Current != Tab.Craft) Close();
-                else Show(NearBank ? Tab.Stash : Tab.Sell);
-            }
-            if (k.cKey.wasPressedThisFrame)
-            {
-                if (Open && (Current == Tab.Merge || Current == Tab.Craft)) Close();
-                else Show(Tab.Craft);
-            }
+            // No keys of its own: the NPCs open these windows.
         }
+
+        public bool MerchantOpen => Open && MerchantTab;
+        public bool CrafterOpen => Open && CrafterTab;
+        public bool BankOpen => Open && Current == Tab.Stash;
+
+        /// <summary>Closes whichever NPC window is open.</summary>
+        public void Hide() => Close();
 
         /// <summary>Joined a server: the catalog also places the bank marker.</summary>
         public void OnWelcome()
@@ -358,8 +353,6 @@ namespace CollectionGame.Economy
         BankView bank;
         bool dirty = true;
         readonly List<SlotView> merchantSlots = new List<SlotView>(), mergeSlots = new List<SlotView>(), stashSlots = new List<SlotView>(), bankBagSlots = new List<SlotView>();
-        /// <summary>Opens the quest window (Görevler tab of the merchant).</summary>
-        public Action OpenQuests { get; set; }
         public PopupView Popup { get; set; }
 
         bool MerchantTab => Current == Tab.Sell || Current == Tab.Salvage || Current == Tab.Shop;
