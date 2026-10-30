@@ -35,6 +35,15 @@ namespace CollectionGame.UI.Views
         public InputField chat;
         public Button send;
         public Text chatLog;
+        public RectTransform chatLogBox;
+        /// <summary>Chat line, send and the chat controls: off while the chat is closed.</summary>
+        public GameObject chatGroup;
+        /// <summary>_ hides the history, + / - resizes it, x closes the chat.</summary>
+        public Button chatHide, chatSize, chatClose;
+        public Text chatSizeText;
+        /// <summary>"Sohbet": opens a closed chat; the red dot means unread lines.</summary>
+        public Button chatOpen;
+        public GameObject chatUnread;
 
         [Header("Window buttons")]
         public Button emote;

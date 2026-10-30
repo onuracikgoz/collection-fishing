@@ -29,6 +29,7 @@ namespace CollectionGame.UI
         public static void Begin()
         {
             GUI.matrix = Matrix4x4.Scale(new Vector3(Scale, Scale, 1f));
+            if (GUI.skin.font != GameFont.Get()) GUI.skin.font = GameFont.Get();
             if (Event.current.type == EventType.Layout) blockers.Clear();
             if (Name != null) return;
 

@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using CollectionGame.UI;
 using CollectionGame.UI.Views;
 using UnityEditor;
@@ -14,12 +16,13 @@ namespace CollectionGame.EditorTools
     ///
     /// Runs by itself when the editor loads and <see cref="Version"/> is newer than the built
     /// prefabs; menu: CollectionGame > UI > Build Prefabs. Bump Version after changing a layout.
-    /// A prefab edited by hand is overwritten on the next build: move the change in here.
+    /// Prefabs marked as hand-edited (Editor/UiHandEdited.txt, menu Mark / Unmark) are skipped with a
+    /// warning; "Rebuild all (overwrite)" builds them too (docs/araclar/ui-uygulama.md, Elle düzenleme).
     /// </summary>
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 30;
+        public const int Version = 33;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -34,8 +37,11 @@ namespace CollectionGame.EditorTools
         static readonly Color DustColour = Hex("4d9be6");
         static readonly Color Xp = Hex("a884f3");
 
-        static Font font;
-        static Font Font => font != null ? font : font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        const string HandEditedFile = "Assets/Editor/UiHandEdited.txt";
+        static bool overwrite;
+
+        /// <summary>The font slot: Assets/Resources/Fonts/ (GameFont), else the built-in font.</summary>
+        static Font Font => GameFont.Get();
 
         static UiPrefabBuilder()
         {
@@ -58,7 +64,63 @@ namespace CollectionGame.EditorTools
             return !int.TryParse(File.ReadAllText(VersionFile).Trim(), out var v) || v < Version;
         }
 
-        [MenuItem("CollectionGame/UI/Build Prefabs")]
+        [MenuItem("CollectionGame/UI/Rebuild all (overwrite)", false, 1)]
+        static void RebuildAll()
+        {
+            var locked = HandEdited();
+            if (locked.Count > 0 && !EditorUtility.DisplayDialog("UI prefabları",
+                    "Elle düzenlenmiş prefablar da ezilecek:\n" + string.Join(", ", locked) + "\n\nDevam?", "Ez", "Vazgeç"))
+                return;
+            overwrite = true;
+            try { Build(); }
+            finally { overwrite = false; }
+        }
+
+        [MenuItem("CollectionGame/UI/Mark selected prefab as hand-edited", false, 20)]
+        static void Mark() => SetHandEdited(true);
+
+        [MenuItem("CollectionGame/UI/Unmark selected prefab (builder may overwrite)", false, 21)]
+        static void Unmark() => SetHandEdited(false);
+
+        [MenuItem("CollectionGame/UI/Mark selected prefab as hand-edited", true)]
+        [MenuItem("CollectionGame/UI/Unmark selected prefab (builder may overwrite)", true)]
+        static bool CanMark() => SelectedPrefab() != null;
+
+        [MenuItem("CollectionGame/UI/Check font (Türkçe)", false, 40)]
+        static void CheckFont()
+        {
+            var missing = GameFont.Missing();
+            var which = GameFont.Custom ? GameFont.Get().name : "Unity'nin yerleşik fontu (Resources/Fonts boş)";
+            if (missing.Length == 0) Debug.Log($"[UI] Font {which}: Türkçe harflerin hepsi var ({GameFont.Turkish})");
+            else Debug.LogWarning($"[UI] Font {which}: eksik harfler: {missing}");
+        }
+
+        /// <summary>Name of the UI prefab selected in the Project window (Resources/UI/X.prefab), or null.</summary>
+        static string SelectedPrefab()
+        {
+            var path = Selection.activeObject != null ? AssetDatabase.GetAssetPath(Selection.activeObject) : null;
+            return path != null && path.StartsWith(Out) && path.EndsWith(".prefab") ? Path.GetFileNameWithoutExtension(path) : null;
+        }
+
+        static List<string> HandEdited() =>
+            File.Exists(HandEditedFile)
+                ? File.ReadAllLines(HandEditedFile).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#")).ToList()
+                : new List<string>();
+
+        static void SetHandEdited(bool on)
+        {
+            var name = SelectedPrefab();
+            if (name == null) return;
+            var list = HandEdited();
+            list.Remove(name);
+            if (on) list.Add(name);
+            list.Sort();
+            File.WriteAllText(HandEditedFile, "# UI prefabs edited by hand in Unity: UiPrefabBuilder skips them (CollectionGame > UI > Mark / Unmark).\n" + string.Join("\n", list) + "\n");
+            AssetDatabase.ImportAsset(HandEditedFile);
+            Debug.Log(on ? $"[UI] {name} elle düzenlendi olarak işaretlendi: builder artık ezmez" : $"[UI] {name} kilidi kalktı: sonraki build ezer");
+        }
+
+        [MenuItem("CollectionGame/UI/Build Prefabs", false, 0)]
         public static void Build()
         {
             if (AssetDatabase.LoadAssetAtPath<Sprite>(Kit + "window.png") == null)
@@ -94,10 +156,18 @@ namespace CollectionGame.EditorTools
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
             Debug.Log($"[UI] Built UI prefabs (version {Version}) in {Out}");
+            var missing = GameFont.Missing();
+            if (missing.Length > 0) Debug.LogWarning($"[UI] Font {Font.name}: eksik Türkçe harfler: {missing}");
         }
 
         static void Save(GameObject go, string name)
         {
+            if (!overwrite && File.Exists(Out + name + ".prefab") && HandEdited().Contains(name))
+            {
+                Debug.LogWarning($"[UI] {name}.prefab elle düzenlendi, builder atladı (ezmek için CollectionGame > UI > Rebuild all (overwrite))");
+                Object.DestroyImmediate(go);
+                return;
+            }
             PrefabUtility.SaveAsPrefabAsset(go, Out + name + ".prefab");
             Object.DestroyImmediate(go);
         }
@@ -345,7 +415,8 @@ namespace CollectionGame.EditorTools
             // Chat log above the chat line.
             var log = At(Node("ChatLog", root), BottomLeft, new Vector2(505, 84), new Vector2(450, 88));
             Img(log, "box_dark");
-            view.chatLog = Txt(Stretch(Node("Text", log), 12, 6, 12, 8), "", 14, Paper, TextAnchor.UpperLeft);
+            view.chatLogBox = log;
+            view.chatLog = Txt(Stretch(Node("Text", log), 12, 6, 12, 8), "", 14, Paper, TextAnchor.LowerLeft);
             view.chatLog.lineSpacing = 1.55f;
             view.chatLog.horizontalOverflow = HorizontalWrapMode.Wrap;
             view.chatLog.verticalOverflow = VerticalWrapMode.Truncate;
@@ -401,14 +472,37 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.bait.transform, BottomLeft, new Vector2(384, 12), new Vector2(40, 40));
             view.baitText = Txt(At(Node("BaitText", bar), BottomLeft, new Vector2(432, 12), new Vector2(70, 40)), "Yem", 13, Paper);
 
-            // Chat line 402x40 at x 504, send square beside it.
-            var chat = At(Node("Chat", bar), BottomLeft, new Vector2(504, 12), new Vector2(402, 40));
+            // Chat line 402x40 at x 504, send square beside it. ChatGroup goes away when the chat is closed.
+            var group = Stretch(Node("ChatGroup", bar));
+            view.chatGroup = group.gameObject;
+            var chat = At(Node("Chat", group), BottomLeft, new Vector2(504, 12), new Vector2(334, 40));
             var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
             field.characterLimit = 120;
             view.chat = field;
-            view.send = Btn(bar, "Send", "flat", "↵", 16);
+            view.send = Btn(group, "Send", "flat", "↵", 16);
             view.send.GetComponentInChildren<Text>().color = Paper;
             At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
+
+            // Chat controls at the right end of the line (29.10.2026, Onur): _ hides the history,
+            // + / - makes it bigger or smaller, x closes the chat down to the "Sohbet" button.
+            Button ChatControl(string name, string label, float x)
+            {
+                var b = Btn(group, name, "flat", label, 13);
+                b.GetComponentInChildren<Text>().color = Paper;
+                At((RectTransform)b.transform, BottomLeft, new Vector2(x, 21), new Vector2(20, 22));
+                return b;
+            }
+            view.chatHide = ChatControl("ChatHide", "_", 842);
+            view.chatSize = ChatControl("ChatSize", "+", 864);
+            view.chatSizeText = view.chatSize.GetComponentInChildren<Text>();
+            view.chatClose = ChatControl("ChatClose", "x", 886);
+            view.chatOpen = Btn(bar, "ChatOpen", "flat", "Sohbet", 14);
+            view.chatOpen.GetComponentInChildren<Text>().color = Paper;
+            At((RectTransform)view.chatOpen.transform, BottomLeft, new Vector2(504, 12), new Vector2(100, 40));
+            var unread = At(Node("Unread", view.chatOpen.transform), TopRight, new Vector2(-4, -4), new Vector2(10, 10));
+            Solid(unread, Hex("e83b3b"));
+            view.chatUnread = unread.gameObject;
+            view.chatOpen.gameObject.SetActive(false);
 
             // Window buttons 40x40, 50 apart, ending at 1280; settings apart at 1350 (hud3).
             // No quest button: the quest window opens at the quest giver NPC (29.10.2026).

@@ -17,7 +17,8 @@ namespace CollectionGame.World
     /// </summary>
     public sealed class WorldHud
     {
-        const int LogLines = 4;
+        const int LogLines = 4, BigLogLines = 14, KeptLines = 50;
+        const float LogHeight = 88f, BigLogHeight = 300f;
 
         public HudView View { get; }
         public PopupView Popup { get; }
@@ -30,6 +31,8 @@ namespace CollectionGame.World
 
         readonly List<string> log = new List<string>();
         int submittedFrame = -1;
+        bool closed, historyHidden, big;
+        int unread;
 
         public WorldHud()
         {
@@ -37,9 +40,22 @@ namespace CollectionGame.World
             View = ui.Spawn<HudView>("Hud");
             Popup = ui.Spawn<PopupView>("Popup");
             if (View == null) return;
-            View.chatLog.transform.parent.gameObject.SetActive(false);
             View.chat.onEndEdit.AddListener(OnEndEdit);
             View.send.onClick.AddListener(() => Send(View.chat.text));
+            View.chatHide.onClick.AddListener(() =>
+            {
+                historyHidden = !historyHidden;
+                RefreshChat();
+            });
+            View.chatSize.onClick.AddListener(() =>
+            {
+                big = !big;
+                historyHidden = false;
+                RefreshChat();
+            });
+            View.chatClose.onClick.AddListener(() => SetClosed(true));
+            View.chatOpen.onClick.AddListener(() => SetClosed(false));
+            RefreshChat();
         }
 
         public void Destroy()
@@ -58,6 +74,7 @@ namespace CollectionGame.World
             if (View == null || Time.frameCount <= submittedFrame + 1) return;
             var k = Keyboard.current;
             if (k == null || !(k.enterKey.wasPressedThisFrame || k.numpadEnterKey.wasPressedThisFrame)) return;
+            if (closed) SetClosed(false);
             View.chat.Select();
             View.chat.ActivateInputField();
         }
@@ -90,9 +107,32 @@ namespace CollectionGame.World
         {
             if (View == null) return;
             log.Add($"<color=#{colour}>{Escape(name)}:</color> {Escape(text)}");
-            while (log.Count > LogLines) log.RemoveAt(0);
-            View.chatLog.text = string.Join("\n", log);
-            View.chatLog.transform.parent.gameObject.SetActive(true);
+            while (log.Count > KeptLines) log.RemoveAt(0);
+            if (closed) unread++;
+            RefreshChat();
+        }
+
+        void SetClosed(bool value)
+        {
+            closed = value;
+            if (!closed) unread = 0;
+            else Leave();
+            RefreshChat();
+        }
+
+        /// <summary>Shows the chat as it is now: closed (button only), history hidden, small or big.</summary>
+        void RefreshChat()
+        {
+            var v = View;
+            v.chatGroup.SetActive(!closed);
+            v.chatOpen.gameObject.SetActive(closed);
+            v.chatUnread.SetActive(unread > 0);
+            var showLog = !closed && !historyHidden && log.Count > 0;
+            v.chatLogBox.gameObject.SetActive(showLog);
+            v.chatSizeText.text = big ? "-" : "+";
+            v.chatLogBox.sizeDelta = new Vector2(v.chatLogBox.sizeDelta.x, big ? BigLogHeight : LogHeight);
+            var lines = big ? BigLogLines : LogLines;
+            v.chatLog.text = string.Join("\n", log.GetRange(Mathf.Max(0, log.Count - lines), Mathf.Min(lines, log.Count)));
         }
 
         /// <summary>Players type the text: no rich-text tags of theirs get through.</summary>

@@ -43,6 +43,21 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
             });
+            Shot(outDir, "hud-sohbet-buyuk", Path.Combine(drafts, "hud3.png"), canvas =>
+            {
+                var h = Spawn<HudView>(canvas, "Hud");
+                FillHud(h);
+                h.chatLogBox.sizeDelta = new Vector2(h.chatLogBox.sizeDelta.x, 300);
+                h.chatSizeText.text = "-";
+            });
+            Shot(outDir, "hud-sohbet-kapali", Path.Combine(drafts, "hud3.png"), canvas =>
+            {
+                var h = Spawn<HudView>(canvas, "Hud");
+                FillHud(h);
+                h.chatGroup.SetActive(false);
+                h.chatLogBox.gameObject.SetActive(false);
+                h.chatOpen.gameObject.SetActive(true);
+            });
             Shot(outDir, "canta", Path.Combine(drafts, "canta-v2.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
