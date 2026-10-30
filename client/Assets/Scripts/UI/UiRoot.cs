@@ -111,6 +111,12 @@ namespace CollectionGame.UI
             return hits.Count > 0;
         }
 
+        /// <summary>
+        /// THE check for world input (walking, casting): false while a text field has the keyboard or
+        /// any window is open (bag, book, profile, NPC windows, trade...). Movement and fishing ask this.
+        /// </summary>
+        public static bool BlocksWorld => Typing || Views.WindowView.OpenBlocking > 0;
+
         /// <summary>A uGUI text field has the keyboard: game keys are off.</summary>
         public static bool Typing
         {

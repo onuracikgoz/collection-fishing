@@ -16,8 +16,34 @@ namespace CollectionGame.UI.Views
         public RectTransform body;
         public RectTransform plate;
 
+        /// <summary>
+        /// While this window is open the world takes no input: no walking (mouse or WASD), no casting.
+        /// Off only for windows that stay open while playing (fısıltı, level-up box).
+        /// </summary>
+        public bool blocksWorld = true;
+
+        /// <summary>How many world-blocking windows are open now (see UiRoot.BlocksWorld).</summary>
+        public static int OpenBlocking { get; private set; }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        static void ResetStatics() => OpenBlocking = 0;
+
         public Action Closed;
-        bool dragging;
+        bool dragging, counted;
+
+        void OnEnable()
+        {
+            if (!blocksWorld || counted) return;
+            counted = true;
+            OpenBlocking++;
+        }
+
+        void OnDisable()
+        {
+            if (!counted) return;
+            counted = false;
+            OpenBlocking--;
+        }
 
         void Awake()
         {
@@ -37,6 +63,8 @@ namespace CollectionGame.UI.Views
                 gameObject.SetActive(value);
             }
         }
+
+        void OnDestroy() => OnDisable();
 
         public void OnPointerDown(PointerEventData e) => Raise();
 
