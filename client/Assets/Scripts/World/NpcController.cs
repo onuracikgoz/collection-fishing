@@ -137,6 +137,22 @@ namespace CollectionGame.World
             return false;
         }
 
+        /// <summary>
+        /// Opens <paramref name="open"/> as this kind of NPC's window when the player stands next to it
+        /// (e.g. the HUD repair button opens the merchant's shop); false when too far.
+        /// </summary>
+        public bool TalkIfNear(string kind, Vector2 me, Action open)
+        {
+            foreach (var n in npcs)
+            {
+                if (n.Data.kind != kind || Vector2.Distance(me, n.Pos) > n.Data.range) continue;
+                open();
+                talking = n;
+                return true;
+            }
+            return false;
+        }
+
         /// <summary>The player chose to walk somewhere else.</summary>
         public void CancelWalk() => walkingTo = null;
 

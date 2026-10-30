@@ -171,7 +171,11 @@ namespace CollectionGame.World
                 if (fishing.BagOpen) fishing.RefreshBag();
             });
             WorldHud.On(v.settings, settings.Toggle);
-            WorldHud.On(v.repair, () => economy.Show(EconomyController.Tab.Shop));
+            WorldHud.On(v.repair, () =>
+            {
+                if (mover == null || !npcs.TalkIfNear("merchant", mover.Position, () => economy.Show(EconomyController.Tab.Shop)))
+                    Toasts.Show("Olta tamiri Balıkçı Tüccar'da: yanına git", true);
+            });
             v.bait.Clicked = _ => fishing.CycleBait();
         }
 

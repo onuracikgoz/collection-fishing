@@ -28,7 +28,7 @@ Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencerele
 - **Her pencere kendi taslağından:** `Editor/UiPrefabBuilder.cs` her pencereyi taslaktan ölçülen koordinatlarla kurar (`DraftWindow`, `Abs`, `TextAt`) ve `Assets/Resources/UI/*.prefab` olarak kaydeder. Ortak liste şablonu (`PanelView`) artık sadece takas davet kutusunda. Kit'te olmayan bir parça gerekirse `tools/ui-kit/make_ui_kit.py`'ye eklenir (eklenenler: `outline`, `tag_level`, `panel_locked`); kit görselleri boyanmaz (renk tonu yok).
 - **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları denetleyiciler doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
 - **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots). Taslak | Unity karşılaştırmaları: `docs/gorsel/ui-karsilastirma/`. Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
-- **Yazı:** Unity'nin yerleşik fontu (LegacyRuntime). Türkçe harfli pixel font gelince builder'da tek yerden değişir. Taslaklardan en görünür fark bu.
+- **Yazı:** tek font yeri `client/Assets/Resources/Fonts/` (aşağıda, Yazı tipi). Boşsa Unity'nin yerleşik fontu (LegacyRuntime). Taslaklardan en görünür fark bu.
 - **İkonlar:** yok; HUD'da renkli kareler, yuvalarda eşya adının ilk harfleri.
 
 ### uGUI'ye geçenler (taslağa göre)
@@ -38,7 +38,7 @@ Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sa�
 | Pencere | Taslak | Prefab / kod | Açılış |
 |---|---|---|---|
 | Giriş akışı: başlık, Oyuna gir, karakter adı, sunucu seç, yükleniyor | `_akis-1,2,5,6,7` | `Login`, `Game.cs` | Oyun açılınca |
-| HUD | `hud3` | `Hud`, `World/WorldHud.cs` | Hep |
+| HUD (sağ üstte Coin, elmas, toz; Collection Score profilde ve defterde) | `hud3` | `Hud`, `World/WorldHud.cs` | Hep |
 | Çanta + sağ tık menüsü | `canta-v2` | `Bag`, `Popup`, `UI/BagPanel.cs` | B |
 | Defter | `defter-v2` | `Book`, `Collection/CollectionController.cs` | K |
 | Profil kartı | `profil-v3` | `Profile` | P, isim menüsünden |
@@ -47,9 +47,10 @@ Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sa�
 | Emote menüsü + dünyada durum işaretleri | `emote-menu`, `emote-dunya` | `Emote` | T, HUD |
 | Takas + "Kaç tane?" + teklif kutusu | `takas-a/b/c`, `oyuncu-teklif` | `Trade`, `Count`, `TradeInvite` | Oyuncu menüsü |
 | Fısıltı pencereleri | taslak yok | `Whisper` | `/w ad mesaj` |
-| Balıkçı Tüccar: Sat, Parçala, Görevler, Dükkan | `npc-sat`, `npc-parcala`, `npc-gorev` | `Merchant`, `Quests`, `Economy/EconomyController.cs`, `QuestController.cs` | E (bankadaysan Banka), G |
-| Zanaatkar: Craft, Birleştir | `npc-craft`, `npc-birlestir` | `Crafter` | C |
-| Banka | `npc-depo` | `Bank` | Bankada E |
+| Balıkçı Tüccar: Sat, Parçala, Dükkan | `npc-sat`, `npc-parcala` | `Merchant`, `Economy/EconomyController.cs` | Tüccar NPC'si: yanında E ya da tıkla |
+| Görevler | `npc-gorev` (sekmesiz) | `Quests`, `Economy/QuestController.cs` | Görevci NPC'si |
+| Zanaatkar: Craft, Birleştir | `npc-craft`, `npc-birlestir` | `Crafter` | Zanaatkar NPC'si |
+| Banka | `npc-depo` | `Bank` | Bankacı NPC'si (banka noktasında) |
 | Tezgah kur / Tezgahım, tezgah listesi, Pazar Panosu | `tezgah-kur`, `-tezgah`, `-pano` | `StallSetup`, `Stall`, `Board`, `Economy/MarketController.cs` | M, haritada tezgah etiketi |
 | Ayarlar | `ayarlar-genel`, `ayarlar-hesap` | `Settings`, `UI/SettingsController.cs` | HUD Ayar |
 | Balık tutma anları | `balik-at`, `-vurus`, `-cekme` | `Fishing`, `World/FishingHud.cs` | Balık tutarken |
@@ -61,6 +62,56 @@ Taslaktan bilerek ayrılanlar (sunucuda karşılığı yok, uydurulmadı): pet s
 ### Hâlâ IMGUI
 
 Dünyadaki isim etiketleri, sohbet balonları, durum emote işaretleri ve haritadaki tezgah etiketleri (uGUI penceresinin altında kalınca çizilmez). Kit görünümlü `UI/Kit.cs` sadece bunlar için kaldı.
+
+## Sekmeler: tek bileşen
+
+Oyundaki her sekme (Ayarlar, Arkadaşlar, Tüccar, Zanaatkar) aynı bileşendir: `UI/Views/TabButton.cs`, builder'da `Tab(...)`. Seçili sekme kit `button_wood_normal` + açık yazı, seçili olmayan kit `tab_off` (mürekkep çerçeve, koyu keten, mürekkep yazı). Görünüşü değiştirmek için `tools/ui-kit/make_ui_kit.py`'de `tab_off`'u ya da `UiPrefabBuilder.Tab`'ı değiştir, prefabları yeniden üret: bütün pencereler birlikte değişir.
+
+## NPC'ler
+
+Tüccar, Zanaatkar, Görevler ve Banka pencereleri HUD'dan ya da kısayoldan açılmaz (E, C, G kısayolları ve HUD Görev butonu kalktı). NPC'nin yanına git, **E**'ye bas ya da NPC'ye / adına **tıkla** (uzaktaysan karakter yürür, varınca açılır). Uzaklaşınca pencere kapanır. Kod: `World/NpcController.cs`.
+
+- Konumlar ve konuşma mesafesi veri: `client/Assets/Resources/Npcs.json` (sunucu tile koordinatı). Zanaatkar meydanın doğusunda göl yolunda, Bankacı banka noktasının yanında (`16-ilk-harita.md`); Görevci ve Tüccar **yer tutucu**, harita editörü yerleştirene kadar (`acik-sorular.md` 27).
+- Görevci, sandık hazırken adının önünde "!" taşır.
+- Sunucu bu pencerelerin işlemlerinde mesafeye bakmaz (Banka hariç): `acik-sorular.md` 27.
+
+## Dünya girişi (pencere açıkken)
+
+Tek kontrol: `UiRoot.BlocksWorld`. Bir yazı alanı klavyedeyken ya da herhangi bir pencere (`WindowView`) açıkken yürüme (fare ve WASD) ve olta atma kapalı. Pencereler `WindowView.blocksWorld` ile sayılır; kapalı olanlar: fısıltı pencereleri ve seviye atlama kutusu (oyun sürerken açık kalırlar). Pencere kapanınca basılı kalan tuş ya da fare bırakılana kadar sayılmaz.
+
+## Balık tutma tuşları
+
+F ve **sağ tık** aynı: basılı tut (gösterge dolar), bırak (olta atılır; F bakılan yöne, sağ tık farenin yönüne), şamandıra batınca bas (vuruş), basılı tut (çekme). Space ve sol tık da vuruş / çekmede çalışır. Gösterge `balik-at` taslağına göre: Kıyı + Orta kutusu ve ayrı Derin kutusu (kit `meter_back`), sarı dolum, ikisinin üstünde tek beyaz işaret. Derin taslakta kilitli; sunucuda olta seviyesi şartı olmadığı için açık.
+
+## Sohbet
+
+Chat satırının sağında üç küçük buton: **_** geçmişi gizler / gösterir, **+ / -** geçmişi büyütür (14 satır) / küçültür (4 satır), **x** sohbeti kapatır. Kapalıyken sadece "Sohbet" butonu kalır; okunmamış satır varsa üstünde kırmızı nokta. Enter kapalı sohbeti de açar. Chat'e yazarken karakter yürümez.
+
+## Elle düzenleme
+
+Prefablar `Editor/UiPrefabBuilder.cs` ile üretilir. Unity'de elle küçük değişiklik (buton yeri, boyut, renk, yazı) yapılabilir:
+
+1. Project penceresinde `Assets/Resources/UI/` altındaki prefaba (ör. `Hud.prefab`) çift tıkla: prefab modu açılır.
+2. Hierarchy'de objeyi seç, Inspector'da `Rect Transform` (Pos X / Pos Y, Width / Height), `Image` (sprite, renk) ya da `Text` (yazı, boyut) değiştir. Kaydet (Cmd+S).
+3. **Kilitle:** prefab Project'te seçiliyken `CollectionGame > UI > Mark selected prefab as hand-edited`. Builder artık bu prefabı ezmez, atladığını Console'a yazar. Liste: `client/Assets/Editor/UiHandEdited.txt`.
+4. Kilidi aç: `CollectionGame > UI > Unmark selected prefab`. Hepsini kilitlilerle birlikte yeniden üretmek: `CollectionGame > UI > Rebuild all (overwrite)` (sorar).
+
+Güvenli: konum, boyut, renk, sprite, yazı, yeni süs objesi eklemek. Güvenli değil: obje silmek ya da yeniden adlandırmak, `*View` bileşenlerindeki referansları değiştirmek (kod onları kullanır), Ayarlar > Hesap'ta `AccountContent` dışına içerik koymak. Kilitli bir prefab builder'daki yeni değişiklikleri almaz; büyük değişiklikte kilidi aç, yeniden üret, elle düzenlemeyi tekrarla (ya da bana söyle, builder'a taşıyayım).
+
+**Ayarlar > Hesap:** `Settings` prefabında `Window/Body/Account` altında iki obje: `AccountContent` (sayfadaki her şey; kendi eklediğin şey de buraya) ve onun üstünde `AccountCover` (opak örtü, Göster butonu). Örtü kapalıyken `AccountContent` tamamen kapalıdır, içindeki hiçbir şey görünmez.
+
+## Yazı tipi
+
+Tek yer: `client/Assets/Resources/Fonts/`. Bir `.ttf` ya da `.otf` koy (birden fazlaysa adı alfabede ilk olan kullanılır). Sonra Unity'de:
+
+1. `CollectionGame > UI > Rebuild all (overwrite)`: bütün pencerelerdeki yazılar yeni fontu alır. Dünyadaki isimler ve balonlar (IMGUI) fontu oyunda kendiliğinden alır.
+2. `CollectionGame > UI > Check font (Türkçe)`: ç ğ ı İ ö ş ü Ç Ğ Ö Ş Ü harflerinden eksik olanı Console'a yazar (her build sonrası da yazar).
+
+Pixel fontta fontun Inspector'ında Rendering Mode "Hinted Raster" ya da "Raster" seç; yazı boyutları fontun doğal boyutunun katı olursa keskin kalır.
+
+## Player 2 build
+
+İkinci test oyuncusu `client/player2.app`. Güncellemek: Unity açıksa `CollectionGame > Build Player 2 (macOS)`; Unity kapalıyken terminalde `tools/update-player2.sh`. Sonra `open client/player2.app`.
 
 ## Pencereler
 
@@ -75,7 +126,7 @@ Dünyadaki isim etiketleri, sohbet balonları, durum emote işaretleri ve harita
 | Oyuncu menüsü, takas teklifi | `oyuncu-*` | Arkadaş ekle ve Yanına git hazır. Takas teklifi hazır (`TRADE_OFFER`). Fısıltı ve Raporla hazır (`whisper_send`, `report_player`), Engelle Nakama'nın `blockFriends`'i | Menü sağ tık listesi gibi, kart yok |
 | Fısıltı pencereleri (Knight Online tarzı) | **yok**, çizilecek | Hazır (`protokol.md` Fısıltı; bildirim kodu 110, ayar `whisper_settings`) | Aşağıda, Fısıltı penceresi |
 | Takas penceresi | `takas-a/b/c` | Hazır (`TRADE_*`, `protokol.md` Takas; level şartı yok) | 2 kilit + 3 sn geri sayım + Onayla; kilitli eşya konamaz |
-| Ayarlar (Genel, Hesap) | `ayarlar-*` | Genel client; Hesap: kod üret hazır, link/unlink Nakama'nın kendi çağrıları, hesap silme hazır (`account_delete_*`, `protokol.md` Hesap silme RPC'leri) | Hesap sayfası bulanık açılır, uyarı onaylanınca görünür |
+| Ayarlar (Genel, Hesap) | `ayarlar-*` | Genel client; Hesap: kod üret hazır, link/unlink Nakama'nın kendi çağrıları, hesap silme hazır (`account_delete_*`, `protokol.md` Hesap silme RPC'leri) | Hesap sayfası opak örtüyle (`AccountCover`) açılır, Göster'e basınca görünür |
 | Balık tutma anları | `balik-*` | Hazır | Sürpriz av, keşif bandı |
 | NPC: sat, parçala, birleştir, craft, depo, günlük görev | `npc-*` | Satış/parçala/birleştir/craft/depo hazır (`get_catalog` ile fiyatlar). Günlük görev hazır (`QUEST_*`, `protokol.md` Günlük görev; sandık anında açılır, Float'lı eşya çıkmaz) | Craft sadece Zanaatkar'da |
 | Pazar: tezgah alanı, kurma, pano | `tezgah-*` | Tezgah: `STALL_*` hazır (`protokol.md` Pazar). Reklam panosu hazır (`BOARD_*`, `protokol.md` Pazar Panosu; elmas bakiyesi `get_inventory.diamond`); alım ilanı yok; pet seçimi / görünümü client konusu | Genel arama ve fiyat sıralaması yok. Pet 7 tile'dan yakınsa başlık + ilk 4 kalem, tıklayınca tam liste |
