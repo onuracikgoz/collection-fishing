@@ -44,7 +44,9 @@ namespace CollectionGame.World
         WorldHud hud;
         FishingHud fishingHud;
         BagPanel bagPanel;
+        NpcController npcs;
         bool inputLatched;
+        MiniMap miniMap;
 
         /// <param name="switchServer">Joins another server beside a friend: (matchId, serverName, friendUserId).</param>
         public static WorldController Create(Connection net, string serverName, Action<string> onDisconnected, Action<string, string, string> switchServer)
@@ -68,6 +70,7 @@ namespace CollectionGame.World
                 BookOutcome = world.collection.OnFishEnd,
             };
             world.quests = new QuestController(net, world.fishing);
+            world.npcs = new NpcController(go.transform);
             world.settings = new SettingsController(net)
             {
                 BlockedCount = () => world.social.Friends.Count(f => f.State == Connection.FriendBlocked),
@@ -106,6 +109,9 @@ namespace CollectionGame.World
         /// <summary>The chat line, a uGUI field or any IMGUI text field has the keyboard: game keys are off.</summary>
         bool Typing => (hud != null && hud.ChatFocused) || UiRoot.Typing || GUIUtility.keyboardControl != 0;
 
+        /// <summary>No walking or casting: typing, or a window is open (UiRoot.BlocksWorld).</summary>
+        bool WorldBlocked => Typing || UiRoot.BlocksWorld;
+
         void BuildHud()
         {
             hud = new WorldHud
@@ -127,8 +133,11 @@ namespace CollectionGame.World
             collection.Popup = hud.Popup;
             social.Popup = hud.Popup;
             economy.Popup = hud.Popup;
-            economy.OpenQuests = () => quests.Open = true;
-            quests.OpenMerchantTab = i => economy.Show(i == 1 ? EconomyController.Tab.Salvage : i == 3 ? EconomyController.Tab.Shop : EconomyController.Tab.Sell);
+            // NPC windows open only next to their NPC (E or a click), see NpcController.
+            npcs.Bind("quests", new NpcController.Window { IsOpen = () => quests.Open, Open = () => quests.Open = true, Close = () => quests.Open = false });
+            npcs.Bind("merchant", new NpcController.Window { IsOpen = () => economy.MerchantOpen, Open = () => economy.Show(EconomyController.Tab.Sell), Close = economy.Hide });
+            npcs.Bind("crafter", new NpcController.Window { IsOpen = () => economy.CrafterOpen, Open = () => economy.Show(EconomyController.Tab.Craft), Close = economy.Hide });
+            npcs.Bind("banker", new NpcController.Window { IsOpen = () => economy.BankOpen, Open = () => economy.Show(EconomyController.Tab.Stash), Close = economy.Hide });
             social.Whisper = (id, name) => whispers.OpenWith(id, name);
             social.OpenProfile = collection.OpenProfile;
             social.OpenBook = collection.OpenBook;
@@ -136,7 +145,7 @@ namespace CollectionGame.World
             social.SetPmOff = settings.SetPm;
             var v = hud.View;
             if (v == null) return;
-            WorldHud.On(v.quests, () => quests.Open = !quests.Open);
+            miniMap = new MiniMap(v.miniMap, net);
             WorldHud.On(v.emote, () => social.EmoteMenuOpen = !social.EmoteMenuOpen);
             WorldHud.On(v.market, () =>
             {
@@ -164,16 +173,23 @@ namespace CollectionGame.World
                 if (fishing.BagOpen) fishing.RefreshBag();
             });
             WorldHud.On(v.settings, settings.Toggle);
-            WorldHud.On(v.repair, () => economy.Show(EconomyController.Tab.Shop));
+            WorldHud.On(v.repair, () =>
+            {
+                if (mover == null || !npcs.TalkIfNear("merchant", mover.Position, () => economy.Show(EconomyController.Tab.Shop)))
+                    Toasts.Show("Olta tamiri Balıkçı Tüccar'da: yanına git", true);
+            });
             v.bait.Clicked = _ => fishing.CycleBait();
         }
 
         void OnDestroy()
         {
             hud?.Destroy();
+            bubbles?.Destroy();
+            miniMap?.Destroy();
             fishingHud?.Destroy();
             bagPanel?.Destroy();
             quests?.Destroy();
+            npcs?.Destroy();
             collection?.Destroy();
             social?.Destroy();
             social?.DestroyEmotes();
@@ -219,9 +235,12 @@ namespace CollectionGame.World
             {
                 // Keys or the mouse button still held from before a cast must not walk
                 // (walking reels the line in): they count again once released.
+                var blocked = WorldBlocked;
                 var keys = Typing ? Vector2.zero : ReadKeys();
                 var mouseHeld = Mouse.current != null && Mouse.current.leftButton.isPressed;
                 // The trade window holds both players in place (the server ignores MOVE and CAST).
+                // An open window does not stop walking (31.10.2026, Onur): a walk goes on, keys still
+                // walk, clicks on the map still walk; only casting waits until the windows close.
                 if (fishing.BlocksMovement || trade.Active) inputLatched = true;
                 else if (inputLatched && keys == Vector2.zero && !mouseHeld) inputLatched = false;
                 var frozen = fishing.BlocksMovement || trade.Active || inputLatched;
@@ -230,13 +249,14 @@ namespace CollectionGame.World
                 var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
-                fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, cam);
+                fishing.RightClickTaken = RightClickPlayer();
+                fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, blocked, cam);
                 fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
                 social.Update(Typing);
                 economy.Update(Typing);
                 market.Update(Typing);
-                quests.Update(Typing);
+                npcs.Update(mover.Position, Typing);
                 bagPanel.Update();
                 quests.Tick();
                 collection.Tick();
@@ -249,7 +269,9 @@ namespace CollectionGame.World
                 trade.Tick();
                 market.Tick();
                 whispers.Tick();
-                hud.Tick(serverName, others.Count + 1, fishing, collection.Score, quests.State != null && quests.State.complete && !quests.State.claimed);
+                npcs.QuestsReady = quests.State != null && quests.State.complete && !quests.State.claimed;
+                hud.Tick(serverName, others.Count + 1, fishing);
+                miniMap?.Tick(mover.Position, npcs.Markers, others.Values.Select(o => o.mover.Position), npcs.QuestsReady);
                 if (!Typing) hud.TryOpenChat();
             }
 
@@ -263,6 +285,33 @@ namespace CollectionGame.World
         void LateUpdate()
         {
             if (cam == null || me == null) return;
+            PlaceCamera();
+            // Chat bubbles stand above the name (and the status sign), uGUI under the windows.
+            bubbles ??= new ChatBubbles();
+            foreach (var v in AllCharacters()) v.BubbleAnchor = BubbleAnchorOf(v);
+            bubbles.Tick(AllCharacters());
+        }
+
+        ChatBubbles bubbles;
+
+        IEnumerable<CharacterView> AllCharacters()
+        {
+            if (me != null) yield return me;
+            foreach (var (view, _) in others.Values) yield return view;
+        }
+
+        /// <summary>Screen point above a character's name (and status sign) where its bubble stack stands.</summary>
+        Vector2 BubbleAnchorOf(CharacterView view)
+        {
+            var head = (Vector2)cam.WorldToScreenPoint(view.transform.position + new Vector3(0f, 1.75f, 0f));
+            var line = ((Gui.Name != null ? Gui.Name.lineHeight : 14f) + 6f) * Gui.Scale;
+            var up = line + 4f * Gui.Scale;
+            if (social.StatusOf.TryGetValue(view.Id, out var status) && !string.IsNullOrEmpty(status)) up += line + 2f * Gui.Scale;
+            return head + new Vector2(0f, up);
+        }
+
+        void PlaceCamera()
+        {
             // Integer zoom keeps the pixel art sharp: one art pixel = zoom screen pixels.
             var zoom = Mathf.Max(1, Mathf.RoundToInt(Screen.height / 480f));
             cam.orthographicSize = Screen.height / (2f * 32f * zoom);
@@ -271,8 +320,14 @@ namespace CollectionGame.World
             var p = me.transform.position;
             var x = LakeMap.Width > 2 * halfW ? Mathf.Clamp(p.x, halfW, LakeMap.Width - halfW) : LakeMap.Width / 2f;
             var y = LakeMap.Height > 2 * halfH ? Mathf.Clamp(p.y, -LakeMap.Height + halfH, -halfH) : -LakeMap.Height / 2f;
+            // One screen pixel in world units. The camera centre must sit on a pixel edge so tile edges land
+            // on pixel edges: with an odd screen width or height (Free Aspect game view, a dragged window)
+            // the centre is in the middle of a pixel, so shift it half a pixel, or the tiles sample their
+            // neighbours on the sheet and thin lines flicker between them while walking (31.10.2026).
             var snap = 1f / (32f * zoom);
-            cam.transform.position = new Vector3(Mathf.Round(x / snap) * snap, Mathf.Round(y / snap) * snap, -10f);
+            var halfX = Screen.width % 2 == 1 ? snap * 0.5f : 0f;
+            var halfY = Screen.height % 2 == 1 ? snap * 0.5f : 0f;
+            cam.transform.position = new Vector3(Mathf.Round(x / snap) * snap + halfX, Mathf.Round(y / snap) * snap + halfY, -10f);
         }
 
         void Handle(Connection.Incoming m)
@@ -381,7 +436,7 @@ namespace CollectionGame.World
                         mover.Teleport(new Vector2(t.x, t.y));
                         me.SetState(mover.Position, mover.Facing, false);
                     }
-                    if (!market.OnTeleport(t)) social.OnTeleport(t);
+                    if (!market.OnTeleport(t) && (miniMap == null || !miniMap.OnTeleport(t))) social.OnTeleport(t);
                     break;
                 }
                 case OpCode.EmoteShow:
@@ -391,6 +446,9 @@ namespace CollectionGame.World
                     social.OnEmote(e, who);
                     break;
                 }
+                case OpCode.ItemDiscardResult:
+                    bagPanel.OnDiscardResult(JsonUtility.FromJson<ItemDiscardResultMsg>(m.Json));
+                    break;
                 case OpCode.ItemLockResult:
                     bagPanel.OnLockResult(JsonUtility.FromJson<ItemLockResultMsg>(m.Json));
                     break;
@@ -502,17 +560,46 @@ namespace CollectionGame.World
             }
         }
 
-        /// <summary>Click on another player's name (oyuncu-kart): what can be done with them.</summary>
+        /// <summary>
+        /// Right click on another player's character (31.10.2026, Onur): their menu (Profil, Fısılda,
+        /// Engelle, Şikayet et...). True when it took the click, so the right click does not cast.
+        /// </summary>
+        bool RightClickPlayer()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || cam == null || !mouse.rightButton.wasPressedThisFrame || UiRoot.PointerOverUi) return false;
+            var screen = mouse.position.ReadValue();
+            var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
+            CharacterView best = null;
+            var bestD = float.MaxValue;
+            foreach (var (view, _) in others.Values)
+            {
+                // The sprite stands on its feet: about a tile wide and two tall (with the name).
+                var d = (Vector2)world - (Vector2)view.transform.position;
+                if (Mathf.Abs(d.x) > 0.55f || d.y < -0.1f || d.y > 2.1f) continue;
+                var dist = Mathf.Abs(d.x) + Mathf.Abs(d.y - 0.8f);
+                if (dist < bestD)
+                {
+                    bestD = dist;
+                    best = view;
+                }
+            }
+            if (best == null) return false;
+            PlayerMenu(best.Id, best.DisplayName);
+            return true;
+        }
+
+        /// <summary>Click on another player's name (oyuncu-kart) or a right click on them: what can be done with them.</summary>
         void PlayerMenu(string id, string name)
         {
             var friend = social.Friends.Any(f => f.UserId == id && f.State == Connection.FriendMutual);
-            hud.Popup.ShowMenu(name, new (string, Action)[]
+            hud.Popup.ShowMenu(name, friend ? "Arkadaşın" : "Oyuncu", null, new (string, Action)[]
             {
                 ("Profil", () => collection.OpenProfile(id)),
-                ("Defterine bak", () => collection.OpenBook(id, name)),
-                (friend ? "Arkadaşın" : "<color=#91db69>Arkadaş ekle</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
                 ("Fısılda", () => whispers.OpenWith(id, name)),
                 ("Takas teklif et", () => trade.Offer(id, name)),
+                ("Defterine bak", () => collection.OpenBook(id, name)),
+                (friend ? "Arkadaşın" : "<color=#91db69>Arkadaş ekle</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
                 ("Engelle", () => Block(id, name)),
                 ("<color=#e83b3b>Şikayet et</color>", () => collection.ReportMenu(id)),
             });
@@ -545,16 +632,30 @@ namespace CollectionGame.World
             return v;
         }
 
+        /// <summary>The left button went down on the map (not on a window, the HUD or a name tag).</summary>
+        bool pressOnMap;
+
         void ReadMouse()
         {
             var mouse = Mouse.current;
-            if (mouse == null || cam == null || !mouse.leftButton.isPressed) return;
+            if (mouse == null || cam == null) return;
             var screen = mouse.position.ReadValue();
-            // Clicks on the HUD, windows and name tags are not walking.
-            if (UiRoot.PointerOverUi || Gui.IsOverUi(screen)) return;
+            // Only a press that began on the map walks: a click or drag that starts inside a window
+            // never reaches the map, even when the pointer leaves the window while held.
+            if (mouse.leftButton.wasPressedThisFrame) pressOnMap = !UiRoot.PointerOverUi && !Gui.IsOverUi(screen);
+            if (!mouse.leftButton.isPressed)
+            {
+                pressOnMap = false;
+                return;
+            }
+            if (!pressOnMap || UiRoot.PointerOverUi || Gui.IsOverUi(screen)) return;
             GUIUtility.keyboardControl = 0; // clicking the world leaves a text field
             var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
-            mover.SetTarget(Coords.ToServer(world));
+            var point = Coords.ToServer(world);
+            // A click on an NPC walks there and talks on arrival.
+            if (mouse.leftButton.wasPressedThisFrame && npcs.Click(point, mover.Position)) { }
+            else if (mouse.leftButton.wasPressedThisFrame) npcs.CancelWalk();
+            mover.SetTarget(point);
         }
 
         void OnGUI()
@@ -570,8 +671,23 @@ namespace CollectionGame.World
             economy.DrawMarkers(cam);
             market.DrawMarkers(cam);
             if (me != null) DrawLabel(me, true);
+            if (npcs != null && mover != null)
+                foreach (var view in npcs.Views) DrawNpcLabel(view);
             foreach (var (view, _) in others.Values)
                 if (ClientSettings.ShowNames) DrawLabel(view, false);
+        }
+
+        void DrawNpcLabel(CharacterView view)
+        {
+            var label = npcs.Label(view, mover.Position);
+            var at = Gui.ToGui(cam.WorldToScreenPoint(view.transform.position + new Vector3(0f, 1.75f, 0f)));
+            var size = Gui.NameMe.CalcSize(new GUIContent(label)) + new Vector2(6f, 4f);
+            var r = new Rect(at.x - size.x / 2f, at.y - size.y, size.x, size.y);
+            if (UiRoot.Covers(Gui.ToScreen(r.center))) return;
+            GUI.Label(new Rect(r.x + 1, r.y + 1, r.width, r.height), label, Gui.Shadow);
+            GUI.Label(r, label, Gui.NameMe);
+            Gui.Block(r);
+            if (GUI.Button(r, GUIContent.none, GUIStyle.none)) npcs.Click(view.ServerPos, mover.Position);
         }
 
         void DrawLabel(CharacterView view, bool isMe)
@@ -612,12 +728,6 @@ namespace CollectionGame.World
                 GUI.Label(new Rect(at.x - size.x / 2f, at.y, size.x, size.y), text, Gui.Emote);
             }
 
-            if (!ClientSettings.Bubbles || view.Bubble == null || Time.time > view.BubbleUntil) return;
-            var content = new GUIContent(view.Bubble);
-            // A few pixels of slack: the scaled GUI matrix rounds text wider than CalcSize says.
-            var width = Mathf.Min(240f, Gui.Bubble.CalcSize(content).x + 8f);
-            var height = Gui.Bubble.CalcHeight(content, width) + 2f;
-            GUI.Box(new Rect(namePos.x - width / 2f, namePos.y - nameSize.y - height - 4f, width, height), content, Gui.Bubble);
         }
 
         void DrawHud()

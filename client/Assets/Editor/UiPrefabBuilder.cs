@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using CollectionGame.UI;
 using CollectionGame.UI.Views;
 using UnityEditor;
@@ -14,12 +16,13 @@ namespace CollectionGame.EditorTools
     ///
     /// Runs by itself when the editor loads and <see cref="Version"/> is newer than the built
     /// prefabs; menu: CollectionGame > UI > Build Prefabs. Bump Version after changing a layout.
-    /// A prefab edited by hand is overwritten on the next build: move the change in here.
+    /// Prefabs marked as hand-edited (Editor/UiHandEdited.txt, menu Mark / Unmark) are skipped with a
+    /// warning; "Rebuild all (overwrite)" builds them too (docs/araclar/ui-uygulama.md, Elle düzenleme).
     /// </summary>
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 26;
+        public const int Version = 37;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -31,10 +34,14 @@ namespace CollectionGame.EditorTools
         static readonly Color Gold = Hex("f9c22b");
         static readonly Color CoinColour = Hex("e6904e");
         static readonly Color DiamondColour = Hex("8fd3ff");
+        static readonly Color DustColour = Hex("4d9be6");
         static readonly Color Xp = Hex("a884f3");
 
-        static Font font;
-        static Font Font => font != null ? font : font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        const string HandEditedFile = "Assets/Editor/UiHandEdited.txt";
+        static bool overwrite;
+
+        /// <summary>The font slot: Assets/Resources/Fonts/ (GameFont), else the built-in font.</summary>
+        static Font Font => GameFont.Get();
 
         static UiPrefabBuilder()
         {
@@ -57,7 +64,80 @@ namespace CollectionGame.EditorTools
             return !int.TryParse(File.ReadAllText(VersionFile).Trim(), out var v) || v < Version;
         }
 
-        [MenuItem("CollectionGame/UI/Build Prefabs")]
+        [MenuItem("CollectionGame/UI/Rebuild all (overwrite)", false, 1)]
+        static void RebuildAll()
+        {
+            var locked = HandEdited();
+            if (locked.Count > 0 && !EditorUtility.DisplayDialog("UI prefabları",
+                    "Elle düzenlenmiş prefablar da ezilecek:\n" + string.Join(", ", locked) + "\n\nDevam?", "Ez", "Vazgeç"))
+                return;
+            overwrite = true;
+            try { Build(); }
+            finally { overwrite = false; }
+        }
+
+        [MenuItem("CollectionGame/UI/Mark selected prefab as hand-edited", false, 20)]
+        static void Mark() => SetHandEdited(true);
+
+        [MenuItem("CollectionGame/UI/Unmark selected prefab (builder may overwrite)", false, 21)]
+        static void Unmark() => SetHandEdited(false);
+
+        [MenuItem("CollectionGame/UI/Mark selected prefab as hand-edited", true)]
+        [MenuItem("CollectionGame/UI/Unmark selected prefab (builder may overwrite)", true)]
+        static bool CanMark() => SelectedPrefab() != null;
+
+        const string StylePath = "Assets/Resources/UiStyle.asset";
+
+        /// <summary>Makes Resources/UiStyle.asset (the one place for the UI look) when it is missing.</summary>
+        [MenuItem("CollectionGame/UI/Style asset (UiStyle)", false, 30)]
+        static void StyleMenu()
+        {
+            EnsureStyle();
+            Selection.activeObject = AssetDatabase.LoadAssetAtPath<UiStyle>(StylePath);
+        }
+
+        static void EnsureStyle()
+        {
+            if (AssetDatabase.LoadAssetAtPath<UiStyle>(StylePath) != null) return;
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<UiStyle>(), StylePath);
+            AssetDatabase.SaveAssets();
+        }
+
+        [MenuItem("CollectionGame/UI/Check font (Türkçe)", false, 40)]
+        static void CheckFont()
+        {
+            var missing = GameFont.Missing();
+            var which = GameFont.Custom ? GameFont.Get().name : "Unity'nin yerleşik fontu (Resources/Fonts boş)";
+            if (missing.Length == 0) Debug.Log($"[UI] Font {which}: Türkçe harflerin hepsi var ({GameFont.Turkish})");
+            else Debug.LogWarning($"[UI] Font {which}: eksik harfler: {missing}");
+        }
+
+        /// <summary>Name of the UI prefab selected in the Project window (Resources/UI/X.prefab), or null.</summary>
+        static string SelectedPrefab()
+        {
+            var path = Selection.activeObject != null ? AssetDatabase.GetAssetPath(Selection.activeObject) : null;
+            return path != null && path.StartsWith(Out) && path.EndsWith(".prefab") ? Path.GetFileNameWithoutExtension(path) : null;
+        }
+
+        static List<string> HandEdited() =>
+            File.Exists(HandEditedFile)
+                ? File.ReadAllLines(HandEditedFile).Select(l => l.Trim()).Where(l => l.Length > 0 && !l.StartsWith("#")).ToList()
+                : new List<string>();
+
+        static void SetHandEdited(bool on)
+        {
+            var name = SelectedPrefab();
+            if (name == null) return;
+            var list = HandEdited();
+            list.Remove(name);
+            if (on) list.Add(name);
+            list.Sort();
+            File.WriteAllText(HandEditedFile, "# UI prefabs edited by hand in Unity: UiPrefabBuilder skips them (CollectionGame > UI > Mark / Unmark).\n" + string.Join("\n", list) + "\n");
+            AssetDatabase.ImportAsset(HandEditedFile);
+            Debug.Log(on ? $"[UI] {name} elle düzenlendi olarak işaretlendi: builder artık ezmez" : $"[UI] {name} kilidi kalktı: sonraki build ezer");
+        }
+
+        [MenuItem("CollectionGame/UI/Build Prefabs", false, 0)]
         public static void Build()
         {
             if (AssetDatabase.LoadAssetAtPath<Sprite>(Kit + "window.png") == null)
@@ -66,6 +146,7 @@ namespace CollectionGame.EditorTools
                 return;
             }
             Directory.CreateDirectory(Out);
+            EnsureStyle();
             Save(BuildHud(), "Hud");
             Save(BuildBag(), "Bag");
             Save(BuildPopup(), "Popup");
@@ -89,14 +170,24 @@ namespace CollectionGame.EditorTools
             Save(BuildStallList(), "Stall");
             Save(BuildBoard(), "Board");
             Save(BuildWhisper(), "Whisper");
+            Save(BuildBubble(), "Bubble");
+            Save(BuildConfirm(), "Confirm");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
             Debug.Log($"[UI] Built UI prefabs (version {Version}) in {Out}");
+            var missing = GameFont.Missing();
+            if (missing.Length > 0) Debug.LogWarning($"[UI] Font {Font.name}: eksik Türkçe harfler: {missing}");
         }
 
         static void Save(GameObject go, string name)
         {
+            if (!overwrite && File.Exists(Out + name + ".prefab") && HandEdited().Contains(name))
+            {
+                Debug.LogWarning($"[UI] {name}.prefab elle düzenlendi, builder atladı (ezmek için CollectionGame > UI > Rebuild all (overwrite))");
+                Object.DestroyImmediate(go);
+                return;
+            }
             PrefabUtility.SaveAsPrefabAsset(go, Out + name + ".prefab");
             Object.DestroyImmediate(go);
         }
@@ -160,24 +251,26 @@ namespace CollectionGame.EditorTools
             return img;
         }
 
+        /// <summary>
+        /// THE text: a GameText (font, sharpness and shadow from UiStyle). bold is ignored while the
+        /// style has bold off (a pixel font smears when Unity fakes bold); shadow forces the shadow on
+        /// dark text too (light text gets it anyway).
+        /// </summary>
         static Text Txt(RectTransform rt, string text, int size, Color colour, TextAnchor align = TextAnchor.MiddleLeft, bool bold = false, bool shadow = false)
         {
-            var t = rt.gameObject.AddComponent<Text>();
+            var t = rt.gameObject.AddComponent<GameText>();
             t.font = Font;
             t.text = text;
+            t.Size = size;
             t.fontSize = size;
             t.color = colour;
             t.alignment = align;
-            t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            t.fontStyle = bold && UiStyle.Get().allowBoldItalic ? FontStyle.Bold : FontStyle.Normal;
             t.horizontalOverflow = HorizontalWrapMode.Overflow;
             t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
-            if (shadow)
-            {
-                var sh = rt.gameObject.AddComponent<Shadow>();
-                sh.effectColor = new Color(0, 0, 0, 0.75f);
-                sh.effectDistance = new Vector2(1, -1);
-            }
+            t.ForceShadow = shadow;
+            t.lineSpacing = 1.5f; // the pixel font's lines touch at 1: room between lines of wrapped text
             return t;
         }
 
@@ -226,8 +319,7 @@ namespace CollectionGame.EditorTools
             text.supportRichText = false;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             var placeholder = Txt(Stretch(Node("Placeholder", rt), 6, 1, 6, 1), placeholderText, size, Faint);
-            placeholder.fontStyle = FontStyle.Italic;
-            field.textComponent = text;
+                        field.textComponent = text;
             field.placeholder = placeholder;
             return field;
         }
@@ -264,9 +356,14 @@ namespace CollectionGame.EditorTools
             Img(rt, "window", Image.Type.Tiled, true);
             var view = rt.gameObject.AddComponent<WindowView>();
 
-            var plate = At(Node("Plate", rt), Top, new Vector2(0, 10), new Vector2(Mathf.Max(120, title.Length * 10 + 50), 28), Top);
+            // Title at two font grids (16); the plate grows with the title (titles change at runtime: "Takas · Mert").
+            var plate = At(Node("Plate", rt), Top, new Vector2(0, 10), new Vector2(120, 28), Top);
             Img(plate, "button_wood_normal", Image.Type.Sliced, true);
-            view.title = Txt(Stretch(Node("Title", plate), 4, 2, 4, 2), title, 16, Paper, TextAnchor.MiddleCenter, true);
+            Layout<HorizontalLayoutGroup>(plate, 0, new RectOffset(18, 18, 2, 2), TextAnchor.MiddleCenter).childControlHeight = false;
+            plate.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            view.title = Txt(Node("Title", plate), title, 18, Paper, TextAnchor.MiddleCenter, true);
+            ((RectTransform)view.title.transform).sizeDelta = new Vector2(80, 24);
+            Size(view.title, minW: 84);
             view.plate = plate;
 
             var close = At(Node("Close", rt), TopRight, new Vector2(-8, -8), new Vector2(24, 24));
@@ -292,8 +389,12 @@ namespace CollectionGame.EditorTools
             view.selected = S("slot_selected");
             view.locked = S("slot_locked");
             view.tiers = new[] { S("slot_tier_common"), S("slot_tier_rare"), S("slot_tier_epic"), S("slot_tier_legendary"), S("slot_tier_mythic") };
-            view.label = Txt(Stretch(Node("Name", rt), 2, 8, 2, 4), "", 10, Ink, TextAnchor.MiddleCenter, true);
-            view.count = Txt(Stretch(Node("Count", rt), 2, 2, 4, 26), "", 11, Paper, TextAnchor.LowerRight, true, true);
+            // The picture: a whole multiple of the 16 px placeholder icons, centred (no item names, 31.10.2026 Onur).
+            var iconSize = Mathf.Max(16, Mathf.Floor((size - 6) / 16f) * 16);
+            view.icon = Img(At(Node("Icon", rt), Center, Vector2.zero, new Vector2(iconSize, iconSize), Center), null, Image.Type.Simple);
+            view.icon.enabled = false;
+            view.label = Txt(Stretch(Node("Name", rt), 2, 8, 2, 4), "", 10, Ink, TextAnchor.MiddleCenter);
+            view.count = Txt(At(Node("Count", rt), BottomRight, new Vector2(-3, 2), new Vector2(size - 4, 10), BottomRight), "", 8, Paper, TextAnchor.LowerRight, false, true);
             var lockMark = At(Node("Lock", rt), TopRight, new Vector2(-3, -3), new Vector2(8, 8));
             Solid(lockMark, Gold);
             view.lockMark = lockMark.gameObject;
@@ -331,24 +432,48 @@ namespace CollectionGame.EditorTools
             view.flag = Img(At(Node("Flag", place), TopLeft, new Vector2(12, -32), new Vector2(32, 22)), "flag_tr", Image.Type.Simple);
             view.info = Txt(At(Node("Info", place), TopLeft, new Vector2(52, -31), new Vector2(236, 22)), "", 14, Paper);
 
-            // Top right: score, coin, diamonds.
+            // Top right: Coin, elmas, toz (29.10.2026, Onur). Collection Score is in the profile and the book.
             var bal = At(Node("Balances", root), TopRight, new Vector2(-12, -12), new Vector2(350, 38));
             Img(bal, "box_dark");
-            Icon(bal, "ScoreIcon", new Vector2(0, 0.5f), new Vector2(14, 0), Gold);
-            view.score = Txt(At(Node("Score", bal), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, Gold, TextAnchor.MiddleLeft, true);
-            Icon(bal, "CoinIcon", new Vector2(0, 0.5f), new Vector2(128, 0), CoinColour);
-            view.coin = Txt(At(Node("Coin", bal), new Vector2(0, 0.5f), new Vector2(144, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, Paper, TextAnchor.MiddleLeft, true);
-            Icon(bal, "DiamondIcon", new Vector2(0, 0.5f), new Vector2(244, 0), DiamondColour);
-            view.diamond = Txt(At(Node("Diamond", bal), new Vector2(0, 0.5f), new Vector2(260, 0), new Vector2(80, 24), new Vector2(0, 0.5f)), "0", 15, DiamondColour, TextAnchor.MiddleLeft, true);
+            Icon(bal, "CoinIcon", new Vector2(0, 0.5f), new Vector2(14, 0), CoinColour);
+            view.coin = Txt(At(Node("Coin", bal), new Vector2(0, 0.5f), new Vector2(30, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, Paper, TextAnchor.MiddleLeft, true);
+            Icon(bal, "DiamondIcon", new Vector2(0, 0.5f), new Vector2(128, 0), DiamondColour);
+            view.diamond = Txt(At(Node("Diamond", bal), new Vector2(0, 0.5f), new Vector2(144, 0), new Vector2(90, 24), new Vector2(0, 0.5f)), "0", 15, DiamondColour, TextAnchor.MiddleLeft, true);
+            Icon(bal, "DustIcon", new Vector2(0, 0.5f), new Vector2(244, 0), DustColour);
+            view.dust = Txt(At(Node("Dust", bal), new Vector2(0, 0.5f), new Vector2(260, 0), new Vector2(80, 24), new Vector2(0, 0.5f)), "0", 15, DustColour, TextAnchor.MiddleLeft, true);
 
-            // Chat log above the chat line.
+            view.miniMap = MiniMap(root);
+
+            // Chat log above the chat line. The text grows up from the bottom and the box masks what
+            // is above it: the newest line is always the bottom one (31.10.2026: with Truncate Unity cut
+            // the last line, so the log showed the message before the newest one).
             var log = At(Node("ChatLog", root), BottomLeft, new Vector2(505, 84), new Vector2(450, 88));
             Img(log, "box_dark");
-            view.chatLog = Txt(Stretch(Node("Text", log), 12, 6, 12, 8), "", 14, Paper, TextAnchor.UpperLeft);
+            view.chatLogBox = log;
+            var logView = Stretch(Node("Viewport", log), 12, 6, 12, 8);
+            logView.gameObject.AddComponent<RectMask2D>();
+            view.chatLog = Txt(Stretch(Node("Text", logView)), "", 14, Paper, TextAnchor.LowerLeft);
             view.chatLog.lineSpacing = 1.55f;
             view.chatLog.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.chatLog.verticalOverflow = VerticalWrapMode.Truncate;
+            view.chatLog.verticalOverflow = VerticalWrapMode.Overflow;
             view.chatLog.supportRichText = true;
+            // Chat controls on the log's top edge, see-through until the pointer is on them (31.10.2026, Onur):
+            // the grip (hold and drag up / down to resize the log) and x (close it; the chat line stays).
+            var controls = At(Node("ChatControls", log), TopRight, new Vector2(-2, 2), new Vector2(50, 22), new Vector2(1, 0));
+            var fade = controls.gameObject.AddComponent<CanvasGroup>();
+            fade.alpha = 0.55f;
+            controls.gameObject.AddComponent<HoverFade>().group = fade;
+            view.chatControls = controls.gameObject;
+            var grip = At(Node("Grip", controls), BottomLeft, Vector2.zero, new Vector2(26, 22));
+            Img(grip, "button_flat_normal", Image.Type.Sliced, true);
+            IconOn(grip, "ui.grip", 16);
+            view.chatGrip = grip.gameObject.AddComponent<ChatResize>();
+            view.chatGrip.target = log;
+            Tip(grip, "Sohbeti boyutlandır", "Basılı tut, yukarı / aşağı sürükle");
+            view.chatClose = Btn(controls, "ChatClose", "flat", "x", 13);
+            view.chatClose.GetComponentInChildren<Text>().color = Paper;
+            At((RectTransform)view.chatClose.transform, BottomLeft, new Vector2(28, 0), new Vector2(22, 22));
+            Tip(view.chatClose.transform, "Sohbeti kapat", "Yazı alanı kalır");
 
             // XP strip on top of the bar, level tag at its left end.
             var xp = Node("Xp", root);
@@ -368,7 +493,8 @@ namespace CollectionGame.EditorTools
             var lv = At(Node("Level", root), BottomLeft, new Vector2(8, 58), new Vector2(54, 24));
             Img(lv, "tag_level");
             view.level = Txt(Stretch(Node("Text", lv), 0, 0, 0, 2), "Lv 1", 14, Color.white, TextAnchor.MiddleCenter, true);
-            view.xpText = Txt(At(Node("XpText", root), BottomRight, new Vector2(-420, 64), new Vector2(220, 18), new Vector2(1, 0)), "", 12, Paper, TextAnchor.MiddleRight, true, true);
+            // XP text at the far right above the strip (31.10.2026, Onur).
+            view.xpText = Txt(At(Node("XpText", root), BottomRight, new Vector2(-10, 66), new Vector2(260, 16), new Vector2(1, 0)), "", 12, Paper, TextAnchor.MiddleRight, true, true);
 
             // Bottom bar.
             var bar = Node("Bar", root);
@@ -390,6 +516,7 @@ namespace CollectionGame.EditorTools
             view.rodLow = S("bar_fill_red");
             view.rodText = Txt(At(Node("RodText", bar), BottomLeft, new Vector2(220, 10), new Vector2(100, 20)), "Olta", 13, Paper);
             view.repair = Btn(bar, "Repair", "square_green", "Tamir", 10);
+            view.repair.GetComponentInChildren<Text>().horizontalOverflow = HorizontalWrapMode.Overflow;
             At((RectTransform)view.repair.transform, BottomLeft, new Vector2(320, 12), new Vector2(40, 40));
 
             view.bait = Slot(bar, "Bait");
@@ -400,40 +527,118 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.bait.transform, BottomLeft, new Vector2(384, 12), new Vector2(40, 40));
             view.baitText = Txt(At(Node("BaitText", bar), BottomLeft, new Vector2(432, 12), new Vector2(70, 40)), "Yem", 13, Paper);
 
-            // Chat line 402x40 at x 504, send square beside it.
-            var chat = At(Node("Chat", bar), BottomLeft, new Vector2(504, 12), new Vector2(402, 40));
+            // Chat line at x 504, send square beside it. The line stays when the log is closed.
+            var group = Stretch(Node("ChatGroup", bar));
+            view.chatGroup = group.gameObject;
+            var chat = At(Node("Chat", group), BottomLeft, new Vector2(504, 12), new Vector2(400, 40));
             var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
             field.characterLimit = 120;
             view.chat = field;
-            view.send = Btn(bar, "Send", "flat", "↵", 16);
-            view.send.GetComponentInChildren<Text>().color = Paper;
-            At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
+            // Send and, beside it, Emote (31.10.2026, Onur): icon buttons like the window buttons.
+            view.send = IconButton(group, "Send", "ui.send", null, "Gönder", "Enter");
+            At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(40, 40));
+            view.emote = IconButton(group, "Emote", "ui.emote", "T", "Emote", "Kısayol: T");
+            At((RectTransform)view.emote.transform, BottomLeft, new Vector2(956, 12), new Vector2(40, 40));
 
-            // Window buttons 40x40, 50 apart, ending at 1280; settings apart at 1350 (hud3).
-            string[] names = { "Emote", "Quests", "Market", "Friends", "Profile", "Book", "Bag" };
-            string[] labels = { "Emote\n(T)", "Görev\n(G)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
-            var buttons = new Button[names.Length];
-            for (var i = 0; i < names.Length; i++)
+            // Closed log: a small button on the chat line's top-left corner opens it again; red dot = unread.
+            view.chatOpen = Btn(root, "ChatOpen", "flat", "^", 12);
+            view.chatOpen.GetComponentInChildren<Text>().color = Paper;
+            At((RectTransform)view.chatOpen.transform, BottomLeft, new Vector2(505, 58), new Vector2(26, 20));
+            var unread = At(Node("Unread", view.chatOpen.transform), TopRight, new Vector2(3, 3), new Vector2(8, 8));
+            Solid(unread, Hex("e83b3b"));
+            view.chatUnread = unread.gameObject;
+            view.chatOpen.gameObject.SetActive(false);
+
+            // Window buttons: icons (31.10.2026, Onur), the shortcut small in the corner, the name on hover.
+            // 40x40, 50 apart, ending at 1320; settings apart at 1390 (hud3). No quest button: the quest
+            // window opens at the quest giver NPC (29.10.2026).
+            (string name, string icon, string key, string title)[] buttons =
             {
-                buttons[i] = Btn(bar, names[i], "flat", labels[i], 10);
-                buttons[i].GetComponentInChildren<Text>().color = Paper;
-                At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
+                ("Market", "ui.market", "M", "Pazar"), ("Friends", "ui.friends", "O", "Arkadaşlar"), ("Profile", "ui.profile", "P", "Profil"),
+                ("Book", "ui.book", "K", "Defter"), ("Bag", "ui.bag", "B", "Çanta"),
+            };
+            var made = new Button[buttons.Length];
+            for (var i = 0; i < buttons.Length; i++)
+            {
+                var (name, icon, key, title) = buttons[i];
+                made[i] = IconButton(bar, name, icon, key, title, "Kısayol: " + key);
+                At((RectTransform)made[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (buttons.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
             }
-            view.emote = buttons[0];
-            view.quests = buttons[1];
-            view.market = buttons[2];
-            view.friends = buttons[3];
-            view.profile = buttons[4];
-            view.book = buttons[5];
-            view.bag = buttons[6];
-            var alert = At(Node("Alert", view.quests.transform), TopRight, new Vector2(-2, -2), new Vector2(8, 8));
-            Solid(alert, Hex("e83b3b"));
-            view.questsAlert = alert.gameObject;
-            alert.gameObject.SetActive(false);
-            view.settings = Btn(bar, "Settings", "flat", "Ayar", 10);
-            view.settings.GetComponentInChildren<Text>().color = Paper;
+            view.market = made[0];
+            view.friends = made[1];
+            view.profile = made[2];
+            view.book = made[3];
+            view.bag = made[4];
+            view.settings = IconButton(bar, "Settings", "ui.settings", null, "Ayarlar", null);
             At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
             return root.gameObject;
+        }
+
+        /// <summary>A placeholder picture (ItemIcons key) centred on a node, set at runtime by KitIcon.</summary>
+        static Image IconOn(Transform parent, string key, float size)
+        {
+            var img = Img(At(Node("Icon", parent), Center, Vector2.zero, new Vector2(size, size), Center), null, Image.Type.Simple);
+            img.enabled = false;
+            var k = img.gameObject.AddComponent<KitIcon>();
+            k.image = img;
+            k.key = key;
+            return img;
+        }
+
+        /// <summary>Name (and a hint) in the tooltip card while the pointer is on it.</summary>
+        static void Tip(Transform t, string title, string note)
+        {
+            var tip = t.gameObject.AddComponent<HoverTip>();
+            tip.title = title;
+            tip.note = note;
+        }
+
+        /// <summary>A flat HUD button showing a picture, its shortcut letter small in the corner, the name on hover.</summary>
+        static Button IconButton(Transform parent, string name, string icon, string key, string title, string note)
+        {
+            var b = Btn(parent, name, "flat", null);
+            IconOn(b.transform, icon, 32);
+            if (!string.IsNullOrEmpty(key))
+                Txt(At(Node("Key", b.transform), BottomRight, new Vector2(-2, 2), new Vector2(12, 10), BottomRight), key, 8, Paper, TextAnchor.LowerRight, false, true);
+            Tip(b.transform, title, note);
+            return b;
+        }
+
+        /// <summary>Mini map under the balances (31.10.2026, Onur) and the "Başlangıca dön" button under it.</summary>
+        static MiniMapView MiniMap(RectTransform root)
+        {
+            var box = At(Node("MiniMap", root), TopRight, new Vector2(-12, -56), new Vector2(176, 136));
+            Img(box, "box_dark", Image.Type.Sliced, true);
+            var view = box.gameObject.AddComponent<MiniMapView>();
+            var area = Stretch(Node("Area", box), 8, 8, 8, 8);
+            view.area = area;
+            var map = Stretch(Node("Map", area));
+            view.map = map.gameObject.AddComponent<RawImage>();
+            view.map.raycastTarget = false;
+            var markers = Stretch(Node("Markers", area));
+            view.markers = markers;
+
+            var m = At(Node("MarkerTemplate", markers), TopLeft, Vector2.zero, new Vector2(12, 12), Center);
+            var marker = m.gameObject.AddComponent<MiniMapMarker>();
+            marker.rect = m;
+            var icon = At(Node("Icon", m), Center, Vector2.zero, new Vector2(10, 10), Center);
+            marker.icon = Solid(icon, Color.white);
+            marker.letter = Txt(Stretch(Node("Letter", icon)), "", 8, Ink, TextAnchor.MiddleCenter);
+            var arrow = At(Node("Arrow", m), Center, Vector2.zero, new Vector2(8, 8), Center);
+            marker.arrow = arrow;
+            Txt(Stretch(Node("Text", arrow)), ">", 8, Paper, TextAnchor.MiddleCenter, false, true);
+            view.markerTemplate = marker;
+            m.gameObject.SetActive(false);
+
+            var me = At(Node("Me", markers), TopLeft, Vector2.zero, new Vector2(6, 6), Center);
+            Solid(me, Gold);
+            Solid(Stretch(Node("Edge", me), -1, -1, -1, -1), Ink).transform.SetAsFirstSibling();
+            view.me = me;
+
+            view.home = Btn(root, "Home", "wood", "Başlangıca dön", 10);
+            At((RectTransform)view.home.transform, TopRight, new Vector2(-12, -196), new Vector2(176, 24));
+            view.homeText = view.home.GetComponentInChildren<Text>();
+            return view;
         }
 
         // ================= Bag (draft canta-v2) =================
@@ -465,7 +670,16 @@ namespace CollectionGame.EditorTools
             view.slotTemplate = Slot(grid, "SlotTemplate");
             view.slotTemplate.gameObject.SetActive(false);
 
-            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(22, 16), new Vector2(150, 20)), "Tıkla: işlemler", 14, Faint);
+            // Trash can bottom left (31.10.2026, Onur): drop an item on it, "Emin misin?", gone.
+            var trash = At(Node("Trash", body), BottomLeft, new Vector2(18, 10), new Vector2(28, 28));
+            Img(trash, "button_square_wood_normal", Image.Type.Sliced, true);
+            IconOn(trash, "trash", 16);
+            Tip(trash, "Çöp kovası", "Eşyayı buraya sürükle");
+            view.trash = trash;
+            view.trashHighlight = Img(Stretch(Node("Over", trash), -3, -3, -3, -3), "slot_selected");
+            view.trashHighlight.pixelsPerUnitMultiplier = 2;
+            view.trashHighlight.enabled = false;
+            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(54, 16), new Vector2(150, 20)), "Sürükle: taşı / at", 12, Faint);
             return wrap.gameObject;
         }
 
@@ -473,37 +687,55 @@ namespace CollectionGame.EditorTools
 
         static GameObject BuildPopup()
         {
+            // One card look for the tooltip and the click menu (31.10.2026, Onur: roomy, not cramped):
+            // dark kit tooltip, 12 / 10 padding, title, Tier line, a rule, rows or actions, faint note.
             var root = Stretch(Node("Popup", null));
             var view = root.gameObject.AddComponent<PopupView>();
+            var light = Hex("9babb2");
 
-            var tip = Node("Tooltip", root);
-            Img(tip, "tooltip");
-            var tipLayout = tip.gameObject.AddComponent<VerticalLayoutGroup>();
-            tipLayout.padding = new RectOffset(8, 8, 5, 6);
-            tipLayout.childControlWidth = tipLayout.childControlHeight = true;
-            tip.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            tip.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            RectTransform CardBox(string name, int minWidth)
+            {
+                var box = Node(name, root);
+                Img(box, "tooltip", Image.Type.Sliced, true);
+                var v = Layout<VerticalLayoutGroup>(box, 6, new RectOffset(12, 12, 10, 12));
+                v.childForceExpandWidth = true;
+                var fit = box.gameObject.AddComponent<ContentSizeFitter>();
+                fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+                fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                Size(box, minW: minWidth);
+                return box;
+            }
+
+            GameObject Rule(Transform parent)
+            {
+                var r = Node("Rule", parent);
+                Solid(r, Hex("625565"));
+                Size(r, minH: 2, prefH: 2);
+                return r.gameObject;
+            }
+
+            var tip = CardBox("Tooltip", 200);
             view.tooltip = tip;
-            view.tooltipText = Label(tip, "Text", "", 13, Paper);
-            view.tooltipText.supportRichText = true;
+            view.tooltipTitle = Label(tip, "Title", "", 18, Paper);
+            view.tooltipSub = Label(tip, "Sub", "", 12, light);
+            view.tooltipRule = Rule(tip);
+            var rows = Node("Rows", tip);
+            Layout<VerticalLayoutGroup>(rows, 5).childForceExpandWidth = true;
+            view.tooltipRows = rows;
+            var row = Node("RowTemplate", rows);
+            Layout<HorizontalLayoutGroup>(row, 16, null, TextAnchor.MiddleLeft);
+            var pr = row.gameObject.AddComponent<PopupRow>();
+            pr.label = Label(row, "Label", "", 12, light);
+            Size(pr.label, flexW: 1);
+            pr.value = Label(row, "Value", "", 12, Paper, TextAnchor.MiddleRight);
+            view.rowTemplate = pr;
+            view.tooltipNote = Label(tip, "Note", "", 12, Hex("7f708a"));
 
-            var menu = Node("Menu", root);
-            Img(menu, "menu", Image.Type.Sliced, true);
-            var menuLayout = menu.gameObject.AddComponent<VerticalLayoutGroup>();
-            menuLayout.padding = new RectOffset(4, 4, 4, 4);
-            menuLayout.spacing = 1;
-            menuLayout.childControlWidth = menuLayout.childControlHeight = true;
-            menuLayout.childForceExpandHeight = false;
-            var fit = menu.gameObject.AddComponent<ContentSizeFitter>();
-            fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var menu = CardBox("Menu", 200);
             view.menu = menu;
-            view.menuTitle = Label(menu, "Title", "", 13, Paper, TextAnchor.MiddleLeft, true);
-            view.menuTitle.gameObject.AddComponent<LayoutElement>().minHeight = 22;
-            var menuLine = Node("Divider", menu);
-            Img(menuLine, "divider");
-            Size(menuLine, minH: 4, prefH: 4);
-
+            view.menuTitle = Label(menu, "Title", "", 18, Paper);
+            view.menuSub = Label(menu, "Sub", "", 12, light);
+            Rule(menu);
             var item = Node("Item", menu);
             var hi = Img(item, "menu_highlight", Image.Type.Sliced, true);
             var b = item.gameObject.AddComponent<Button>();
@@ -514,11 +746,11 @@ namespace CollectionGame.EditorTools
                 normalColor = new Color(1, 1, 1, 0), highlightedColor = Color.white, pressedColor = new Color(0.85f, 0.85f, 0.85f, 1),
                 selectedColor = new Color(1, 1, 1, 0), disabledColor = new Color(1, 1, 1, 0), colorMultiplier = 1, fadeDuration = 0,
             };
-            var itemSize = item.gameObject.AddComponent<LayoutElement>();
-            itemSize.minHeight = 22;
-            itemSize.minWidth = 170;
-            var itemText = Txt(Stretch(Node("Label", item), 8, 0, 12, 0), "", 13, Paper);
-            itemText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var nav = b.navigation;
+            nav.mode = Navigation.Mode.None;
+            b.navigation = nav;
+            Size(item, minH: 26, prefH: 26);
+            Txt(Stretch(Node("Label", item), 8, 0, 8, 0), "", 12, Paper);
             view.itemTemplate = b;
             return root.gameObject;
         }
@@ -643,24 +875,15 @@ namespace CollectionGame.EditorTools
             view.window.body = (RectTransform)w;
 
             // Left column: tabs, a vertical divider, the version.
-            view.tabOn = S("button_wood_normal");
-            view.tabOff = S("outline");
-            view.tabGeneral = Btn(w, "TabGeneral", "wood", "Genel", 16);
-            At((RectTransform)view.tabGeneral.transform, TopLeft, new Vector2(23, -32), new Vector2(152, 36));
-            view.tabAccount = Btn(w, "TabAccount", "wood", "Hesap", 16);
-            At((RectTransform)view.tabAccount.transform, TopLeft, new Vector2(23, -76), new Vector2(152, 36));
-            foreach (var tab in new[] { view.tabGeneral, view.tabAccount })
-            {
-                tab.transition = Selectable.Transition.None;
-                var label = tab.GetComponentInChildren<Text>();
-                label.alignment = TextAnchor.MiddleLeft;
-                ((RectTransform)label.transform).offsetMin = new Vector2(12, 2);
-            }
+            view.tabGeneral = Tab(w, "TabGeneral", "Genel", 23, 32, 152, 36, 16, TextAnchor.MiddleLeft);
+            view.tabAccount = Tab(w, "TabAccount", "Hesap", 23, 76, 152, 36, 16, TextAnchor.MiddleLeft);
             var vline = Abs(w, "ColumnDivider", 187, 17, 503, 4);
             Img(vline, "divider");
             vline.pivot = new Vector2(0, 1);
             vline.localEulerAngles = new Vector3(0, 0, -90);
             view.version = TextAt(w, "Version", "v0.4", 23, 501, 160, 13, Faint);
+
+            Panel(w, "ContentPanel", 195, 24, 463, 500);
 
             // ---- Genel ----
             var g = Stretch(Node("General", w));
@@ -690,8 +913,12 @@ namespace CollectionGame.EditorTools
             view.openBlocked.targetGraphic = linkText;
 
             // ---- Hesap ----
-            var a = Stretch(Node("Account", w));
-            view.account = a.gameObject;
+            // Account > AccountContent (everything on the page; hand-added pieces go here too) and
+            // AccountCover on top: opaque, and the content is switched off until "Göster".
+            var acc = Stretch(Node("Account", w));
+            view.account = acc.gameObject;
+            var a = Stretch(Node("AccountContent", acc));
+            view.accountContent = a.gameObject;
             Section(a, "Giriş yöntemleri", 42, 57);
             TextAt(a, "Subtitle", "Hepsi aynı karaktere girer. En az biri kalmalı.", 203, 72, 447, 14, Faint);
             view.google = LoginRow(a, "Google", Hex("4d9be6"), 92);
@@ -737,9 +964,9 @@ namespace CollectionGame.EditorTools
             view.pending.gameObject.SetActive(false);
             view.cancelDeletion.gameObject.SetActive(false);
 
-            // Hidden cover: the account page opens behind it every time.
-            var cover = Abs(a, "Hidden", 203, 30, 447, 480);
-            Img(cover, "box_dark", Image.Type.Sliced, true);
+            // AccountCover: the account page opens behind it every time.
+            var cover = Abs(acc, "AccountCover", 203, 30, 447, 480);
+            Img(cover, "panel_cover", Image.Type.Sliced, true);
             view.hidden = cover.gameObject;
             Txt(At(Node("Title", cover), Center, new Vector2(0, 40), new Vector2(400, 24), Center), "Hesap bilgilerin gizlendi", 17, Paper, TextAnchor.MiddleCenter, true);
             var hint = Txt(At(Node("Hint", cover), Center, new Vector2(0, 5), new Vector2(380, 40), Center),
@@ -756,7 +983,7 @@ namespace CollectionGame.EditorTools
         {
             var side = new TradeView.Side();
             var panel = Abs(w, name, x, 30, 195, 268);
-            side.back = Img(panel, "outline");
+            side.back = Img(panel, "card");
             side.name = TextAt(panel, "Name", "Sen", 12, 18, 110, 16, Ink);
             side.level = TextAt(panel, "Level", "", 72, 19, 100, 13, Faint);
             side.slots = new SlotView[8];
@@ -792,12 +1019,12 @@ namespace CollectionGame.EditorTools
             var w = view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
             view.window.body = (RectTransform)w;
-            view.open = S("outline");
+            view.open = S("card");
             view.locked = S("panel_locked");
             view.me = TradeSide(w, "Me", 22, true);
             view.them = TradeSide(w, "Them", 250, false);
 
-            view.hint = TextAt(w, "Hint", "Çantadan sürükle bırak. Bir şey değişirse kilitler açılır.", 22, 345, 423, 14, Faint, TextAnchor.MiddleCenter);
+            view.hint = TextAt(w, "Hint", "Çantadan sürükle. Değişiklik kilidi açar.", 22, 345, 423, 12, Faint, TextAnchor.MiddleCenter);
             var strip = Abs(w, "Strip", 22, 334, 423, 24);
             Img(strip, "box_dark");
             view.strip = strip.gameObject;
@@ -890,6 +1117,8 @@ namespace CollectionGame.EditorTools
             view.title = Field(Abs(w, "Title", 96, 32, 300, 31), "Tezgahına bir başlık yaz", 15);
             view.title.characterLimit = 40;
             Img(Abs(w, "Divider", 28, 75, 700, 4), "divider");
+            Panel(w, "StallPanel", 18, 84, 420, 178);
+            Panel(w, "BagPanel", 18, 262, 482, 120);
             view.stallHeader = TextAt(w, "StallHeader", "Tezgah · 0 / 12", 28, 96, 180, 16, Ink, TextAnchor.MiddleLeft, true);
             view.stallHint = TextAt(w, "StallHint", "Çantadan tıkla, fiyat yaz, Koy", 214, 96, 260, 14, Faint);
             view.stall = new SlotView[12];
@@ -925,7 +1154,8 @@ namespace CollectionGame.EditorTools
 
             TextAt(w, "BagLabel", "Çanta", 28, 274, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.bagHint = TextAt(w, "BagHint", "kilitli eşya konamaz", 96, 274, 200, 14, Faint);
-            view.place = TextAt(w, "Place", "", 499, 272, 230, 14, Faint);
+            view.place = TextAt(w, "Place", "", 499, 272, 230, 12, Faint);
+            view.place.horizontalOverflow = HorizontalWrapMode.Wrap;
             // Bag: 10 a row, two rows in sight, the rest scrolls.
             var scroll = Abs(w, "Bag", 28, 287, 462, 86);
             var sr = scroll.gameObject.AddComponent<ScrollRect>();
@@ -1076,7 +1306,7 @@ namespace CollectionGame.EditorTools
             Img(Stretch(Node("Outline", rt)), "outline");
             row.root = rt.gameObject;
             row.icon = SlotAt(rt, "Icon", 12, 22, 42);
-            row.icon.label.fontSize = 11;
+            row.icon.label.SetSize(11);
             row.title = TextAt(rt, "Title", "", 68, 24, 520, 16, Ink);
             var back = Abs(rt, "Bar", 68, 44, 220, 12);
             row.fill = Bar(back, "bar_fill_green", out _);
@@ -1098,14 +1328,8 @@ namespace CollectionGame.EditorTools
             // npc-gorev: window 956x594 at (224, 106); quest cards 906x90, 100 apart from y 114.
             var wrap = Stretch(Node("Quests", null));
             var view = wrap.gameObject.AddComponent<QuestView>();
-            view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
+            view.window = DraftWindow(wrap, "Görevler", 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Görevler", "Dükkan" }, out var tabTexts);
-            for (var i = 0; i < view.tabs.Length; i++)
-            {
-                view.tabs[i].GetComponent<Image>().sprite = i == 2 ? S("button_wood_normal") : S("outline");
-                tabTexts[i].color = i == 2 ? Paper : Ink;
-            }
             Icon(w, "CoinIcon", new Vector2(0, 1), new Vector2(766, -42), Gold, 14);
             view.coin = TextAt(w, "Coin", "0", 786, 42, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(866, -42), DiamondColour, 12);
@@ -1143,7 +1367,7 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<BookView>();
             view.window = DraftWindow(wrap, "Koleksiyon", 192, 104, 676, 408);
             var w = view.window.transform;
-            view.owner = TextAt(w, "Owner", "Defter", 30, 37, 160, 20, Ink, TextAnchor.MiddleLeft, true);
+            view.owner = TextAt(w, "Owner", "Defter", 30, 37, 80, 14, Ink, TextAnchor.MiddleLeft, true);
             TextAt(w, "TotalLabel", "toplam", 113, 37, 70, 14, Faint);
             view.totalFill = Bar(Abs(w, "Total", 193, 30, 158, 15), "bar_fill_green", out _);
             view.totalText = TextAt(w, "TotalText", "", 361, 37, 70, 14, Ink);
@@ -1174,6 +1398,8 @@ namespace CollectionGame.EditorTools
                     var cardRt = Abs(pg, "Card" + i, x, y, 80, 80);
                     var card = new BookView.Card { frame = Img(cardRt, "record_unknown", Image.Type.Sliced, true) };
                     card.mark = Txt(Stretch(Node("Mark", cardRt), 4, 4, 4, 4), "??", 15, Ink, TextAnchor.MiddleCenter, true);
+                    card.icon = Img(At(Node("Icon", cardRt), Center, Vector2.zero, new Vector2(64, 64), Center), null, Image.Type.Simple);
+                    card.icon.enabled = false;
                     card.name = TextAt(pg, "Name" + i, "", x - 10, y + 96, 100, 13, Ink, TextAnchor.MiddleCenter);
                     card.name.horizontalOverflow = HorizontalWrapMode.Wrap;
                     var badge = At(Node("New", cardRt), TopRight, new Vector2(4, 6), new Vector2(36, 16));
@@ -1210,22 +1436,28 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<ProfileView>();
             view.window = DraftWindow(wrap, "Profil", 300, 128, 520, 460);
             var w = view.window.transform;
-            view.portrait = SlotAt(w, "Portrait", 28, 28, 104);
-            view.portrait.frame.pixelsPerUnitMultiplier = 1;
-            view.portrait.label.fontSize = 14;
-            view.displayName = TextAt(w, "Name", "", 145, 42, 200, 21, Ink, TextAnchor.MiddleLeft, true);
-            var tag = Abs(w, "LevelTag", 197, 35, 38, 16);
-            Img(tag, "tag_level");
-            view.levelTag = tag.gameObject;
-            view.level = Txt(Stretch(Node("Text", tag)), "Lv 1", 11, Color.white, TextAnchor.MiddleCenter, true);
+            // Portrait: the character as it looks now, head and shoulders in a slot frame (31.10.2026, Onur).
+            var frame = Abs(w, "Portrait", 28, 28, 104, 104);
+            Img(frame, "slot_empty").pixelsPerUnitMultiplier = 1;
+            var holder = Stretch(Node("Character", frame), 4, 4, 4, 4);
+            holder.gameObject.AddComponent<RectMask2D>();
+            view.portrait = frame.gameObject.AddComponent<CharacterPortrait>();
+            view.portrait.holder = holder;
+
+            // Name and level tag in a row: the tag follows the name, never on it.
+            var nameRow = Row(w, "NameRow", 145, 30, 340, 24, 10);
+            view.displayName = Txt(Node("Name", nameRow), "", 21, Ink);
+            view.levelTag = LevelTag(nameRow, out view.level).gameObject;
             view.sub = TextAt(w, "Sub", "", 145, 73, 330, 14, Faint);
-            Icon(w, "ScoreIcon", new Vector2(0, 1), new Vector2(147, -106), Gold, 16);
-            view.score = TextAt(w, "Score", "0", 172, 106, 80, 19, Hex("e83b3b"), TextAnchor.MiddleLeft, true);
-            TextAt(w, "ScoreLabel", "Collection Score", 245, 106, 200, 15, Ink);
+            var scoreRow = Row(w, "ScoreRow", 145, 95, 340, 22, 8);
+            Size(Solid(Node("ScoreIcon", scoreRow), Gold), 16, 16, 16, 16);
+            view.score = Txt(Node("Score", scoreRow), "0", 19, Hex("e83b3b"));
+            Txt(Node("ScoreLabel", scoreRow), "Collection Score", 15, Ink);
             var hunt = Abs(w, "Hunt", 144, 126, 351, 26);
             Img(hunt, "panel_alert");
             view.hunt = hunt.gameObject;
             view.huntText = Txt(Stretch(Node("Text", hunt), 10, 0, 8, 0), "", 14, Hex("ae2334"));
+            Panel(w, "ShowcasePanel", 21, 164, 478, 124);
             TextAt(w, "ShowcaseLabel", "Vitrin", 29, 176, 100, 14, Ink);
             Img(Abs(w, "ShowcaseLine", 29, 186, 466, 4), "divider");
             view.showcase = new SlotView[3];
@@ -1233,7 +1465,7 @@ namespace CollectionGame.EditorTools
             {
                 view.showcase[i] = SlotAt(w, "Showcase" + i, 110 + i * 112, 192, 80);
                 view.showcase[i].frame.pixelsPerUnitMultiplier = 1;
-                view.showcase[i].label.fontSize = 14;
+                view.showcase[i].label.SetSize(14);
             }
             TextAt(w, "CollectionLabel", "Koleksiyon", 29, 300, 120, 14, Ink);
             Stat(w, 0, out view.stat1Label, out view.stat1Value);
@@ -1256,7 +1488,61 @@ namespace CollectionGame.EditorTools
             return wrap.gameObject;
         }
 
+        /// <summary>
+        /// A section of a window (31.10.2026, Onur): olive kit card behind a group of things (the bag
+        /// grid, the inputs and their button, a list), drawn first so it stays behind them.
+        /// </summary>
+        static RectTransform Panel(Transform parent, string name, float x, float y, float w, float h)
+        {
+            var rt = Abs(parent, name, x, y, w, h);
+            Img(rt, "card");
+            rt.SetSiblingIndex(0);
+            return rt;
+        }
+
+        /// <summary>A left-to-right row at draft coordinates: children sit side by side at their own width.</summary>
+        static RectTransform Row(Transform parent, string name, float x, float y, float w, float h, int spacing)
+        {
+            var rt = Abs(parent, name, x, y, w, h);
+            Layout<HorizontalLayoutGroup>(rt, spacing, null, TextAnchor.MiddleLeft);
+            return rt;
+        }
+
+        /// <summary>The purple level tag sized to its text (kit tag_level).</summary>
+        static RectTransform LevelTag(Transform parent, out Text text)
+        {
+            var tag = Node("LevelTag", parent);
+            Img(tag, "tag_level");
+            Layout<HorizontalLayoutGroup>(tag, 0, new RectOffset(5, 5, 2, 2), TextAnchor.MiddleCenter);
+            Size(tag, minH: 18, prefH: 18);
+            text = Txt(Node("Text", tag), "Lv 1", 11, Color.white, TextAnchor.MiddleCenter);
+            return tag;
+        }
+
         // ================= Friends (drafts arkadaslar-list, arkadaslar-requests) =================
+
+        /// <summary>
+        /// THE tab of the game: every window with tabs uses this, so one change here changes them all.
+        /// Selected: kit button_wood_normal with paper text; unselected: kit tab_off with ink text.
+        /// </summary>
+        static TabButton Tab(Transform parent, string name, string label, float x, float y, float w, float h, int size = 15, TextAnchor align = TextAnchor.MiddleCenter)
+        {
+            var rt = Abs(parent, name, x, y, w, h);
+            var tab = rt.gameObject.AddComponent<TabButton>();
+            tab.on = S("button_wood_normal");
+            tab.off = S("tab_off");
+            tab.onText = Paper;
+            tab.offText = Ink;
+            tab.image = Img(rt, "tab_off", Image.Type.Sliced, true);
+            tab.button = rt.gameObject.AddComponent<Button>();
+            tab.button.targetGraphic = tab.image;
+            tab.button.transition = Selectable.Transition.None;
+            var nav = tab.button.navigation;
+            nav.mode = Navigation.Mode.None;
+            tab.button.navigation = nav;
+            tab.label = Txt(Stretch(Node("Label", rt), align == TextAnchor.MiddleLeft ? 12 : 4, 2, 4, 1), label, size, Ink, align, true);
+            return tab;
+        }
 
         static Button SmallButton(Transform parent, string name, string colour, string label, float x, float y, float w, float h, int size = 13)
         {
@@ -1272,19 +1558,10 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<FriendsView>();
             view.window = DraftWindow(wrap, "Arkadaşlar", 302, 148, 516, 510);
             var w = view.window.transform;
-            view.tabOn = S("card");
-            view.tabOff = S("button_flat_normal");
             float[] tx = { 23, 148, 233 }, tw = { 115, 77, 75 };
             string[] tl = { "Arkadaşlar", "İstekler", "Engelli" };
-            view.tabs = new Button[3];
-            view.tabTexts = new Text[3];
-            for (var i = 0; i < 3; i++)
-            {
-                var b = SmallButton(w, "Tab" + i, "flat", tl[i], tx[i], 17, tw[i], 26, 14);
-                b.transition = Selectable.Transition.None;
-                view.tabs[i] = b;
-                view.tabTexts[i] = b.GetComponentInChildren<Text>();
-            }
+            view.tabs = new TabButton[3];
+            for (var i = 0; i < 3; i++) view.tabs[i] = Tab(w, "Tab" + i, tl[i], tx[i], 17, tw[i], 26, 14);
             var badge = At(Node("Badge", view.tabs[1].transform), TopRight, new Vector2(4, 8), new Vector2(16, 16));
             Img(badge, "button_red_normal");
             view.requestCount = Txt(Stretch(Node("Text", badge)), "0", 11, Color.white, TextAnchor.MiddleCenter, true);
@@ -1323,7 +1600,7 @@ namespace CollectionGame.EditorTools
             fr.back = Img(row, "card");
             Img(Stretch(Node("Outline", row)), "outline");
             fr.avatar = SlotAt(row, "Avatar", 8, 7, 32);
-            fr.avatar.label.fontSize = 10;
+            fr.avatar.label.SetSize(10);
             var dot = At(Node("Dot", fr.avatar.transform), BottomRight, new Vector2(3, -3), new Vector2(10, 10), BottomRight);
             fr.dot = Img(dot, "checkbox_on", Image.Type.Simple);
             view.dotOnline = S("checkbox_on");
@@ -1331,7 +1608,7 @@ namespace CollectionGame.EditorTools
             fr.player = TextAt(row, "Name", "", 50, 14, 260, 16, Ink, TextAnchor.MiddleLeft, true);
             fr.sub = TextAt(row, "Sub", "", 50, 34, 260, 13, Faint);
             fr.sub.supportRichText = true;
-            fr.go = SmallButton(row, "Go", "green", "Yanına git", 314, 10, 82, 26);
+            fr.go = SmallButton(row, "Go", "green", "Git", 314, 10, 82, 26);
             fr.chat = SmallButton(row, "Chat", "square_wood", "✉", 405, 9, 28, 28, 13);
             fr.menu = SmallButton(row, "Menu", "square_wood", "≡", 439, 9, 28, 28, 14);
             fr.no = SmallButton(row, "No", "red", "Hayır", 330, 10, 63, 26);
@@ -1386,16 +1663,10 @@ namespace CollectionGame.EditorTools
             return new SlotGrid { content = content, template = template };
         }
 
-        static Button[] NpcTabs(Transform w, string[] labels, out Text[] texts)
+        static TabButton[] NpcTabs(Transform w, string[] labels)
         {
-            var tabs = new Button[labels.Length];
-            texts = new Text[labels.Length];
-            for (var i = 0; i < labels.Length; i++)
-            {
-                tabs[i] = SmallButton(w, "Tab" + i, "wood", labels[i], 29 + i * 132, 27, 127, 35, 15);
-                tabs[i].transition = Selectable.Transition.None;
-                texts[i] = tabs[i].GetComponentInChildren<Text>();
-            }
+            var tabs = new TabButton[labels.Length];
+            for (var i = 0; i < labels.Length; i++) tabs[i] = Tab(w, "Tab" + i, labels[i], 29 + i * 132, 27, 127, 35, 15);
             return tabs;
         }
 
@@ -1419,13 +1690,12 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<MerchantView>();
             view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Görevler", "Dükkan" }, out view.tabTexts);
-            view.tabOn = S("button_wood_normal");
-            view.tabOff = S("outline");
+            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Dükkan" });
             Balances(w, out view.coin, out view.dust, out view.dustIcon);
 
             var sell = Stretch(Node("Sell", w));
             view.sell = sell.gameObject;
+            Panel(sell, "BagPanel", 21, 78, 386, 297);
             TextAt(sell, "BagLabel", "Çanta", 29, 92, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.bagHint = TextAt(sell, "BagHint", "tıkla: sepete ekle", 97, 92, 250, 14, Faint);
             view.bag = GridAt(sell, "Bag", 29, 110, 8, 5);
@@ -1444,7 +1714,7 @@ namespace CollectionGame.EditorTools
                 line.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
                 l.hover = line.gameObject.AddComponent<CardHover>();
                 l.icon = SlotAt(line, "Icon", 6, 2, 20);
-                l.icon.label.fontSize = 6;
+                l.icon.label.SetSize(6);
                 l.name = TextAt(line, "Name", "", 37, 12, 340, 15, Ink);
                 l.valueIcon = Solid(At(Node("ValueIcon", line), new Vector2(0, 1), new Vector2(430, -12), new Vector2(12, 12), new Vector2(0, 0.5f)), Gold);
                 l.value = TextAt(line, "Value", "", 448, 12, 50, 15, Ink, TextAnchor.MiddleLeft, true);
@@ -1463,6 +1733,7 @@ namespace CollectionGame.EditorTools
 
             var shop = Stretch(Node("Shop", w));
             view.shop = shop.gameObject;
+            Panel(shop, "RodPanel", 21, 78, 386, 170);
             TextAt(shop, "RodLabel", "Olta", 29, 92, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             view.rodText = TextAt(shop, "Rod", "", 29, 122, 380, 15, Ink);
             view.rodFill = Bar(Abs(shop, "RodBar", 29, 138, 220, 14), "bar_fill_green", out _);
@@ -1502,15 +1773,14 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<CrafterView>();
             view.window = DraftWindow(wrap, "Zanaatkar", 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Craft", "Birleştir" }, out view.tabTexts);
-            view.tabOn = S("button_wood_normal");
-            view.tabOff = S("outline");
+            view.tabs = NpcTabs(w, new[] { "Craft", "Birleştir" });
             view.cardOn = S("button_wood_normal");
             view.cardOff = S("card");
             Balances(w, out _, out view.dust, out _, false);
 
             var craft = Stretch(Node("Craft", w));
             view.craft = craft.gameObject;
+            Panel(craft, "RecipePanel", 21, 78, 263, 493);
             TextAt(craft, "RecipesLabel", "Recipe'lerin", 29, 92, 200, 16, Ink);
             view.recipes = new CrafterView.RecipeCard[8];
             for (var i = 0; i < view.recipes.Length; i++)
@@ -1521,7 +1791,7 @@ namespace CollectionGame.EditorTools
                 c.button = rt.gameObject.AddComponent<Button>();
                 c.button.targetGraphic = c.back;
                 c.button.transition = Selectable.Transition.None;
-                SlotAt(rt, "Icon", 8, 7, 28).label.fontSize = 7;
+                SlotAt(rt, "Icon", 8, 7, 28).label.SetSize(7);
                 c.name = TextAt(rt, "Name", "", 44, 13, 195, 14, Ink, TextAnchor.MiddleLeft, true);
                 c.grade = TextAt(rt, "Grade", "", 44, 30, 195, 13, Faint);
                 view.recipes[i] = c;
@@ -1555,35 +1825,41 @@ namespace CollectionGame.EditorTools
             view.craftButton = SmallButton(detail, "Craft", "green", "Craft yap", 16, 437, 604, 36, 17);
             view.craftText = view.craftButton.GetComponentInChildren<Text>();
 
+            // Birleştir (31.10.2026, Onur): two sections. Top: the rule, the three inputs and the result in
+            // one line, dust, quality and the Birleştir button beside them. Bottom: the bag.
             var merge = Stretch(Node("Merge", w));
             view.merge = merge.gameObject;
-            TextAt(merge, "Desc", "3'ü 1: aynı eşyadan 3 kopya + toz → daha temiz 1 kopya", 29, 92, 800, 15, Ink);
-            TextAt(merge, "Desc2", "Tier değişmez, yeni Float çıkar, girdilerin en kötüsünden kötü olmaz. Recipe gerekmez.", 29, 111, 800, 14, Faint);
+            Panel(merge, "MergePanel", 21, 78, 914, 268);
+            TextAt(merge, "Desc", "3'ü 1: aynı eşyadan 3 kopya + toz → daha temiz 1 kopya", 37, 98, 860, 15, Ink);
+            TextAt(merge, "Desc2", "Tier değişmez, yeni Float çıkar, girdilerin en kötüsünden kötü olmaz. Recipe gerekmez.", 37, 118, 860, 14, Faint);
             view.inputs = new SlotView[3];
             view.inputNames = new Text[3];
             view.inputFloats = new Text[3];
+            // Inputs 48 px, 96 apart; the result 56 px; all centred on y 172.
             for (var i = 0; i < 3; i++)
             {
-                var x = 109 + i * 108;
-                view.inputs[i] = SlotAt(merge, "Input" + i, x, 150);
-                view.inputNames[i] = TextAt(merge, "InputName" + i, "", x - 30, 206, 100, 14, Ink, TextAnchor.MiddleCenter);
-                view.inputFloats[i] = TextAt(merge, "InputFloat" + i, "", x - 30, 226, 100, 13, Faint, TextAnchor.MiddleCenter);
-                if (i < 2) TextAt(merge, "Plus" + i, "+", x + 56, 170, 20, 16, Ink, TextAnchor.MiddleCenter);
+                var x = 61 + i * 96;
+                view.inputs[i] = SlotAt(merge, "Input" + i, x, 148, 48);
+                view.inputNames[i] = TextAt(merge, "InputName" + i, "", x - 26, 208, 100, 12, Ink, TextAnchor.MiddleCenter);
+                view.inputFloats[i] = TextAt(merge, "InputFloat" + i, "", x - 26, 224, 100, 12, Faint, TextAnchor.MiddleCenter);
+                if (i < 2) TextAt(merge, "Plus" + i, "+", x + 48, 172, 48, 15, Ink, TextAnchor.MiddleCenter);
             }
-            TextAt(merge, "Arrow", "→", 405, 170, 30, 16, Ink, TextAnchor.MiddleCenter);
-            view.result = SlotAt(merge, "Result", 459, 138, 52);
+            TextAt(merge, "Arrow", "→", 301 + 48, 172, 48, 15, Ink, TextAnchor.MiddleCenter);
+            view.result = SlotAt(merge, "Result", 397, 144, 56);
             view.result.frame.pixelsPerUnitMultiplier = 1;
-            view.resultName = TextAt(merge, "ResultName", "", 425, 216, 120, 14, Faint, TextAnchor.MiddleCenter);
-            Solid(At(Node("DustIcon", merge), new Vector2(0, 1), new Vector2(109, -270), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
-            view.mergeDust = TextAt(merge, "Dust", "", 129, 270, 600, 15, Hex("4d9be6"));
+            view.resultName = TextAt(merge, "ResultName", "", 375, 216, 100, 12, Faint, TextAnchor.MiddleCenter);
+            // Right half of the top section: dust, quality, the button, its note.
+            Solid(At(Node("DustIcon", merge), new Vector2(0, 1), new Vector2(520, -160), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
+            view.mergeDust = TextAt(merge, "Dust", "", 540, 160, 380, 12, Hex("4d9be6"));
             view.mergeDust.supportRichText = true;
-            TextAt(merge, "QualityLabel", "Girdi kalitesi", 109, 306, 120, 15, Ink);
-            view.mergeFill = Bar(Abs(merge, "QualityBar", 236, 299, 180, 14), "bar_fill_yellow", out _);
-            view.mergeQuality = TextAt(merge, "Quality", "", 426, 306, 200, 15, Hex("f79617"));
-            view.mergeButton = SmallButton(merge, "Merge", "green", "Birleştir", 733, 264, 198, 40, 17);
-            view.mergeNote = TextAt(merge, "Note", "Her birleştirme 2 eşyayı oyundan siler.", 560, 327, 371, 14, Faint, TextAnchor.MiddleRight);
-            TextAt(merge, "BagLabel", "Çanta (aynı eşyadan kopyalar seçilir)", 29, 346, 500, 15, Ink);
-            view.bag = GridAt(merge, "Bag", 29, 362, 10, 2);
+            TextAt(merge, "QualityLabel", "Girdi kalitesi", 520, 192, 130, 12, Ink);
+            view.mergeFill = Bar(Abs(merge, "QualityBar", 652, 186, 160, 12), "bar_fill_yellow", out _);
+            view.mergeQuality = TextAt(merge, "Quality", "", 822, 192, 100, 12, Hex("f79617"));
+            view.mergeButton = SmallButton(merge, "Merge", "green", "Birleştir", 520, 222, 396, 36, 15);
+            view.mergeNote = TextAt(merge, "Note", "Her birleştirme 2 eşyayı oyundan siler.", 37, 300, 880, 12, Faint);
+            Panel(merge, "BagPanel", 21, 356, 914, 215);
+            TextAt(merge, "BagLabel", "Çanta (aynı eşyadan kopyalar seçilir)", 37, 374, 600, 15, Ink);
+            view.bag = GridAt(merge, "Bag", 37, 392, 10, 3);
             view.barGood = S("bar_fill_green");
             view.barMid = S("bar_fill_yellow");
             return wrap.gameObject;
@@ -1596,6 +1872,8 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<BankView>();
             view.window = DraftWindow(wrap, "Banka", 186, 132, 1031, 564);
             var w = view.window.transform;
+            Panel(w, "StashPanel", 16, 26, 486, 530);
+            Panel(w, "BagPanel", 514, 26, 500, 286);
             view.stashTitle = TextAt(w, "StashLabel", "Depo", 26, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.stashCount = TextAt(w, "StashCount", "", 88, 40, 200, 14, Faint);
             view.stash = GridAt(w, "Stash", 26, 60, 10, 10);
@@ -1626,20 +1904,36 @@ namespace CollectionGame.EditorTools
             var root = Stretch(Node("Fishing", null));
             var view = root.gameObject.AddComponent<FishingView>();
 
-            // balik-at: 212x64 dark box, band labels, yellow fill with a white marker, a small line under it.
-            var charge = At(Node("Charge", root), BottomLeft, Vector2.zero, new Vector2(212, 64), new Vector2(0.5f, 0));
+            // balik-at: 214x66 dark box, band labels over thirds, two framed sage boxes (Kıyı + Orta with a
+            // faint line between them, Derin apart), yellow fill, a white marker standing out above and below.
+            var charge = At(Node("Charge", root), BottomLeft, Vector2.zero, new Vector2(214, 66), new Vector2(0.5f, 0));
             Img(charge, "box_dark");
-            TextAt(charge, "Shore", "Kıyı", 18, 15, 60, 13, Paper);
-            TextAt(charge, "Mid", "Orta", 82, 15, 60, 13, Paper, TextAnchor.MiddleCenter);
-            TextAt(charge, "Deep", "Derin", 140, 15, 60, 13, Paper, TextAnchor.MiddleRight);
-            var back = Abs(charge, "Bar", 11, 32, 190, 14);
-            view.chargeFill = Bar(back, "bar_fill_yellow", out _);
-            var marker = Node("Marker", back);
-            marker.anchorMin = marker.anchorMax = new Vector2(0.6f, 0.5f);
-            marker.sizeDelta = new Vector2(4, 18);
+            TextAt(charge, "Shore", "Kıyı", 13, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Mid", "Orta", 78, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Deep", "Derin", 142, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            RectTransform MeterBox(string name, float x, float w)
+            {
+                var box = Abs(charge, name, x, 32, w, 16);
+                Img(box, "meter_back", Image.Type.Sliced);
+                var inner = Stretch(Node("Inner", box), 2, 2, 2, 2);
+                var fill = Node("Fill", inner);
+                fill.anchorMin = Vector2.zero;
+                fill.anchorMax = new Vector2(0.5f, 1f);
+                fill.offsetMin = fill.offsetMax = Vector2.zero;
+                Img(fill, "bar_fill_yellow", Image.Type.Sliced);
+                return fill;
+            }
+            view.chargeFill = MeterBox("ShoreMid", 12, 126);
+            var line = Abs(charge, "Line", 74, 34, 2, 12);
+            Solid(line, new Color(0.27f, 0.16f, 0.25f, 0.35f));
+            view.chargeFillDeep = MeterBox("Deep", 140, 62);
+            view.chargeTrack = Abs(charge, "Track", 14, 28, 186, 24);
+            var marker = Node("Marker", view.chargeTrack);
+            marker.anchorMin = marker.anchorMax = new Vector2(0.55f, 0.5f);
+            marker.sizeDelta = new Vector2(4, 24);
             Solid(marker, Color.white);
             view.chargeMarker = marker;
-            view.chargeSub = TextAt(charge, "Sub", "atış mesafesi", 0, 56, 212, 12, Paper, TextAnchor.MiddleCenter);
+            view.chargeSub = TextAt(charge, "Sub", "atış mesafesi", 0, 57, 214, 13, Hex("9babb2"), TextAnchor.MiddleCenter, true);
             view.charge = charge;
 
             // balik-vurus: "!" over the head and "Şimdi tıkla!" in a bubble beside it.
@@ -1700,7 +1994,7 @@ namespace CollectionGame.EditorTools
             view.discover.close.gameObject.SetActive(false);
             view.discoverSlot = SlotAt(d, "Slot", 27, 37, 72);
             view.discoverSlot.frame.pixelsPerUnitMultiplier = 1;
-            view.discoverSlot.label.fontSize = 13;
+            view.discoverSlot.label.SetSize(13);
             view.discoverName = TextAt(d, "Name", "", 115, 46, 260, 16, Ink, TextAnchor.MiddleLeft, true);
             view.discoverTier = TextAt(d, "Tier", "", 115, 69, 260, 14, Hex("a884f3"));
             view.discoverFloat = TextAt(d, "Float", "", 115, 89, 260, 14, Hex("1e6f50"));
@@ -1716,14 +2010,14 @@ namespace CollectionGame.EditorTools
             TextAt(w, "OldLabel", "Defterde", 68, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
             view.oldSlot = SlotAt(w, "Old", 68, 47, 72);
             view.oldSlot.frame.pixelsPerUnitMultiplier = 1;
-            view.oldSlot.label.fontSize = 13;
+            view.oldSlot.label.SetSize(13);
             view.oldFloat = TextAt(w, "OldFloat", "", 58, 132, 92, 15, Faint, TextAnchor.MiddleCenter);
             view.oldCondition = TextAt(w, "OldCond", "", 58, 149, 92, 13, Faint, TextAnchor.MiddleCenter);
             TextAt(w, "Arrow", ">", 180, 83, 30, 20, Ink, TextAnchor.MiddleCenter, true);
             TextAt(w, "NewLabel", "Yeni", 248, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
             view.newSlot = SlotAt(w, "New", 248, 47, 72);
             view.newSlot.frame.pixelsPerUnitMultiplier = 1;
-            view.newSlot.label.fontSize = 13;
+            view.newSlot.label.SetSize(13);
             view.newFloat = TextAt(w, "NewFloat", "", 238, 132, 92, 15, Hex("1e6f50"), TextAnchor.MiddleCenter);
             view.newCondition = TextAt(w, "NewCond", "", 238, 149, 92, 13, Hex("1e6f50"), TextAnchor.MiddleCenter);
             view.swapYes = SmallButton(w, "Yes", "green", "Değiştir", 35, 163, 158, 30, 15);
@@ -1781,6 +2075,7 @@ namespace CollectionGame.EditorTools
             // Level up: 505x187 at (450, 118), three unlock cards.
             var holder = Stretch(Node("LevelUp", root));
             view.levelUp = DraftWindow(holder, "", 450, 118, 505, 187);
+            view.levelUp.blocksWorld = false; // closes by itself, the game does not stop
             Object.DestroyImmediate(view.levelUp.plate.gameObject);
             Object.DestroyImmediate(view.levelUp.close.gameObject);
             var w = view.levelUp.transform;
@@ -1829,7 +2124,7 @@ namespace CollectionGame.EditorTools
         static SlotView EmoteSlot(Transform w, string name, float x, float y)
         {
             var s = SlotAt(w, name, x, y, 48);
-            s.label.fontSize = 11;
+            s.label.SetSize(11);
             return s;
         }
 
@@ -1844,11 +2139,13 @@ namespace CollectionGame.EditorTools
             Img(card, "card");
             Img(Stretch(Node("Outline", card)), "outline");
             view.current = SlotAt(card, "Icon", 8, 6, 38);
-            view.current.label.fontSize = 10;
+            view.current.label.SetSize(10);
             view.currentText = TextAt(card, "Text", "", 58, 25, 340, 14, Ink);
             view.currentText.supportRichText = true;
             ((RectTransform)view.currentText.transform).sizeDelta = new Vector2(340, 40);
             view.remove = SmallButton(card, "Remove", "wood", "Kaldır", 395, 10, 98, 30, 15);
+            Panel(w, "StatusPanel", 20, 82, 498, 154);
+            Panel(w, "GesturePanel", 20, 240, 498, 96);
             TextAt(w, "StatusLabel", "Durum emote'ları", 30, 95, 170, 16, Ink);
             TextAt(w, "StatusHint", "tıkla: üstüne tak", 203, 95, 200, 13, Faint);
             Img(Abs(w, "StatusLine", 30, 106, 478, 4), "divider");
@@ -1972,7 +2269,7 @@ namespace CollectionGame.EditorTools
             var loading = Stretch(Node("Loading", root));
             view.loading = loading.gameObject;
             view.loadingText = TextAt(loading, "Text", "", 304, 392, 800, 20, Color.white, TextAnchor.MiddleCenter, true);
-            view.loadingText.gameObject.AddComponent<Shadow>().effectColor = new Color(0, 0, 0, 0.75f);
+            ((GameText)view.loadingText).ForceShadow = true;
             view.loadingFill = Bar(Abs(loading, "Bar", 544, 490, 320, 14), "bar_fill_green", out _);
             var tipBox = Abs(loading, "Tip", 404, 782, 600, 40);
             Img(tipBox, "box_dark");
@@ -1980,7 +2277,7 @@ namespace CollectionGame.EditorTools
             loading.gameObject.SetActive(false);
 
             view.error = TextAt(root, "Error", "", 304, 676, 800, 16, Hex("e83b3b"), TextAnchor.MiddleCenter, true);
-            view.error.gameObject.AddComponent<Shadow>().effectColor = new Color(0, 0, 0, 0.75f);
+            ((GameText)view.error).ForceShadow = true;
             view.error.horizontalOverflow = HorizontalWrapMode.Wrap;
             return root.gameObject;
         }
@@ -1993,8 +2290,16 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<WhisperView>();
             var size = new Vector2(300, 210);
             view.window = Window(wrap, "Window", "Fısıltı", size);
+            view.window.blocksWorld = false; // a whisper stays open while playing
             At((RectTransform)view.window.transform, BottomRight, new Vector2(-420, 190), size, BottomRight);
             view.plateImage = view.window.plate.GetComponent<Image>();
+            // Grip square at the top-left corner: drag it to put the window anywhere (31.10.2026, Onur).
+            var grip = At(Node("Handle", view.window.transform), TopLeft, new Vector2(8, -8), new Vector2(20, 18));
+            Img(grip, "button_square_wood_normal", Image.Type.Sliced, true);
+            for (var gy = 0; gy < 2; gy++)
+                for (var gx = 0; gx < 3; gx++)
+                    Solid(At(Node("Dot", grip), TopLeft, new Vector2(5 + gx * 4, -(5 + gy * 4)), new Vector2(2, 2)), Paper);
+            view.window.handle = grip;
             view.minimize = Btn(view.window.transform, "Minimize", "flat", "_", 12);
             At((RectTransform)view.minimize.transform, TopRight, new Vector2(-54, -8), new Vector2(20, 18));
             view.menuButton = Btn(view.window.transform, "Menu", "flat", "≡", 12);
@@ -2039,10 +2344,20 @@ namespace CollectionGame.EditorTools
             content.anchorMax = new Vector2(1, 1);
             content.pivot = new Vector2(0.5f, 1);
             content.offsetMin = content.offsetMax = Vector2.zero;
-            view.log = Txt(content, "", 12, Ink, TextAnchor.UpperLeft);
-            view.log.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.log.supportRichText = true;
+            var logLayout = Layout<VerticalLayoutGroup>(content, 6, new RectOffset(2, 4, 2, 2));
+            logLayout.childForceExpandWidth = true;
             content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            view.log = content;
+            // One message: nick on top, text under it (31.10.2026, Onur); WhisperLine puts mine on the right.
+            var msg = Node("LineTemplate", content);
+            Layout<VerticalLayoutGroup>(msg, 2).childForceExpandWidth = true;
+            var wl = msg.gameObject.AddComponent<WhisperLine>();
+            wl.nick = Txt(Node("Nick", msg), "", 10, Faint, TextAnchor.UpperLeft);
+            wl.text = Txt(Node("Text", msg), "", 12, Ink, TextAnchor.UpperLeft);
+            wl.text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            wl.text.supportRichText = false;
+            view.lineTemplate = wl;
+            msg.gameObject.SetActive(false);
             sr.viewport = viewport;
             sr.content = content;
             view.scroll = sr;
@@ -2064,6 +2379,56 @@ namespace CollectionGame.EditorTools
             view.stripText = Txt(Stretch(Node("Label", strip), 4, 1, 4, 1), "", 12, Paper, TextAnchor.MiddleCenter, true);
             strip.gameObject.SetActive(false);
             return wrap.gameObject;
+        }
+
+        // ================= "Emin misin?" box (ConfirmView) =================
+
+        static GameObject BuildConfirm()
+        {
+            var size = new Vector2(340, 150);
+            var wrap = Stretch(Node("Confirm", null));
+            var view = wrap.gameObject.AddComponent<ConfirmView>();
+            var dim = Stretch(Node("Dim", wrap));
+            Img(dim, "box_dark", Image.Type.Sliced, true);
+            view.dim = dim.gameObject;
+            view.window = Window(wrap, "Window", "", size);
+            Object.DestroyImmediate(view.window.plate.gameObject);
+            At((RectTransform)view.window.transform, Center, Vector2.zero, size, Center);
+            var w = view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = (RectTransform)w;
+            view.title = TextAt(w, "Title", "Emin misin?", 24, 30, 290, 18, Ink);
+            view.text = TextAt(w, "Text", "", 24, 62, 292, 12, Ink);
+            view.text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            ((RectTransform)view.text.transform).sizeDelta = new Vector2(292, 40);
+            view.yes = SmallButton(w, "Yes", "red", "Çöpe at", 24, 100, 140, 30, 12);
+            view.yesText = view.yes.GetComponentInChildren<Text>();
+            view.no = SmallButton(w, "No", "wood", "Vazgeç", 176, 100, 140, 30, 12);
+            return wrap.gameObject;
+        }
+
+        // ================= Chat bubble over a character (World/ChatBubbles) =================
+
+        static GameObject BuildBubble()
+        {
+            var rt = Node("Bubble", null);
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.sizeDelta = new Vector2(120, 30);
+            var view = rt.gameObject.AddComponent<BubbleView>();
+            view.rect = rt;
+            view.fade = rt.gameObject.AddComponent<CanvasGroup>();
+            view.fade.blocksRaycasts = false;
+            view.fade.interactable = false;
+            Img(rt, "bubble");
+            view.text = Txt(Stretch(Node("Text", rt), 10, 7, 10, 7), "", 13, Ink, TextAnchor.MiddleCenter);
+            view.text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.text.supportRichText = false;
+            // The tail points down at the speaker, its top row over the bubble's bottom edge.
+            var tail = At(Node("Tail", rt), new Vector2(0.5f, 0f), new Vector2(0, 2), new Vector2(14, 8), new Vector2(0.5f, 1f));
+            Img(tail, "bubble_tail", Image.Type.Simple);
+            view.tail = tail.gameObject;
+            return rt.gameObject;
         }
 
         static Color Hex(string h) => ColorUtility.TryParseHtmlString("#" + h, out var c) ? c : Color.magenta;

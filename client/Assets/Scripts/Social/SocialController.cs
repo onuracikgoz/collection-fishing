@@ -151,7 +151,13 @@ namespace CollectionGame.Social
                 emoteView.window.Closed = () => EmoteMenuOpen = false;
                 emoteView.window.Open = false;
                 emoteView.remove.onClick.AddListener(() => Wear(null));
-                foreach (var slot in emoteView.status) slot.Clicked = s => { if (s.Data is string id) Wear(id); };
+                foreach (var slot in emoteView.status)
+                {
+                    slot.Clicked = s => { if (s.Data is string id) Wear(id); };
+                    // A picture in the slot, the name on hover (31.10.2026, Onur: no words in slots).
+                    slot.Hovered = s => { if (s.Data is string id) Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = StatusName(id), note = "Tıkla: üstüne tak" }); };
+                    slot.Left = _ => Popup?.HideTooltip();
+                }
                 for (var i = 0; i < emoteView.gestures.Length; i++)
                 {
                     var g = i < Emotes.All.Length ? Emotes.All[i] : null;
@@ -159,8 +165,11 @@ namespace CollectionGame.Social
                     slot.gameObject.SetActive(g != null);
                     if (g == null) continue;
                     slot.SetEmpty();
-                    slot.label.text = GestureName(g);
+                    slot.SetIcon("gesture." + g);
                     slot.Clicked = _ => SendEmote(g);
+                    var name = GestureName(g);
+                    slot.Hovered = _ => Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = name, note = "Tıkla: yap" });
+                    slot.Left = _ => Popup?.HideTooltip();
                 }
             }
             if (emoteView.window.Open != EmoteMenuOpen)
@@ -172,7 +181,7 @@ namespace CollectionGame.Social
             emoteDirty = false;
             var v = emoteView;
             v.current.SetEmpty();
-            v.current.label.text = MyStatus != null ? StatusName(MyStatus) : "";
+            v.current.SetIcon(MyStatus != null ? "status." + MyStatus : null);
             v.currentText.text = MyStatus != null
                 ? $"Üstünde duruyor: {StatusName(MyStatus)}\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>"
                 : "Üstünde emote yok\n<color=#7f708a>Aşağıdan birine tıkla, karakterinin üstünde kalır.</color>";
@@ -190,7 +199,7 @@ namespace CollectionGame.Social
                     continue;
                 }
                 slot.SetItem("x." + id, "", 1, false, id == MyStatus);
-                slot.label.text = StatusName(id);
+                slot.SetIcon("status." + id);
                 slot.Data = id;
             }
         }
@@ -222,6 +231,7 @@ namespace CollectionGame.Social
                 : t.reason == "NOT_HERE" ? "Arkadaşın bu sunucuda değil"
                 : t.reason == "NO_SPOT" ? "Yanında boş yer yok"
                 : t.reason == "NOT_FRIEND" ? "Sadece karşılıklı arkadaşının yanına gidebilirsin"
+                : t.reason == "BUSY" ? "Takastayken ışınlanamazsın"
                 : t.reason);
         }
 
@@ -327,7 +337,7 @@ namespace CollectionGame.Social
                 for (var i = 0; i < view.tabs.Length; i++)
                 {
                     var t = (FriendsTab)i;
-                    view.tabs[i].onClick.AddListener(() =>
+                    view.tabs[i].button.onClick.AddListener(() =>
                     {
                         tab = t;
                         dirty = true;
@@ -379,14 +389,10 @@ namespace CollectionGame.Social
             var incoming = Friends.Where(f => f.State == Connection.FriendInviteReceived).ToList();
             var sent = Friends.Where(f => f.State == Connection.FriendInviteSent).ToList();
             var blocked = Friends.Where(f => f.State == Connection.FriendBlocked).ToList();
-            v.tabTexts[0].text = $"Arkadaşlar {mutual.Count}";
+            v.tabs[0].label.text = $"Arkadaşlar {mutual.Count}";
             v.requestBadge.SetActive(incoming.Count > 0);
             v.requestCount.text = incoming.Count.ToString();
-            for (var i = 0; i < v.tabs.Length; i++)
-            {
-                v.tabs[i].GetComponent<Image>().sprite = i == (int)tab ? v.tabOn : v.tabOff;
-                v.tabTexts[i].color = i == (int)tab ? Ink : Paper;
-            }
+            for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (int)tab);
             v.empty.text = "";
             switch (tab)
             {

@@ -7,6 +7,7 @@
 ### 13.1. Chat
 
 - Mesajlar karakterin üstünde **chat balonu** olarak görünür, yalnızca yakındakilere. Yanında bir chat geçmişi paneli bulunur.
+- **Balon yığını (31.10.2026, Onur):** bir oyuncunun balonları üst üste dizilir, en yeni en altta ve ok ucuyla karaktere işaret eder; yeni mesaj gelince eskiler yumuşakça yukarı kayar. En fazla 5 balon, her biri birkaç saniye sonra söner.
 - Arkadaşlarla **özel mesaj**. "Sadece arkadaşlardan mesaj al" ayarı, engelleme ve raporlama her durumda vardır.
 - Chat açıkken klavye girdisi balık tutma kontrolleriyle çakışmaz (örneğin chat açıkken SPACE yazıya gider).
 - **Moderasyon baştan gerekli:** küfür filtresi, raporlama, susturma.

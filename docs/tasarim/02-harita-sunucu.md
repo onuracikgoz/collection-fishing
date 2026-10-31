@@ -19,6 +19,7 @@
 ### 4.0.1. Başlangıç Noktası ve Arkadaşlar
 
 - İlk girişte **meydanda** başlar (herkesin geçtiği canlı yer). Sonraki girişlerde son kaldığı yerde başlar.
+- **Başlangıca dön (31.10.2026, Onur):** HUD'daki mini haritanın altındaki butonla oyuncu başlangıç noktasına (meydan, harita `spawn`) ışınlanır. Yeri sunucu seçer: `spawn`'ı ortalayan 10x10 tile'lık alandan rastgele yürünür bir tile (Öneri), herkes aynı noktaya yığılmasın. 30 sn'de bir (Öneri), takastayken olmaz (`protokol.md` GOTO_SPAWN).
 - **"Arkadaşının yanına git":** arkadaş listesinden tek tıkla ışınlanma. Arkadaş başka sunucudaysa oyun o sunucuya geçirir. "Gel balık tutarken muhabbet edelim" bu sayede kolaydır.
 
 ### 4.0.2. Balık Noktaları

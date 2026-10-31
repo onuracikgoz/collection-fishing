@@ -12,5 +12,8 @@ namespace CollectionGame.UI.Views
         public RectTransform grid;
         public SlotView slotTemplate;
         public Text footer;
+        /// <summary>Trash can: drop an item on it, confirm, the server throws it away (ITEM_DISCARD).</summary>
+        public RectTransform trash;
+        public Image trashHighlight;
     }
 }

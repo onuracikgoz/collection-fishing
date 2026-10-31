@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using CollectionGame.Art;
 using CollectionGame.Net;
 using UnityEngine;
@@ -29,8 +30,17 @@ namespace CollectionGame.World
 
         public string Id { get; private set; }
         public string DisplayName { get; set; }
-        public string Bubble { get; private set; }
-        public float BubbleUntil { get; private set; }
+        /// <summary>Chat lines over the head, oldest first; World/ChatBubbles draws them as a stack.</summary>
+        public readonly List<BubbleLine> Bubbles = new List<BubbleLine>();
+        public const int MaxBubbles = 5;
+        /// <summary>Screen point (pixels, origin bottom left) the bubble stack stands on: above the name.</summary>
+        public Vector2 BubbleAnchor { get; set; }
+
+        public sealed class BubbleLine
+        {
+            public string Text;
+            public float Born, Until;
+        }
         public Vector2 ServerPos { get; private set; }
         public string Facing { get; private set; } = Dir.Down;
         public bool Moving { get; private set; }
@@ -70,8 +80,9 @@ namespace CollectionGame.World
 
         public void Say(string text, float seconds)
         {
-            Bubble = text;
-            BubbleUntil = Time.time + seconds;
+            Bubbles.RemoveAll(b => Time.time >= b.Until);
+            Bubbles.Add(new BubbleLine { Text = text, Born = Time.time, Until = Time.time + seconds });
+            while (Bubbles.Count > MaxBubbles) Bubbles.RemoveAt(0);
         }
 
         /// <summary>Current emote (EMOTE_SHOW); sit lasts until the character walks.</summary>

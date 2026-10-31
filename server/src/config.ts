@@ -341,6 +341,12 @@ export const TRANSFER = {
 };
 
 // Friends: "Yanına git" (10-sosyal.md 13.2.1).
+/** "Başlangıca dön" (GOTO_SPAWN, docs/protokol.md): a random walkable tile around the map spawn. */
+export const SPAWN_TELEPORT = {
+  areaTiles: 10, // side of the square around map.spawn (Öneri)
+  cooldownMs: 30000, // (Öneri)
+};
+
 export const FRIENDS = {
   teleportCooldownMs: 3000, // (Öneri)
   landRadius: 4, // tiles searched around the friend for a free spot
