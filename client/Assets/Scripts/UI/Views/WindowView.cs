@@ -15,6 +15,8 @@ namespace CollectionGame.UI.Views
         public Button close;
         public RectTransform body;
         public RectTransform plate;
+        /// <summary>Optional grip square (whisper windows): dragging it moves the window too.</summary>
+        public RectTransform handle;
 
         /// <summary>
         /// While this window is open the world takes no input: no walking (mouse or WASD), no casting.
@@ -78,7 +80,10 @@ namespace CollectionGame.UI.Views
         }
 
         public void OnBeginDrag(PointerEventData e) =>
-            dragging = plate != null && RectTransformUtility.RectangleContainsScreenPoint(plate, e.pressPosition, e.pressEventCamera);
+            dragging = Hit(plate, e) || Hit(handle, e);
+
+        static bool Hit(RectTransform r, PointerEventData e) =>
+            r != null && r.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint(r, e.pressPosition, e.pressEventCamera);
 
         public void OnDrag(PointerEventData e)
         {
@@ -86,6 +91,25 @@ namespace CollectionGame.UI.Views
             var rt = (RectTransform)transform;
             var canvas = GetComponentInParent<Canvas>();
             rt.anchoredPosition += e.delta / (canvas != null ? canvas.scaleFactor : 1f);
+            KeepOnScreen(rt);
+        }
+
+        /// <summary>A dragged window stays inside the screen (at least its title can be grabbed again).</summary>
+        static void KeepOnScreen(RectTransform rt)
+        {
+            var parent = rt.parent as RectTransform;
+            if (parent == null) return;
+            var corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+            var area = parent.rect;
+            var min = parent.InverseTransformPoint(corners[0]);
+            var max = parent.InverseTransformPoint(corners[2]);
+            var shift = Vector2.zero;
+            if (min.x < area.xMin) shift.x = area.xMin - min.x;
+            else if (max.x > area.xMax) shift.x = area.xMax - max.x;
+            if (min.y < area.yMin) shift.y = area.yMin - min.y;
+            else if (max.y > area.yMax) shift.y = area.yMax - max.y;
+            rt.anchoredPosition += shift;
         }
     }
 }
