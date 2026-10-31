@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 35;
+        public const int Version = 36;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -852,6 +852,8 @@ namespace CollectionGame.EditorTools
             vline.localEulerAngles = new Vector3(0, 0, -90);
             view.version = TextAt(w, "Version", "v0.4", 23, 501, 160, 13, Faint);
 
+            Panel(w, "ContentPanel", 195, 24, 463, 500);
+
             // ---- Genel ----
             var g = Stretch(Node("General", w));
             view.general = g.gameObject;
@@ -950,7 +952,7 @@ namespace CollectionGame.EditorTools
         {
             var side = new TradeView.Side();
             var panel = Abs(w, name, x, 30, 195, 268);
-            side.back = Img(panel, "outline");
+            side.back = Img(panel, "card");
             side.name = TextAt(panel, "Name", "Sen", 12, 18, 110, 16, Ink);
             side.level = TextAt(panel, "Level", "", 72, 19, 100, 13, Faint);
             side.slots = new SlotView[8];
@@ -986,7 +988,7 @@ namespace CollectionGame.EditorTools
             var w = view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
             view.window.body = (RectTransform)w;
-            view.open = S("outline");
+            view.open = S("card");
             view.locked = S("panel_locked");
             view.me = TradeSide(w, "Me", 22, true);
             view.them = TradeSide(w, "Them", 250, false);
@@ -1084,6 +1086,8 @@ namespace CollectionGame.EditorTools
             view.title = Field(Abs(w, "Title", 96, 32, 300, 31), "Tezgahına bir başlık yaz", 15);
             view.title.characterLimit = 40;
             Img(Abs(w, "Divider", 28, 75, 700, 4), "divider");
+            Panel(w, "StallPanel", 18, 84, 420, 178);
+            Panel(w, "BagPanel", 18, 262, 482, 120);
             view.stallHeader = TextAt(w, "StallHeader", "Tezgah · 0 / 12", 28, 96, 180, 16, Ink, TextAnchor.MiddleLeft, true);
             view.stallHint = TextAt(w, "StallHint", "Çantadan tıkla, fiyat yaz, Koy", 214, 96, 260, 14, Faint);
             view.stall = new SlotView[12];
@@ -1422,6 +1426,7 @@ namespace CollectionGame.EditorTools
             Img(hunt, "panel_alert");
             view.hunt = hunt.gameObject;
             view.huntText = Txt(Stretch(Node("Text", hunt), 10, 0, 8, 0), "", 14, Hex("ae2334"));
+            Panel(w, "ShowcasePanel", 21, 164, 478, 124);
             TextAt(w, "ShowcaseLabel", "Vitrin", 29, 176, 100, 14, Ink);
             Img(Abs(w, "ShowcaseLine", 29, 186, 466, 4), "divider");
             view.showcase = new SlotView[3];
@@ -1450,6 +1455,18 @@ namespace CollectionGame.EditorTools
             TextAt(w, "Dot", "·", 438, 428, 10, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
             view.block = LinkText(w, "Block", "Engelle", 448, 428, 50, Hex("e83b3b"));
             return wrap.gameObject;
+        }
+
+        /// <summary>
+        /// A section of a window (31.10.2026, Onur): olive kit card behind a group of things (the bag
+        /// grid, the inputs and their button, a list), drawn first so it stays behind them.
+        /// </summary>
+        static RectTransform Panel(Transform parent, string name, float x, float y, float w, float h)
+        {
+            var rt = Abs(parent, name, x, y, w, h);
+            Img(rt, "card");
+            rt.SetSiblingIndex(0);
+            return rt;
         }
 
         /// <summary>A left-to-right row at draft coordinates: children sit side by side at their own width.</summary>
@@ -1647,6 +1664,7 @@ namespace CollectionGame.EditorTools
 
             var sell = Stretch(Node("Sell", w));
             view.sell = sell.gameObject;
+            Panel(sell, "BagPanel", 21, 78, 386, 297);
             TextAt(sell, "BagLabel", "Çanta", 29, 92, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.bagHint = TextAt(sell, "BagHint", "tıkla: sepete ekle", 97, 92, 250, 14, Faint);
             view.bag = GridAt(sell, "Bag", 29, 110, 8, 5);
@@ -1684,6 +1702,7 @@ namespace CollectionGame.EditorTools
 
             var shop = Stretch(Node("Shop", w));
             view.shop = shop.gameObject;
+            Panel(shop, "RodPanel", 21, 78, 386, 170);
             TextAt(shop, "RodLabel", "Olta", 29, 92, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             view.rodText = TextAt(shop, "Rod", "", 29, 122, 380, 15, Ink);
             view.rodFill = Bar(Abs(shop, "RodBar", 29, 138, 220, 14), "bar_fill_green", out _);
@@ -1730,6 +1749,7 @@ namespace CollectionGame.EditorTools
 
             var craft = Stretch(Node("Craft", w));
             view.craft = craft.gameObject;
+            Panel(craft, "RecipePanel", 21, 78, 263, 493);
             TextAt(craft, "RecipesLabel", "Recipe'lerin", 29, 92, 200, 16, Ink);
             view.recipes = new CrafterView.RecipeCard[8];
             for (var i = 0; i < view.recipes.Length; i++)
@@ -1774,35 +1794,41 @@ namespace CollectionGame.EditorTools
             view.craftButton = SmallButton(detail, "Craft", "green", "Craft yap", 16, 437, 604, 36, 17);
             view.craftText = view.craftButton.GetComponentInChildren<Text>();
 
+            // Birleştir (31.10.2026, Onur): two sections. Top: the rule, the three inputs and the result in
+            // one line, dust, quality and the Birleştir button beside them. Bottom: the bag.
             var merge = Stretch(Node("Merge", w));
             view.merge = merge.gameObject;
-            TextAt(merge, "Desc", "3'ü 1: aynı eşyadan 3 kopya + toz → daha temiz 1 kopya", 29, 92, 800, 15, Ink);
-            TextAt(merge, "Desc2", "Tier değişmez, yeni Float çıkar, girdilerin en kötüsünden kötü olmaz. Recipe gerekmez.", 29, 111, 800, 14, Faint);
+            Panel(merge, "MergePanel", 21, 78, 914, 268);
+            TextAt(merge, "Desc", "3'ü 1: aynı eşyadan 3 kopya + toz → daha temiz 1 kopya", 37, 98, 860, 15, Ink);
+            TextAt(merge, "Desc2", "Tier değişmez, yeni Float çıkar, girdilerin en kötüsünden kötü olmaz. Recipe gerekmez.", 37, 118, 860, 14, Faint);
             view.inputs = new SlotView[3];
             view.inputNames = new Text[3];
             view.inputFloats = new Text[3];
+            // Inputs 48 px, 96 apart; the result 56 px; all centred on y 172.
             for (var i = 0; i < 3; i++)
             {
-                var x = 109 + i * 108;
-                view.inputs[i] = SlotAt(merge, "Input" + i, x, 150);
-                view.inputNames[i] = TextAt(merge, "InputName" + i, "", x - 30, 206, 100, 14, Ink, TextAnchor.MiddleCenter);
-                view.inputFloats[i] = TextAt(merge, "InputFloat" + i, "", x - 30, 226, 100, 13, Faint, TextAnchor.MiddleCenter);
-                if (i < 2) TextAt(merge, "Plus" + i, "+", x + 56, 170, 20, 16, Ink, TextAnchor.MiddleCenter);
+                var x = 61 + i * 96;
+                view.inputs[i] = SlotAt(merge, "Input" + i, x, 148, 48);
+                view.inputNames[i] = TextAt(merge, "InputName" + i, "", x - 26, 208, 100, 12, Ink, TextAnchor.MiddleCenter);
+                view.inputFloats[i] = TextAt(merge, "InputFloat" + i, "", x - 26, 224, 100, 12, Faint, TextAnchor.MiddleCenter);
+                if (i < 2) TextAt(merge, "Plus" + i, "+", x + 48, 172, 48, 15, Ink, TextAnchor.MiddleCenter);
             }
-            TextAt(merge, "Arrow", "→", 405, 170, 30, 16, Ink, TextAnchor.MiddleCenter);
-            view.result = SlotAt(merge, "Result", 459, 138, 52);
+            TextAt(merge, "Arrow", "→", 301 + 48, 172, 48, 15, Ink, TextAnchor.MiddleCenter);
+            view.result = SlotAt(merge, "Result", 397, 144, 56);
             view.result.frame.pixelsPerUnitMultiplier = 1;
-            view.resultName = TextAt(merge, "ResultName", "", 425, 216, 120, 14, Faint, TextAnchor.MiddleCenter);
-            Solid(At(Node("DustIcon", merge), new Vector2(0, 1), new Vector2(109, -270), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
-            view.mergeDust = TextAt(merge, "Dust", "", 129, 270, 600, 15, Hex("4d9be6"));
+            view.resultName = TextAt(merge, "ResultName", "", 375, 216, 100, 12, Faint, TextAnchor.MiddleCenter);
+            // Right half of the top section: dust, quality, the button, its note.
+            Solid(At(Node("DustIcon", merge), new Vector2(0, 1), new Vector2(520, -160), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
+            view.mergeDust = TextAt(merge, "Dust", "", 540, 160, 380, 12, Hex("4d9be6"));
             view.mergeDust.supportRichText = true;
-            TextAt(merge, "QualityLabel", "Girdi kalitesi", 109, 306, 120, 15, Ink);
-            view.mergeFill = Bar(Abs(merge, "QualityBar", 236, 299, 180, 14), "bar_fill_yellow", out _);
-            view.mergeQuality = TextAt(merge, "Quality", "", 426, 306, 200, 15, Hex("f79617"));
-            view.mergeButton = SmallButton(merge, "Merge", "green", "Birleştir", 733, 264, 198, 40, 17);
-            view.mergeNote = TextAt(merge, "Note", "Her birleştirme 2 eşyayı oyundan siler.", 560, 327, 371, 14, Faint, TextAnchor.MiddleRight);
-            TextAt(merge, "BagLabel", "Çanta (aynı eşyadan kopyalar seçilir)", 29, 346, 500, 15, Ink);
-            view.bag = GridAt(merge, "Bag", 29, 362, 10, 2);
+            TextAt(merge, "QualityLabel", "Girdi kalitesi", 520, 192, 130, 12, Ink);
+            view.mergeFill = Bar(Abs(merge, "QualityBar", 652, 186, 160, 12), "bar_fill_yellow", out _);
+            view.mergeQuality = TextAt(merge, "Quality", "", 822, 192, 100, 12, Hex("f79617"));
+            view.mergeButton = SmallButton(merge, "Merge", "green", "Birleştir", 520, 222, 396, 36, 15);
+            view.mergeNote = TextAt(merge, "Note", "Her birleştirme 2 eşyayı oyundan siler.", 37, 300, 880, 12, Faint);
+            Panel(merge, "BagPanel", 21, 356, 914, 215);
+            TextAt(merge, "BagLabel", "Çanta (aynı eşyadan kopyalar seçilir)", 37, 374, 600, 15, Ink);
+            view.bag = GridAt(merge, "Bag", 37, 392, 10, 3);
             view.barGood = S("bar_fill_green");
             view.barMid = S("bar_fill_yellow");
             return wrap.gameObject;
@@ -1815,6 +1841,8 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<BankView>();
             view.window = DraftWindow(wrap, "Banka", 186, 132, 1031, 564);
             var w = view.window.transform;
+            Panel(w, "StashPanel", 16, 26, 486, 530);
+            Panel(w, "BagPanel", 514, 26, 500, 286);
             view.stashTitle = TextAt(w, "StashLabel", "Depo", 26, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.stashCount = TextAt(w, "StashCount", "", 88, 40, 200, 14, Faint);
             view.stash = GridAt(w, "Stash", 26, 60, 10, 10);
@@ -2085,6 +2113,8 @@ namespace CollectionGame.EditorTools
             view.currentText.supportRichText = true;
             ((RectTransform)view.currentText.transform).sizeDelta = new Vector2(340, 40);
             view.remove = SmallButton(card, "Remove", "wood", "Kaldır", 395, 10, 98, 30, 15);
+            Panel(w, "StatusPanel", 20, 82, 498, 154);
+            Panel(w, "GesturePanel", 20, 240, 498, 96);
             TextAt(w, "StatusLabel", "Durum emote'ları", 30, 95, 170, 16, Ink);
             TextAt(w, "StatusHint", "tıkla: üstüne tak", 203, 95, 200, 13, Faint);
             Img(Abs(w, "StatusLine", 30, 106, 478, 4), "divider");

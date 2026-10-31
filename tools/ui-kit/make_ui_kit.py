@@ -24,8 +24,8 @@ SAGE_L, SAGE, SAGE_M, SAGE_D = c("c7dcd0"), c("92a984"), c("547e64"), c("374e4a"
 NAIL, NAIL_D = c("f9c22b"), c("4c3e24")
 GREY_D, GREY, GREY_L = c("625565"), c("7f708a"), c("9babb2")
 WHITE = c("ffffff")
-# flat cream inside windows (31.10.2026, Onur: plain, no linen weave)
-CREAM = c("f2e8d0")
+# flat cream inside windows (31.10.2026, Onur: plain, no linen weave; later: closer to white, not skin-coloured)
+CREAM = c("faf7ef")
 
 # THE corner rounding of the UI kit, in kit pixels (31.10.2026, Onur: square things slightly round).
 # Every box piece (windows, buttons, slots, cards, fields, bubbles...) goes through round_corners(),
@@ -147,8 +147,10 @@ r(im, 0, 0, 15, 15, c("625565", 200)); r(im, 1, 1, 14, 14, c("2e222f", 190)); r(
 round_corners(im); put("box_dark", im, 3)
 
 # ---------- paper card, tooltip, name tag, chat bubble ----------
-im = new(24, 24)   # light card inside a window (friend row, server row, rule row)
-r(im, 0, 0, 23, 23, SAGE); r(im, 1, 1, 22, 22, SAGE_L)
+# area inside a window (31.10.2026, Onur): olive green, the old window linen colour as a flat field.
+# Groups a window's parts (bag, basket, recipe list, quest rows...); light slots and fields sit on it.
+im = new(24, 24)
+r(im, 0, 0, 23, 23, LINEN_W); r(im, 1, 1, 22, 22, LINEN)
 round_corners(im); put("card", im, 3)
 
 # ---------- flat bottom bar (opaque sage) + its buttons ----------
@@ -276,7 +278,7 @@ def record(frame, face):
     r(im, 0, 0, 39, 39, INK); r(im, 1, 1, 38, 38, frame); r(im, 3, 3, 36, 36, face)
     round_corners(im); return im
 for t, h in TIERS.items(): put(f"record_{t}", record(c(h), WHITE), 3)
-put("record_found", record(GREY_L, LINEN), 3)
+put("record_found", record(GREY_L, SAGE_L), 3)
 put("record_unknown", record(GREY_D, c("3e3546")), 3)
 
 # ---------- cursors (hot spot top-left) ----------

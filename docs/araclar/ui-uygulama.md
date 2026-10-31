@@ -76,7 +76,7 @@ Kodda boyut değiştirmek: `text.SetSize(n)`. IMGUI stilleri (`Gui`, `Kit`) de k
 
 ## Köşeler, pencere zemini, yuvalar (31.10.2026, Onur)
 
-Kit parçaları `tools/ui-kit/make_ui_kit.py` ile üretilir; tek ayar `CORNER` (kit pikseli, şimdi 2) bütün kutuların köşe yuvarlaklığıdır, kenar çizgisi kesikten sonra kapalı kalır. Pencere içi düz krem (`f2e8d0`). Eşya yuvalarının dört kenarı eşit (2 px kenar + 1 px iç halka). `tab_off` dört kenarı kapalı (Ayarlar'da alt alta duran sekmelerin alt çizgisi). Kiti değiştirdikten sonra: `python3 tools/ui-kit/make_ui_kit.py`, Unity'de prefabları yeniden üret.
+Kit parçaları `tools/ui-kit/make_ui_kit.py` ile üretilir; tek ayar `CORNER` (kit pikseli, şimdi 2) bütün kutuların köşe yuvarlaklığıdır, kenar çizgisi kesikten sonra kapalı kalır. Pencere içi düz, beyaza yakın sıcak krem (`faf7ef`, 31.10.2026 akşam: ten rengine kaçmasın). Pencerenin bölümleri (çanta ızgarası, sepet, tarif listesi, girdiler ve butonu, takas tarafları, ayarlar sağ sütunu, vitrin, emote grupları) zeytin yeşili kutuda durur: kit `card` (`b2ba90`, kenar `92a984`), builder'da `Panel(...)`; açık yuvalar ve alanlar onun üstünde. Eşya yuvalarının dört kenarı eşit (2 px kenar + 1 px iç halka). `tab_off` dört kenarı kapalı (Ayarlar'da alt alta duran sekmelerin alt çizgisi). Kiti değiştirdikten sonra: `python3 tools/ui-kit/make_ui_kit.py`, Unity'de prefabları yeniden üret.
 
 ## Sekmeler: tek bileşen
 

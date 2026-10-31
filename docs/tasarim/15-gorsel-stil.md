@@ -32,7 +32,7 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 Hazır paket yerine kodla çizilen kendi kitimiz: `tools/ui-kit/make_ui_kit.py` → `client/Assets/Art/UI/` (66 parça). Önizleme: `docs/gorsel/ui-kit-onizleme.png`. Ekran taslakları proje dosyalarında (`ui/pencereler/`, `ui/giris-akisi/`).
 
 - Tema: **ahşap çerçeve + adaçayı keten** (karar 28.10.2026). Ahşap Resurrect 64: `45293f` `7a3045` `9e4539` `cd683d` `e6904e`; keten `b2ba90` / `92a984`; açık yüzey (yuva, kart) `c7dcd0`.
-- **Pencereler** (çanta, defter, profil, arkadaşlar, takas, ayarlar, sunucu listesi): `window`, tahta çerçeve, **düz krem zemin** (`f2e8d0`, 31.10.2026 Onur: keten deseni kalktı), gölge. Başlık çerçevenin üstündeki ahşap plakada, pencere plakadan sürüklenir. Çanta zemini hafif saydam.
+- **Pencereler** (çanta, defter, profil, arkadaşlar, takas, ayarlar, sunucu listesi): `window`, tahta çerçeve, **düz, beyaza yakın krem zemin** (`faf7ef`, 31.10.2026 Onur: keten deseni kalktı, ten rengine kaçmasın); pencere içindeki bölümler zeytin yeşili kutuda (`card`, `b2ba90`), gölge. Başlık çerçevenin üstündeki ahşap plakada, pencere plakadan sürüklenir. Çanta zemini hafif saydam.
 - **Alt bar**: `hud_bar` düz, opak adaçayı `374e4a`; üstündeki butonlar `button_flat_*`.
 - **Oyun üstünde duran küçük kutular** (chat geçmişi, sol / sağ üst bilgi, isim etiketi, bilgi kutusu): `box_dark`, saydam koyu. Sağ tık menüsü `menu` + `menu_highlight`.
 - Pencere içi satırlar (arkadaş, sunucu): `card`.
