@@ -54,9 +54,23 @@ namespace CollectionGame.EditorTools
             {
                 var h = Spawn<HudView>(canvas, "Hud");
                 FillHud(h);
-                h.chatGroup.SetActive(false);
                 h.chatLogBox.gameObject.SetActive(false);
                 h.chatOpen.gameObject.SetActive(true);
+            });
+            Shot(outDir, "baloncuk", Path.Combine(drafts, "hud3.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var prefab = Resources.Load<GameObject>("UI/Bubble");
+                string[] says = { "Bugün 2 Rare çıktı!", "Kristal setini bitirdin mi?", "1 tane kaldı, Mythic :(" };
+                var y = 0f;
+                for (var i = says.Length - 1; i >= 0; i--)
+                {
+                    var b = UnityEngine.Object.Instantiate(prefab, canvas.transform, false).GetComponent<BubbleView>();
+                    b.Set(says[i]);
+                    b.tail.SetActive(i == says.Length - 1);
+                    b.rect.anchoredPosition = new Vector2(700, 400 + y);
+                    y += b.rect.sizeDelta.y + 4;
+                }
             });
             Shot(outDir, "canta", Path.Combine(drafts, "canta-v2.png"), canvas =>
             {
@@ -203,8 +217,7 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<ProfileView>(canvas, "Profile");
-                v.portrait.SetEmpty();
-                v.portrait.label.text = "Ece";
+                v.portrait.Show("ece-shot-id");
                 v.displayName.text = "Ece";
                 v.level.text = "Lv 12";
                 v.score.text = "2.340";
@@ -613,7 +626,16 @@ namespace CollectionGame.EditorTools
                 var w = Spawn<WhisperView>(canvas, "Whisper");
                 w.window.title.text = "Mert";
                 w.menuRow.gameObject.SetActive(true);
-                w.log.text = "<color=#1e6f50><b>Mert:</b></color> kristal kaça?\n<b>Sen:</b> 1.900, tezgahta\n<color=#7f708a><i>Kişisel bilgi gizlendi</i></color>\n<color=#9e4539>Oyuncu çevrimiçi değil</color>";
+                void Msg(string nick, string text, bool mine, Color nc, Color tc)
+                {
+                    var l = UnityEngine.Object.Instantiate(w.lineTemplate, w.log, false);
+                    l.gameObject.SetActive(true);
+                    l.Set(nick, text, mine, nc, tc);
+                }
+                var ink = new Color32(0x45, 0x29, 0x3f, 0xff);
+                Msg("Mert", "kristal kaça?", false, new Color32(0x1e, 0x6f, 0x50, 0xff), ink);
+                Msg("Sen", "1.900, tezgahta", true, new Color32(0x9e, 0x45, 0x39, 0xff), ink);
+                Msg(null, "Kişisel bilgi gizlendi", false, Color.gray, Color.gray);
                 var w2 = Spawn<WhisperView>(canvas, "Whisper");
                 w2.window.gameObject.SetActive(false);
                 w2.strip.gameObject.SetActive(true);
@@ -693,6 +715,17 @@ namespace CollectionGame.EditorTools
             h.dust.text = "312";
             h.coin.text = "1.240";
             h.diamond.text = "85";
+            if (h.miniMap != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                var npcs = new (string, string, Vector2)[]
+                {
+                    ("merchant", "Balıkçı Tüccar", new Vector2(73.5f, 52.5f)), ("crafter", "Zanaatkar", new Vector2(70.5f, 45.5f)),
+                    ("quests", "Görevci", new Vector2(60.5f, 49.5f)), ("banker", "Bankacı", new Vector2(31.5f, 77.5f)),
+                };
+                new CollectionGame.World.MiniMap(h.miniMap, null).Tick(CollectionGame.World.LakeMap.Spawn + new Vector2(8, 0), npcs,
+                    new[] { new Vector2(75f, 47f), new Vector2(66f, 58f) }, true);
+            }
             h.level.text = "Lv 7";
             HudView.Fill(h.xpFill, 0.62f);
             h.xpText.text = "XP 1.240 / 2.000";
@@ -722,7 +755,9 @@ namespace CollectionGame.EditorTools
 
         static void Shot(string outDir, string name, string draftPath, Action<Canvas> fill)
         {
-            const int w = (int)UiRoot.RefWidth, h = (int)UiRoot.RefHeight;
+            // -shotScale 2: the canvas at 2x (a Retina screen), where GameText snaps its sizes differently.
+            var scale = int.TryParse(Arg("-shotScale"), out var sc) && sc > 0 ? sc : 1;
+            int w = (int)UiRoot.RefWidth * scale, h = (int)UiRoot.RefHeight * scale;
             var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
             var camGo = new GameObject("ShotCamera");
             var cam = camGo.AddComponent<Camera>();
@@ -741,7 +776,8 @@ namespace CollectionGame.EditorTools
             canvas.pixelPerfect = true;
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = 1;
+            scaler.scaleFactor = scale;
+            canvas.scaleFactor = scale;
             scaler.referencePixelsPerUnit = UiRoot.PixelsPerUnit;
 
             Texture2D draft = null;
@@ -763,6 +799,7 @@ namespace CollectionGame.EditorTools
             }
 
             fill(canvas);
+            foreach (var t in canvasGo.GetComponentsInChildren<GameText>(true)) t.Apply();
             Save(cam, rt, Path.Combine(outDir, name + ".png"));
             if (back != null)
             {

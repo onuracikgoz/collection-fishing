@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 33;
+        public const int Version = 34;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -86,6 +86,23 @@ namespace CollectionGame.EditorTools
         [MenuItem("CollectionGame/UI/Unmark selected prefab (builder may overwrite)", true)]
         static bool CanMark() => SelectedPrefab() != null;
 
+        const string StylePath = "Assets/Resources/UiStyle.asset";
+
+        /// <summary>Makes Resources/UiStyle.asset (the one place for the UI look) when it is missing.</summary>
+        [MenuItem("CollectionGame/UI/Style asset (UiStyle)", false, 30)]
+        static void StyleMenu()
+        {
+            EnsureStyle();
+            Selection.activeObject = AssetDatabase.LoadAssetAtPath<UiStyle>(StylePath);
+        }
+
+        static void EnsureStyle()
+        {
+            if (AssetDatabase.LoadAssetAtPath<UiStyle>(StylePath) != null) return;
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<UiStyle>(), StylePath);
+            AssetDatabase.SaveAssets();
+        }
+
         [MenuItem("CollectionGame/UI/Check font (Türkçe)", false, 40)]
         static void CheckFont()
         {
@@ -129,6 +146,7 @@ namespace CollectionGame.EditorTools
                 return;
             }
             Directory.CreateDirectory(Out);
+            EnsureStyle();
             Save(BuildHud(), "Hud");
             Save(BuildBag(), "Bag");
             Save(BuildPopup(), "Popup");
@@ -152,6 +170,7 @@ namespace CollectionGame.EditorTools
             Save(BuildStallList(), "Stall");
             Save(BuildBoard(), "Board");
             Save(BuildWhisper(), "Whisper");
+            Save(BuildBubble(), "Bubble");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
@@ -231,24 +250,25 @@ namespace CollectionGame.EditorTools
             return img;
         }
 
+        /// <summary>
+        /// THE text: a GameText (font, sharpness and shadow from UiStyle). bold is ignored while the
+        /// style has bold off (a pixel font smears when Unity fakes bold); shadow forces the shadow on
+        /// dark text too (light text gets it anyway).
+        /// </summary>
         static Text Txt(RectTransform rt, string text, int size, Color colour, TextAnchor align = TextAnchor.MiddleLeft, bool bold = false, bool shadow = false)
         {
-            var t = rt.gameObject.AddComponent<Text>();
+            var t = rt.gameObject.AddComponent<GameText>();
             t.font = Font;
             t.text = text;
+            t.Size = size;
             t.fontSize = size;
             t.color = colour;
             t.alignment = align;
-            t.fontStyle = bold ? FontStyle.Bold : FontStyle.Normal;
+            t.fontStyle = bold && UiStyle.Get().allowBoldItalic ? FontStyle.Bold : FontStyle.Normal;
             t.horizontalOverflow = HorizontalWrapMode.Overflow;
             t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
-            if (shadow)
-            {
-                var sh = rt.gameObject.AddComponent<Shadow>();
-                sh.effectColor = new Color(0, 0, 0, 0.75f);
-                sh.effectDistance = new Vector2(1, -1);
-            }
+            t.ForceShadow = shadow;
             return t;
         }
 
@@ -297,8 +317,7 @@ namespace CollectionGame.EditorTools
             text.supportRichText = false;
             text.horizontalOverflow = HorizontalWrapMode.Overflow;
             var placeholder = Txt(Stretch(Node("Placeholder", rt), 6, 1, 6, 1), placeholderText, size, Faint);
-            placeholder.fontStyle = FontStyle.Italic;
-            field.textComponent = text;
+                        field.textComponent = text;
             field.placeholder = placeholder;
             return field;
         }
@@ -412,15 +431,38 @@ namespace CollectionGame.EditorTools
             Icon(bal, "DustIcon", new Vector2(0, 0.5f), new Vector2(244, 0), DustColour);
             view.dust = Txt(At(Node("Dust", bal), new Vector2(0, 0.5f), new Vector2(260, 0), new Vector2(80, 24), new Vector2(0, 0.5f)), "0", 15, DustColour, TextAnchor.MiddleLeft, true);
 
-            // Chat log above the chat line.
+            view.miniMap = MiniMap(root);
+
+            // Chat log above the chat line. The text grows up from the bottom and the box masks what
+            // is above it: the newest line is always the bottom one (31.10.2026: with Truncate Unity cut
+            // the last line, so the log showed the message before the newest one).
             var log = At(Node("ChatLog", root), BottomLeft, new Vector2(505, 84), new Vector2(450, 88));
             Img(log, "box_dark");
             view.chatLogBox = log;
-            view.chatLog = Txt(Stretch(Node("Text", log), 12, 6, 12, 8), "", 14, Paper, TextAnchor.LowerLeft);
+            var logView = Stretch(Node("Viewport", log), 12, 6, 12, 8);
+            logView.gameObject.AddComponent<RectMask2D>();
+            view.chatLog = Txt(Stretch(Node("Text", logView)), "", 14, Paper, TextAnchor.LowerLeft);
             view.chatLog.lineSpacing = 1.55f;
             view.chatLog.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.chatLog.verticalOverflow = VerticalWrapMode.Truncate;
+            view.chatLog.verticalOverflow = VerticalWrapMode.Overflow;
             view.chatLog.supportRichText = true;
+            // Chat controls on the log's top edge, see-through until the pointer is on them (31.10.2026, Onur):
+            // + / - makes the log bigger or smaller, x closes it (the chat line stays).
+            var controls = At(Node("ChatControls", log), TopRight, new Vector2(-2, 2), new Vector2(46, 20), new Vector2(1, 0));
+            var fade = controls.gameObject.AddComponent<CanvasGroup>();
+            fade.alpha = 0.55f;
+            controls.gameObject.AddComponent<HoverFade>().group = fade;
+            view.chatControls = controls.gameObject;
+            Button ChatControl(string name, string label, float x)
+            {
+                var b = Btn(controls, name, "flat", label, 13);
+                b.GetComponentInChildren<Text>().color = Paper;
+                At((RectTransform)b.transform, BottomLeft, new Vector2(x, 0), new Vector2(22, 20));
+                return b;
+            }
+            view.chatSize = ChatControl("ChatSize", "+", 0);
+            view.chatSizeText = view.chatSize.GetComponentInChildren<Text>();
+            view.chatClose = ChatControl("ChatClose", "x", 24);
 
             // XP strip on top of the bar, level tag at its left end.
             var xp = Node("Xp", root);
@@ -440,7 +482,8 @@ namespace CollectionGame.EditorTools
             var lv = At(Node("Level", root), BottomLeft, new Vector2(8, 58), new Vector2(54, 24));
             Img(lv, "tag_level");
             view.level = Txt(Stretch(Node("Text", lv), 0, 0, 0, 2), "Lv 1", 14, Color.white, TextAnchor.MiddleCenter, true);
-            view.xpText = Txt(At(Node("XpText", root), BottomRight, new Vector2(-420, 64), new Vector2(220, 18), new Vector2(1, 0)), "", 12, Paper, TextAnchor.MiddleRight, true, true);
+            // XP text at the far right above the strip (31.10.2026, Onur).
+            view.xpText = Txt(At(Node("XpText", root), BottomRight, new Vector2(-10, 66), new Vector2(260, 16), new Vector2(1, 0)), "", 12, Paper, TextAnchor.MiddleRight, true, true);
 
             // Bottom bar.
             var bar = Node("Bar", root);
@@ -462,6 +505,7 @@ namespace CollectionGame.EditorTools
             view.rodLow = S("bar_fill_red");
             view.rodText = Txt(At(Node("RodText", bar), BottomLeft, new Vector2(220, 10), new Vector2(100, 20)), "Olta", 13, Paper);
             view.repair = Btn(bar, "Repair", "square_green", "Tamir", 10);
+            view.repair.GetComponentInChildren<Text>().horizontalOverflow = HorizontalWrapMode.Overflow;
             At((RectTransform)view.repair.transform, BottomLeft, new Vector2(320, 12), new Vector2(40, 40));
 
             view.bait = Slot(bar, "Bait");
@@ -472,10 +516,10 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.bait.transform, BottomLeft, new Vector2(384, 12), new Vector2(40, 40));
             view.baitText = Txt(At(Node("BaitText", bar), BottomLeft, new Vector2(432, 12), new Vector2(70, 40)), "Yem", 13, Paper);
 
-            // Chat line 402x40 at x 504, send square beside it. ChatGroup goes away when the chat is closed.
+            // Chat line at x 504, send square beside it. The line stays when the log is closed.
             var group = Stretch(Node("ChatGroup", bar));
             view.chatGroup = group.gameObject;
-            var chat = At(Node("Chat", group), BottomLeft, new Vector2(504, 12), new Vector2(334, 40));
+            var chat = At(Node("Chat", group), BottomLeft, new Vector2(504, 12), new Vector2(400, 40));
             var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
             field.characterLimit = 120;
             view.chat = field;
@@ -483,23 +527,11 @@ namespace CollectionGame.EditorTools
             view.send.GetComponentInChildren<Text>().color = Paper;
             At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
 
-            // Chat controls at the right end of the line (29.10.2026, Onur): _ hides the history,
-            // + / - makes it bigger or smaller, x closes the chat down to the "Sohbet" button.
-            Button ChatControl(string name, string label, float x)
-            {
-                var b = Btn(group, name, "flat", label, 13);
-                b.GetComponentInChildren<Text>().color = Paper;
-                At((RectTransform)b.transform, BottomLeft, new Vector2(x, 21), new Vector2(20, 22));
-                return b;
-            }
-            view.chatHide = ChatControl("ChatHide", "_", 842);
-            view.chatSize = ChatControl("ChatSize", "+", 864);
-            view.chatSizeText = view.chatSize.GetComponentInChildren<Text>();
-            view.chatClose = ChatControl("ChatClose", "x", 886);
-            view.chatOpen = Btn(bar, "ChatOpen", "flat", "Sohbet", 14);
+            // Closed log: a small button on the chat line's top-left corner opens it again; red dot = unread.
+            view.chatOpen = Btn(root, "ChatOpen", "flat", "^", 12);
             view.chatOpen.GetComponentInChildren<Text>().color = Paper;
-            At((RectTransform)view.chatOpen.transform, BottomLeft, new Vector2(504, 12), new Vector2(100, 40));
-            var unread = At(Node("Unread", view.chatOpen.transform), TopRight, new Vector2(-4, -4), new Vector2(10, 10));
+            At((RectTransform)view.chatOpen.transform, BottomLeft, new Vector2(505, 58), new Vector2(26, 20));
+            var unread = At(Node("Unread", view.chatOpen.transform), TopRight, new Vector2(3, 3), new Vector2(8, 8));
             Solid(unread, Hex("e83b3b"));
             view.chatUnread = unread.gameObject;
             view.chatOpen.gameObject.SetActive(false);
@@ -512,8 +544,10 @@ namespace CollectionGame.EditorTools
             for (var i = 0; i < names.Length; i++)
             {
                 buttons[i] = Btn(bar, names[i], "flat", labels[i], 10);
-                buttons[i].GetComponentInChildren<Text>().color = Paper;
-                At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
+                var bl = buttons[i].GetComponentInChildren<Text>();
+                bl.color = Paper;
+                bl.horizontalOverflow = HorizontalWrapMode.Overflow; // one word per line, never split
+                At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(48, 40), BottomRight);
             }
             view.emote = buttons[0];
             view.market = buttons[1];
@@ -525,6 +559,43 @@ namespace CollectionGame.EditorTools
             view.settings.GetComponentInChildren<Text>().color = Paper;
             At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
             return root.gameObject;
+        }
+
+        /// <summary>Mini map under the balances (31.10.2026, Onur) and the "Başlangıca dön" button under it.</summary>
+        static MiniMapView MiniMap(RectTransform root)
+        {
+            var box = At(Node("MiniMap", root), TopRight, new Vector2(-12, -56), new Vector2(176, 136));
+            Img(box, "box_dark", Image.Type.Sliced, true);
+            var view = box.gameObject.AddComponent<MiniMapView>();
+            var area = Stretch(Node("Area", box), 8, 8, 8, 8);
+            view.area = area;
+            var map = Stretch(Node("Map", area));
+            view.map = map.gameObject.AddComponent<RawImage>();
+            view.map.raycastTarget = false;
+            var markers = Stretch(Node("Markers", area));
+            view.markers = markers;
+
+            var m = At(Node("MarkerTemplate", markers), TopLeft, Vector2.zero, new Vector2(12, 12), Center);
+            var marker = m.gameObject.AddComponent<MiniMapMarker>();
+            marker.rect = m;
+            var icon = At(Node("Icon", m), Center, Vector2.zero, new Vector2(10, 10), Center);
+            marker.icon = Solid(icon, Color.white);
+            marker.letter = Txt(Stretch(Node("Letter", icon)), "", 8, Ink, TextAnchor.MiddleCenter);
+            var arrow = At(Node("Arrow", m), Center, Vector2.zero, new Vector2(8, 8), Center);
+            marker.arrow = arrow;
+            Txt(Stretch(Node("Text", arrow)), ">", 8, Paper, TextAnchor.MiddleCenter, false, true);
+            view.markerTemplate = marker;
+            m.gameObject.SetActive(false);
+
+            var me = At(Node("Me", markers), TopLeft, Vector2.zero, new Vector2(6, 6), Center);
+            Solid(me, Gold);
+            Solid(Stretch(Node("Edge", me), -1, -1, -1, -1), Ink).transform.SetAsFirstSibling();
+            view.me = me;
+
+            view.home = Btn(root, "Home", "wood", "Başlangıca dön", 10);
+            At((RectTransform)view.home.transform, TopRight, new Vector2(-12, -196), new Vector2(176, 24));
+            view.homeText = view.home.GetComponentInChildren<Text>();
+            return view;
         }
 
         // ================= Bag (draft canta-v2) =================
@@ -1160,7 +1231,7 @@ namespace CollectionGame.EditorTools
             Img(Stretch(Node("Outline", rt)), "outline");
             row.root = rt.gameObject;
             row.icon = SlotAt(rt, "Icon", 12, 22, 42);
-            row.icon.label.fontSize = 11;
+            row.icon.label.SetSize(11);
             row.title = TextAt(rt, "Title", "", 68, 24, 520, 16, Ink);
             var back = Abs(rt, "Bar", 68, 44, 220, 12);
             row.fill = Bar(back, "bar_fill_green", out _);
@@ -1288,18 +1359,23 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<ProfileView>();
             view.window = DraftWindow(wrap, "Profil", 300, 128, 520, 460);
             var w = view.window.transform;
-            view.portrait = SlotAt(w, "Portrait", 28, 28, 104);
-            view.portrait.frame.pixelsPerUnitMultiplier = 1;
-            view.portrait.label.fontSize = 14;
-            view.displayName = TextAt(w, "Name", "", 145, 42, 200, 21, Ink, TextAnchor.MiddleLeft, true);
-            var tag = Abs(w, "LevelTag", 197, 35, 38, 16);
-            Img(tag, "tag_level");
-            view.levelTag = tag.gameObject;
-            view.level = Txt(Stretch(Node("Text", tag)), "Lv 1", 11, Color.white, TextAnchor.MiddleCenter, true);
+            // Portrait: the character as it looks now, head and shoulders in a slot frame (31.10.2026, Onur).
+            var frame = Abs(w, "Portrait", 28, 28, 104, 104);
+            Img(frame, "slot_empty").pixelsPerUnitMultiplier = 1;
+            var holder = Stretch(Node("Character", frame), 4, 4, 4, 4);
+            holder.gameObject.AddComponent<RectMask2D>();
+            view.portrait = frame.gameObject.AddComponent<CharacterPortrait>();
+            view.portrait.holder = holder;
+
+            // Name and level tag in a row: the tag follows the name, never on it.
+            var nameRow = Row(w, "NameRow", 145, 30, 340, 24, 10);
+            view.displayName = Txt(Node("Name", nameRow), "", 21, Ink);
+            view.levelTag = LevelTag(nameRow, out view.level).gameObject;
             view.sub = TextAt(w, "Sub", "", 145, 73, 330, 14, Faint);
-            Icon(w, "ScoreIcon", new Vector2(0, 1), new Vector2(147, -106), Gold, 16);
-            view.score = TextAt(w, "Score", "0", 172, 106, 80, 19, Hex("e83b3b"), TextAnchor.MiddleLeft, true);
-            TextAt(w, "ScoreLabel", "Collection Score", 245, 106, 200, 15, Ink);
+            var scoreRow = Row(w, "ScoreRow", 145, 95, 340, 22, 8);
+            Size(Solid(Node("ScoreIcon", scoreRow), Gold), 16, 16, 16, 16);
+            view.score = Txt(Node("Score", scoreRow), "0", 19, Hex("e83b3b"));
+            Txt(Node("ScoreLabel", scoreRow), "Collection Score", 15, Ink);
             var hunt = Abs(w, "Hunt", 144, 126, 351, 26);
             Img(hunt, "panel_alert");
             view.hunt = hunt.gameObject;
@@ -1311,7 +1387,7 @@ namespace CollectionGame.EditorTools
             {
                 view.showcase[i] = SlotAt(w, "Showcase" + i, 110 + i * 112, 192, 80);
                 view.showcase[i].frame.pixelsPerUnitMultiplier = 1;
-                view.showcase[i].label.fontSize = 14;
+                view.showcase[i].label.SetSize(14);
             }
             TextAt(w, "CollectionLabel", "Koleksiyon", 29, 300, 120, 14, Ink);
             Stat(w, 0, out view.stat1Label, out view.stat1Value);
@@ -1332,6 +1408,25 @@ namespace CollectionGame.EditorTools
             TextAt(w, "Dot", "·", 438, 428, 10, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
             view.block = LinkText(w, "Block", "Engelle", 448, 428, 50, Hex("e83b3b"));
             return wrap.gameObject;
+        }
+
+        /// <summary>A left-to-right row at draft coordinates: children sit side by side at their own width.</summary>
+        static RectTransform Row(Transform parent, string name, float x, float y, float w, float h, int spacing)
+        {
+            var rt = Abs(parent, name, x, y, w, h);
+            Layout<HorizontalLayoutGroup>(rt, spacing, null, TextAnchor.MiddleLeft);
+            return rt;
+        }
+
+        /// <summary>The purple level tag sized to its text (kit tag_level).</summary>
+        static RectTransform LevelTag(Transform parent, out Text text)
+        {
+            var tag = Node("LevelTag", parent);
+            Img(tag, "tag_level");
+            Layout<HorizontalLayoutGroup>(tag, 0, new RectOffset(5, 5, 2, 2), TextAnchor.MiddleCenter);
+            Size(tag, minH: 18, prefH: 18);
+            text = Txt(Node("Text", tag), "Lv 1", 11, Color.white, TextAnchor.MiddleCenter);
+            return tag;
         }
 
         // ================= Friends (drafts arkadaslar-list, arkadaslar-requests) =================
@@ -1415,7 +1510,7 @@ namespace CollectionGame.EditorTools
             fr.back = Img(row, "card");
             Img(Stretch(Node("Outline", row)), "outline");
             fr.avatar = SlotAt(row, "Avatar", 8, 7, 32);
-            fr.avatar.label.fontSize = 10;
+            fr.avatar.label.SetSize(10);
             var dot = At(Node("Dot", fr.avatar.transform), BottomRight, new Vector2(3, -3), new Vector2(10, 10), BottomRight);
             fr.dot = Img(dot, "checkbox_on", Image.Type.Simple);
             view.dotOnline = S("checkbox_on");
@@ -1528,7 +1623,7 @@ namespace CollectionGame.EditorTools
                 line.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
                 l.hover = line.gameObject.AddComponent<CardHover>();
                 l.icon = SlotAt(line, "Icon", 6, 2, 20);
-                l.icon.label.fontSize = 6;
+                l.icon.label.SetSize(6);
                 l.name = TextAt(line, "Name", "", 37, 12, 340, 15, Ink);
                 l.valueIcon = Solid(At(Node("ValueIcon", line), new Vector2(0, 1), new Vector2(430, -12), new Vector2(12, 12), new Vector2(0, 0.5f)), Gold);
                 l.value = TextAt(line, "Value", "", 448, 12, 50, 15, Ink, TextAnchor.MiddleLeft, true);
@@ -1603,7 +1698,7 @@ namespace CollectionGame.EditorTools
                 c.button = rt.gameObject.AddComponent<Button>();
                 c.button.targetGraphic = c.back;
                 c.button.transition = Selectable.Transition.None;
-                SlotAt(rt, "Icon", 8, 7, 28).label.fontSize = 7;
+                SlotAt(rt, "Icon", 8, 7, 28).label.SetSize(7);
                 c.name = TextAt(rt, "Name", "", 44, 13, 195, 14, Ink, TextAnchor.MiddleLeft, true);
                 c.grade = TextAt(rt, "Grade", "", 44, 30, 195, 13, Faint);
                 view.recipes[i] = c;
@@ -1798,7 +1893,7 @@ namespace CollectionGame.EditorTools
             view.discover.close.gameObject.SetActive(false);
             view.discoverSlot = SlotAt(d, "Slot", 27, 37, 72);
             view.discoverSlot.frame.pixelsPerUnitMultiplier = 1;
-            view.discoverSlot.label.fontSize = 13;
+            view.discoverSlot.label.SetSize(13);
             view.discoverName = TextAt(d, "Name", "", 115, 46, 260, 16, Ink, TextAnchor.MiddleLeft, true);
             view.discoverTier = TextAt(d, "Tier", "", 115, 69, 260, 14, Hex("a884f3"));
             view.discoverFloat = TextAt(d, "Float", "", 115, 89, 260, 14, Hex("1e6f50"));
@@ -1814,14 +1909,14 @@ namespace CollectionGame.EditorTools
             TextAt(w, "OldLabel", "Defterde", 68, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
             view.oldSlot = SlotAt(w, "Old", 68, 47, 72);
             view.oldSlot.frame.pixelsPerUnitMultiplier = 1;
-            view.oldSlot.label.fontSize = 13;
+            view.oldSlot.label.SetSize(13);
             view.oldFloat = TextAt(w, "OldFloat", "", 58, 132, 92, 15, Faint, TextAnchor.MiddleCenter);
             view.oldCondition = TextAt(w, "OldCond", "", 58, 149, 92, 13, Faint, TextAnchor.MiddleCenter);
             TextAt(w, "Arrow", ">", 180, 83, 30, 20, Ink, TextAnchor.MiddleCenter, true);
             TextAt(w, "NewLabel", "Yeni", 248, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
             view.newSlot = SlotAt(w, "New", 248, 47, 72);
             view.newSlot.frame.pixelsPerUnitMultiplier = 1;
-            view.newSlot.label.fontSize = 13;
+            view.newSlot.label.SetSize(13);
             view.newFloat = TextAt(w, "NewFloat", "", 238, 132, 92, 15, Hex("1e6f50"), TextAnchor.MiddleCenter);
             view.newCondition = TextAt(w, "NewCond", "", 238, 149, 92, 13, Hex("1e6f50"), TextAnchor.MiddleCenter);
             view.swapYes = SmallButton(w, "Yes", "green", "Değiştir", 35, 163, 158, 30, 15);
@@ -1928,7 +2023,7 @@ namespace CollectionGame.EditorTools
         static SlotView EmoteSlot(Transform w, string name, float x, float y)
         {
             var s = SlotAt(w, name, x, y, 48);
-            s.label.fontSize = 11;
+            s.label.SetSize(11);
             return s;
         }
 
@@ -1943,7 +2038,7 @@ namespace CollectionGame.EditorTools
             Img(card, "card");
             Img(Stretch(Node("Outline", card)), "outline");
             view.current = SlotAt(card, "Icon", 8, 6, 38);
-            view.current.label.fontSize = 10;
+            view.current.label.SetSize(10);
             view.currentText = TextAt(card, "Text", "", 58, 25, 340, 14, Ink);
             view.currentText.supportRichText = true;
             ((RectTransform)view.currentText.transform).sizeDelta = new Vector2(340, 40);
@@ -2071,7 +2166,7 @@ namespace CollectionGame.EditorTools
             var loading = Stretch(Node("Loading", root));
             view.loading = loading.gameObject;
             view.loadingText = TextAt(loading, "Text", "", 304, 392, 800, 20, Color.white, TextAnchor.MiddleCenter, true);
-            view.loadingText.gameObject.AddComponent<Shadow>().effectColor = new Color(0, 0, 0, 0.75f);
+            ((GameText)view.loadingText).ForceShadow = true;
             view.loadingFill = Bar(Abs(loading, "Bar", 544, 490, 320, 14), "bar_fill_green", out _);
             var tipBox = Abs(loading, "Tip", 404, 782, 600, 40);
             Img(tipBox, "box_dark");
@@ -2079,7 +2174,7 @@ namespace CollectionGame.EditorTools
             loading.gameObject.SetActive(false);
 
             view.error = TextAt(root, "Error", "", 304, 676, 800, 16, Hex("e83b3b"), TextAnchor.MiddleCenter, true);
-            view.error.gameObject.AddComponent<Shadow>().effectColor = new Color(0, 0, 0, 0.75f);
+            ((GameText)view.error).ForceShadow = true;
             view.error.horizontalOverflow = HorizontalWrapMode.Wrap;
             return root.gameObject;
         }
@@ -2095,6 +2190,13 @@ namespace CollectionGame.EditorTools
             view.window.blocksWorld = false; // a whisper stays open while playing
             At((RectTransform)view.window.transform, BottomRight, new Vector2(-420, 190), size, BottomRight);
             view.plateImage = view.window.plate.GetComponent<Image>();
+            // Grip square at the top-left corner: drag it to put the window anywhere (31.10.2026, Onur).
+            var grip = At(Node("Handle", view.window.transform), TopLeft, new Vector2(8, -8), new Vector2(20, 18));
+            Img(grip, "button_square_wood_normal", Image.Type.Sliced, true);
+            for (var gy = 0; gy < 2; gy++)
+                for (var gx = 0; gx < 3; gx++)
+                    Solid(At(Node("Dot", grip), TopLeft, new Vector2(5 + gx * 4, -(5 + gy * 4)), new Vector2(2, 2)), Paper);
+            view.window.handle = grip;
             view.minimize = Btn(view.window.transform, "Minimize", "flat", "_", 12);
             At((RectTransform)view.minimize.transform, TopRight, new Vector2(-54, -8), new Vector2(20, 18));
             view.menuButton = Btn(view.window.transform, "Menu", "flat", "≡", 12);
@@ -2139,10 +2241,20 @@ namespace CollectionGame.EditorTools
             content.anchorMax = new Vector2(1, 1);
             content.pivot = new Vector2(0.5f, 1);
             content.offsetMin = content.offsetMax = Vector2.zero;
-            view.log = Txt(content, "", 12, Ink, TextAnchor.UpperLeft);
-            view.log.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.log.supportRichText = true;
+            var logLayout = Layout<VerticalLayoutGroup>(content, 6, new RectOffset(2, 4, 2, 2));
+            logLayout.childForceExpandWidth = true;
             content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            view.log = content;
+            // One message: nick on top, text under it (31.10.2026, Onur); WhisperLine puts mine on the right.
+            var msg = Node("LineTemplate", content);
+            Layout<VerticalLayoutGroup>(msg, 2).childForceExpandWidth = true;
+            var wl = msg.gameObject.AddComponent<WhisperLine>();
+            wl.nick = Txt(Node("Nick", msg), "", 10, Faint, TextAnchor.UpperLeft);
+            wl.text = Txt(Node("Text", msg), "", 12, Ink, TextAnchor.UpperLeft);
+            wl.text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            wl.text.supportRichText = false;
+            view.lineTemplate = wl;
+            msg.gameObject.SetActive(false);
             sr.viewport = viewport;
             sr.content = content;
             view.scroll = sr;
@@ -2164,6 +2276,30 @@ namespace CollectionGame.EditorTools
             view.stripText = Txt(Stretch(Node("Label", strip), 4, 1, 4, 1), "", 12, Paper, TextAnchor.MiddleCenter, true);
             strip.gameObject.SetActive(false);
             return wrap.gameObject;
+        }
+
+        // ================= Chat bubble over a character (World/ChatBubbles) =================
+
+        static GameObject BuildBubble()
+        {
+            var rt = Node("Bubble", null);
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = new Vector2(0.5f, 0f);
+            rt.sizeDelta = new Vector2(120, 30);
+            var view = rt.gameObject.AddComponent<BubbleView>();
+            view.rect = rt;
+            view.fade = rt.gameObject.AddComponent<CanvasGroup>();
+            view.fade.blocksRaycasts = false;
+            view.fade.interactable = false;
+            Img(rt, "bubble");
+            view.text = Txt(Stretch(Node("Text", rt), 10, 7, 10, 7), "", 13, Ink, TextAnchor.MiddleCenter);
+            view.text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.text.supportRichText = false;
+            // The tail points down at the speaker, its top row over the bubble's bottom edge.
+            var tail = At(Node("Tail", rt), new Vector2(0.5f, 0f), new Vector2(0, 2), new Vector2(14, 8), new Vector2(0.5f, 1f));
+            Img(tail, "bubble_tail", Image.Type.Simple);
+            view.tail = tail.gameObject;
+            return rt.gameObject;
         }
 
         static Color Hex(string h) => ColorUtility.TryParseHtmlString("#" + h, out var c) ? c : Color.magenta;

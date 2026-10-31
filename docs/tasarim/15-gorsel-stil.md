@@ -32,12 +32,15 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 Hazır paket yerine kodla çizilen kendi kitimiz: `tools/ui-kit/make_ui_kit.py` → `client/Assets/Art/UI/` (66 parça). Önizleme: `docs/gorsel/ui-kit-onizleme.png`. Ekran taslakları proje dosyalarında (`ui/pencereler/`, `ui/giris-akisi/`).
 
 - Tema: **ahşap çerçeve + adaçayı keten** (karar 28.10.2026). Ahşap Resurrect 64: `45293f` `7a3045` `9e4539` `cd683d` `e6904e`; keten `b2ba90` / `92a984`; açık yüzey (yuva, kart) `c7dcd0`.
-- **Pencereler** (çanta, defter, profil, arkadaşlar, takas, ayarlar, sunucu listesi): `window`, tahta çerçeve, keten zemin, gölge. Başlık çerçevenin üstündeki ahşap plakada, pencere plakadan sürüklenir. Çanta zemini hafif saydam.
+- **Pencereler** (çanta, defter, profil, arkadaşlar, takas, ayarlar, sunucu listesi): `window`, tahta çerçeve, **düz krem zemin** (`f2e8d0`, 31.10.2026 Onur: keten deseni kalktı), gölge. Başlık çerçevenin üstündeki ahşap plakada, pencere plakadan sürüklenir. Çanta zemini hafif saydam.
 - **Alt bar**: `hud_bar` düz, opak adaçayı `374e4a`; üstündeki butonlar `button_flat_*`.
 - **Oyun üstünde duran küçük kutular** (chat geçmişi, sol / sağ üst bilgi, isim etiketi, bilgi kutusu): `box_dark`, saydam koyu. Sağ tık menüsü `menu` + `menu_highlight`.
 - Pencere içi satırlar (arkadaş, sunucu): `card`.
 - Butonlar 32×16 ve 16×16, `wood` / `green` (onay, satın al) / `red` (sil, sat) × normal, hover, pressed, disabled.
 - Eşya yuvası 40×40 (32 px ikon), Tier rengi çerçevede: Common `9babb2`, Rare `4d9be6`, Epic `a884f3`, Legendary `f79617`, Mythic `e83b3b`.
+- **Köşeler (31.10.2026, Onur):** kitteki bütün kutular (pencere, buton, yuva, kart, alan, balon) hafif yuvarlak köşeli. Tek ayar: `tools/ui-kit/make_ui_kit.py` içindeki `CORNER` (kit pikseli, şimdi 2); değişince kit yeniden üretilir, hepsi birlikte değişir.
+- **Eşya yuvaları** her kenarda aynı: 2 piksel kenar (Tier rengi, seçiliyse altın) + 1 piksel iç halka, tek yönlü gölge yok.
+- **Yazı:** tek font (`client/Assets/Resources/Fonts/`, şimdi Press Start 2P) ve tek yazı bileşeni (`GameText`); boyutlar fontun 8 piksel ızgarasına yuvarlanır, sahte kalın / italik yok (`docs/araclar/ui-uygulama.md`, Ortak yazı).
 - 9-slice kenarları `ui-borders.json`'da; `PixelArtImporter` içe aktarırken uygular. Desenli parçalar (pencere, sekme) Unity'de **Image Type: Tiled** ile kullanılır, uzatılırsa keten deseni esner. Düz parçalar Sliced olabilir.
 - Renk ya da parça değişince script düzenlenir ve yeniden çalıştırılır; PNG'ler elle düzenlenmez.
 - Henüz yok: pixel font (Türkçe harfli), HUD ve emote ikonları (Perchance), logo.

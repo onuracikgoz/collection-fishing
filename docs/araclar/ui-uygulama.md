@@ -27,7 +27,7 @@ Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencerele
 - **Ölçek:** tek Canvas (`UI/UiRoot.cs`). Taslaklar 1408x896 ve kit'i **2x** çizer (704x448 mantıksal ekran): düzen birimi taslak pikselidir, bir kit pikseli iki birimdir (`referencePixelsPerUnit` 64, sprite'lar 32). Canvas, kit pikseli tam sayı ekran pikseli olacak şekilde ölçeklenir (1080p'de 2, Retina'da 4; Ayarlar > Arayüz boyutu ile değişir). İstisna: eşya yuvaları taslakta 1x (40x40, ince çerçeve), `pixelsPerUnitMultiplier` 2.
 - **Her pencere kendi taslağından:** `Editor/UiPrefabBuilder.cs` her pencereyi taslaktan ölçülen koordinatlarla kurar (`DraftWindow`, `Abs`, `TextAt`) ve `Assets/Resources/UI/*.prefab` olarak kaydeder. Ortak liste şablonu (`PanelView`) artık sadece takas davet kutusunda. Kit'te olmayan bir parça gerekirse `tools/ui-kit/make_ui_kit.py`'ye eklenir (eklenenler: `outline`, `tag_level`, `panel_locked`); kit görselleri boyanmaz (renk tonu yok).
 - **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları denetleyiciler doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
-- **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots). Taslak | Unity karşılaştırmaları: `docs/gorsel/ui-karsilastirma/`. Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
+- **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots; batchmode'da `-shotScale 2` Retina ölçeğinde çizer). Taslak | Unity karşılaştırmaları: `docs/gorsel/ui-karsilastirma/`. Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
 - **Yazı:** tek font yeri `client/Assets/Resources/Fonts/` (aşağıda, Yazı tipi). Boşsa Unity'nin yerleşik fontu (LegacyRuntime). Taslaklardan en görünür fark bu.
 - **İkonlar:** yok; HUD'da renkli kareler, yuvalarda eşya adının ilk harfleri.
 
@@ -38,7 +38,7 @@ Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sa�
 | Pencere | Taslak | Prefab / kod | Açılış |
 |---|---|---|---|
 | Giriş akışı: başlık, Oyuna gir, karakter adı, sunucu seç, yükleniyor | `_akis-1,2,5,6,7` | `Login`, `Game.cs` | Oyun açılınca |
-| HUD (sağ üstte Coin, elmas, toz; Collection Score profilde ve defterde) | `hud3` | `Hud`, `World/WorldHud.cs` | Hep |
+| HUD (sağ üstte Coin, elmas, toz ve mini harita; Collection Score profilde ve defterde; XP yazısı en sağda) | `hud3` | `Hud`, `World/WorldHud.cs`, `World/MiniMap.cs` | Hep |
 | Çanta + sağ tık menüsü | `canta-v2` | `Bag`, `Popup`, `UI/BagPanel.cs` | B |
 | Defter | `defter-v2` | `Book`, `Collection/CollectionController.cs` | K |
 | Profil kartı | `profil-v3` | `Profile` | P, isim menüsünden |
@@ -57,11 +57,26 @@ Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sa�
 | Yeni keşif / Daha temiz kopya | `balik-kesif`, `balik-temiz` | `Catch` | Avdan sonra |
 | Bildirim yığını, nadir av satırı, seviye atlama | `bildirim-yigin`, `bildirim-ust` | `Notices`, `UI/Toasts.cs` | Olaylar |
 
-Taslaktan bilerek ayrılanlar (sunucuda karşılığı yok, uydurulmadı): pet seçimi; çanta genişletme satırı; görev başına ödül ve "Teslim et / Değiştir" (sunucuda günlük tek sandık var); karakter görünümü seçimi (`_akis-5`, sadece ad); Google / Facebook / Discord girişi (butonlar kapalı) ve Steam ekranları (`_akis-3`, `_akis-4`); profilde portre, unvan, konum; arkadaş satırında Lv ve son görülme; recipe'de "Float seç". Dükkan (olta tamiri, yem) taslaksız, Tüccar'a sekme oldu. Taslaklardaki ◆ NPC pencerelerinde toz; HUD'da elmas gösteriliyor (pano reklamı için), karar Onur'da.
+Taslaktan bilerek ayrılanlar (sunucuda karşılığı yok, uydurulmadı): pet seçimi; çanta genişletme satırı; görev başına ödül ve "Teslim et / Değiştir" (sunucuda günlük tek sandık var); karakter görünümü seçimi (`_akis-5`, sadece ad); Google / Facebook / Discord girişi (butonlar kapalı) ve Steam ekranları (`_akis-3`, `_akis-4`); profilde unvan, konum (portre 31.10.2026'dan beri karakterin dünyadaki görünümü: `CharacterPortrait`, baş ve omuzlar; isim ve level rozeti yan yana akar, üst üste binmez); arkadaş satırında Lv ve son görülme; recipe'de "Float seç". Dükkan (olta tamiri, yem) taslaksız, Tüccar'a sekme oldu. Taslaklardaki ◆ NPC pencerelerinde toz; HUD'da elmas gösteriliyor (pano reklamı için), karar Onur'da.
 
 ### Hâlâ IMGUI
 
-Dünyadaki isim etiketleri, sohbet balonları, durum emote işaretleri ve haritadaki tezgah etiketleri (uGUI penceresinin altında kalınca çizilmez). Kit görünümlü `UI/Kit.cs` sadece bunlar için kaldı.
+Dünyadaki isim etiketleri, durum emote işaretleri ve haritadaki tezgah etiketleri (uGUI penceresinin altında kalınca çizilmez). Kit görünümlü `UI/Kit.cs` sadece bunlar için kaldı. Sohbet balonları 31.10.2026'dan beri uGUI (aşağıda, Sohbet balonları).
+
+## Ortak yazı: GameText (31.10.2026, Onur)
+
+Oyundaki her uGUI yazısı tek bileşendir: `UI/GameText.cs` (builder'da `Txt(...)`, başka yazı yapılmaz). Bir yazı sadece **boyutunu** (`Size`) ve rengini seçer; font, netlik ve gölge tek yerden gelir:
+
+- **Font:** `Resources/Fonts/` (`GameFont`), çalışırken de her yazıya yeniden konur. Fontun içe aktarması pixel fontta kenar yumuşatmasız (`Editor/FontImport.cs`, Hinted Raster).
+- **Ayar:** `Resources/UiStyle.asset` (`CollectionGame > UI > Style asset (UiStyle)`): `pixelGrid` (Press Start 2P için 8), kalın / italik izni, gölge rengi ve kayması, açık renkli yazıya otomatik gölge.
+- **Netlik:** boyut fontun piksel ızgarasına aşağı yuvarlanır (8-15 → 8, 16-23 → 16, 24+ → 24 düzen birimi). Tuval her ekranda tam sayı ölçekli olduğu için (1080p 1, Retina 2) fontun pikselleri bölünmez ve düzen her ekranda aynıdır. Unity pixel fontta kalını ve italiği yazıyı yayarak taklit ettiği için kapalı; `<b>`, `<i>` etiketleri de atılır.
+- **Gölge:** açık renkli yazı (koyu kutuların üstündekiler) bir font pikseli sağ-aşağı gölge alır, aynı mesh'te (ayrı `Shadow` bileşeni yok). Koyu yazıya gölge `ForceShadow` ile (harita üstündeki ipuçları).
+
+Kodda boyut değiştirmek: `text.SetSize(n)`. IMGUI stilleri (`Gui`, `Kit`) de kalın yerine `GameFont.Bold` kullanır.
+
+## Köşeler, pencere zemini, yuvalar (31.10.2026, Onur)
+
+Kit parçaları `tools/ui-kit/make_ui_kit.py` ile üretilir; tek ayar `CORNER` (kit pikseli, şimdi 2) bütün kutuların köşe yuvarlaklığıdır, kenar çizgisi kesikten sonra kapalı kalır. Pencere içi düz krem (`f2e8d0`). Eşya yuvalarının dört kenarı eşit (2 px kenar + 1 px iç halka). `tab_off` dört kenarı kapalı (Ayarlar'da alt alta duran sekmelerin alt çizgisi). Kiti değiştirdikten sonra: `python3 tools/ui-kit/make_ui_kit.py`, Unity'de prefabları yeniden üret.
 
 ## Sekmeler: tek bileşen
 
@@ -77,7 +92,9 @@ Tüccar, Zanaatkar, Görevler ve Banka pencereleri HUD'dan ya da kısayoldan aç
 
 ## Dünya girişi (pencere açıkken)
 
-Tek kontrol: `UiRoot.BlocksWorld`. Bir yazı alanı klavyedeyken ya da herhangi bir pencere (`WindowView`) açıkken yürüme (fare ve WASD) ve olta atma kapalı. Pencereler `WindowView.blocksWorld` ile sayılır; kapalı olanlar: fısıltı pencereleri ve seviye atlama kutusu (oyun sürerken açık kalırlar). Pencere kapanınca basılı kalan tuş ya da fare bırakılana kadar sayılmaz.
+31.10.2026 (Onur): **pencere açılınca karakter durmaz.** Süren yürüyüş devam eder, WASD ve haritaya tıklama pencere açıkken de yürütür. Yazı alanı klavyedeyken tuşlar yürütmez. Olta atma pencere açıkken kapalı (`UiRoot.BlocksWorld`; pencereler `WindowView.blocksWorld` ile sayılır, fısıltı pencereleri ve seviye atlama kutusu sayılmaz).
+
+Tıklama sadece **haritada başladıysa** yürütür: pencerenin, HUD'un ya da isim etiketinin içinde basılan fare, basılıyken pencereden çıksa da haritaya geçmez (`WorldController.ReadMouse`). Takas penceresi ve balık tutma yine karakteri tutar.
 
 ## Balık tutma tuşları
 
@@ -85,7 +102,19 @@ F ve **sağ tık** aynı: basılı tut (gösterge dolar), bırak (olta atılır;
 
 ## Sohbet
 
-Chat satırının sağında üç küçük buton: **_** geçmişi gizler / gösterir, **+ / -** geçmişi büyütür (14 satır) / küçültür (4 satır), **x** sohbeti kapatır. Kapalıyken sadece "Sohbet" butonu kalır; okunmamış satır varsa üstünde kırmızı nokta. Enter kapalı sohbeti de açar. Chat'e yazarken karakter yürümez.
+31.10.2026 (Onur): sohbet geçmişi kutusunun üst kenarında, sağda iki yarı saydam ikon (üstüne gelince tam görünür): **+ / -** geçmişi büyütür (14 satır) / küçültür (4 satır), **x** geçmişi kapatır. **Yazı alanı hiç gizlenmez.** Geçmiş kapalıyken yazı alanının sol üst köşesinde küçük **^** butonu onu açar; okunmamış satır varsa üstünde kırmızı nokta. Chat'e yazarken karakter yürümez.
+
+Geçmiş, kutunun altından yukarı büyür ve kutu üstte taşanı keser: en yeni satır hep en altta görünür. (Hata, 31.10.2026: yazı `Truncate` ile kesiliyordu, Unity son satırı atınca kutuda en yeni mesaj yerine bir öncekisi görünüyordu.)
+
+### Sohbet balonları
+
+Karakterin üstündeki balonlar uGUI (`World/ChatBubbles.cs`, prefab `Bubble`, kit `bubble` + `bubble_tail`), pencerelerin altında kalan ayrı bir tuvalde. Bir oyuncunun balonları üst üste dizilir: en yeni en altta, ok ucu karaktere bakar; yeni mesaj gelince eskiler yumuşakça yukarı kayar; en fazla 5 (`CharacterView.MaxBubbles`), her biri 6 sn sonra söner. Balonlar ismin (ve durum işaretinin) üstünde durur. Ayarlar > Sohbet balonları kapatır.
+
+## Mini harita ve Başlangıca dön (31.10.2026, Onur)
+
+Sağ üstte bakiyelerin altında (`MiniMapView`, `World/MiniMap.cs`): karakterin çevresindeki 80x60 tile (bir tile bir kit pikseli; su mavi, engel koyu, yürünür yeşil), sen sarı kare, diğer oyuncular küçük noktalar, NPC'ler harfli ikonlar (T Tüccar, Z Zanaatkar, G Görevci, sandık hazırsa !, B Bankacı). Gösterilen alanın dışındaki NPC'ler kenara iğnelenir, yanında yönü gösteren ok. Harita `LakeMap` verisinden çalışırken çizilir.
+
+Altındaki **Başlangıca dön** butonu `GOTO_SPAWN` gönderir; yeri sunucu seçer (başlangıç noktasını ortalayan 10x10 tile alandan rastgele yürünür tile, `protokol.md`). Ret nedenleri (bekle, takastasın, yer yok) bildirim olarak çıkar.
 
 ## Elle düzenleme
 
@@ -137,7 +166,8 @@ Pixel fontta fontun Inspector'ında Rendering Mode "Hinted Raster" ya da "Raster
 
 Karar 29.10.2026 (Onur): Knight Online'daki gibi **küçük, aç / kapa** pencere. Taslağı henüz yok; kit parçalarıyla (`card`, `button_close_*`) kurulabilir.
 
-- Her konuşma ayrı küçük bir pencere (öneri: 160x110 mantıksal px, başlıkta karşı tarafın adı). Birkaç pencere aynı anda açık kalabilir, sürüklenir.
+- Her konuşma ayrı küçük bir pencere (öneri: 160x110 mantıksal px, başlıkta karşı tarafın adı). Birkaç pencere aynı anda açık kalabilir, sürüklenir: başlık plakasından ya da sol üst köşedeki **tutacak kareden** (31.10.2026, Onur); ekranın dışına çıkmaz.
+- Mesajlar satır satır: üstte nick (küçük), altta yazı; **kendi mesajın sağda** ("Sen"), karşı tarafınki solda, sistem notları nicksiz (31.10.2026, Onur).
 - Başlıkta **küçült** ve **kapat**. Küçülünce sadece başlık şeridi kalır (ekranın alt kenarında yan yana dizilir); kapatmak konuşmayı siler, yeni mesaj gelince pencere yeniden açılır.
 - Yeni mesaj gelince küçültülmüş ya da arkada kalan pencerenin başlığı **yanıp söner**, tıklayınca durur.
 - Açılış: sohbet satırına `/w Nick mesaj` (`whisper_send` `username` ile), oyuncu menüsünde "Fısılda", tezgah penceresinde "Whisper at" (`context: "stall"`).

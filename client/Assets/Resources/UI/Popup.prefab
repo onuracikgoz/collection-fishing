@@ -10,7 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3696812761029406063}
   - component: {fileID: 3940633757121211917}
-  - component: {fileID: 5562186019799004395}
+  - component: {fileID: 1648498734717904588}
   m_Layer: 5
   m_Name: Text
   m_TagString: Untagged
@@ -45,7 +45,7 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 145603246494817362}
   m_CullTransparentMesh: 1
---- !u!114 &5562186019799004395
+--- !u!114 &1648498734717904588
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -54,9 +54,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 145603246494817362}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Script: {fileID: 11500000, guid: 91de6a93398a4446da7ff7dc34439143, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
+  m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.GameText
   m_Material: {fileID: 0}
   m_Color: {r: 0.9490196, g: 0.9098039, b: 0.8156863, a: 1}
   m_RaycastTarget: 0
@@ -66,8 +66,8 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
-    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 13
+    m_Font: {fileID: 12800000, guid: c508889af5cfd48bfa2ad9dc891d1b50, type: 3}
+    m_FontSize: 8
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
@@ -79,6 +79,8 @@ MonoBehaviour:
     m_VerticalOverflow: 1
     m_LineSpacing: 1
   m_Text: 
+  size: 13
+  forceShadow: 0
 --- !u!1 &1029226033901815725
 GameObject:
   m_ObjectHideFlags: 0
@@ -130,9 +132,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.Views.PopupView
   tooltip: {fileID: 8007688205981920200}
-  tooltipText: {fileID: 5562186019799004395}
+  tooltipText: {fileID: 1648498734717904588}
   menu: {fileID: 8538938121480515821}
-  menuTitle: {fileID: 7518639034803517607}
+  menuTitle: {fileID: 4406254041596843559}
   itemTemplate: {fileID: 658871416519847223}
 --- !u!1 &4608117493254845586
 GameObject:
@@ -144,7 +146,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2765018496785759934}
   - component: {fileID: 8613431553656711003}
-  - component: {fileID: 7518639034803517607}
+  - component: {fileID: 4406254041596843559}
   - component: {fileID: 6961851364079117849}
   m_Layer: 5
   m_Name: Title
@@ -180,7 +182,7 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4608117493254845586}
   m_CullTransparentMesh: 1
---- !u!114 &7518639034803517607
+--- !u!114 &4406254041596843559
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -189,9 +191,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 4608117493254845586}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Script: {fileID: 11500000, guid: 91de6a93398a4446da7ff7dc34439143, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
+  m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.GameText
   m_Material: {fileID: 0}
   m_Color: {r: 0.9490196, g: 0.9098039, b: 0.8156863, a: 1}
   m_RaycastTarget: 0
@@ -201,9 +203,9 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
-    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 13
-    m_FontStyle: 1
+    m_Font: {fileID: 12800000, guid: c508889af5cfd48bfa2ad9dc891d1b50, type: 3}
+    m_FontSize: 8
+    m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
     m_MaxSize: 40
@@ -214,6 +216,8 @@ MonoBehaviour:
     m_VerticalOverflow: 1
     m_LineSpacing: 1
   m_Text: 
+  size: 13
+  forceShadow: 0
 --- !u!114 &6961851364079117849
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -246,7 +250,7 @@ GameObject:
   m_Component:
   - component: {fileID: 3388626027175791403}
   - component: {fileID: 6806835664323041213}
-  - component: {fileID: 7060320757069573845}
+  - component: {fileID: 637206322316162262}
   m_Layer: 5
   m_Name: Label
   m_TagString: Untagged
@@ -281,7 +285,7 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4617185452011683796}
   m_CullTransparentMesh: 1
---- !u!114 &7060320757069573845
+--- !u!114 &637206322316162262
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -290,9 +294,9 @@ MonoBehaviour:
   m_GameObject: {fileID: 4617185452011683796}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5f7201a12d95ffc409449d95f23cf332, type: 3}
+  m_Script: {fileID: 11500000, guid: 91de6a93398a4446da7ff7dc34439143, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Text
+  m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.GameText
   m_Material: {fileID: 0}
   m_Color: {r: 0.9490196, g: 0.9098039, b: 0.8156863, a: 1}
   m_RaycastTarget: 0
@@ -302,8 +306,8 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   m_FontData:
-    m_Font: {fileID: 10102, guid: 0000000000000000e000000000000000, type: 0}
-    m_FontSize: 13
+    m_Font: {fileID: 12800000, guid: c508889af5cfd48bfa2ad9dc891d1b50, type: 3}
+    m_FontSize: 8
     m_FontStyle: 0
     m_BestFit: 0
     m_MinSize: 10
@@ -315,6 +319,8 @@ MonoBehaviour:
     m_VerticalOverflow: 1
     m_LineSpacing: 1
   m_Text: 
+  size: 13
+  forceShadow: 0
 --- !u!1 &5445022229368196939
 GameObject:
   m_ObjectHideFlags: 0
