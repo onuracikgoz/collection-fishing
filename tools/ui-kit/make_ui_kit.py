@@ -24,6 +24,13 @@ SAGE_L, SAGE, SAGE_M, SAGE_D = c("c7dcd0"), c("92a984"), c("547e64"), c("374e4a"
 NAIL, NAIL_D = c("f9c22b"), c("4c3e24")
 GREY_D, GREY, GREY_L = c("625565"), c("7f708a"), c("9babb2")
 WHITE = c("ffffff")
+# flat cream inside windows (31.10.2026, Onur: plain, no linen weave)
+CREAM = c("f2e8d0")
+
+# THE corner rounding of the UI kit, in kit pixels (31.10.2026, Onur: square things slightly round).
+# Every box piece (windows, buttons, slots, cards, fields, bubbles...) goes through round_corners(),
+# so this one number changes them all; 9-slice borders are never smaller than it.
+CORNER = 2
 
 pieces, borders = {}, {}
 def put(name, im, border=None):
@@ -33,10 +40,19 @@ def put(name, im, border=None):
 
 def new(w, h): return Image.new("RGBA", (w, h), CLR)
 def r(im, x0, y0, x1, y1, col): ImageDraw.Draw(im).rectangle((x0, y0, x1, y1), fill=col)
-def round_corners(im, n=1):
-    w, h = im.size
-    for x, y in [(0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)]:
-        im.putpixel((x, y), CLR)
+def round_corners(im, box=None, top=True, bottom=True):
+    """Cuts the corners of a box (default: the whole image) CORNER kit pixels deep, then draws the
+    edge colour along the cut so the outline stays closed."""
+    x0, y0, x1, y1 = box or (0, 0, im.width - 1, im.height - 1)
+    R = CORNER
+    corners = ([(x0, y0, 1, 1), (x1, y0, -1, 1)] if top else []) + ([(x0, y1, 1, -1), (x1, y1, -1, -1)] if bottom else [])
+    for cx, cy, sx, sy in corners:
+        edge = im.getpixel((cx + sx * R, cy))  # outline colour along the edge
+        for dy in range(R + 1):
+            for dx in range(R + 1):
+                x, y = cx + sx * dx, cy + sy * dy
+                if dx + dy < R: im.putpixel((x, y), CLR)
+                elif dx + dy == R and edge[3] > 0: im.putpixel((x, y), edge)
 def speckle(im, x0, y0, x1, y1, colors, density=18, seed=3):
     rnd = random.Random(seed)
     for _ in range(max(1, (x1 - x0 + 1) * (y1 - y0 + 1) // density)):
@@ -120,9 +136,8 @@ def window(s=50, f=8, sh=2):
         r(im, x, y, x + f - 2, y + f - 2, W); r(im, x, y, x + f - 2, y, WL)
         r(im, x + 2, y + 2, x + 4, y + 4, NAIL_D); r(im, x + 2, y + 2, x + 3, y + 3, NAIL)
     r(im, f - 1, f - 1, n - f, n - f, WD)               # inner lip
-    linen(im, f, f, n - 1 - f, n - 1 - f)
-    r(im, f, f, n - 1 - f, f, SAGE)                     # shade under the top frame
-    im.putpixel((0, 0), CLR); im.putpixel((n - 1, 0), CLR); im.putpixel((0, n - 1), CLR)
+    r(im, f, f, n - 1 - f, n - 1 - f, CREAM)            # flat cream inside
+    round_corners(im, (0, 0, n - 1, n - 1))
     return im, (f + 1, f + 1, f + 1 + sh, f + 1 + sh)
 put("window", *window(s=52))
 
@@ -140,14 +155,14 @@ round_corners(im); put("card", im, 3)
 im = new(8, 16); r(im, 0, 0, 7, 15, SAGE_D); r(im, 0, 0, 7, 0, INK)
 put("hud_bar", im, (0, 2, 0, 0))
 def flat(face):
-    im = new(16, 16); r(im, 0, 0, 15, 15, INK); r(im, 1, 1, 14, 14, face); return im
+    im = new(16, 16); r(im, 0, 0, 15, 15, INK); r(im, 1, 1, 14, 14, face); round_corners(im); return im
 put("button_flat_normal", flat(SAGE_M), 3); put("button_flat_hover", flat(c("6a9a7a")), 3)
 put("button_flat_pressed", flat(SAGE), 3)
 
 # ---------- context menu (right click), list highlight ----------
 im = new(12, 12)
 r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, c("3e3546")); r(im, 1, 1, 10, 1, GREY_D)
-put("menu", im, 3)
+round_corners(im); put("menu", im, 3)
 im = new(8, 8); r(im, 0, 0, 7, 7, SAGE_M); put("menu_highlight", im, 1)
 
 im = new(12, 12)
@@ -166,9 +181,9 @@ put("bubble_tail", from_ascii(["xwwwwwx", ".xwwwx.", "..xwx..", "...x..."], {"x"
 def tab(active):
     im = new(24, 16)
     r(im, 0, 0, 23, 15, INK)
-    if active: linen(im, 1, 1, 22, 15); r(im, 1, 1, 22, 1, SAGE_L)
+    if active: r(im, 1, 1, 22, 15, CREAM)
     else: r(im, 1, 1, 22, 15, W); r(im, 1, 1, 22, 1, WL); r(im, 1, 15, 22, 15, INK)                     # inactive tab is closed at the bottom
-    im.putpixel((0, 0), CLR); im.putpixel((23, 0), CLR)
+    round_corners(im, bottom=False)
     return im
 put("tab_active", tab(True), (4, 4, 4, 1)); put("tab_inactive", tab(False), (4, 4, 4, 1))
 
@@ -177,7 +192,7 @@ def field(focus):
     im = new(32, 16)
     r(im, 0, 0, 31, 15, NAIL if focus else WD); r(im, 1, 1, 30, 14, WHITE)
     r(im, 1, 1, 30, 1, SAGE_L); r(im, 1, 1, 1, 14, SAGE_L)   # sunken
-    return im
+    round_corners(im); return im
 put("input_normal", field(False), 3); put("input_focus", field(True), 3)
 
 # ---------- bars ----------
@@ -212,41 +227,40 @@ put("divider", im, (2, 0, 2, 0))
 
 # outlined linen box: unselected tab, unlinked login row (drafts ayarlar-*); the window linen shows through
 im = new(8, 8); r(im, 0, 0, 7, 7, SAGE); r(im, 1, 1, 6, 6, CLR)
-put("outline", im, 1)
+round_corners(im); put("outline", im, CORNER)
 
 # level tag on the XP strip (hud3): purple face, light top row, open bottom so it sits on the bar
 im = new(12, 12); r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 11, c("6b3e75")); r(im, 1, 1, 10, 1, c("905ea9"))
-im.putpixel((0, 0), CLR); im.putpixel((11, 0), CLR)
-put("tag_level", im, (3, 3, 3, 1))
+round_corners(im, bottom=False); put("tag_level", im, (3, 3, 3, 1))
 
 # locked side of the trade window (takas-a/c): gold outline, pale yellow inside
 im = new(8, 8); r(im, 0, 0, 7, 7, NAIL); r(im, 1, 1, 6, 6, c("e4e2a0"))
-put("panel_locked", im, 1)
+round_corners(im); put("panel_locked", im, CORNER)
 
 # "Arıyorum" box on the profile card (profil-v3): red edge, peach inside
 im = new(8, 8); r(im, 0, 0, 7, 7, c("ae2334")); r(im, 1, 1, 6, 6, PAPER)
-put("panel_alert", im, 1)
+round_corners(im); put("panel_alert", im, CORNER)
 
 # unselected tab (29.10.2026, Onur: the old one was too faint): darker linen, ink frame, light top edge.
 # The selected tab is button_wood_normal.
-im = new(12, 12); r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 11, LINEN_W); r(im, 1, 1, 10, 1, LINEN)
-im.putpixel((0, 0), CLR); im.putpixel((11, 0), CLR)
-put("tab_off", im, (3, 3, 3, 2))
+# Closed on all four sides (31.10.2026, Onur): the Ayarlar tabs stand in a column, an open bottom showed there.
+im = new(12, 12); r(im, 0, 0, 11, 11, INK); r(im, 1, 1, 10, 10, LINEN_W); r(im, 1, 1, 10, 1, LINEN)
+round_corners(im); put("tab_off", im, 3)
 
 # opaque cover over hidden content (Ayarlar > Hesap)
 im = new(8, 8); r(im, 0, 0, 7, 7, INK); r(im, 1, 1, 6, 6, c("3e3546"))
-put("panel_cover", im, 1)
+round_corners(im); put("panel_cover", im, CORNER)
 
 # cast meter ground (balik-at): ink frame, sage inside
 im = new(8, 8); r(im, 0, 0, 7, 7, INK); r(im, 1, 1, 6, 6, c("839f69"))
-put("meter_back", im, 1)
+round_corners(im); put("meter_back", im, CORNER)
 
 # ---------- item slots (40x40 holds a 32 px icon) ----------
 TIERS = {"common": "9babb2", "rare": "4d9be6", "epic": "a884f3", "legendary": "f79617", "mythic": "e83b3b"}
 def slot(outline=WM, fill=SAGE_L, inner=SAGE):
+    """Same on every side (31.10.2026, Onur): 2 px edge, 1 px inner ring, no one-sided shadow."""
     im = new(40, 40)
-    r(im, 0, 0, 39, 39, outline); r(im, 1, 1, 38, 38, fill)
-    r(im, 1, 1, 38, 2, inner); r(im, 1, 1, 2, 38, inner)      # sunken top-left
+    r(im, 0, 0, 39, 39, outline); r(im, 2, 2, 37, 37, inner); r(im, 3, 3, 36, 36, fill)
     round_corners(im); return im
 put("slot_empty", slot(), 4)
 put("slot_selected", slot(outline=NAIL, inner=NAIL), 4)
@@ -254,8 +268,7 @@ lock = from_ascii(["..xxxx..", ".x....x.", ".x....x.", "xxxxxxxx", "xggggggx", "
                   {"x": INK, "g": GREY_L})
 im = slot(outline=GREY_D, fill=GREY, inner=GREY_D); im.alpha_composite(lock, (16, 15)); put("slot_locked", im)
 for t, h in TIERS.items():
-    im = slot(outline=c(h)); r(im, 1, 37, 38, 38, c(h)); r(im, 1, 1, 38, 1, c(h))  # tier color top + bottom band
-    round_corners(im); put(f"slot_tier_{t}", im, 4)
+    put(f"slot_tier_{t}", slot(outline=c(h)), 4)
 
 # ---------- book record cards (defter-v2): ink edge, 2 px frame, face ----------
 def record(frame, face):
