@@ -11,6 +11,8 @@ export interface ContentResponse {
   updatedAt: number;
   items: { id: string; name: string; type: string; tier: string; setId: string; active: boolean; art: string }[];
   sets: { id: string; name: string; active: boolean }[];
+  /** Ids of the sets that are book pages right now (active sets with active book items). */
+  pages: string[];
 }
 
 export function contentResponse(rt: ContentRuntime): ContentResponse {
@@ -19,7 +21,7 @@ export function contentResponse(rt: ContentRuntime): ContentResponse {
     const k = rt.known[id];
     items.push({ id, name: k.name, type: k.type, tier: k.tier || '', setId: k.setId || '', active: k.active, art: k.art ? k.art.hash : '' });
   }
-  return { updatedAt: rt.updatedAt, items, sets: rt.sets.map((s) => ({ ...s })) };
+  return { updatedAt: rt.updatedAt, items, sets: rt.sets.map((s) => ({ ...s })), pages: rt.pages.map((p) => p.id) };
 }
 
 let cached: { rt: ContentRuntime; json: string } | null = null;

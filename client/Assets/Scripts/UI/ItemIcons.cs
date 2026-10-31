@@ -7,7 +7,8 @@ namespace CollectionGame.UI
     /// Placeholder item icons (31.10.2026, Onur: slots show a picture, never the item name) until the
     /// real icons come (docs/araclar/ui-ikon-promptlari.md). A 16x16 pixel drawing per kind of thing
     /// (fish, boot, bottle, crystal...), the colour picked from the id so one item always looks the same.
-    /// Also used for quest, chest and emote slots (<see cref="For"/> takes any key).
+    /// Also used for quest, chest and emote slots (<see cref="For"/> takes any key). Items with a server image
+    /// (<see cref="ItemContent"/>) show that instead; the drawings are only for what has none.
     /// </summary>
     public static class ItemIcons
     {
@@ -522,6 +523,8 @@ namespace CollectionGame.UI
         public static Sprite For(string key)
         {
             key ??= "";
+            var real = ItemContent.Icon(key); // the image the admin panel uploaded
+            if (real != null) return real;
             if (cache.TryGetValue(key, out var s) && s != null) return s;
             var (kind, colour) = Look(key);
             s = Draw(Masks.TryGetValue(kind, out var mask) ? mask : Masks["star"], Hex(colour));

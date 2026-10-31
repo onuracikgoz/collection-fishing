@@ -114,6 +114,7 @@ describe('admin RPCs', () => {
     const list = w.call(rpcGetContent, {}, w.player);
     const row = list.items.filter((x: any) => x.id === 'sextant')[0];
     expect(row).toMatchObject({ name: 'Sextant', tier: 'epic', setId: 'lost_captain', art: put.item.art.hash });
+    expect(list.pages).toEqual(['lake_fish', 'deep_water', 'treasures', 'crafts', 'lost_captain']);
     const art = w.call(rpcGetItemArt, { ids: ['sextant', 'lake.fish.carp'] }, w.player);
     expect(art.art).toEqual([{ id: 'sextant', hash: put.item.art.hash, png: png(128, 128) }]);
   });

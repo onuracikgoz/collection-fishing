@@ -577,9 +577,10 @@ Eşyalar, setler, recipe'ler, defter sayfaları, av tablosu, sandıklar ve göre
   - `updatedAt`: içeriğin son yayın zamanı (ms).
   - `items: [{ id, name, type, tier, setId, active, art }]`: sunucunun bildiği her eşya ve recipe, pasif olanlar dahil (oyuncudaki eski kopyaların adı görünsün diye). `type`: `item` (Float + Tier), `fish` (sıradan balık), `junk`, `material`, `bait`, `recipe`. `tier`, `setId`, `art` yoksa `""`. Onay bekleyen taslaklar listede yoktur. Recipe'nin adı `Recipe: <eşya adı>`; görseli yoktur (ortak recipe ikonu).
   - `sets: [{ id, name, active }]`: set sırasıyla. Defter sayfasının `id`'si set id'sidir (`BookResponse.pages[].id`), başlığı buradaki `name`.
+  - `pages: [setId]`: şu an defter sayfası olan setler (profilde "tamamlanan sayfa x/y" için y).
   - `art`: görselin hash'i (sha256). Client görselleri hash'le önbelleğe alır, sadece hash'i değişen ya da hiç olmayanları `get_item_art` ile ister.
 - `get_item_art` `{ ids }` → `{ art: [{ id, hash, png }] }`: en fazla 40 id; görseli olmayan, bilinmeyen ya da taslak id'ler sessizce atlanır. `png` base64, 128×128 şeffaf PNG; Unity'de Filter Mode **Point** ile `Texture2D.LoadImage`.
-- Ad ve ikon yoksa (eski client, ağ hatası) client eskisi gibi id'den ad türetir ve dört harfli yer tutucuyu gösterir.
+- Ad ve ikon yoksa (ağ hatası, sunucuda görseli olmayan eski yer tutucu eşyalar) client id'den ad türetir ve çizilmiş yer tutucu ikonu (`ItemIcons`) gösterir. Client: `UI/ItemContent.cs`; girişte ve her sunucuya katılırken yüklenir, adı `FishingController.ItemName`, ikonu `ItemIcons.For` kullanır, defter sayfası adı `CollectionController.PageName` (üç eski yer tutucu sayfa Türkçe adını korur).
 
 ## Geliştirici RPC'leri (sadece yerel)
 

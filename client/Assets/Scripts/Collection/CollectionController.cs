@@ -62,7 +62,15 @@ namespace CollectionGame.Collection
 
         public CollectionController(Connection net) => this.net = net;
 
-        public static string PageName(string id) => id != null && PageNames.TryGetValue(id, out var n) ? n : id ?? "?";
+        /// <summary>Turkish names for the three old placeholder pages, else the set's name from the admin panel.</summary>
+        public static string PageName(string id)
+        {
+            if (id != null && PageNames.TryGetValue(id, out var n)) return n;
+            return ItemContent.SetName(id) ?? id ?? "?";
+        }
+
+        /// <summary>Book pages in the game (server list, the placeholder count until it answered).</summary>
+        static int TotalPages => ItemContent.PageCount > 0 ? ItemContent.PageCount : PageNames.Count;
 
         // ---------- input ----------
 
@@ -618,8 +626,8 @@ namespace CollectionGame.Collection
             }
             var pages = p.pagesComplete?.Length ?? 0;
             v.stat1Label.text = "Tamamlanan sayfa";
-            v.stat1Value.text = $"{pages}/{PageNames.Count}";
-            HudView.Fill(v.stat1Fill, PageNames.Count > 0 ? (float)pages / PageNames.Count : 0f);
+            v.stat1Value.text = $"{pages}/{TotalPages}";
+            HudView.Fill(v.stat1Fill, TotalPages > 0 ? Mathf.Clamp01((float)pages / TotalPages) : 0f);
             v.stat2Label.text = "Vitrin";
             v.stat2Value.text = $"{show.Length}/{ShowcaseMax}";
             v.stat3Label.text = "Level";

@@ -71,6 +71,8 @@ namespace CollectionGame
             {
                 net = new Connection(host);
                 await net.LoginAsync(username);
+                Busy("Eşyalar yükleniyor...");
+                await ItemContent.LoadAsync(net);
                 await RefreshServers();
             }
             catch (Exception e)
@@ -116,6 +118,7 @@ namespace CollectionGame
             Busy($"{server.name} sunucusuna bağlanıyor...");
             try
             {
+                await ItemContent.LoadAsync(net); // new items / images since login
                 // The world exists before joining: WELCOME can arrive before JoinAsync returns.
                 world = WorldController.Create(net, server.name, OnDisconnected,
                     (matchId, name, friend) => Join(new ServerInfo { matchId = matchId, name = name }, friend));

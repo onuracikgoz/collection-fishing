@@ -82,7 +82,8 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] İçerik sunucu verisi: eşyalar, setler (= defter sayfaları), recipe'ler, av tablosu, sandıklar, görevler (`docs/tasarim/19-icerik-yonetimi.md`). Eski yer tutucu listeler başlangıç verisi
 - [x] Admin paneli (`tools/admin`, `docs/araclar/admin-paneli.md`): ZIP yükleme, sırayla onay, eşya / set düzenleme, otomatik recipe, düşme oranları, sandık ve görevler, JSON kısayolu, görsel kontrolü
 - [x] Item Art Studio ZIP'i sadece görsel
-- [ ] Client eşya adlarını ve ikonları `get_content` / `get_item_art` ile alıyor, defter sayfa başlığı set adı (Mac oturumu)
+- [x] Client eşya adlarını ve ikonlarını `get_content` / `get_item_art` ile alıyor, defter sayfa başlığı set adı (`client/Assets/Scripts/UI/ItemContent.cs`; bulut oturumunda yazıldı, Unity'de derlenip denenmedi)
+- [ ] Unity'de elle deneme: panelden görselli eşya ekle, çantada adı ve görseli çıksın, yeni set defterde sayfa olsun
 - [ ] Canlı sunucuda `runtime.http_key` değiştirildi
 
 ## Sürekli: mekanik önce, asset sonra
