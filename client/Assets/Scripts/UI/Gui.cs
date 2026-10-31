@@ -33,7 +33,7 @@ namespace CollectionGame.UI
             if (Event.current.type == EventType.Layout) blockers.Clear();
             if (Name != null) return;
 
-            Name = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            Name = new GUIStyle(GUI.skin.label) { fontSize = 13, fontStyle = GameFont.Bold, alignment = TextAnchor.MiddleCenter };
             Name.normal.textColor = Color.white;
             NameMe = new GUIStyle(Name);
             NameMe.normal.textColor = new Color(1f, 0.92f, 0.5f);
@@ -46,16 +46,16 @@ namespace CollectionGame.UI
 
             Hud = new GUIStyle(GUI.skin.label) { fontSize = 14 };
             Hud.normal.textColor = Color.white;
-            HudBold = new GUIStyle(Hud) { fontSize = 15, fontStyle = FontStyle.Bold };
+            HudBold = new GUIStyle(Hud) { fontSize = 15, fontStyle = GameFont.Bold };
 
             Input = new GUIStyle(GUI.skin.textField) { fontSize = 15, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(8, 8, 4, 4) };
-            Title = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
+            Title = new GUIStyle(GUI.skin.label) { fontSize = 26, fontStyle = GameFont.Bold, alignment = TextAnchor.MiddleCenter };
             Title.normal.textColor = Color.white;
             Error = new GUIStyle(GUI.skin.label) { fontSize = 14, wordWrap = true, alignment = TextAnchor.UpperCenter };
             Error.normal.textColor = new Color(1f, 0.55f, 0.5f);
             Button = new GUIStyle(GUI.skin.button) { fontSize = 15 };
 
-            Alert = new GUIStyle(Hud) { fontSize = 22, fontStyle = FontStyle.Bold };
+            Alert = new GUIStyle(Hud) { fontSize = 22, fontStyle = GameFont.Bold };
             Alert.normal.textColor = new Color(1f, 0.85f, 0.2f);
             Toast = new GUIStyle(Bubble) { fontSize = 15, wordWrap = false };
             Fill = Box(new Color(0.35f, 0.85f, 0.4f, 0.9f));
@@ -64,16 +64,16 @@ namespace CollectionGame.UI
 
             Window = new GUIStyle(GUI.skin.box) { padding = new RectOffset(10, 10, 8, 8) };
             Window.normal.background = Solid(new Color(0.09f, 0.13f, 0.18f, 0.94f));
-            Emote = new GUIStyle(Name) { fontStyle = FontStyle.Italic };
+            Emote = new GUIStyle(Name) { fontStyle = GameFont.Italic };
             Emote.normal.textColor = new Color(0.75f, 0.95f, 1f);
-            Header = new GUIStyle(Hud) { fontSize = 17, fontStyle = FontStyle.Bold };
+            Header = new GUIStyle(Hud) { fontSize = 17, fontStyle = GameFont.Bold };
             Faint = new GUIStyle(Hud);
             Faint.normal.textColor = new Color(1f, 1f, 1f, 0.45f);
             Warn = new GUIStyle(Hud);
             Warn.normal.textColor = new Color(1f, 0.55f, 0.5f);
             Good = new GUIStyle(Hud);
             Good.normal.textColor = new Color(0.55f, 1f, 0.6f);
-            Discover = new GUIStyle(Toast) { fontSize = 20, fontStyle = FontStyle.Bold, padding = new RectOffset(16, 16, 8, 8) };
+            Discover = new GUIStyle(Toast) { fontSize = 20, fontStyle = GameFont.Bold, padding = new RectOffset(16, 16, 8, 8) };
             Discover.normal.background = Solid(new Color(1f, 0.95f, 0.7f, 0.95f));
             Celebrate = new GUIStyle(Discover) { fontSize = 28 };
             Celebrate.normal.background = Solid(new Color(1f, 0.8f, 0.3f, 0.97f));

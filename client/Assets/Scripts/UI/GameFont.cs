@@ -26,6 +26,12 @@ namespace CollectionGame.UI
             return font;
         }
 
+        /// <summary>Bold for IMGUI styles: plain when the style has bold off (a pixel font smears when faked).</summary>
+        public static FontStyle Bold => UiStyle.Get().allowBoldItalic ? FontStyle.Bold : FontStyle.Normal;
+
+        /// <summary>Italic for IMGUI styles: plain when the style has italic off.</summary>
+        public static FontStyle Italic => UiStyle.Get().allowBoldItalic ? FontStyle.Italic : FontStyle.Normal;
+
         /// <summary>True when the dropped font is used (not the built-in one).</summary>
         public static bool Custom => Get() != null && Get().name != "LegacyRuntime";
 
