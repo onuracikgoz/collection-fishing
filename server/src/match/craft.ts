@@ -1,7 +1,7 @@
 // MERGE (3 into 1) and CRAFT inside the world match (docs/protokol.md, Birleştirme ve craft).
 // Inputs, the new item, the book and the dust change in one storage transaction.
 import { BAG, CRAFT, FLOAT_TABLE } from '../config';
-import { recipeById } from '../data/recipes';
+import { currentContent, recipeOf } from './content';
 import { CraftResultMsg, ItemInstance, OpCode } from '../protocol';
 import { rollFloat } from '../rules/catch';
 import { CraftItem, CraftResult, craftBands, isStackOutput, parseCraft, parseMerge, planCraft, planMerge } from '../rules/craft';
@@ -55,7 +55,7 @@ export function handleCraft(
     const picked = readPicked(nk, userId, req.items);
     if (picked.locked) return fail('LOCKED');
     if (picked.items.length !== req.items.length) return fail('NOT_OWNED');
-    plan = planCraft(recipeById(req.recipeId), picked.items, f.bag, dust, BAG, CRAFT);
+    plan = planCraft(recipeOf(currentContent(), req.recipeId), picked.items, f.bag, dust, BAG, CRAFT);
   }
   if (!plan.ok) return fail(plan.reason);
 

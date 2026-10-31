@@ -6,7 +6,6 @@ import {
   BAG,
   BOOK_LUCK,
   CATCH,
-  CATCH_TABLE,
   CRAFT,
   ECONOMY,
   EMOTES,
@@ -25,14 +24,12 @@ import {
   WORLD,
   XP,
 } from '../config';
-import { BOOK_PAGES } from '../data/book-pages';
 import { LAKE_MAP } from '../data/lake-map';
-import { LAKE_POOL } from '../data/lake-pool';
-import { RECIPES, STARTER_RECIPES, recipeById } from '../data/recipes';
+import { currentContent, getContent, recipeOf } from '../match/content';
 import { OpCode, PROTOCOL_VERSION, ItemInstance, Tier } from '../protocol';
 import { BookEntries, luckOf, scoreOf } from '../rules/book';
 import { Category, ItemDef, rollFloat, tierOf } from '../rules/catch';
-import { craftBands, isStackOutput, qualityRow } from '../rules/craft';
+import { craftBands, qualityRow } from '../rules/craft';
 import { planEconomy } from '../rules/economy';
 import { buildCollisionMap, isWalkable } from '../rules/map';
 import { reelParamsFor } from '../rules/fishing';
@@ -150,23 +147,20 @@ function readRaw(nk: nkruntime.Nakama, userId: string, collection: string, key: 
   return objs.length > 0 ? objs[0].value : null;
 }
 
-/** Every known definition: catch pool, recipes and what crafting makes. */
-type DefRow = { id: string; category: Category; tier: Tier | null; waters?: string[]; bands?: Band[]; baits?: string[]; minLevel?: number; source: string; page: string | null };
+/** Every known definition (live content, active or not), with its catch fields and book page. */
+type DefRow = { id: string; name: string; category: Category | null; tier: Tier | null; waters?: string[]; bands?: Band[]; baits?: string[]; minLevel?: number; weight?: number; source: string; page: string | null; active: boolean };
 function allDefs(): DefRow[] {
+  const rt = currentContent();
   const out: DefRow[] = [];
-  const seen: { [id: string]: true } = {};
-  const add = (d: ItemDef, source: string) => {
-    if (seen[d.id]) return;
-    seen[d.id] = true;
-    out.push({ id: d.id, category: d.category, tier: tierOf(d.category), waters: d.waters, bands: d.bands, baits: d.baits, minLevel: d.minLevel, source, page: pageIdOf(BOOK_PAGES, d.id) });
-  };
-  for (const d of LAKE_POOL) add(d, 'lake');
-  for (const r of RECIPES) {
-    add({ id: r.id, category: 'recipe' }, 'recipe');
-    // Stack outputs (bait) have no Tier and are not item definitions.
-    if (!isStackOutput(r.output)) add({ id: r.output.defId, category: r.output.tier }, 'craft');
+  for (const id in rt.known) {
+    const k = rt.known[id];
+    const d: ItemDef | undefined = rt.pool.filter((x) => x.id === id)[0];
+    const crafted = rt.recipes.some((r) => r.output.defId === id);
+    const source = k.type === 'recipe' ? 'recipe' : d ? 'lake' : crafted ? 'craft' : k.type;
+    // Stack categories have no Tier; a Float item's tier is its category.
+    const tier = k.category ? tierOf(k.category) : null;
+    out.push({ id, name: k.name, category: k.category, tier, waters: d && d.waters, bands: d && d.bands, baits: d && d.baits, minLevel: d && d.minLevel, weight: d && d.weight, source, page: pageIdOf(rt.pages, id), active: k.active });
   }
-  for (const p of BOOK_PAGES) for (const id of p.items) if (!seen[id]) out.push({ id, category: 'common', tier: null, source: 'book-only', page: p.id });
   return out;
 }
 
@@ -177,12 +171,12 @@ function tierFor(defId: string): Tier | null | undefined {
 }
 
 function categoryOf(defId: string): Category | null {
-  for (const d of allDefs()) if (d.id === defId) return d.category;
-  return null;
+  const k = currentContent().known[defId];
+  return k ? k.category : null;
 }
 
 function gradeOf(defId: string) {
-  const r = recipeById(defId);
+  const r = recipeOf(currentContent(), defId);
   return r ? r.grade : null;
 }
 
@@ -195,6 +189,7 @@ function rollFloatValue(): number {
 /** Everything static the dashboard needs: config, items, pages, recipes, the map. */
 export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const map = buildCollisionMap(LAKE_MAP);
   const water = buildWaterMap(LAKE_MAP, WATER);
   const servers = SERVERS.map((s) => {
@@ -207,12 +202,12 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
     serverTime: Date.now(),
     node: ctx.node,
     opCodes: OpCode,
-    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE, CATCH, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT, XP, WATCH },
+    config: { WORLD, USERNAME, WATER, FISHING, CATCH_TABLE: currentContent().catchTable, CATCH, FLOAT_TABLE, REEL_PARAMS, ENERGY, BAG, BOOK_LUCK, SCORE, PROFILE, EMOTES, FRIENDS, ECONOMY, CRAFT, XP, WATCH },
     servers,
     defs: allDefs(),
-    pages: BOOK_PAGES,
-    recipes: RECIPES,
-    starterRecipes: STARTER_RECIPES,
+    pages: currentContent().pages,
+    recipes: currentContent().recipes,
+    starterRecipes: currentContent().starter,
     map: {
       width: LAKE_MAP.width,
       height: LAKE_MAP.height,
@@ -226,6 +221,7 @@ export function rpcDevInfo(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
 /** Accounts, newest first. `query` matches part of the username. */
 export function rpcDevUsers(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const q = typeof body.query === 'string' ? body.query.slice(0, 32) : '';
   const limit = Math.min(200, Math.max(1, Number(body.limit) || 50));
@@ -245,6 +241,7 @@ export function rpcDevUsers(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
 /** One player's whole state: account, wallet, bag, book, profile, raw storage, live match state. */
 export function rpcDevPlayer(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const userId = target(ctx, nk, parse(payload));
   const account = nk.accountGetId(userId);
   const inventory = readInventory(nk, userId);
@@ -311,6 +308,7 @@ export function rpcDevPlayer(ctx: nkruntime.Context, logger: nkruntime.Logger, n
  */
 export function rpcDevGive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const defId = String(body.defId || '');
@@ -352,6 +350,7 @@ export function rpcDevGive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
 /** Changes an item's Float, Tier or place (bag / book flag). */
 export function rpcDevItemEdit(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const item = readItem(nk, userId, String(body.instanceId || ''));
@@ -378,6 +377,7 @@ export function rpcDevItemEdit(ctx: nkruntime.Context, logger: nkruntime.Logger,
 /** Deletes items from the bag or book (`instanceIds`), or every bag item with `all: true`. */
 export function rpcDevItemDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const items = listItems(nk, userId);
@@ -399,6 +399,7 @@ export function rpcDevItemDelete(ctx: nkruntime.Context, logger: nkruntime.Logge
 /** Sets stack counts: `{ stacks: { defId: count } }`, 0 removes; `clear: true` empties every stack first. */
 export function rpcDevStacks(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const stacks = body.clear ? {} : readStacks(nk, userId);
@@ -416,6 +417,7 @@ export function rpcDevStacks(ctx: nkruntime.Context, logger: nkruntime.Logger, n
 /** Coin, dust and diamonds: `set: { coin?, dust?, diamond? }` or `add: { ... }`. Written to the ledger as dev. */
 export function rpcDevWallet(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const now = readWallet(nk, userId);
@@ -432,6 +434,7 @@ export function rpcDevWallet(ctx: nkruntime.Context, _logger: nkruntime.Logger, 
 /** Energy: `{ value }`. Online players get it in the match at once. */
 export function rpcDevEnergy(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const value = Number(body.value);
@@ -445,6 +448,7 @@ export function rpcDevEnergy(ctx: nkruntime.Context, logger: nkruntime.Logger, n
 /** Sets a player's total XP (live match player if online, else storage). `level` sets the level's starting XP instead. */
 export function rpcDevXp(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   let total = Number(body.value);
@@ -466,6 +470,7 @@ export function rpcDevXp(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: n
  */
 export function rpcDevBook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const action = String(body.action || '');
@@ -488,7 +493,7 @@ export function rpcDevBook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
   };
   const defId = String(body.defId || '');
   const needDef = () => {
-    if (!pageIdOf(BOOK_PAGES, defId)) throw fail('defId is not on any book page');
+    if (!pageIdOf(currentContent().pages, defId)) throw fail('defId is not on any book page');
   };
   entries = { ...entries };
   if (action === 'discover') {
@@ -505,7 +510,7 @@ export function rpcDevBook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
     toBag(defId);
     delete entries[defId];
   } else if (action === 'fill_page') {
-    const page = BOOK_PAGES.filter((p) => p.id === body.page)[0];
+    const page = currentContent().pages.filter((p) => p.id === body.page)[0];
     if (!page) throw fail('no such page');
     for (const id of page.items) if (!(entries[id] && entries[id].slot)) fill(id);
   } else if (action === 'reset') {
@@ -518,8 +523,8 @@ export function rpcDevBook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
   nk.storageWrite(writes);
   return JSON.stringify({
     ok: true,
-    luck: luckOf(entries, BOOK_PAGES, BOOK_LUCK),
-    score: scoreOf(entries, BOOK_PAGES, SCORE),
+    luck: luckOf(entries, currentContent().pages, BOOK_LUCK),
+    score: scoreOf(entries, currentContent().pages, SCORE),
     live: reload(nk, logger, userId),
   });
 }
@@ -527,6 +532,7 @@ export function rpcDevBook(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
 /** Writes the profile card without the game's checks (to test what clients show for odd data). */
 export function rpcDevProfile(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const doc = readProfile(nk, userId);
@@ -540,6 +546,7 @@ export function rpcDevProfile(ctx: nkruntime.Context, _logger: nkruntime.Logger,
 /** Friendships between two players: `action` befriend (mutual at once), remove, or block. */
 export function rpcDevFriends(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const a = String(body.a || '');
   const b = String(body.b || '');
@@ -568,6 +575,7 @@ export function rpcDevFriends(ctx: nkruntime.Context, _logger: nkruntime.Logger,
 /** Wipes a player's game data and wallet and gives the starter recipes again, like a new account. */
 export function rpcDevReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const deletes: nkruntime.StorageDeleteRequest[] = [];
@@ -582,7 +590,7 @@ export function rpcDevReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
   }
   if (deletes.length > 0) nk.storageDelete(deletes);
   const stacks: { [defId: string]: number } = {};
-  for (const s of STARTER_RECIPES) stacks[s.defId] = s.count;
+  for (const s of currentContent().starter) stacks[s.defId] = s.count;
   nk.storageWrite([stacksWrite(userId, stacks)]);
   const w = readWallet(nk, userId);
   if (w.coin !== 0 || w.dust !== 0 || w.diamond !== 0) nk.walletUpdate(userId, { coin: -w.coin, dust: -w.dust, diamond: -w.diamond }, { action: 'dev_reset' }, true);
@@ -595,6 +603,7 @@ export function rpcDevReset(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
 /** Live state of every world match: who is in, where, fishing phase, cached bag. */
 export function rpcDevWorld(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   return JSON.stringify({ servers: signalAll(nk, logger, { type: 'dev_state' }) });
 }
 
@@ -611,6 +620,7 @@ export function rpcDevWorld(ctx: nkruntime.Context, logger: nkruntime.Logger, nk
  */
 export function rpcDevLive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const action = String(body.action || '');
   if (action === 'push_all') {
@@ -634,15 +644,16 @@ export function rpcDevLive(ctx: nkruntime.Context, logger: nkruntime.Logger, nk:
  */
 export function rpcDevSimCatch(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const n = Math.max(1, Math.min(Number(body.n) || 10000, 200000));
   const band = (BANDS.indexOf(body.band) >= 0 ? body.band : 'deep') as Band;
   let luck = typeof body.luck === 'number' ? Math.max(0, Math.min(body.luck, 5)) : 0;
-  if (typeof body.userId === 'string' && UUID.test(body.userId)) luck = luckOf(readBook(nk, body.userId), BOOK_PAGES, BOOK_LUCK);
+  if (typeof body.userId === 'string' && UUID.test(body.userId)) luck = luckOf(readBook(nk, body.userId), currentContent().pages, BOOK_LUCK);
   const water = typeof body.water === 'string' && body.water ? body.water : null;
   const level = typeof body.level === 'number' && isFinite(body.level) ? Math.max(1, Math.floor(body.level)) : LEVEL.start;
   const spot = { band, water, level };
-  const res = simulateCatches(LAKE_POOL, CATCH_TABLE, spot, body.hasEnergy !== false, luck, BOOK_LUCK, FLOAT_TABLE, n, Math.random, CATCH);
+  const res = simulateCatches(currentContent().pool, currentContent().catchTable, spot, body.hasEnergy !== false, luck, BOOK_LUCK, FLOAT_TABLE, n, Math.random, CATCH);
   return JSON.stringify({ ...res, band, water, level, luck });
 }
 
@@ -651,8 +662,9 @@ export function rpcDevSimCatch(ctx: nkruntime.Context, _logger: nkruntime.Logger
  * that band's difficulty (FISHING.reel) to the Tier's params, as a real bite does. Without inputs it plays
  * itself (`lose: true` to lose on purpose) and returns inputs for REEL_DONE.
  */
-export function rpcDevReel(ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
+export function rpcDevReel(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const tier = (TIERS.indexOf(body.tier) >= 0 ? body.tier : 'common') as Tier;
   const tierParams = BANDS.indexOf(body.band) >= 0 ? reelParamsFor(REEL_PARAMS[tier], body.band as Band, FISHING) : REEL_PARAMS[tier];
@@ -667,11 +679,12 @@ export function rpcDevReel(ctx: nkruntime.Context, _logger: nkruntime.Logger, _n
 }
 
 /** Craft quality: the Float bands a result rolls from, for an input average and recipe grade. */
-export function rpcDevCraftPreview(ctx: nkruntime.Context, _logger: nkruntime.Logger, _nk: nkruntime.Nakama, payload: string): string {
+export function rpcDevCraftPreview(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const avg = typeof body.average === 'number' ? body.average : null;
-  const recipe = typeof body.recipeId === 'string' ? recipeById(body.recipeId) : null;
+  const recipe = typeof body.recipeId === 'string' ? recipeOf(currentContent(), body.recipeId) : null;
   const grade = recipe ? recipe.grade : body.grade === 'good' || body.grade === 'master' ? body.grade : 'normal';
   const maxFloat = CRAFT.gradeMaxFloat[grade as 'normal' | 'good' | 'master'];
   return JSON.stringify({
@@ -688,6 +701,7 @@ export function rpcDevCraftPreview(ctx: nkruntime.Context, _logger: nkruntime.Lo
 /** A player's trade and stall log, newest first, plus reports about them and by them (moderation view). */
 export function rpcDevTrades(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   const limit = Math.max(1, Math.min(500, Math.floor(Number(body.limit) || 100)));
@@ -747,6 +761,7 @@ function readWatchMany(nk: nkruntime.Nakama, userIds: string[]): { stats: { [id:
  */
 export function rpcDevSuspects(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const limit = Math.min(1000, Math.max(1, Number(body.limit) || 500));
   flushWatch(nk, logger);
@@ -804,6 +819,7 @@ export function rpcDevSuspects(ctx: nkruntime.Context, logger: nkruntime.Logger,
  */
 export function rpcDevWatch(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   devOnly(ctx);
+  getContent(nk);
   const body = parse(payload);
   const userId = target(ctx, nk, body);
   flushWatch(nk, logger);

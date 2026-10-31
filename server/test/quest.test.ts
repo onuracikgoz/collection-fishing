@@ -91,6 +91,11 @@ describe('events', () => {
     expect(questsDone(start, defs)).toBe(false);
     expect(questsDone(emptyQuests(), defs)).toBe(false);
   });
+
+  it('counts a quest taken out of the list (admin panel) as done', () => {
+    const done = { ...start, quests: [{ id: 'a', progress: 2 }, { id: 'gone', progress: 0 }] };
+    expect(questsDone(done, defs)).toBe(true);
+  });
 });
 
 describe('streak and claim', () => {

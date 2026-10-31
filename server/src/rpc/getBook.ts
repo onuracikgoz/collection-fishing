@@ -1,6 +1,6 @@
 // get_book: anyone's Collection Book (it is public, docs/tasarim/06-defter.md 8.6).
 import { BOOK_LUCK, SCORE } from '../config';
-import { BOOK_PAGES } from '../data/book-pages';
+import { getContent } from '../match/content';
 import { readBook, readBookItems } from '../match/playerData';
 import { BookRecordMsg, BookResponse, ErrorCode, errorMessage } from '../protocol';
 import { luckOf, scoreOf, stateOf } from '../rules/book';
@@ -27,11 +27,12 @@ export function rpcGetBook(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
   }
   if (!userId) throw { message: errorMessage(ErrorCode.BAD_REQUEST, 'no user'), code: 16 } as nkruntime.Error;
 
+  const pages = getContent(nk).pages;
   const entries = readBook(nk, userId);
   const items = readBookItems(nk, userId, entries);
   const res: BookResponse = {
     userId,
-    pages: BOOK_PAGES.map((p) => {
+    pages: pages.map((p) => {
       let found = 0;
       let filled = 0;
       const records: BookRecordMsg[] = p.items.map((defId) => {
@@ -45,8 +46,8 @@ export function rpcGetBook(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk
       });
       return { id: p.id, total: p.items.length, found, filled, records };
     }),
-    luck: luckOf(entries, BOOK_PAGES, BOOK_LUCK),
-    score: scoreOf(entries, BOOK_PAGES, SCORE),
+    luck: luckOf(entries, pages, BOOK_LUCK),
+    score: scoreOf(entries, pages, SCORE),
   };
   return JSON.stringify(res);
 }

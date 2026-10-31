@@ -1,6 +1,6 @@
 import { USERNAME } from '../config';
 import { NOTIFY_LINKED, NOTIFY_UNLINKED } from '../rpc/transferCode';
-import { STARTER_RECIPES } from '../data/recipes';
+import { getContent } from '../match/content';
 import { stacksWrite } from '../match/playerData';
 import { ErrorCode, errorMessage } from '../protocol';
 import { isValidUsername } from '../rules/join';
@@ -90,7 +90,7 @@ export function afterAuthenticateDevice(
   if (!afterLogin(ctx, logger, nk, session)) return;
   if (!session.created || !ctx.userId) return;
   const stacks: { [defId: string]: number } = {};
-  for (const s of STARTER_RECIPES) stacks[s.defId] = s.count;
+  for (const s of getContent(nk, logger).starter) stacks[s.defId] = s.count;
   try {
     // version '*' writes only if the bag does not exist yet, so a retry never doubles it.
     nk.storageWrite([{ ...stacksWrite(ctx.userId, stacks), version: '*' }]);

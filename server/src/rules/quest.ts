@@ -101,8 +101,9 @@ export function applyQuestEvent(state: QuestState, defs: QuestDef[], ev: QuestHa
 export function questsDone(state: QuestState, defs: QuestDef[]): boolean {
   if (state.quests.length === 0) return false;
   return state.quests.every((q) => {
+    // A quest taken out of the list in the admin panel counts as done, so it cannot block the chest.
     const def = defs.filter((d) => d.id === q.id)[0];
-    return !!def && q.progress >= def.target;
+    return !def || q.progress >= def.target;
   });
 }
 

@@ -1,6 +1,6 @@
 // Profile card (docs/tasarim/10-sosyal.md 13.3): get_profile for anyone, set_profile for yourself.
 import { PROFILE, SCORE, XP } from '../config';
-import { BOOK_PAGES } from '../data/book-pages';
+import { getContent } from '../match/content';
 import { profileWrite, readBook, readBookItems, readProfile, readXp } from '../match/playerData';
 import { ErrorCode, ItemInstance, ProfileResponse, SetProfileRequest, errorMessage } from '../protocol';
 import { scoreOf } from '../rules/book';
@@ -39,8 +39,8 @@ function buildProfile(nk: nkruntime.Nakama, userId: string): ProfileResponse {
   const res: ProfileResponse = {
     userId,
     username: users[0].username,
-    score: scoreOf(entries, BOOK_PAGES, SCORE),
-    pagesComplete: completedPages(entries, BOOK_PAGES),
+    score: scoreOf(entries, getContent(nk).pages, SCORE),
+    pagesComplete: completedPages(entries, getContent(nk).pages),
     level: levelOf(readXp(nk, userId), XP).level,
     showcase,
   };
@@ -66,14 +66,14 @@ export function rpcSetProfile(ctx: nkruntime.Context, _logger: nkruntime.Logger,
   const body = parse(payload) as SetProfileRequest;
   const doc = readProfile(nk, ctx.userId);
   if (body.showcase !== undefined) {
-    const err = checkShowcase(readBook(nk, ctx.userId), BOOK_PAGES, body.showcase, PROFILE.showcaseMax);
+    const err = checkShowcase(readBook(nk, ctx.userId), getContent(nk).pages, body.showcase, PROFILE.showcaseMax);
     if (err) throw bad(err);
     doc.showcase = body.showcase;
   }
   if (body.hunting !== undefined) {
     if (body.hunting === null) doc.hunting = undefined;
     else {
-      const err = checkHunting(BOOK_PAGES, body.hunting);
+      const err = checkHunting(getContent(nk).pages, body.hunting);
       if (err) throw bad(err);
       doc.hunting = body.hunting;
     }

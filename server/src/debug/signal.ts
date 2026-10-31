@@ -2,7 +2,7 @@
 // these, and only when DEV_TOOLS=true; game clients cannot send match signals.
 // They let the dashboard look at and poke a live world match.
 import { FISHING, WORLD } from '../config';
-import { LAKE_POOL } from '../data/lake-pool';
+import { currentContent } from '../match/content';
 import { OpCode } from '../protocol';
 import { CatchRoll, tierOf } from '../rules/catch';
 import { isWalkable } from '../rules/map';
@@ -161,8 +161,8 @@ export function devSignal(
         // stretched so a person clicking in the dashboard can make it.
         if (fs.phase === 'reeling') return reply({ found: true, error: 'already reeling' });
         const defId = String(req.defId || '');
-        const def = LAKE_POOL.filter((d) => d.id === defId)[0];
-        if (!def) return reply({ found: true, error: 'unknown defId (lake pool only)' });
+        const def = currentContent().pool.filter((d) => d.id === defId)[0];
+        if (!def) return reply({ found: true, error: 'unknown defId (catch pool only)' });
         const roll: CatchRoll = { def, tier: tierOf(def.category) };
         const windowMs = typeof req.windowMs === 'number' && req.windowMs > 0 ? req.windowMs : 30000;
         fs.roll = roll;

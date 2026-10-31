@@ -36,6 +36,17 @@ import { rpcGetBook } from './rpc/getBook';
 import { rpcGetProfile, rpcSetProfile } from './rpc/profile';
 import { rpcFriendsStatus } from './rpc/friendsStatus';
 import { rpcGetCatalog } from './rpc/getCatalog';
+import { rpcGetContent, rpcGetItemArt } from './rpc/getContent';
+import {
+  rpcAdminArtGet,
+  rpcAdminArtPut,
+  rpcAdminContent,
+  rpcAdminImport,
+  rpcAdminItemDelete,
+  rpcAdminItemSave,
+  rpcAdminSetSave,
+  rpcAdminSettingsSave,
+} from './admin/rpc';
 import { isDevEnabled } from './debug/gate';
 import {
   rpcDevBook,
@@ -78,6 +89,8 @@ function InitModule(
   initializer.registerRpc('set_profile', rpcSetProfile);
   initializer.registerRpc('friends_status', rpcFriendsStatus);
   initializer.registerRpc('get_catalog', rpcGetCatalog);
+  initializer.registerRpc('get_content', rpcGetContent);
+  initializer.registerRpc('get_item_art', rpcGetItemArt);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
   initializer.registerRpc('transfer_code_create', rpcTransferCodeCreate);
@@ -136,6 +149,16 @@ function InitModule(
   initializer.registerRpc('dev_trades', rpcDevTrades);
   initializer.registerRpc('dev_suspects', rpcDevSuspects);
   initializer.registerRpc('dev_watch', rpcDevWatch);
+  // Admin panel RPCs (tools/admin). They only answer server-to-server calls made with the
+  // runtime http_key; a player session is always refused (admin/rpc.ts).
+  initializer.registerRpc('admin_content', rpcAdminContent);
+  initializer.registerRpc('admin_art_get', rpcAdminArtGet);
+  initializer.registerRpc('admin_item_save', rpcAdminItemSave);
+  initializer.registerRpc('admin_item_delete', rpcAdminItemDelete);
+  initializer.registerRpc('admin_set_save', rpcAdminSetSave);
+  initializer.registerRpc('admin_settings_save', rpcAdminSettingsSave);
+  initializer.registerRpc('admin_art_put', rpcAdminArtPut);
+  initializer.registerRpc('admin_import', rpcAdminImport);
   if (isDevEnabled(ctx)) logger.warn('DEV_TOOLS on: dev_* RPCs work. Never enable this on a test or live server.');
   try {
     ensureServers(nk, logger);
