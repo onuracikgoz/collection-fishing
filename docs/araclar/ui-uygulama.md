@@ -29,7 +29,7 @@ Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencerele
 - **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları denetleyiciler doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
 - **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots; batchmode'da `-shotScale 2` Retina ölçeğinde çizer). Taslak | Unity karşılaştırmaları: `docs/gorsel/ui-karsilastirma/`. Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
 - **Yazı:** tek font yeri `client/Assets/Resources/Fonts/` (aşağıda, Yazı tipi). Boşsa Unity'nin yerleşik fontu (LegacyRuntime). Taslaklardan en görünür fark bu.
-- **İkonlar:** yok; HUD'da renkli kareler, yuvalarda eşya adının ilk harfleri.
+- **İkonlar:** gerçekleri yok. Yuvalarda eşya adı **yazmaz** (31.10.2026, Onur): `UI/ItemIcons.cs` her eşya türüne 16x16 geçici bir çizim verir (balık, yengeç, bot, kutu, kabuk, taş, kristal, gözlük, şişe, para, yosun, pul, solucan, tarif, yıldız, sandık, yüz, çöp kovası); renk eşya kimliğinden seçilir, aynı eşya hep aynı görünür. Görev satırları, sandık ve emote yuvaları da aynı çizimleri kullanır (`SlotView.SetIcon`), adlar üstüne gelince çıkan kartta. HUD'da renkli kareler.
 
 ### uGUI'ye geçenler (taslağa göre)
 
@@ -69,7 +69,7 @@ Oyundaki her uGUI yazısı tek bileşendir: `UI/GameText.cs` (builder'da `Txt(..
 
 - **Font:** `Resources/Fonts/` (`GameFont`), çalışırken de her yazıya yeniden konur. Fontun içe aktarması pixel fontta kenar yumuşatmasız (`Editor/FontImport.cs`, Hinted Raster).
 - **Ayar:** `Resources/UiStyle.asset` (`CollectionGame > UI > Style asset (UiStyle)`): `pixelGrid` (Press Start 2P için 8), kalın / italik izni, gölge rengi ve kayması, açık renkli yazıya otomatik gölge.
-- **Netlik:** boyut fontun piksel ızgarasına aşağı yuvarlanır (8-15 → 8, 16-23 → 16, 24+ → 24 düzen birimi). Tuval her ekranda tam sayı ölçekli olduğu için (1080p 1, Retina 2) fontun pikselleri bölünmez ve düzen her ekranda aynıdır. Unity pixel fontta kalını ve italiği yazıyı yayarak taklit ettiği için kapalı; `<b>`, `<i>` etiketleri de atılır.
+- **Netlik ve ölçek:** boyut fontun piksel ızgarasına yuvarlanır, basamaklar geniş (31.10.2026, Onur: rakamlar ve başlıklar çok büyüktü): 18'in altı → 8 (gövde yazısı, rakamlar, bölüm başlıkları), 18-29 → 16 (pencere başlığı, büyük değerler), 30-41 → 24. Çok satırlı yazıda satır aralığı 1.5. Tuval her ekranda tam sayı ölçekli olduğu için (1080p 1, Retina 2) fontun pikselleri bölünmez ve düzen her ekranda aynıdır. Unity pixel fontta kalını ve italiği yazıyı yayarak taklit ettiği için kapalı; `<b>`, `<i>` etiketleri de atılır.
 - **Gölge:** açık renkli yazı (koyu kutuların üstündekiler) bir font pikseli sağ-aşağı gölge alır, aynı mesh'te (ayrı `Shadow` bileşeni yok). Koyu yazıya gölge `ForceShadow` ile (harita üstündeki ipuçları).
 
 Kodda boyut değiştirmek: `text.SetSize(n)`. IMGUI stilleri (`Gui`, `Kit`) de kalın yerine `GameFont.Bold` kullanır.
@@ -89,6 +89,23 @@ Tüccar, Zanaatkar, Görevler ve Banka pencereleri HUD'dan ya da kısayoldan aç
 - Konumlar ve konuşma mesafesi veri: `client/Assets/Resources/Npcs.json` (sunucu tile koordinatı). Zanaatkar meydanın doğusunda göl yolunda, Bankacı banka noktasının yanında (`16-ilk-harita.md`); Görevci ve Tüccar **yer tutucu**, harita editörü yerleştirene kadar (`acik-sorular.md` 27).
 - Görevci, sandık hazırken adının önünde "!" taşır.
 - Sunucu bu pencerelerin işlemlerinde mesafeye bakmaz (Banka hariç): `acik-sorular.md` 27.
+
+## Eşya kartı ve tıklama menüsü (31.10.2026, Onur)
+
+Tooltip ve tıklama menüsü tek tasarım (`PopupView`, `Popup` prefabı): koyu kart, 12/10 boşluk; üstte ad (16), altında Tier rengiyle Tier, ince çizgi, sonra etiket / değer satırları (Kondisyon, Float, Adet, Fiyat, Toz, Kilit) ya da menü satırları, en altta soluk not. Eşya kartı her pencerede aynı yerden: `ItemText.Card(...)`.
+
+Menü dışarı bir tıklamayla ya da Esc ile kapanır. (Hata, 31.10.2026: menü başka yere tıklayınca görünmez halde açık kalıyordu; açık menü tooltip'i engellediği için bir kere sağ tıklanan eşyanın üstüne gelince kart çıkmıyordu.)
+
+Çanta menüsünde NPC yanında yapılan işlemler yok (Sat / Parçala satırı kalktı); onlar Tüccar penceresinde.
+
+## Çanta ve depo: sürükle-bırak, çöp kovası (31.10.2026, Onur)
+
+- Bir yuvayı başka bir yuvaya sürükle: yer değiştirir. Çanta, depo ve bankadaki çanta. Sıra sunucu verisi değil, bu cihazda hesap başına saklanır (`UI/SlotOrder.cs`); yeni gelen eşya ilk boş yuvaya oturur. Bankada depodan çantaya (ya da tersi) sürüklemek tıklamayla aynı: al / koy.
+- Çantanın sol altında **çöp kovası**: eşyayı üstüne sürükle (ya da menüden "Çöpe at"), "Emin misin?" kutusu (`ConfirmView`, `Confirm` prefabı), onaylarsan `ITEM_DISCARD` (`protokol.md` Eşya atma). Kilitli eşya atılmaz; yığın bütün olarak atılır.
+
+## Oyuncuya sağ tık (31.10.2026, Onur)
+
+Dünyada başka bir oyuncunun karakterine sağ tıkla (ya da adına sol tıkla): menü Profil, Fısılda, Takas teklif et, Defterine bak, Arkadaş ekle, Engelle, Şikayet et. Oyuncuya yapılan sağ tık olta atmaz (`FishingController.RightClickTaken`).
 
 ## Dünya girişi (pencere açıkken)
 

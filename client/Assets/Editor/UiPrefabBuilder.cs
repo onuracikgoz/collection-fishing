@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 34;
+        public const int Version = 35;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -171,6 +171,7 @@ namespace CollectionGame.EditorTools
             Save(BuildBoard(), "Board");
             Save(BuildWhisper(), "Whisper");
             Save(BuildBubble(), "Bubble");
+            Save(BuildConfirm(), "Confirm");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
@@ -269,6 +270,7 @@ namespace CollectionGame.EditorTools
             t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
             t.ForceShadow = shadow;
+            t.lineSpacing = 1.5f; // the pixel font's lines touch at 1: room between lines of wrapped text
             return t;
         }
 
@@ -354,9 +356,14 @@ namespace CollectionGame.EditorTools
             Img(rt, "window", Image.Type.Tiled, true);
             var view = rt.gameObject.AddComponent<WindowView>();
 
-            var plate = At(Node("Plate", rt), Top, new Vector2(0, 10), new Vector2(Mathf.Max(120, title.Length * 10 + 50), 28), Top);
+            // Title at two font grids (16); the plate grows with the title (titles change at runtime: "Takas · Mert").
+            var plate = At(Node("Plate", rt), Top, new Vector2(0, 10), new Vector2(120, 28), Top);
             Img(plate, "button_wood_normal", Image.Type.Sliced, true);
-            view.title = Txt(Stretch(Node("Title", plate), 4, 2, 4, 2), title, 16, Paper, TextAnchor.MiddleCenter, true);
+            Layout<HorizontalLayoutGroup>(plate, 0, new RectOffset(18, 18, 2, 2), TextAnchor.MiddleCenter).childControlHeight = false;
+            plate.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            view.title = Txt(Node("Title", plate), title, 18, Paper, TextAnchor.MiddleCenter, true);
+            ((RectTransform)view.title.transform).sizeDelta = new Vector2(80, 24);
+            Size(view.title, minW: 84);
             view.plate = plate;
 
             var close = At(Node("Close", rt), TopRight, new Vector2(-8, -8), new Vector2(24, 24));
@@ -382,8 +389,12 @@ namespace CollectionGame.EditorTools
             view.selected = S("slot_selected");
             view.locked = S("slot_locked");
             view.tiers = new[] { S("slot_tier_common"), S("slot_tier_rare"), S("slot_tier_epic"), S("slot_tier_legendary"), S("slot_tier_mythic") };
-            view.label = Txt(Stretch(Node("Name", rt), 2, 8, 2, 4), "", 10, Ink, TextAnchor.MiddleCenter, true);
-            view.count = Txt(Stretch(Node("Count", rt), 2, 2, 4, 26), "", 11, Paper, TextAnchor.LowerRight, true, true);
+            // The picture: a whole multiple of the 16 px placeholder icons, centred (no item names, 31.10.2026 Onur).
+            var iconSize = Mathf.Max(16, Mathf.Floor((size - 6) / 16f) * 16);
+            view.icon = Img(At(Node("Icon", rt), Center, Vector2.zero, new Vector2(iconSize, iconSize), Center), null, Image.Type.Simple);
+            view.icon.enabled = false;
+            view.label = Txt(Stretch(Node("Name", rt), 2, 8, 2, 4), "", 10, Ink, TextAnchor.MiddleCenter);
+            view.count = Txt(At(Node("Count", rt), BottomRight, new Vector2(-3, 2), new Vector2(size - 4, 10), BottomRight), "", 8, Paper, TextAnchor.LowerRight, false, true);
             var lockMark = At(Node("Lock", rt), TopRight, new Vector2(-3, -3), new Vector2(8, 8));
             Solid(lockMark, Gold);
             view.lockMark = lockMark.gameObject;
@@ -627,7 +638,17 @@ namespace CollectionGame.EditorTools
             view.slotTemplate = Slot(grid, "SlotTemplate");
             view.slotTemplate.gameObject.SetActive(false);
 
-            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(22, 16), new Vector2(150, 20)), "Tıkla: işlemler", 14, Faint);
+            // Trash can bottom left (31.10.2026, Onur): drop an item on it, "Emin misin?", gone.
+            var trash = At(Node("Trash", body), BottomLeft, new Vector2(18, 10), new Vector2(28, 28));
+            Img(trash, "button_square_wood_normal", Image.Type.Sliced, true);
+            var trashIcon = Img(At(Node("Icon", trash), Center, Vector2.zero, new Vector2(16, 16), Center), null, Image.Type.Simple);
+            trashIcon.sprite = null;
+            trash.gameObject.AddComponent<TrashIcon>().icon = trashIcon;
+            view.trash = trash;
+            view.trashHighlight = Img(Stretch(Node("Over", trash), -3, -3, -3, -3), "slot_selected");
+            view.trashHighlight.pixelsPerUnitMultiplier = 2;
+            view.trashHighlight.enabled = false;
+            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(54, 16), new Vector2(150, 20)), "Sürükle: taşı / at", 12, Faint);
             return wrap.gameObject;
         }
 
@@ -635,37 +656,55 @@ namespace CollectionGame.EditorTools
 
         static GameObject BuildPopup()
         {
+            // One card look for the tooltip and the click menu (31.10.2026, Onur: roomy, not cramped):
+            // dark kit tooltip, 12 / 10 padding, title, Tier line, a rule, rows or actions, faint note.
             var root = Stretch(Node("Popup", null));
             var view = root.gameObject.AddComponent<PopupView>();
+            var light = Hex("9babb2");
 
-            var tip = Node("Tooltip", root);
-            Img(tip, "tooltip");
-            var tipLayout = tip.gameObject.AddComponent<VerticalLayoutGroup>();
-            tipLayout.padding = new RectOffset(8, 8, 5, 6);
-            tipLayout.childControlWidth = tipLayout.childControlHeight = true;
-            tip.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            tip.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            RectTransform CardBox(string name, int minWidth)
+            {
+                var box = Node(name, root);
+                Img(box, "tooltip", Image.Type.Sliced, true);
+                var v = Layout<VerticalLayoutGroup>(box, 6, new RectOffset(12, 12, 10, 12));
+                v.childForceExpandWidth = true;
+                var fit = box.gameObject.AddComponent<ContentSizeFitter>();
+                fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+                fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+                Size(box, minW: minWidth);
+                return box;
+            }
+
+            GameObject Rule(Transform parent)
+            {
+                var r = Node("Rule", parent);
+                Solid(r, Hex("625565"));
+                Size(r, minH: 2, prefH: 2);
+                return r.gameObject;
+            }
+
+            var tip = CardBox("Tooltip", 200);
             view.tooltip = tip;
-            view.tooltipText = Label(tip, "Text", "", 13, Paper);
-            view.tooltipText.supportRichText = true;
+            view.tooltipTitle = Label(tip, "Title", "", 18, Paper);
+            view.tooltipSub = Label(tip, "Sub", "", 12, light);
+            view.tooltipRule = Rule(tip);
+            var rows = Node("Rows", tip);
+            Layout<VerticalLayoutGroup>(rows, 5).childForceExpandWidth = true;
+            view.tooltipRows = rows;
+            var row = Node("RowTemplate", rows);
+            Layout<HorizontalLayoutGroup>(row, 16, null, TextAnchor.MiddleLeft);
+            var pr = row.gameObject.AddComponent<PopupRow>();
+            pr.label = Label(row, "Label", "", 12, light);
+            Size(pr.label, flexW: 1);
+            pr.value = Label(row, "Value", "", 12, Paper, TextAnchor.MiddleRight);
+            view.rowTemplate = pr;
+            view.tooltipNote = Label(tip, "Note", "", 12, Hex("7f708a"));
 
-            var menu = Node("Menu", root);
-            Img(menu, "menu", Image.Type.Sliced, true);
-            var menuLayout = menu.gameObject.AddComponent<VerticalLayoutGroup>();
-            menuLayout.padding = new RectOffset(4, 4, 4, 4);
-            menuLayout.spacing = 1;
-            menuLayout.childControlWidth = menuLayout.childControlHeight = true;
-            menuLayout.childForceExpandHeight = false;
-            var fit = menu.gameObject.AddComponent<ContentSizeFitter>();
-            fit.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            fit.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var menu = CardBox("Menu", 200);
             view.menu = menu;
-            view.menuTitle = Label(menu, "Title", "", 13, Paper, TextAnchor.MiddleLeft, true);
-            view.menuTitle.gameObject.AddComponent<LayoutElement>().minHeight = 22;
-            var menuLine = Node("Divider", menu);
-            Img(menuLine, "divider");
-            Size(menuLine, minH: 4, prefH: 4);
-
+            view.menuTitle = Label(menu, "Title", "", 18, Paper);
+            view.menuSub = Label(menu, "Sub", "", 12, light);
+            Rule(menu);
             var item = Node("Item", menu);
             var hi = Img(item, "menu_highlight", Image.Type.Sliced, true);
             var b = item.gameObject.AddComponent<Button>();
@@ -676,11 +715,11 @@ namespace CollectionGame.EditorTools
                 normalColor = new Color(1, 1, 1, 0), highlightedColor = Color.white, pressedColor = new Color(0.85f, 0.85f, 0.85f, 1),
                 selectedColor = new Color(1, 1, 1, 0), disabledColor = new Color(1, 1, 1, 0), colorMultiplier = 1, fadeDuration = 0,
             };
-            var itemSize = item.gameObject.AddComponent<LayoutElement>();
-            itemSize.minHeight = 22;
-            itemSize.minWidth = 170;
-            var itemText = Txt(Stretch(Node("Label", item), 8, 0, 12, 0), "", 13, Paper);
-            itemText.horizontalOverflow = HorizontalWrapMode.Overflow;
+            var nav = b.navigation;
+            nav.mode = Navigation.Mode.None;
+            b.navigation = nav;
+            Size(item, minH: 26, prefH: 26);
+            Txt(Stretch(Node("Label", item), 8, 0, 8, 0), "", 12, Paper);
             view.itemTemplate = b;
             return root.gameObject;
         }
@@ -952,7 +991,7 @@ namespace CollectionGame.EditorTools
             view.me = TradeSide(w, "Me", 22, true);
             view.them = TradeSide(w, "Them", 250, false);
 
-            view.hint = TextAt(w, "Hint", "Çantadan sürükle bırak. Bir şey değişirse kilitler açılır.", 22, 345, 423, 14, Faint, TextAnchor.MiddleCenter);
+            view.hint = TextAt(w, "Hint", "Çantadan sürükle. Değişiklik kilidi açar.", 22, 345, 423, 12, Faint, TextAnchor.MiddleCenter);
             var strip = Abs(w, "Strip", 22, 334, 423, 24);
             Img(strip, "box_dark");
             view.strip = strip.gameObject;
@@ -1080,7 +1119,8 @@ namespace CollectionGame.EditorTools
 
             TextAt(w, "BagLabel", "Çanta", 28, 274, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.bagHint = TextAt(w, "BagHint", "kilitli eşya konamaz", 96, 274, 200, 14, Faint);
-            view.place = TextAt(w, "Place", "", 499, 272, 230, 14, Faint);
+            view.place = TextAt(w, "Place", "", 499, 272, 230, 12, Faint);
+            view.place.horizontalOverflow = HorizontalWrapMode.Wrap;
             // Bag: 10 a row, two rows in sight, the rest scrolls.
             var scroll = Abs(w, "Bag", 28, 287, 462, 86);
             var sr = scroll.gameObject.AddComponent<ScrollRect>();
@@ -1292,7 +1332,7 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<BookView>();
             view.window = DraftWindow(wrap, "Koleksiyon", 192, 104, 676, 408);
             var w = view.window.transform;
-            view.owner = TextAt(w, "Owner", "Defter", 30, 37, 160, 20, Ink, TextAnchor.MiddleLeft, true);
+            view.owner = TextAt(w, "Owner", "Defter", 30, 37, 80, 14, Ink, TextAnchor.MiddleLeft, true);
             TextAt(w, "TotalLabel", "toplam", 113, 37, 70, 14, Faint);
             view.totalFill = Bar(Abs(w, "Total", 193, 30, 158, 15), "bar_fill_green", out _);
             view.totalText = TextAt(w, "TotalText", "", 361, 37, 70, 14, Ink);
@@ -1323,6 +1363,8 @@ namespace CollectionGame.EditorTools
                     var cardRt = Abs(pg, "Card" + i, x, y, 80, 80);
                     var card = new BookView.Card { frame = Img(cardRt, "record_unknown", Image.Type.Sliced, true) };
                     card.mark = Txt(Stretch(Node("Mark", cardRt), 4, 4, 4, 4), "??", 15, Ink, TextAnchor.MiddleCenter, true);
+                    card.icon = Img(At(Node("Icon", cardRt), Center, Vector2.zero, new Vector2(64, 64), Center), null, Image.Type.Simple);
+                    card.icon.enabled = false;
                     card.name = TextAt(pg, "Name" + i, "", x - 10, y + 96, 100, 13, Ink, TextAnchor.MiddleCenter);
                     card.name.horizontalOverflow = HorizontalWrapMode.Wrap;
                     var badge = At(Node("New", cardRt), TopRight, new Vector2(4, 6), new Vector2(36, 16));
@@ -1518,7 +1560,7 @@ namespace CollectionGame.EditorTools
             fr.player = TextAt(row, "Name", "", 50, 14, 260, 16, Ink, TextAnchor.MiddleLeft, true);
             fr.sub = TextAt(row, "Sub", "", 50, 34, 260, 13, Faint);
             fr.sub.supportRichText = true;
-            fr.go = SmallButton(row, "Go", "green", "Yanına git", 314, 10, 82, 26);
+            fr.go = SmallButton(row, "Go", "green", "Git", 314, 10, 82, 26);
             fr.chat = SmallButton(row, "Chat", "square_wood", "✉", 405, 9, 28, 28, 13);
             fr.menu = SmallButton(row, "Menu", "square_wood", "≡", 439, 9, 28, 28, 14);
             fr.no = SmallButton(row, "No", "red", "Hayır", 330, 10, 63, 26);
@@ -2275,6 +2317,32 @@ namespace CollectionGame.EditorTools
             view.strip.targetGraphic = stripImg;
             view.stripText = Txt(Stretch(Node("Label", strip), 4, 1, 4, 1), "", 12, Paper, TextAnchor.MiddleCenter, true);
             strip.gameObject.SetActive(false);
+            return wrap.gameObject;
+        }
+
+        // ================= "Emin misin?" box (ConfirmView) =================
+
+        static GameObject BuildConfirm()
+        {
+            var size = new Vector2(340, 150);
+            var wrap = Stretch(Node("Confirm", null));
+            var view = wrap.gameObject.AddComponent<ConfirmView>();
+            var dim = Stretch(Node("Dim", wrap));
+            Img(dim, "box_dark", Image.Type.Sliced, true);
+            view.dim = dim.gameObject;
+            view.window = Window(wrap, "Window", "", size);
+            Object.DestroyImmediate(view.window.plate.gameObject);
+            At((RectTransform)view.window.transform, Center, Vector2.zero, size, Center);
+            var w = view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = (RectTransform)w;
+            view.title = TextAt(w, "Title", "Emin misin?", 24, 30, 290, 18, Ink);
+            view.text = TextAt(w, "Text", "", 24, 62, 292, 12, Ink);
+            view.text.horizontalOverflow = HorizontalWrapMode.Wrap;
+            ((RectTransform)view.text.transform).sizeDelta = new Vector2(292, 40);
+            view.yes = SmallButton(w, "Yes", "red", "Çöpe at", 24, 100, 140, 30, 12);
+            view.yesText = view.yes.GetComponentInChildren<Text>();
+            view.no = SmallButton(w, "No", "wood", "Vazgeç", 176, 100, 140, 30, 12);
             return wrap.gameObject;
         }
 

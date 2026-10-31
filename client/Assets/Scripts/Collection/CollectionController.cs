@@ -402,20 +402,21 @@ namespace CollectionGame.Collection
                 case RecordState.Filled:
                     var rank = Tiers.Rank(rec.item?.tier);
                     c.frame.sprite = rank >= 0 ? v.tierFrames[rank] : v.found;
-                    c.mark.text = SlotView.Short(rec.defId);
+                    ShowIcon(c, rec.defId, Color.white);
                     c.mark.color = Ink;
                     c.name.text = FishingController.ItemName(rec.defId);
                     c.name.color = Ink;
                     break;
                 case RecordState.Found:
                     c.frame.sprite = v.found;
-                    c.mark.text = SlotView.Short(rec.defId);
+                    ShowIcon(c, rec.defId, new Color(1f, 1f, 1f, 0.45f));
                     c.mark.color = Faint;
                     c.name.text = FishingController.ItemName(rec.defId);
                     c.name.color = Faint;
                     break;
                 default:
                     c.frame.sprite = v.unknown;
+                    ShowIcon(c, null, Color.white);
                     c.mark.text = "??";
                     c.mark.color = new Color32(0x9b, 0xab, 0xb2, 255);
                     c.name.text = "???";
@@ -431,12 +432,11 @@ namespace CollectionGame.Collection
             var name = FishingController.ItemName(rec.defId);
             if (rec.state == RecordState.Found)
             {
-                Popup.ShowTooltip($"<b>{name}</b>\nBulundu, yuva boş{(bookIsMine ? "\nTıkla: seçenekler" : "")}");
+                Popup.ShowTooltip(new PopupView.Card { title = name, sub = "Bulundu, yuva boş", note = bookIsMine ? "Tıkla: seçenekler" : null });
                 return;
             }
             var it = rec.item;
-            var actions = bookIsMine ? "\n<color=#f9c22b>Vitrine koy</color>   <color=#e83b3b>Arıyorum</color>\nTıkla: seçenekler" : "";
-            Popup.ShowTooltip($"<b>{name}</b>\n{it?.tier}\nFloat {it?.@float:0.0000}{actions}");
+            Popup.ShowTooltip(it != null ? ItemText.Card(it, null, bookIsMine ? "Tıkla: Vitrine koy, Arıyorum" : null) : new PopupView.Card { title = name });
         }
 
         void RecordMenu(int index)
@@ -522,7 +522,7 @@ namespace CollectionGame.Collection
                 v.showcase[i].Hovered = s =>
                 {
                     if (Popup != null && s.Data is ItemInstance it)
-                        Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}\nFloat {it.@float:0.0000}");
+                        Popup.ShowTooltip(ItemText.Card(it, null));
                 };
                 v.showcase[i].Left = _ => Popup?.HideTooltip();
             }
@@ -574,6 +574,17 @@ namespace CollectionGame.Collection
                 Debug.LogWarning($"[Book] block failed: {e.Message}");
                 Toasts.Show("Engellenemedi", true);
             }
+        }
+
+        /// <summary>A book card's picture: the item's placeholder icon (dimmed while only found), none on unknown records.</summary>
+        static void ShowIcon(BookView.Card c, string defId, Color tint)
+        {
+            c.mark.text = "";
+            if (c.icon == null) return;
+            c.icon.enabled = defId != null;
+            if (defId == null) return;
+            c.icon.sprite = ItemIcons.For(defId);
+            c.icon.color = tint;
         }
 
         void RedrawProfile()

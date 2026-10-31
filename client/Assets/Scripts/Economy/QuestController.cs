@@ -154,7 +154,6 @@ namespace CollectionGame.Economy
         }
 
         /// <summary>A short word on the quest icon until quest icons exist.</summary>
-        static string IconWord(string e) => e == "catch" || e == "catch_tier" ? "balık" : e == "sell" ? "sat" : e == "craft" ? "craft" : e == "merge" ? "birleş" : e == "trade" ? "takas" : e == "emote" ? "emote" : "?";
 
         void Redraw(QuestView v)
         {
@@ -172,7 +171,7 @@ namespace CollectionGame.Economy
                 if (q == null) continue;
                 var done = q.progress >= q.target;
                 row.icon.SetEmpty();
-                row.icon.label.text = IconWord(q.@event);
+                row.icon.SetIcon(q.@event);
                 row.title.text = Describe(q);
                 v.SetBar(row, q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
                 row.count.text = $"{q.progress} / {q.target}";
@@ -188,7 +187,7 @@ namespace CollectionGame.Economy
             v.header.text = "Bugünün görevleri";
             v.chest.root.SetActive(true);
             v.chest.icon.SetEmpty();
-            v.chest.icon.label.text = "sandık";
+            v.chest.icon.SetIcon("chest");
             var doneCount = quests.Count(q => q.progress >= q.target);
             v.chest.title.text = $"{s.chestDay}. gün sandığı";
             v.SetBar(v.chest, quests.Length > 0 ? (float)doneCount / quests.Length : 0f);

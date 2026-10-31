@@ -83,8 +83,18 @@ namespace CollectionGame.EditorTools
                 FillBag(Spawn<BagView>(canvas, "Bag"));
                 var pop = Spawn<PopupView>(canvas, "Popup");
                 pop.SendMessage("Awake", SendMessageOptions.DontRequireReceiver);
-                pop.ShowMenu("Sazan · 3 adet", new (string, Action)[] { ("Deftere koy", () => { }), ("Kilitle", () => { }), ("Takasa ekle", null), ("Sat / Parçala (NPC yanında)", null) });
+                pop.ShowMenu("Göl Levreği", "rare", CollectionGame.UI.ItemText.TierColour("rare"), new (string, Action)[] { ("Deftere koy", () => { }), ("Kilitle", () => { }), ("Takasa ekle", null), ("Çöpe at", () => { }) });
                 ((RectTransform)pop.menu).anchoredPosition = new Vector2(1100, 360);
+            });
+            Shot(outDir, "tooltip", Path.Combine(drafts, "canta-v2.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                FillBag(Spawn<BagView>(canvas, "Bag"));
+                var pop = Spawn<PopupView>(canvas, "Popup");
+                pop.SendMessage("Awake", SendMessageOptions.DontRequireReceiver);
+                var it = new CollectionGame.Net.ItemInstance { defId = "lake.fish.perch", tier = "rare", @float = 0.0821f };
+                pop.ShowTooltip(CollectionGame.UI.ItemText.Card(it, null, "Tıkla: işlemler · Sürükle: taşı", ("Kondisyon", "Excellent")));
+                ((RectTransform)pop.tooltip).anchoredPosition = new Vector2(1060, 420);
             });
             Shot(outDir, "gorev", Path.Combine(drafts, "npc-gorev.png"), canvas =>
             {
@@ -93,12 +103,12 @@ namespace CollectionGame.EditorTools
                 v.coin.text = "1.240";
                 v.diamond.text = "85";
                 v.hint.text = "Yenilenmeye 9 sa 41 dk · seri 3 gün";
-                (string, string, float, string)[] q = { ("5 balık tut", "balık", 1f, "5 / 5"), ("1 tane rare ya da üstü yakala", "balık", 0.33f, "1 / 3"), ("NPC'ye 5 şey sat", "sat", 0f, "0 / 5") };
+                (string, string, float, string)[] q = { ("5 balık tut", "catch", 1f, "5 / 5"), ("1 tane rare ya da üstü yakala", "catch_tier", 0.33f, "1 / 3"), ("NPC'ye 5 şey sat", "sell", 0f, "0 / 5") };
                 for (var i = 0; i < 3; i++)
                 {
                     var r = v.quests[i];
                     r.icon.SetEmpty();
-                    r.icon.label.text = q[i].Item2;
+                    r.icon.SetIcon(q[i].Item2);
                     r.title.text = q[i].Item1;
                     v.SetBar(r, q[i].Item3);
                     r.count.text = q[i].Item4;
@@ -106,7 +116,7 @@ namespace CollectionGame.EditorTools
                     r.state.text = i == 0 ? "Bitti" : "";
                 }
                 v.chest.icon.SetEmpty();
-                v.chest.icon.label.text = "sandık";
+                v.chest.icon.SetIcon("chest");
                 v.chest.title.text = "4. gün sandığı";
                 v.SetBar(v.chest, 0.33f);
                 v.chest.count.text = "1 / 3";
@@ -506,21 +516,21 @@ namespace CollectionGame.EditorTools
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<EmoteView>(canvas, "Emote");
                 v.current.SetEmpty();
-                v.current.label.text = "Balık";
+                v.current.SetIcon("status.fish");
                 v.currentText.text = "Üstünde duruyor: Balık\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>";
                 string[] st = { "Gülümse", "Kahkaha", "Uykulu", "Balık", "Soru", "Kalp", "Müzik", "Kahve", "Yıldız", "Havalı", "Taç", "Parıltı" };
                 for (var i = 0; i < v.status.Length; i++)
                 {
                     if (i < st.Length) v.status[i].SetItem("x.a", i >= 8 ? "legendary" : "", 1, false, i == 3);
                     else v.status[i].SetEmpty();
-                    v.status[i].label.text = i < st.Length ? st[i] : "";
+                    if (i < st.Length) v.status[i].SetIcon("status." + st[i]);
                 }
                 string[] g = { "el salla", "alkış", "dans", "otur", "gül", "avı göster" };
                 for (var i = 0; i < v.gestures.Length; i++)
                 {
                     v.gestures[i].gameObject.SetActive(i < g.Length);
                     v.gestures[i].SetEmpty();
-                    if (i < g.Length) v.gestures[i].label.text = g[i];
+                    if (i < g.Length) v.gestures[i].SetIcon("gesture." + g[i]);
                 }
             });
             Shot(outDir, "oyuncu-teklif", Path.Combine(drafts, "oyuncu-teklif.png"), canvas =>

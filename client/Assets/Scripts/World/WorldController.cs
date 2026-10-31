@@ -249,6 +249,7 @@ namespace CollectionGame.World
                 var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
+                fishing.RightClickTaken = RightClickPlayer();
                 fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, blocked, cam);
                 fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
@@ -439,6 +440,9 @@ namespace CollectionGame.World
                     social.OnEmote(e, who);
                     break;
                 }
+                case OpCode.ItemDiscardResult:
+                    bagPanel.OnDiscardResult(JsonUtility.FromJson<ItemDiscardResultMsg>(m.Json));
+                    break;
                 case OpCode.ItemLockResult:
                     bagPanel.OnLockResult(JsonUtility.FromJson<ItemLockResultMsg>(m.Json));
                     break;
@@ -550,17 +554,46 @@ namespace CollectionGame.World
             }
         }
 
-        /// <summary>Click on another player's name (oyuncu-kart): what can be done with them.</summary>
+        /// <summary>
+        /// Right click on another player's character (31.10.2026, Onur): their menu (Profil, Fısılda,
+        /// Engelle, Şikayet et...). True when it took the click, so the right click does not cast.
+        /// </summary>
+        bool RightClickPlayer()
+        {
+            var mouse = Mouse.current;
+            if (mouse == null || cam == null || !mouse.rightButton.wasPressedThisFrame || UiRoot.PointerOverUi) return false;
+            var screen = mouse.position.ReadValue();
+            var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
+            CharacterView best = null;
+            var bestD = float.MaxValue;
+            foreach (var (view, _) in others.Values)
+            {
+                // The sprite stands on its feet: about a tile wide and two tall (with the name).
+                var d = (Vector2)world - (Vector2)view.transform.position;
+                if (Mathf.Abs(d.x) > 0.55f || d.y < -0.1f || d.y > 2.1f) continue;
+                var dist = Mathf.Abs(d.x) + Mathf.Abs(d.y - 0.8f);
+                if (dist < bestD)
+                {
+                    bestD = dist;
+                    best = view;
+                }
+            }
+            if (best == null) return false;
+            PlayerMenu(best.Id, best.DisplayName);
+            return true;
+        }
+
+        /// <summary>Click on another player's name (oyuncu-kart) or a right click on them: what can be done with them.</summary>
         void PlayerMenu(string id, string name)
         {
             var friend = social.Friends.Any(f => f.UserId == id && f.State == Connection.FriendMutual);
-            hud.Popup.ShowMenu(name, new (string, Action)[]
+            hud.Popup.ShowMenu(name, friend ? "Arkadaşın" : "Oyuncu", null, new (string, Action)[]
             {
                 ("Profil", () => collection.OpenProfile(id)),
-                ("Defterine bak", () => collection.OpenBook(id, name)),
-                (friend ? "Arkadaşın" : "<color=#91db69>Arkadaş ekle</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
                 ("Fısılda", () => whispers.OpenWith(id, name)),
                 ("Takas teklif et", () => trade.Offer(id, name)),
+                ("Defterine bak", () => collection.OpenBook(id, name)),
+                (friend ? "Arkadaşın" : "<color=#91db69>Arkadaş ekle</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
                 ("Engelle", () => Block(id, name)),
                 ("<color=#e83b3b>Şikayet et</color>", () => collection.ReportMenu(id)),
             });

@@ -291,15 +291,13 @@ namespace CollectionGame.Social
         void Hover(SlotView slot)
         {
             if (Popup == null || slot.Data == null) return;
-            var p = prices();
             switch (slot.Data)
             {
                 case ItemInstance it:
-                    var cond = p != null ? $" · {Prices.ConditionName(p.ConditionOf(it.@float))}" : "";
-                    Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}\nFloat {it.@float:0.0000}{cond}");
+                    Popup.ShowTooltip(ItemText.Card(it, prices()));
                     break;
                 case ItemStack st:
-                    Popup.ShowTooltip($"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet");
+                    Popup.ShowTooltip(ItemText.Card(st));
                     break;
             }
         }

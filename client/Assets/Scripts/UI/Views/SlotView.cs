@@ -14,6 +14,9 @@ namespace CollectionGame.UI.Views
         IBeginDragHandler, IDragHandler, IEndDragHandler
     {
         public Image frame;
+        /// <summary>The item's picture (placeholder from ItemIcons until the real icons come).</summary>
+        public Image icon;
+        /// <summary>Letters only where a picture does not fit the meaning (friend avatars); items never write their name.</summary>
         public Text label;
         public Text count;
         public GameObject lockMark;
@@ -31,6 +34,7 @@ namespace CollectionGame.UI.Views
             Data = null;
             frame.sprite = lockedSlot ? locked : empty;
             label.text = "";
+            SetIconSprite(null);
             count.text = "";
             if (lockMark != null) lockMark.SetActive(false);
         }
@@ -39,12 +43,27 @@ namespace CollectionGame.UI.Views
         {
             var rank = Tiers.Rank(tier);
             frame.sprite = isSelected ? selected : rank >= 0 && tiers != null && rank < tiers.Length ? tiers[rank] : empty;
-            label.text = Short(defId);
+            label.text = "";
+            SetIconSprite(ItemIcons.For(defId));
             count.text = amount > 1 ? amount.ToString() : "";
             if (lockMark != null) lockMark.SetActive(isLocked);
         }
 
-        /// <summary>"Sazan" → "Saza": four letters of the item name, the icon placeholder.</summary>
+        /// <summary>Shows the placeholder picture for a key (quest event, chest, emote) instead of words.</summary>
+        public void SetIcon(string key)
+        {
+            label.text = "";
+            SetIconSprite(string.IsNullOrEmpty(key) ? null : ItemIcons.For(key));
+        }
+
+        void SetIconSprite(Sprite s)
+        {
+            if (icon == null) return;
+            icon.sprite = s;
+            icon.enabled = s != null;
+        }
+
+        /// <summary>"Sazan" → "Saza": four letters of the item name (old placeholder, kept for the book's unknown records).</summary>
         public static string Short(string defId)
         {
             var name = Fishing.FishingController.ItemName(defId);

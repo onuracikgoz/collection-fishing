@@ -132,13 +132,17 @@ namespace CollectionGame.Fishing
         /// facing, the mouse toward the pointer), press to hook, hold to reel. Space also hooks and reels.
         /// <paramref name="worldBlocked"/> (a window is open) stops a new cast; the hotkeys still work.
         /// </summary>
+        /// <summary>This frame's right click opened a player's menu (WorldController): it does not cast or hook.</summary>
+        public bool RightClickTaken { get; set; }
+
         public void Update(Vector2 me, string facing, bool chatOpen, bool worldBlocked, Camera cam)
         {
             var now = Time.time;
             var k = Keyboard.current;
             var mouse = Mouse.current;
             var typing = chatOpen || k == null;
-            var rightDown = mouse != null && mouse.rightButton.wasPressedThisFrame && !UiRoot.PointerOverUi;
+            var rightDown = mouse != null && mouse.rightButton.wasPressedThisFrame && !UiRoot.PointerOverUi && !RightClickTaken;
+            RightClickTaken = false;
             var rightHeld = mouse != null && mouse.rightButton.isPressed;
 
             if (!typing && k.bKey.wasPressedThisFrame)

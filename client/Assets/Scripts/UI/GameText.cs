@@ -10,7 +10,7 @@ namespace CollectionGame.UI
     /// a text only chooses its <see cref="Size"/> and colour.
     ///
     /// Sharp pixel font: the size is snapped to the font's pixel grid (UiStyle.pixelGrid, 8 for
-    /// Press Start 2P: 8-15 draws at 8, 16-23 at 16), and bold / italic
+    /// Press Start 2P: below 18 draws at 8, 18-29 at 16, 30-41 at 24), and bold / italic
     /// (Unity fakes them by smearing the glyphs) are off. Light text gets the style's shadow,
     /// one font pixel down and right, drawn in the same mesh (no Shadow component).
     /// </summary>
@@ -91,15 +91,19 @@ namespace CollectionGame.UI
         }
 
         /// <summary>
-        /// Font size in layout units that is a whole multiple of the pixel grid: the largest one not
-        /// above the design size, at least one grid step. The canvas scale is always a whole number
-        /// of screen pixels per unit on the usual screens (1080p 1, Retina 2), so the font's pixels
-        /// stay whole and the layout is the same on every screen.
+        /// Font size in layout units that is a whole multiple of the pixel grid (the canvas scale is a
+        /// whole number of screen pixels per unit on the usual screens, 1080p 1 and Retina 2, so the
+        /// font's pixels stay whole and the layout is the same on every screen). The steps are wide
+        /// (31.10.2026, Onur: numbers and headings were too big): body text and numbers (below 2.25
+        /// grids, 18 for Press Start 2P) draw at one grid, window titles and big values (18-29) at two,
+        /// every 1.5 grids more one step up.
         /// </summary>
         public static int Snap(int size, int grid)
         {
             if (grid <= 0) return size;
-            return Mathf.Max(grid, size / grid * grid);
+            var first = grid * 2.25f;
+            if (size < first) return grid;
+            return grid * (2 + Mathf.FloorToInt((size - first) / (grid * 1.5f)));
         }
 
         /// <summary>Drops &lt;b&gt; and &lt;i&gt; tags when the style has bold / italic off.</summary>

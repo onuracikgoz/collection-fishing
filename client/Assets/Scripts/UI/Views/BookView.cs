@@ -14,6 +14,8 @@ namespace CollectionGame.UI.Views
         {
             public Image frame;
             public Text mark, name;
+            /// <summary>The item's picture on found and filled records (no name letters, 31.10.2026 Onur).</summary>
+            public Image icon;
             public GameObject newBadge;
             public CardHover hover;
         }

@@ -151,7 +151,13 @@ namespace CollectionGame.Social
                 emoteView.window.Closed = () => EmoteMenuOpen = false;
                 emoteView.window.Open = false;
                 emoteView.remove.onClick.AddListener(() => Wear(null));
-                foreach (var slot in emoteView.status) slot.Clicked = s => { if (s.Data is string id) Wear(id); };
+                foreach (var slot in emoteView.status)
+                {
+                    slot.Clicked = s => { if (s.Data is string id) Wear(id); };
+                    // A picture in the slot, the name on hover (31.10.2026, Onur: no words in slots).
+                    slot.Hovered = s => { if (s.Data is string id) Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = StatusName(id), note = "Tıkla: üstüne tak" }); };
+                    slot.Left = _ => Popup?.HideTooltip();
+                }
                 for (var i = 0; i < emoteView.gestures.Length; i++)
                 {
                     var g = i < Emotes.All.Length ? Emotes.All[i] : null;
@@ -159,8 +165,11 @@ namespace CollectionGame.Social
                     slot.gameObject.SetActive(g != null);
                     if (g == null) continue;
                     slot.SetEmpty();
-                    slot.label.text = GestureName(g);
+                    slot.SetIcon("gesture." + g);
                     slot.Clicked = _ => SendEmote(g);
+                    var name = GestureName(g);
+                    slot.Hovered = _ => Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = name, note = "Tıkla: yap" });
+                    slot.Left = _ => Popup?.HideTooltip();
                 }
             }
             if (emoteView.window.Open != EmoteMenuOpen)
@@ -172,7 +181,7 @@ namespace CollectionGame.Social
             emoteDirty = false;
             var v = emoteView;
             v.current.SetEmpty();
-            v.current.label.text = MyStatus != null ? StatusName(MyStatus) : "";
+            v.current.SetIcon(MyStatus != null ? "status." + MyStatus : null);
             v.currentText.text = MyStatus != null
                 ? $"Üstünde duruyor: {StatusName(MyStatus)}\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>"
                 : "Üstünde emote yok\n<color=#7f708a>Aşağıdan birine tıkla, karakterinin üstünde kalır.</color>";
@@ -190,7 +199,7 @@ namespace CollectionGame.Social
                     continue;
                 }
                 slot.SetItem("x." + id, "", 1, false, id == MyStatus);
-                slot.label.text = StatusName(id);
+                slot.SetIcon("status." + id);
                 slot.Data = id;
             }
         }
