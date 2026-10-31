@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -31,7 +32,11 @@ namespace CollectionGame.UI
         CanvasScaler scaler;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        static void ResetStatics() => instance = null;
+        static void ResetStatics()
+        {
+            instance = null;
+            ScaleChanged = null;
+        }
 
         public static UiRoot Get()
         {
@@ -73,7 +78,17 @@ namespace CollectionGame.UI
         public static float ScaleFor(int width, int height) =>
             (ClientSettings.UiScale > 0 ? ClientSettings.UiScale : AutoScale(width, height)) / 2f;
 
-        void Update() => scaler.scaleFactor = ScaleFor(Screen.width, Screen.height);
+        /// <summary>The canvas scale changed (window resized, Arayüz boyutu): GameText checks its smallest size again.</summary>
+        public static event Action ScaleChanged;
+
+        void Update()
+        {
+            var scale = ScaleFor(Screen.width, Screen.height);
+            if (Mathf.Approximately(scaler.scaleFactor, scale)) return;
+            scaler.scaleFactor = scale;
+            Canvas.scaleFactor = scale; // now, not at the scaler's next Update: GameText reads it
+            ScaleChanged?.Invoke();
+        }
 
         /// <summary>A copy of Resources/UI/&lt;name&gt; under the canvas, or null when the prefab is missing.</summary>
         public T Spawn<T>(string name) where T : Component

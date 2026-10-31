@@ -57,11 +57,13 @@ namespace CollectionGame.UI
         protected override void OnEnable()
         {
             base.OnEnable();
+            UiRoot.ScaleChanged += Apply;
             Apply();
         }
 
         protected override void OnDisable()
         {
+            UiRoot.ScaleChanged -= Apply;
             base.OnDisable();
         }
 
@@ -86,7 +88,8 @@ namespace CollectionGame.UI
             var f = GameFont.Get();
             if (f != null && font != f) font = f;
             if (!style.allowBoldItalic && fontStyle != FontStyle.Normal) fontStyle = FontStyle.Normal;
-            var want = Snap(size, style.pixelGrid);
+            var c = canvas;
+            var want = Snap(size, style.pixelGrid, c != null ? c.scaleFactor : 1f);
             if (fontSize != want) fontSize = want;
         }
 
@@ -98,12 +101,15 @@ namespace CollectionGame.UI
         /// grids, 18 for Press Start 2P) draw at one grid, window titles and big values (18-29) at two,
         /// every 1.5 grids more one step up.
         /// </summary>
-        public static int Snap(int size, int grid)
+        public static int Snap(int size, int grid, float scale = 1f)
         {
             if (grid <= 0) return size;
             var first = grid * 2.25f;
-            if (size < first) return grid;
-            return grid * (2 + Mathf.FloorToInt((size - first) / (grid * 1.5f)));
+            var steps = size < first ? 1 : 2 + Mathf.FloorToInt((size - first) / (grid * 1.5f));
+            // A small window halves the canvas (a kit pixel of one screen pixel): the font would draw at
+            // half its pixel size and break up. Never below the font's own pixel size on screen.
+            if (scale > 0f && scale < 1f) steps = Mathf.Max(steps, Mathf.CeilToInt(1f / scale - 0.001f));
+            return grid * steps;
         }
 
         /// <summary>Drops &lt;b&gt; and &lt;i&gt; tags when the style has bold / italic off.</summary>

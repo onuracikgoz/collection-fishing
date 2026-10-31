@@ -320,8 +320,14 @@ namespace CollectionGame.World
             var p = me.transform.position;
             var x = LakeMap.Width > 2 * halfW ? Mathf.Clamp(p.x, halfW, LakeMap.Width - halfW) : LakeMap.Width / 2f;
             var y = LakeMap.Height > 2 * halfH ? Mathf.Clamp(p.y, -LakeMap.Height + halfH, -halfH) : -LakeMap.Height / 2f;
+            // One screen pixel in world units. The camera centre must sit on a pixel edge so tile edges land
+            // on pixel edges: with an odd screen width or height (Free Aspect game view, a dragged window)
+            // the centre is in the middle of a pixel, so shift it half a pixel, or the tiles sample their
+            // neighbours on the sheet and thin lines flicker between them while walking (31.10.2026).
             var snap = 1f / (32f * zoom);
-            cam.transform.position = new Vector3(Mathf.Round(x / snap) * snap, Mathf.Round(y / snap) * snap, -10f);
+            var halfX = Screen.width % 2 == 1 ? snap * 0.5f : 0f;
+            var halfY = Screen.height % 2 == 1 ? snap * 0.5f : 0f;
+            cam.transform.position = new Vector3(Mathf.Round(x / snap) * snap + halfX, Mathf.Round(y / snap) * snap + halfY, -10f);
         }
 
         void Handle(Connection.Incoming m)
