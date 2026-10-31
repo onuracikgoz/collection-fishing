@@ -581,8 +581,7 @@ namespace CollectionGame.Collection
             profileDirty = false;
             var v = profileView;
             var p = Profile;
-            v.portrait.SetEmpty();
-            v.portrait.label.text = p != null ? p.username : "";
+            v.portrait.Show(p?.userId);
             if (p == null)
             {
                 v.displayName.text = "Yükleniyor...";
