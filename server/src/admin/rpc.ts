@@ -264,6 +264,8 @@ export function rpcAdminArtPut(ctx: nkruntime.Context, logger: nkruntime.Logger,
     if (typeof body.type === 'string') over.type = body.type as ContentItem['type'];
     if (over.type && over.type !== 'item') over.tier = null;
     if (over.type === 'bait') over.bait = { price: 5, boost: {} };
+    // A Float item that arrives in a set is most likely a book record of that set.
+    if ((over.type || 'item') === 'item' && over.setId) over.book = true;
     const it = newItem(body.id, now, over);
     it.order = nextOrder(doc, it.setId);
     doc.items.push(it);

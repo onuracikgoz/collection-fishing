@@ -77,6 +77,14 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [ ] Hesap açma: tarayıcı başına bir misafir hesap (cihaz kimliğinden kullanıcı adı çıkar), IP başına günde 10 yeni hesap (Öneri)
 - [ ] Canlı ortamda işaretleri görmek için admin paneli (Faz 6); dev dashboard canlıda kapalıdır
 
+## Faz 6: erken başlananlar
+
+- [x] İçerik sunucu verisi: eşyalar, setler (= defter sayfaları), recipe'ler, av tablosu, sandıklar, görevler (`docs/tasarim/19-icerik-yonetimi.md`). Eski yer tutucu listeler başlangıç verisi
+- [x] Admin paneli (`tools/admin`, `docs/araclar/admin-paneli.md`): ZIP yükleme, sırayla onay, eşya / set düzenleme, otomatik recipe, düşme oranları, sandık ve görevler, JSON kısayolu, görsel kontrolü
+- [x] Item Art Studio ZIP'i sadece görsel
+- [ ] Client eşya adlarını ve ikonları `get_content` / `get_item_art` ile alıyor, defter sayfa başlığı set adı (Mac oturumu)
+- [ ] Canlı sunucuda `runtime.http_key` değiştirildi
+
 ## Sürekli: mekanik önce, asset sonra
 
 Fazlar **mekaniği** kurar; görseller ve arayüz yer tutucudur (LPC deneme seti, kodla çizilen harita, IMGUI pencereler, kodla çizilen şamandıra). Assetler sonradan tamamen değişecek, bu yüzden:

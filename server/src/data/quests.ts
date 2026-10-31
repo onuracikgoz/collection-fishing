@@ -1,3 +1,5 @@
+// Seed only: a fresh server starts with this (seed-content.ts); after the first admin panel save
+// the stored content wins (docs/tasarim/19-icerik-yonetimi.md). Tests still use these lists.
 // Daily quest list and the chests (docs/protokol.md, Günlük görev; docs/tasarim/03-balik-tutma.md 5.2).
 // Placeholder numbers (Öneri): the admin panel will own these later. The client shows a quest's text by its id.
 import { ChestDef, QuestDef } from '../rules/quest';

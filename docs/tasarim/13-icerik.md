@@ -44,7 +44,7 @@ Steam Market, oyun içi gerçek para ödemesi, Auto-Farm, boosterlar, sezonlar, 
 ## 19. Eşya Görseli Üretim Hattı
 
 ```
-AI (ör. Perchance), eşya başına bir görsel → Item Art Studio (arka plan, 128×128, ortak palet, onay) → PNG + JSON → Unity Addressables
+AI (ör. Perchance), eşya başına bir görsel → Item Art Studio (arka plan, 128×128, ortak palet, onay) → ZIP (sadece PNG) → admin paneli (kontrol, ayar, onay) → sunucu → client (`get_item_art`)
 ```
 
 - Her eşya için tek, ortalanmış, önden görünüm, 128×128, şeffaf arka planlı PNG.

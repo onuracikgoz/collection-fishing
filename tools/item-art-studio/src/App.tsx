@@ -18,8 +18,8 @@ import {
   type ImageStatus,
   type ProjectState,
 } from './models/project'
-import { isStudioText, parseStudioFile, toStudioFile, type StudioFile } from './models/studioFile'
-import { blobFile, downloadSingle, downloadZip, jsonFile, type ExportFile } from './services/exporter'
+import { isStudioText, parseStudioFile, type StudioFile } from './models/studioFile'
+import { blobFile, downloadSingle, downloadZip, type ExportFile } from './services/exporter'
 import { bufferToPngBlob, loadPngFile } from './services/imageIO'
 import { loadProject, saveProject } from './services/projectStorage'
 
@@ -209,28 +209,19 @@ function App() {
   const setGroups = groups.filter((g) => g.inSet)
   const missing = setGroups.filter((g) => !g.approved)
 
+  // ZIP'te sadece görseller var: `<item id>.png`. Admin paneli dosya adından eşyayı bulur,
+  // eşyanın ayarları (isim, Tier, set, göl...) orada yapılır.
   async function exportZip() {
     try {
       const files: ExportFile[] = []
-      const exported = []
       for (const group of approvedGroups) {
         const image = group.approved!
-        const item = set?.items.find((i) => i.id === group.itemId) ?? null
-        const name = itemFileName(item, group.itemId)
-        files.push(await blobFile(`png/${name}`, await bufferToPngBlob(getPrepared(image, palette.colors).buffer)))
-        files.push(jsonFile(`studio/${group.itemId}.studio.json`, toStudioFile(image, set?.set_id ?? null, palette.name)))
-        exported.push({ id: group.itemId, image: name, source_image: image.fileName, in_set: group.inSet })
+        files.push(await blobFile(`${group.itemId}.png`, await bufferToPngBlob(getPrepared(image, palette.colors).buffer)))
       }
-      files.push(jsonFile('items.json', {
-        set_id: set?.set_id ?? null,
-        palette: palette.name,
-        items: exported,
-        missing: missing.map((g) => g.itemId),
-      }))
       downloadZip(files, `${set?.set_id ?? 'items'}-art.zip`)
       setMessage({
         kind: 'info',
-        text: `${exported.length} PNG dışa aktarıldı.${missing.length ? ` Sette görseli onaylanmamış ${missing.length} eşya var.` : ''}`,
+        text: `${files.length} PNG dışa aktarıldı.${missing.length ? ` Sette görseli onaylanmamış ${missing.length} eşya var.` : ''}`,
       })
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : String(err) })

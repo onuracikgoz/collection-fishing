@@ -13,6 +13,7 @@ Sosyal balık tutma ve koleksiyon oyunu. Unity 6 client, Nakama (TypeScript) sun
 | Cevap bekleyen tasarım soruları | `docs/acik-sorular.md` |
 | Item Art Studio | `docs/araclar/item-art-studio.md` |
 | Geliştirici dashboard'u (dev RPC'leri) | `docs/araclar/dev-dashboard.md` |
+| Admin paneli (eşya, set, recipe, oran ekleme) | `docs/araclar/admin-paneli.md` |
 | Harita editörü (Unity Tilemap, çarpışma dışa aktarma) | `docs/araclar/harita-editoru.md` |
 | UI pencerelerini Unity'de uygulama | `docs/araclar/ui-uygulama.md` |
 
@@ -44,4 +45,5 @@ docker compose up -d --force-recreate server-build nakama   # sunucu kodu deği�
 cd server && npm install && npm test                        # kural testleri
 cd server && npm run smoke                                  # çalışan Nakama'ya iki sahte oyuncuyla uçtan uca test
 node tools/dev-dashboard/serve.mjs                          # geliştirici dashboard'u: http://127.0.0.1:7360
+cd tools/admin && npm install && npm run dev                # admin paneli: http://127.0.0.1:7370
 ```

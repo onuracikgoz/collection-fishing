@@ -17,7 +17,7 @@ Renk varyantları dahil her defter kaydı Perchance'te ayrı üretilir. Araçta 
 ## Akış
 
 ```
-Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → content/sets/<set_id>/
+Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → admin paneli (ZIP yükle)
 ```
 
 1. **Dosyaları bırak.** Pencereye istediğin kadar PNG sürükle (veya *Add files*). Aynı anda `set.json`, `.studio.json` ve `.hex` palet dosyası da bırakılabilir.
@@ -28,7 +28,7 @@ Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → conte
    - **Boyut:** nesne kırpılır, ortalanır, seçilen boyuta küçültülür: **Item 128** (defter eşyası, varsayılan), 32, **Icon 16** (HUD, menü, emote ikonu, 1 px kenar), **Inline 8** (yazı yanındaki Coin / toz / kupa, kenarsız). Arayüz 1x çizilip 2x gösterilir; 16'lık ikon ekranda 32 px görünür. Küçük boyutta AI görseli çamurlaşabilir, gerekirse Aseprite / Piskel'de elle düzeltilir. UI ikonları `client/Assets/Art/UI/Icons/` altına konur (`icon_<ad>.png`, `emote_<ad>.png`). Küçültme her bloğun baskın rengini alır; bulanıklaşma ve ara renk olmaz. Küçük görsel büyütülmez.
    - **Palet:** her piksel ortak paletteki en yakın renge (OKLab) çekilir. Dithering yok.
 3. **Onayla.** Ortada orijinal, oyun ikonu ve oyundaki boyutları (32 / 48 / 96 px). Klavye: **A** onayla, **X** reddet (ve sıradakine geç), **← / →** gez. Bir eşyanın en fazla bir onaylı adayı olur.
-4. **Export ZIP.** Onaylı görseller tek ZIP'te iner.
+4. **Export ZIP.** Onaylı görseller tek ZIP'te iner. ZIP'te sadece görseller var; admin panelinin onay kuyruğuna yüklenir (`docs/araclar/admin-paneli.md`).
 
 Çalışma tarayıcıda (IndexedDB) otomatik saklanır; sayfa yenilense de kaybolmaz.
 
@@ -38,15 +38,13 @@ Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → conte
 
 ```
 <set_id>-art.zip
-├── png/<id>.png                  onaylı ikonlar; set eşyasında set.json'daki `image` adı
-├── studio/<id>.studio.json       hazırlama ayarları (aynı kaynak PNG ile ikonu yeniden üretir)
-└── items.json                    dışa aktarılanlar + sette görseli eksik eşyalar (`missing`)
+└── <item id>.png      onaylı ikonlar, başka dosya yok
 ```
 
-- PNG'ler `content/sets/<set_id>/png/`, studio dosyaları `content/sets/<set_id>/studio/` altına kopyalanır.
-- Araç `set.json`'ı **değiştirmez**, yalnızca okur (`set_id`, `name`, `items[].id / name / tier / image`).
-- `.studio.json` biçimi: `format: "item-art-studio/2"`, `item_id`, `source_image`, `palette`, `prepare`.
-- Unity'de içe aktarırken: Filter Mode **Point**, Compression **None**.
+- Dosya adı eşya id'sidir; admin paneli eşyayı adından bulur. Bilinmeyen id yeni taslak olur, eşyanın bütün ayarları (isim, Tier, set, göl, craft) panelde yapılır.
+- Görsel kontrolü (boyut, şeffaf arka plan, palet, kadraj) panel yüklerken yapar.
+- Hazırlama ayarları tarayıcıda (IndexedDB) kalır; ZIP'e `.studio.json` konmaz (karar 31.10.2026). Araç `.studio.json` okumaya devam eder.
+- Unity görselleri sunucudan alır (`get_item_art`): Filter Mode **Point**, sıkıştırma yok.
 
 ## Palet
 

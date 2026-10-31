@@ -1,3 +1,5 @@
+// Seed only: a fresh server starts with this (seed-content.ts); after the first admin panel save
+// the stored content wins (docs/tasarim/19-icerik-yonetimi.md). Tests still use these lists.
 // Recipes for Faz 4. Placeholder ids until the real sets (content/sets/) exist;
 // only the mechanics depend on this shape (docs/tasarim/08-recipe-craft.md).
 import { RecipeDef } from '../rules/craft';

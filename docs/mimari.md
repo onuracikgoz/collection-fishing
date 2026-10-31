@@ -10,10 +10,10 @@
 | Barındırma | Başlangıçta tek sunucu (ör. Hetzner, Docker ile Nakama + Postgres). Büyüyünce Nakama'nın bulut hizmeti |
 | Yedek | Postgres her gece Cloudflare R2'ye |
 | İzleme | Grafana (sunucu metrikleri), Sentry (oyun içi hatalar), UptimeRobot (sunucu ayakta mı), GameAnalytics (oyuncu davranışı) |
-| Eşya içerikleri | Unity Addressables. Yeni eşya oyun güncellemesi olmadan eklenir |
+| Eşya içerikleri | Eşya tanımları ve 128×128 ikonlar sunucu verisi (admin paneli); client adları ve ikonları `get_content` / `get_item_art` ile alır. Yeni eşya oyun güncellemesi olmadan eklenir |
 | Kod ve build | Git + Git LFS, GitHub Actions + GameCI, steamcmd ile Steam'e yükleme |
 | Web yayını | Statik dosyalar: Cloudflare Pages veya itch.io |
-| Admin paneli | Küçük bir web paneli (React). Av tablosu, Float oranları, sandık ve seri ödülleri sunucuda veri olarak tutulur, oyun güncellemesi gerekmeden değiştirilir. Item Art Studio ile tek yönetim aracında birleşebilir |
+| Admin paneli | `tools/admin/` (React). Eşyalar, setler, recipe'ler, av tablosu, sandık ve görevler sunucuda veri olarak tutulur, oyun güncellemesi gerekmeden değiştirilir (`docs/araclar/admin-paneli.md`). Float oranları ve diğer sayılar şimdilik `config.ts`'te |
 
 Yalnızca PC için yapılsaydı da bu seçimler neredeyse aynı kalırdı. Web uğruna verilen tek taviz WebSocket'tir ve bu oyun türünde fark yaratmaz.
 
@@ -27,8 +27,8 @@ CollectionGame/              (repo kökü)
 ├── server/                  Nakama modülleri (TypeScript)
 ├── tools/item-art-studio/   AI görselini oyun ikonuna çeviren araç (React + Vite)
 ├── tools/dev-dashboard/     geliştirici test paneli (sadece yerel, DEV_TOOLS)
-├── tools/admin/             admin paneli (Faz 6)
-├── content/                 palette.hex (ortak palet), maps/: harita dosyaları, sets/: set.json, prompts.md, PNG'ler
+├── tools/admin/             admin paneli: eşya, set, recipe, oran, sandık (sunucu anahtarıyla)
+├── content/                 palette.hex (ortak palet), maps/: harita dosyaları, sets/: set taslakları ve promptlar
 └── docs/                    tasarım, mimari, protokol, fazlar
 ```
 
@@ -52,7 +52,7 @@ Client'a güvenilen tek şey oyuncunun girdisidir. Para, eşya veya olasılık h
 - **Harita:** her sunucu bir Nakama *authoritative match*'tir (~200 oyuncu). Konum, chat balonu ve yakınlık bu match içinde yönetilir; her oyuncuya yalnızca yakınındakilerin verisi gönderilir. Bütün sunucular aynı harita dosyasını (`content/maps/lake.json`) kullanır; dosya derlemede pakete gömülür ve sunucu açılırken kontrol edilir (`rules/mapFile.ts`).
 - **İşlemler:** atış, craft, satış gibi tek seferlik işler match mesajı veya RPC ile gelir, sunucu kuralları `server/src/rules/` altındaki saf fonksiyonlarla uygular.
 - **Kurallar saf fonksiyondur:** Nakama'ya bağımlı olmayan, birim testi yazılabilen kod (`rules/`) ile Nakama'ya bağlayan ince katman (`rpc/`, `match/`) ayrıdır.
-- **Ayarlanabilir veriler** (av tablosu, oranlar, sandık ödülleri) koddan ayrı, sunucuda veri olarak tutulur; admin paneli bunları değiştirir.
+- **Ayarlanabilir veriler** (eşyalar, setler, recipe'ler, av tablosu, sandık ve görevler) koddan ayrı, sunucuda tek içerik belgesi olarak tutulur; admin paneli bunları değiştirir, her sunucu birkaç saniyede yeni hali okur (`docs/tasarim/19-icerik-yonetimi.md`). Diğer sayılar şimdilik `config.ts`'te.
 
 ## Ortamlar
 

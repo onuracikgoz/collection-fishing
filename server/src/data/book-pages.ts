@@ -1,3 +1,5 @@
+// Seed only: a fresh server starts with this (seed-content.ts); after the first admin panel save
+// the stored content wins (docs/tasarim/19-icerik-yonetimi.md). Tests still use these lists.
 // Collection Book pages for Faz 3 (docs/tasarim/06-defter.md 8.2). Placeholder
 // until the real item data exists; only Tier items (with Float) are records.
 // Crafted items have their own page (8.2 "Zanaat"); recipes are not records (8.2).
