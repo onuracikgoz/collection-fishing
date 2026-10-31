@@ -341,7 +341,7 @@ namespace CollectionGame.Social
                 if (c.LogDirty)
                 {
                     c.LogDirty = false;
-                    v.log.text = string.Join("\n", c.Lines.Select(Format));
+                    DrawLog(c, v);
                     Canvas.ForceUpdateCanvases();
                     v.scroll.verticalNormalizedPosition = 0f;
                 }
@@ -355,12 +355,37 @@ namespace CollectionGame.Social
             }
         }
 
-        string Format(Line l)
+        static readonly Color Ink = new Color32(0x45, 0x29, 0x3f, 0xff);
+        static readonly Color Faint = new Color(0.27f, 0.16f, 0.25f, 0.65f);
+        static readonly Color Theirs = new Color32(0x1e, 0x6f, 0x50, 0xff);
+        static readonly Color Mine = new Color32(0x9e, 0x45, 0x39, 0xff);
+        static readonly Color SystemLine = new Color32(0x9e, 0x45, 0x39, 0xff);
+
+        /// <summary>One row per message: nick on top, text under it; mine on the right, system notes without a nick.</summary>
+        static void DrawLog(Chat c, WhisperView v)
         {
-            if (l.System) return l.Masked ? $"<color=#7f708a><i>{Escape(l.Text)}</i></color>" : $"<color=#9e4539>{Escape(l.Text)}</color>";
-            return l.Mine ? $"<b>Sen:</b> {Escape(l.Text)}" : $"<color=#1e6f50><b>{Escape(l.Name)}:</b></color> {Escape(l.Text)}";
+            var rows = v.log.GetComponentsInChildren<WhisperLine>(true);
+            var have = 0;
+            foreach (var r in rows)
+                if (r != v.lineTemplate) have++;
+            for (var i = have; i < c.Lines.Count; i++)
+                UnityEngine.Object.Instantiate(v.lineTemplate, v.log, false).name = "Line";
+            var k = 0;
+            foreach (var r in v.log.GetComponentsInChildren<WhisperLine>(true))
+            {
+                if (r == v.lineTemplate) continue;
+                if (k >= c.Lines.Count)
+                {
+                    r.gameObject.SetActive(false);
+                    continue;
+                }
+                var l = c.Lines[k++];
+                r.gameObject.SetActive(true);
+                if (l.System) r.Set(null, l.Text, false, Faint, l.Masked ? Faint : SystemLine);
+                else if (l.Mine) r.Set("Sen", l.Text, true, Mine, Ink);
+                else r.Set(l.Name, l.Text, false, Theirs, Ink);
+            }
         }
 
-        static string Escape(string s) => (s ?? "").Replace("<", "<\u200B");
     }
 }

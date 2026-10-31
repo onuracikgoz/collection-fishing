@@ -7,11 +7,10 @@ namespace CollectionGame.UI.Views
     public sealed class FriendsView : MonoBehaviour
     {
         public WindowView window;
-        public Button[] tabs;
-        public Text[] tabTexts;
+        public TabButton[] tabs;
         public GameObject requestBadge;
         public Text requestCount;
-        public Sprite tabOn, tabOff, rowOnline, rowOffline;
+        public Sprite rowOnline, rowOffline;
         public Sprite dotOnline, dotOffline;
         public InputField search;
         public Button add;

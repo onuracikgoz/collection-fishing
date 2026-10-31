@@ -44,7 +44,7 @@ namespace CollectionGame.UI
 
             Text = new GUIStyle(GUI.skin.label) { fontSize = 13, wordWrap = false, padding = new RectOffset(2, 2, 2, 2) };
             Text.normal.textColor = HasKit ? Ink : Color.white;
-            Bold = new GUIStyle(Text) { fontStyle = FontStyle.Bold };
+            Bold = new GUIStyle(Text) { fontStyle = GameFont.Bold };
             Header = new GUIStyle(Bold) { fontSize = 15 };
             Small = new GUIStyle(Text) { fontSize = 11, wordWrap = true };
             Faint = new GUIStyle(Small);
@@ -60,11 +60,11 @@ namespace CollectionGame.UI
             {
                 Window = new GUIStyle(GUI.skin.box) { padding = new RectOffset(10, 10, 8, 8) };
                 Window.normal.background = Gui.Window?.normal.background;
-                Plate = new GUIStyle(GUI.skin.box) { fontSize = 14, fontStyle = FontStyle.Bold };
+                Plate = new GUIStyle(GUI.skin.box) { fontSize = 14, fontStyle = GameFont.Bold };
                 Card = Dark = new GUIStyle(GUI.skin.box);
                 Input = new GUIStyle(GUI.skin.textField) { fontSize = 13 };
                 Wood = Green = Red = Flat = Tab = new GUIStyle(GUI.skin.button) { fontSize = 13 };
-                TabOn = new GUIStyle(Tab) { fontStyle = FontStyle.Bold };
+                TabOn = new GUIStyle(Tab) { fontStyle = GameFont.Bold };
                 Close = new GUIStyle(GUI.skin.button) { fontSize = 11 };
                 Slot = SlotOn = new GUIStyle(GUI.skin.box);
                 return;
@@ -74,7 +74,7 @@ namespace CollectionGame.UI
             Window.padding = new RectOffset(14, 16, 18, 16);
             Plate = Make("button_wood_normal", 4, 4, 4, 4);
             Plate.fontSize = 13;
-            Plate.fontStyle = FontStyle.Bold;
+            Plate.fontStyle = GameFont.Bold;
             Plate.alignment = TextAnchor.MiddleCenter;
             Plate.normal.textColor = Paper;
             Plate.padding = new RectOffset(12, 12, 2, 3);
@@ -139,7 +139,7 @@ namespace CollectionGame.UI
         static void ButtonText(GUIStyle s, Color c)
         {
             s.fontSize = 12;
-            s.fontStyle = FontStyle.Bold;
+            s.fontStyle = GameFont.Bold;
             s.alignment = TextAnchor.MiddleCenter;
             s.padding = new RectOffset(8, 8, 3, 4);
             s.margin = new RectOffset(2, 2, 2, 2);

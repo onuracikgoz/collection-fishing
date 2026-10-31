@@ -14,7 +14,9 @@ namespace CollectionGame.UI.Views
         public Text place;
         public Text info;
         public Image flag;
-        public Text score, coin, diamond;
+        public Text coin, diamond, dust;
+        /// <summary>Under the balances: the map around us and "Başlangıca dön".</summary>
+        public MiniMapView miniMap;
 
         [Header("XP")]
         public Text level;
@@ -35,17 +37,25 @@ namespace CollectionGame.UI.Views
         public InputField chat;
         public Button send;
         public Text chatLog;
+        public RectTransform chatLogBox;
+        /// <summary>Chat line and send: always there.</summary>
+        public GameObject chatGroup;
+        /// <summary>On the log's top edge, see-through: the grip (drag to resize the log) and x (close it).</summary>
+        public GameObject chatControls;
+        public ChatResize chatGrip;
+        public Button chatClose;
+        /// <summary>Small button on the chat line's corner: opens a closed log; the red dot means unread lines.</summary>
+        public Button chatOpen;
+        public GameObject chatUnread;
 
         [Header("Window buttons")]
         public Button emote;
-        public Button quests;
         public Button market;
         public Button friends;
         public Button profile;
         public Button book;
         public Button bag;
         public Button settings;
-        public GameObject questsAlert;
 
         /// <summary>Sets a fill bar's width: anchors (0,0)-(fill,1) inside its back.</summary>
         public static void Fill(RectTransform bar, float fill)

@@ -11,9 +11,11 @@ using UnityEngine;
 namespace CollectionGame.UI
 {
     /// <summary>
-    /// The bag window (uGUI, draft canta-v2): Float items first, then stacks, in 40 px slots.
-    /// Hover shows the item; a click opens the menu: Deftere koy (BOOK_PLACE), Kilitle / Kilidi aç
-    /// (ITEM_LOCK), Takasa ekle while a trade is open, bait choice for special baits. Opens with B.
+    /// The bag window (uGUI, draft canta-v2) in 40 px slots. Hover shows the item card; a click opens
+    /// the menu: Deftere koy (BOOK_PLACE), Kilitle / Kilidi aç (ITEM_LOCK), Takasa ekle while a trade is
+    /// open, bait choice for special baits, Çöpe at. Drag a slot onto another to swap them (the order is
+    /// kept on this device, SlotOrder), onto the trash can to throw it away after "Emin misin?"
+    /// (ITEM_DISCARD), onto your side of the trade to offer it. Opens with B.
     /// </summary>
     public sealed class BagPanel
     {
@@ -26,6 +28,8 @@ namespace CollectionGame.UI
         readonly PopupView popup;
         readonly BagView view;
         readonly List<SlotView> slots = new List<SlotView>();
+        SlotOrder order;
+        object[] laid = Array.Empty<object>();
 
         public BagPanel(Connection net, FishingController fishing, TradeController trade, Func<Prices> prices, PopupView popup)
         {
@@ -75,6 +79,9 @@ namespace CollectionGame.UI
 
             var count = Mathf.Max(bag.slotsMax, entries.Count);
             count = Mathf.CeilToInt(count / (float)Columns) * Columns;
+            order ??= SlotOrder.For(net.UserId, "bag");
+            laid = order.Lay(entries, count);
+            count = Mathf.CeilToInt(laid.Length / (float)Columns) * Columns;
             while (slots.Count < count)
             {
                 var s = UnityEngine.Object.Instantiate(view.slotTemplate, view.grid, false);
@@ -92,10 +99,11 @@ namespace CollectionGame.UI
             {
                 var s = slots[i];
                 s.gameObject.SetActive(i < count);
-                if (i >= entries.Count) s.SetEmpty();
-                else if (entries[i] is ItemInstance it) s.SetItem(it.defId, it.tier, 1, it.locked);
-                else if (entries[i] is ItemStack st) s.SetItem(st.defId, "", st.count, false);
-                s.Data = i < entries.Count ? entries[i] : null;
+                var e = i < laid.Length ? laid[i] : null;
+                if (e is ItemInstance it) s.SetItem(it.defId, it.tier, 1, it.locked);
+                else if (e is ItemStack st) s.SetItem(st.defId, "", st.count, false);
+                else s.SetEmpty();
+                s.Data = e;
             }
 
             var rows = count / Columns;
@@ -108,7 +116,15 @@ namespace CollectionGame.UI
         void Hover(SlotView s)
         {
             if (popup == null || s.Data == null) return;
-            popup.ShowTooltip(Describe(s.Data));
+            switch (s.Data)
+            {
+                case ItemInstance it:
+                    popup.ShowTooltip(ItemText.Card(it, prices(), "Tıkla: işlemler · Sürükle: taşı"));
+                    break;
+                case ItemStack st:
+                    popup.ShowTooltip(ItemText.Card(st, "Tıkla: işlemler · Sürükle: taşı"));
+                    break;
+            }
         }
 
         /// <summary>Left click: with a trade open the item goes to the trade, else the menu opens.</summary>
@@ -133,20 +149,22 @@ namespace CollectionGame.UI
             }
         }
 
-        // ----- drag a slot onto the trade window (takas: "Çantadan sürükle bırak") -----
+        // ----- drag: onto another slot (swap), the trash can (throw away) or the trade window (offer) -----
 
         SlotView ghost;
 
         void BeginDrag(SlotView s, UnityEngine.EventSystems.PointerEventData e)
         {
-            if (s.Data == null || !CanTrade) return;
+            if (s.Data == null) return;
             popup?.HideTooltip();
+            popup?.HideMenu();
             ghost = UnityEngine.Object.Instantiate(s, UiRoot.Get().transform, false);
             ghost.name = "DragGhost";
             var group = ghost.gameObject.AddComponent<CanvasGroup>();
             group.blocksRaycasts = false;
             group.alpha = 0.85f;
             ghost.transform.SetAsLastSibling();
+            if (s.icon != null) s.icon.color = new Color(1f, 1f, 1f, 0.35f); // the slot it left fades while dragging
             MoveDrag(s, e);
         }
 
@@ -158,29 +176,60 @@ namespace CollectionGame.UI
             rt.pivot = new Vector2(0.5f, 0.5f);
             RectTransformUtility.ScreenPointToLocalPointInRectangle(UiRoot.Get().Rect, e.position, null, out var local);
             rt.anchoredPosition = local - UiRoot.Get().Rect.rect.min;
+            if (view.trashHighlight != null) view.trashHighlight.enabled = OverTrash(e.position);
         }
+
+        bool OverTrash(Vector2 screen) => view.trash != null && RectTransformUtility.RectangleContainsScreenPoint(view.trash, screen, null);
 
         void Drop(SlotView s, UnityEngine.EventSystems.PointerEventData e)
         {
             if (ghost == null) return;
             UnityEngine.Object.Destroy(ghost.gameObject);
             ghost = null;
-            if (trade.OverMySide(e.position)) Give(s.Data);
+            if (view.trashHighlight != null) view.trashHighlight.enabled = false;
+            if (s.icon != null) s.icon.color = Color.white;
+            var data = s.Data;
+            if (OverTrash(e.position))
+            {
+                AskDiscard(data);
+                return;
+            }
+            if (CanTrade && trade.OverMySide(e.position))
+            {
+                Give(data);
+                return;
+            }
+            var target = slots.FirstOrDefault(t => t.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)t.transform, e.position, null));
+            if (target == null || target == s || order == null) return;
+            order.Swap(laid, slots.IndexOf(s), slots.IndexOf(target));
+            Redraw();
         }
 
-        string Describe(object data)
+        /// <summary>The trash can: "Emin misin?", then ITEM_DISCARD; the server decides (locked items stay).</summary>
+        void AskDiscard(object data)
         {
             switch (data)
             {
+                case ItemInstance it when it.locked:
+                    Toasts.Show("Kilitli eşya atılamaz, önce kilidi aç", true);
+                    break;
                 case ItemInstance it:
-                    var p = prices();
-                    var cond = p != null ? $" · {Prices.ConditionName(p.ConditionOf(it.@float))}" : "";
-                    return $"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}{cond}\nFloat {it.@float:0.0000}{(it.locked ? "\nKilitli" : "")}";
+                    ConfirmView.Show("Emin misin?", $"{FishingController.ItemName(it.defId)} ({it.tier}) çöpe atılacak. Geri gelmez.", "Çöpe at",
+                        () => net.Send(OpCode.ItemDiscard, new ItemDiscardMsg { instanceId = it.instanceId }));
+                    break;
                 case ItemStack st:
-                    return $"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet";
-                default:
-                    return "";
+                    ConfirmView.Show("Emin misin?", $"{FishingController.ItemName(st.defId)} x{st.count} çöpe atılacak. Geri gelmez.", "Çöpe at",
+                        () => net.Send(OpCode.ItemDiscard, new ItemDiscardMsg { defId = st.defId, count = st.count }));
+                    break;
             }
+        }
+
+        /// <summary>ITEM_DISCARD_RESULT: read the bag again, say why when it was refused.</summary>
+        public void OnDiscardResult(ItemDiscardResultMsg r)
+        {
+            if (r.ok) Toasts.Show($"{FishingController.ItemName(r.defId)} çöpe atıldı");
+            else Toasts.Show(r.reason == "LOCKED" ? "Kilitli eşya atılamaz" : r.reason == "BUSY" ? "Takas sürerken eşya atılamaz" : r.reason == "NOT_OWNED" ? "Eşya çantada değil" : $"Atılamadı ({r.reason})", true);
+            fishing.RefreshBag();
         }
 
         bool CanTrade => trade.Active && !trade.State.youLocked;
@@ -197,9 +246,9 @@ namespace CollectionGame.UI
                         ("Deftere koy", () => net.Send(OpCode.BookPlace, new BookPlaceMsg { instanceId = it.instanceId })),
                         (it.locked ? "Kilidi aç" : "Kilitle", () => net.Send(OpCode.ItemLock, new ItemLockMsg { instanceId = it.instanceId, locked = !it.locked })),
                         ("Takasa ekle", CanTrade && !it.locked ? () => trade.AddItem(it.instanceId) : (Action)null),
-                        ("Sat / Parçala (NPC yanında, E)", null),
+                        ("Çöpe at", !it.locked ? () => AskDiscard(it) : (Action)null),
                     };
-                    popup.ShowMenu($"{FishingController.ItemName(it.defId)} · {it.tier}", entries);
+                    popup.ShowMenu(FishingController.ItemName(it.defId), it.tier, ItemText.TierColour(it.tier), entries);
                     break;
                 }
                 case ItemStack st:
@@ -209,8 +258,8 @@ namespace CollectionGame.UI
                         entries.Add((fishing.SelectedBait == st.defId ? "Temel yeme dön" : "Yem olarak kullan",
                             () => fishing.SelectedBait = fishing.SelectedBait == st.defId ? null : st.defId));
                     entries.Add(("Takasa ekle", CanTrade ? () => trade.ChangeStack(st.defId, st.count, st.count) : (Action)null));
-                    entries.Add(("Sat / Parçala (NPC yanında, E)", null));
-                    popup.ShowMenu($"{FishingController.ItemName(st.defId)} · {st.count} adet", entries);
+                    entries.Add(("Çöpe at", () => AskDiscard(st)));
+                    popup.ShowMenu(FishingController.ItemName(st.defId), $"{Kit.Num(st.count)} adet", null, entries);
                     break;
                 }
             }

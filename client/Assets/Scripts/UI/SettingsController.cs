@@ -229,8 +229,8 @@ namespace CollectionGame.UI
         void Wire(SettingsView v)
         {
             v.window.Closed = Close;
-            v.tabGeneral.onClick.AddListener(() => Select(Tab.General));
-            v.tabAccount.onClick.AddListener(() => Select(Tab.Account));
+            v.tabGeneral.button.onClick.AddListener(() => Select(Tab.General));
+            v.tabAccount.button.onClick.AddListener(() => Select(Tab.Account));
             v.version.text = $"v{Application.version}";
 
             v.music.SetValueWithoutNotify(ClientSettings.Music);
@@ -332,8 +332,8 @@ namespace CollectionGame.UI
         {
             dirty = false;
             var general = Current == Tab.General;
-            SettingsView.Tab(v.tabGeneral, general, v.tabOn, v.tabOff, Paper, Ink);
-            SettingsView.Tab(v.tabAccount, !general, v.tabOn, v.tabOff, Paper, Ink);
+            v.tabGeneral.Set(general);
+            v.tabAccount.Set(!general);
             v.general.SetActive(general);
             v.account.SetActive(!general);
             if (general)
@@ -347,6 +347,7 @@ namespace CollectionGame.UI
             }
 
             v.hidden.SetActive(!revealed);
+            v.accountContent.SetActive(revealed);
             if (!logins.HasValue && !loadingLogins) LoadLogins();
             var l = logins;
             Login(v.google, l?.Google ?? false, l?.Google == true ? $"✓ {l?.Email}" : null);

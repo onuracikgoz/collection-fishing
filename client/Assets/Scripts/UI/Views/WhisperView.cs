@@ -18,11 +18,14 @@ namespace CollectionGame.UI.Views
         public RectTransform reasonRow;
         public Button[] reasons;
         public ScrollRect scroll;
-        public Text log;
+        /// <summary>One message per row (nick above, text below; mine on the right), copies of <see cref="lineTemplate"/>.</summary>
+        public RectTransform log;
+        public WhisperLine lineTemplate;
         public InputField input;
         public Button send;
         public Button strip;
         public Text stripText;
         public Image plateImage;
+
     }
 }

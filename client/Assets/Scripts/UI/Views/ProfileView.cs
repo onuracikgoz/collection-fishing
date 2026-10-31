@@ -7,7 +7,8 @@ namespace CollectionGame.UI.Views
     public sealed class ProfileView : MonoBehaviour
     {
         public WindowView window;
-        public SlotView portrait;
+        /// <summary>The player's character as it looks now (31.10.2026, Onur).</summary>
+        public CharacterPortrait portrait;
         public Text displayName, level, sub, score;
         public GameObject levelTag, hunt;
         public Text huntText;

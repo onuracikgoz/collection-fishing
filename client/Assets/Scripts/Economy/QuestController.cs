@@ -21,8 +21,6 @@ namespace CollectionGame.Economy
         readonly FishingController fishing;
 
         public bool Open { get; set; }
-        /// <summary>0 Sat, 1 Parçala, 3 Dükkan: switch to the merchant window (set by the world).</summary>
-        public Action<int> OpenMerchantTab { get; set; }
         public QuestStateMsg State { get; private set; }
         public QuestClaimResultMsg LastClaim { get; private set; }
 
@@ -38,9 +36,7 @@ namespace CollectionGame.Economy
 
         public void Update(bool typing)
         {
-            var k = Keyboard.current;
-            if (typing || k == null) return;
-            if (k.gKey.wasPressedThisFrame) Open = !Open;
+            // No key: the quest giver NPC opens this window (World/NpcController).
         }
 
         public void Claim()
@@ -61,7 +57,7 @@ namespace CollectionGame.Economy
             stateAt = Time.time;
             dirty = true;
             shownSecond = -1;
-            if (m.complete && !m.claimed && !wasComplete) Toasts.Show("Günlük görevler bitti: sandığın hazır (G)");
+            if (m.complete && !m.claimed && !wasComplete) Toasts.Show("Günlük görevler bitti: sandığın Görevci'de hazır");
         }
 
         public void OnClaimResult(QuestClaimResultMsg r)
@@ -126,16 +122,6 @@ namespace CollectionGame.Economy
                     view.window.Closed = () => Open = false;
                     view.window.Open = false;
                     view.chest.button.onClick.AddListener(Claim);
-                    for (var i = 0; i < view.tabs.Length; i++)
-                    {
-                        var index = i;
-                        if (index == 2) continue;
-                        view.tabs[i].onClick.AddListener(() =>
-                        {
-                            Open = false;
-                            OpenMerchantTab?.Invoke(index);
-                        });
-                    }
                 }
                 return view;
             }
@@ -168,7 +154,6 @@ namespace CollectionGame.Economy
         }
 
         /// <summary>A short word on the quest icon until quest icons exist.</summary>
-        static string IconWord(string e) => e == "catch" || e == "catch_tier" ? "balık" : e == "sell" ? "sat" : e == "craft" ? "craft" : e == "merge" ? "birleş" : e == "trade" ? "takas" : e == "emote" ? "emote" : "?";
 
         void Redraw(QuestView v)
         {
@@ -186,7 +171,7 @@ namespace CollectionGame.Economy
                 if (q == null) continue;
                 var done = q.progress >= q.target;
                 row.icon.SetEmpty();
-                row.icon.label.text = IconWord(q.@event);
+                row.icon.SetIcon(q.@event);
                 row.title.text = Describe(q);
                 v.SetBar(row, q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
                 row.count.text = $"{q.progress} / {q.target}";
@@ -202,7 +187,7 @@ namespace CollectionGame.Economy
             v.header.text = "Bugünün görevleri";
             v.chest.root.SetActive(true);
             v.chest.icon.SetEmpty();
-            v.chest.icon.label.text = "sandık";
+            v.chest.icon.SetIcon("chest");
             var doneCount = quests.Count(q => q.progress >= q.target);
             v.chest.title.text = $"{s.chestDay}. gün sandığı";
             v.SetBar(v.chest, quests.Length > 0 ? (float)doneCount / quests.Length : 0f);

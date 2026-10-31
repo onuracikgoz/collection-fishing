@@ -20,8 +20,8 @@ namespace CollectionGame.Economy
     /// REPAIR_ROD, BUY_BAIT, STASH_*); balances, Float and every outcome come from
     /// the server. Prices shown before a click come from get_catalog. Placeholder UI.
     ///
-    /// Keys: E opens and closes the window. The stash only works near the bank,
-    /// which is marked on the map.
+    /// The windows open only next to their NPC (World/NpcController: E or a click);
+    /// the stash also needs the server's bank range.
     /// </summary>
     public sealed class EconomyController
     {
@@ -84,20 +84,15 @@ namespace CollectionGame.Economy
 
         public void Update(bool typing)
         {
-            var k = Keyboard.current;
-            if (typing || k == null) return;
-            // E: the bank when standing at it, else the merchant. C: the crafter.
-            if (k.eKey.wasPressedThisFrame)
-            {
-                if (Open && Current != Tab.Merge && Current != Tab.Craft) Close();
-                else Show(NearBank ? Tab.Stash : Tab.Sell);
-            }
-            if (k.cKey.wasPressedThisFrame)
-            {
-                if (Open && (Current == Tab.Merge || Current == Tab.Craft)) Close();
-                else Show(Tab.Craft);
-            }
+            // No keys of its own: the NPCs open these windows.
         }
+
+        public bool MerchantOpen => Open && MerchantTab;
+        public bool CrafterOpen => Open && CrafterTab;
+        public bool BankOpen => Open && Current == Tab.Stash;
+
+        /// <summary>Closes whichever NPC window is open.</summary>
+        public void Hide() => Close();
 
         /// <summary>Joined a server: the catalog also places the bank marker.</summary>
         public void OnWelcome()
@@ -358,8 +353,6 @@ namespace CollectionGame.Economy
         BankView bank;
         bool dirty = true;
         readonly List<SlotView> merchantSlots = new List<SlotView>(), mergeSlots = new List<SlotView>(), stashSlots = new List<SlotView>(), bankBagSlots = new List<SlotView>();
-        /// <summary>Opens the quest window (Görevler tab of the merchant).</summary>
-        public Action OpenQuests { get; set; }
         public PopupView Popup { get; set; }
 
         bool MerchantTab => Current == Tab.Sell || Current == Tab.Salvage || Current == Tab.Shop;
@@ -437,26 +430,53 @@ namespace CollectionGame.Economy
             switch (s.Data)
             {
                 case ItemInstance it:
-                    var cond = Prices.ConditionName(Prices.ConditionOf(it.@float));
-                    var price = Current == Tab.Salvage ? $"Toz {Prices.DustOf(it)}, Float etkilemez" : $"Fiyat {Prices.SellPrice(it)} Coin";
-                    Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)} · {it.tier}</b>\n<color=#f9c22b>Float {it.@float:0.0000} · {cond}</color>\n{price}{(it.locked ? "\nKilitli" : "")}");
+                    Popup.ShowTooltip(Current == Tab.Salvage
+                        ? ItemText.Card(it, Prices, "Parçalamak Float'ı etkilemez", ("Toz", Kit.Num(Prices.DustOf(it))))
+                        : ItemText.Card(it, Prices, null, ("Fiyat", $"{Kit.Num(Prices.SellPrice(it))} Coin")));
                     break;
                 case ItemStack st:
-                    Popup.ShowTooltip($"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet");
+                    Popup.ShowTooltip(ItemText.Card(st));
                     break;
             }
         }
 
         /// <summary>Fills a grid with entries (ItemInstance / ItemStack), at least min cells, a row of cols at a time.</summary>
-        void FillGrid(SlotGrid grid, List<SlotView> cells, List<object> entries, int min, int cols, Action<SlotView> click, Func<object, bool> selected = null)
+        /// <summary>A grid laid out by a SlotOrder: what sits where now, for drag and drop.</summary>
+        sealed class Laid
+        {
+            public SlotOrder Order;
+            public object[] Grid = Array.Empty<object>();
+            public Action<SlotView> Across;
+        }
+
+        readonly Dictionary<List<SlotView>, Laid> laidGrids = new Dictionary<List<SlotView>, Laid>();
+
+        /// <summary>
+        /// Fills a slot grid. With an order, things keep the place the player dragged them to (bank:
+        /// stash and bag, 31.10.2026 Onur); dropping onto the other grid of the window does what a click
+        /// does there (across: take / put).
+        /// </summary>
+        void FillGrid(SlotGrid grid, List<SlotView> cells, List<object> entries, int min, int cols, Action<SlotView> click,
+            Func<object, bool> selected = null, SlotOrder order = null, Action<SlotView> across = null)
         {
             var count = Mathf.CeilToInt(Mathf.Max(min, entries.Count) / (float)cols) * cols;
+            object[] laid = entries.ToArray();
+            if (order != null)
+            {
+                laid = order.Lay(entries, count);
+                count = Mathf.CeilToInt(laid.Length / (float)cols) * cols;
+                laidGrids[cells] = new Laid { Order = order, Grid = laid, Across = across };
+            }
             while (cells.Count < count)
             {
                 var s = UnityEngine.Object.Instantiate(grid.template, grid.content, false);
                 s.gameObject.SetActive(true);
                 s.Hovered = Tip;
                 s.Left = _ => Popup?.HideTooltip();
+                var list = cells;
+                s.DragBegan = (c, e) => BeginDrag(list, c, e);
+                s.Dragged = (c, e) => MoveDrag(e);
+                s.Dropped = (c, e) => Drop(list, c, e);
                 cells.Add(s);
             }
             for (var i = 0; i < cells.Count; i++)
@@ -464,12 +484,58 @@ namespace CollectionGame.Economy
                 var s = cells[i];
                 s.gameObject.SetActive(i < count);
                 s.Clicked = click;
-                var e = i < entries.Count ? entries[i] : null;
+                var e = i < laid.Length ? laid[i] : null;
                 var on = e != null && selected != null && selected(e);
                 if (e is ItemInstance it) s.SetItem(it.defId, it.tier, 1, it.locked, on);
                 else if (e is ItemStack st) s.SetItem(st.defId, "", st.count, false, on);
                 else s.SetEmpty();
                 s.Data = e;
+            }
+        }
+
+        SlotView ghost;
+
+        void BeginDrag(List<SlotView> cells, SlotView s, UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (s.Data == null || !laidGrids.ContainsKey(cells)) return;
+            Popup?.HideTooltip();
+            ghost = UnityEngine.Object.Instantiate(s, UiRoot.Get().transform, false);
+            ghost.name = "DragGhost";
+            var group = ghost.gameObject.AddComponent<CanvasGroup>();
+            group.blocksRaycasts = false;
+            group.alpha = 0.85f;
+            ghost.transform.SetAsLastSibling();
+            MoveDrag(e);
+        }
+
+        void MoveDrag(UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (ghost == null) return;
+            var rt = (RectTransform)ghost.transform;
+            rt.anchorMin = rt.anchorMax = Vector2.zero;
+            rt.pivot = new Vector2(0.5f, 0.5f);
+            RectTransformUtility.ScreenPointToLocalPointInRectangle(UiRoot.Get().Rect, e.position, null, out var local);
+            rt.anchoredPosition = local - UiRoot.Get().Rect.rect.min;
+        }
+
+        void Drop(List<SlotView> cells, SlotView s, UnityEngine.EventSystems.PointerEventData e)
+        {
+            if (ghost == null) return;
+            UnityEngine.Object.Destroy(ghost.gameObject);
+            ghost = null;
+            if (!laidGrids.TryGetValue(cells, out var mine)) return;
+            foreach (var kv in laidGrids)
+            {
+                var target = kv.Key.FirstOrDefault(t => t.gameObject.activeInHierarchy && RectTransformUtility.RectangleContainsScreenPoint((RectTransform)t.transform, e.position, null));
+                if (target == null) continue;
+                if (kv.Key == cells)
+                {
+                    if (target == s) return;
+                    mine.Order.Swap(mine.Grid, cells.IndexOf(s), cells.IndexOf(target));
+                    dirty = true;
+                }
+                else mine.Across?.Invoke(s);
+                return;
             }
         }
 
@@ -487,20 +553,11 @@ namespace CollectionGame.Economy
         {
             v.window.Closed = Close;
             v.window.Open = false;
-            Tab[] tabs = { Tab.Sell, Tab.Salvage, Tab.Sell, Tab.Shop };
+            Tab[] tabs = { Tab.Sell, Tab.Salvage, Tab.Shop };
             for (var i = 0; i < v.tabs.Length; i++)
             {
                 var index = i;
-                v.tabs[i].onClick.AddListener(() =>
-                {
-                    if (index == 2)
-                    {
-                        Close();
-                        OpenQuests?.Invoke();
-                        return;
-                    }
-                    Select(tabs[index]);
-                });
+                v.tabs[i].button.onClick.AddListener(() => Select(tabs[index]));
             }
             for (var i = 0; i < v.lines.Length; i++)
             {
@@ -615,12 +672,8 @@ namespace CollectionGame.Economy
             var v = merchant;
             var salvage = Current == Tab.Salvage;
             var shop = Current == Tab.Shop;
-            var selectedTab = shop ? 3 : salvage ? 1 : 0;
-            for (var i = 0; i < v.tabs.Length; i++)
-            {
-                v.tabs[i].GetComponent<Image>().sprite = i == selectedTab ? v.tabOn : v.tabOff;
-                v.tabTexts[i].color = i == selectedTab ? Paper : Ink;
-            }
+            var selectedTab = shop ? 2 : salvage ? 1 : 0;
+            for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == selectedTab);
             v.coin.text = Kit.Num(Coin);
             v.dust.text = Kit.Num(Dust);
             v.sell.SetActive(!shop);
@@ -715,8 +768,8 @@ namespace CollectionGame.Economy
         {
             v.window.Closed = Close;
             v.window.Open = false;
-            v.tabs[0].onClick.AddListener(() => Select(Tab.Craft));
-            v.tabs[1].onClick.AddListener(() => Select(Tab.Merge));
+            v.tabs[0].button.onClick.AddListener(() => Select(Tab.Craft));
+            v.tabs[1].button.onClick.AddListener(() => Select(Tab.Merge));
             for (var i = 0; i < v.recipes.Length; i++)
             {
                 var index = i;
@@ -752,12 +805,7 @@ namespace CollectionGame.Economy
         {
             var v = crafter;
             var merge = Current == Tab.Merge;
-            for (var i = 0; i < v.tabs.Length; i++)
-            {
-                var on = i == (merge ? 1 : 0);
-                v.tabs[i].GetComponent<Image>().sprite = on ? v.tabOn : v.tabOff;
-                v.tabTexts[i].color = on ? Paper : Ink;
-            }
+            for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (merge ? 1 : 0));
             v.dust.text = Kit.Num(Dust);
             v.craft.SetActive(!merge);
             v.merge.SetActive(merge);
@@ -936,8 +984,10 @@ namespace CollectionGame.Economy
                 return;
             }
             v.stashCount.text = $"{Stash.slotsUsed} / {Stash.slotsMax} yuva";
-            FillGrid(v.stash, stashSlots, Entries(Stash.items ?? Array.Empty<ItemInstance>(), Stash.stacks ?? Array.Empty<ItemStack>()), Stash.slotsMax, 10, s => MoveOne(s, OpCode.StashTake));
-            FillGrid(v.bag, bankBagSlots, Entries(BagItems, BagStacks), fishing.Bag.slotsMax, 8, s => MoveOne(s, OpCode.StashPut));
+            FillGrid(v.stash, stashSlots, Entries(Stash.items ?? Array.Empty<ItemInstance>(), Stash.stacks ?? Array.Empty<ItemStack>()), Stash.slotsMax, 10,
+                s => MoveOne(s, OpCode.StashTake), null, SlotOrder.For(net.UserId, "stash"), s => MoveOne(s, OpCode.StashTake));
+            FillGrid(v.bag, bankBagSlots, Entries(BagItems, BagStacks), fishing.Bag.slotsMax, 8,
+                s => MoveOne(s, OpCode.StashPut), null, SlotOrder.For(net.UserId, "bag"), s => MoveOne(s, OpCode.StashPut));
             var tier = Prices.NextStashTier(Stash.level);
             v.expandSlots.text = tier != null ? $"+{tier.slots - Stash.slotsMax} yuva" : "En büyük depo";
             v.expandPrice.text = tier != null ? Kit.Num(tier.price) : "";

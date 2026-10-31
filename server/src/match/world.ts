@@ -1,6 +1,6 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
+import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, SPAWN_TELEPORT, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
 import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
 import { getContent, invalidateContent } from './content';
 import {
@@ -21,7 +21,7 @@ import { canSpeak, sanitizeChat } from '../rules/chat';
 import { maskPersonal } from '../rules/whisper';
 import { checkJoin } from '../rules/join';
 import { buildSpots } from '../rules/market';
-import { buildCollisionMap, CollisionMap, isWalkable, spotNear } from '../rules/map';
+import { buildCollisionMap, CollisionMap, isWalkable, randomSpotInArea, spotNear } from '../rules/map';
 import { levelOf } from '../rules/xp';
 import { canEmote, canWear, parseEmote, parseStatus } from '../rules/emote';
 import { areFriends } from './friends';
@@ -33,6 +33,7 @@ import { QuestState } from '../rules/quest';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, flushEnergy, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
+import { handleItemDiscard } from './discard';
 import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
 import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendBoard, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
@@ -93,6 +94,8 @@ interface Player {
   tradeId?: string;
   lastOfferAt?: number;
   lastTeleportAt?: number;
+  /** Last GOTO_SPAWN ("Başlangıca dön"), for its own longer cooldown. */
+  lastSpawnTeleportAt?: number;
   /** Bot signals (rules/watch.ts), saved every WATCH.flushMs and on leave. */
   watch: WatchStats;
   watchSavedAt: number;
@@ -481,6 +484,27 @@ function handleBoardGoto(dispatcher: nkruntime.MatchDispatcher, fishing: Fishing
   send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
 }
 
+/** GOTO_SPAWN ("Başlangıca dön"): a random walkable tile in the square around the map spawn; the server picks it. */
+function handleGotoSpawn(dispatcher: nkruntime.MatchDispatcher, fishing: FishingContext, state: WorldState, p: Player, now: number): void {
+  const refuse = (reason: string) => {
+    const msg: TeleportMsg = { x: p.move.x, y: p.move.y, reason };
+    send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+  };
+  if (p.tradeId) return refuse('BUSY');
+  if (p.lastTeleportAt !== undefined && now - p.lastTeleportAt < FRIENDS.teleportCooldownMs) return refuse('RATE_LIMITED');
+  if (p.lastSpawnTeleportAt !== undefined && now - p.lastSpawnTeleportAt < SPAWN_TELEPORT.cooldownMs) return refuse('RATE_LIMITED');
+  const spot = randomSpotInArea(state.map, state.map.spawn.x, state.map.spawn.y, SPAWN_TELEPORT.areaTiles, Math.random);
+  if (!spot) return refuse('NO_SPOT');
+  p.lastTeleportAt = now;
+  p.lastSpawnTeleportAt = now;
+  cancelFishing(fishing, p);
+  p.move = newMoveState(spot.x, spot.y, now, moveCfg);
+  p.moving = false;
+  p.dirty = true;
+  const msg: TeleportMsg = { x: spot.x, y: spot.y };
+  send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+}
+
 function handleEmote(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
   const emote = parseEmote(body, EMOTES);
   if (emote === null || !canEmote(p.lastEmoteAt, now, EMOTES)) return;
@@ -623,8 +647,13 @@ export function worldLoop(
       handleGotoFriend(nk, dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.BOARD_GOTO) {
       handleBoardGoto(dispatcher, fishing, state, p, body, now);
+    } else if (m.opCode === OpCode.GOTO_SPAWN) {
+      handleGotoSpawn(dispatcher, fishing, state, p, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(nk, logger, dispatcher, state, p, body, now);
+    } else if (m.opCode === OpCode.ITEM_DISCARD && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleItemDiscard(nk, logger, dispatcher, p, !!p.tradeId, body);
     } else if (m.opCode === OpCode.ITEM_LOCK && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleItemLock(nk, logger, dispatcher, p, body);
