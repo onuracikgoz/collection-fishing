@@ -62,6 +62,12 @@ namespace CollectionGame.World
             get { foreach (var n in npcs) yield return n.View; }
         }
 
+        /// <summary>Every NPC for the mini map: kind (merchant, crafter, quests, banker), name, server tile position.</summary>
+        public IEnumerable<(string kind, string name, Vector2 pos)> Markers
+        {
+            get { foreach (var n in npcs) yield return (n.Data.kind, n.Data.name, n.Pos); }
+        }
+
         public bool IsNpc(CharacterView v) => v != null && v.Id != null && v.Id.StartsWith("npc:");
 
         /// <summary>The NPC this player can talk to now, or null.</summary>

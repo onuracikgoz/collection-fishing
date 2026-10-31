@@ -222,6 +222,7 @@ namespace CollectionGame.Social
                 : t.reason == "NOT_HERE" ? "Arkadaşın bu sunucuda değil"
                 : t.reason == "NO_SPOT" ? "Yanında boş yer yok"
                 : t.reason == "NOT_FRIEND" ? "Sadece karşılıklı arkadaşının yanına gidebilirsin"
+                : t.reason == "BUSY" ? "Takastayken ışınlanamazsın"
                 : t.reason);
         }
 

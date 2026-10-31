@@ -15,6 +15,8 @@ namespace CollectionGame.UI.Views
         public Text info;
         public Image flag;
         public Text coin, diamond, dust;
+        /// <summary>Under the balances: the map around us and "Başlangıca dön".</summary>
+        public MiniMapView miniMap;
 
         [Header("XP")]
         public Text level;
@@ -36,12 +38,13 @@ namespace CollectionGame.UI.Views
         public Button send;
         public Text chatLog;
         public RectTransform chatLogBox;
-        /// <summary>Chat line, send and the chat controls: off while the chat is closed.</summary>
+        /// <summary>Chat line and send: always there.</summary>
         public GameObject chatGroup;
-        /// <summary>_ hides the history, + / - resizes it, x closes the chat.</summary>
-        public Button chatHide, chatSize, chatClose;
+        /// <summary>On the log's top edge, see-through: + / - resizes the log, x closes it.</summary>
+        public GameObject chatControls;
+        public Button chatSize, chatClose;
         public Text chatSizeText;
-        /// <summary>"Sohbet": opens a closed chat; the red dot means unread lines.</summary>
+        /// <summary>Small button on the chat line's corner: opens a closed log; the red dot means unread lines.</summary>
         public Button chatOpen;
         public GameObject chatUnread;
 

@@ -46,6 +46,7 @@ namespace CollectionGame.World
         BagPanel bagPanel;
         NpcController npcs;
         bool inputLatched;
+        MiniMap miniMap;
 
         /// <param name="switchServer">Joins another server beside a friend: (matchId, serverName, friendUserId).</param>
         public static WorldController Create(Connection net, string serverName, Action<string> onDisconnected, Action<string, string, string> switchServer)
@@ -144,6 +145,7 @@ namespace CollectionGame.World
             social.SetPmOff = settings.SetPm;
             var v = hud.View;
             if (v == null) return;
+            miniMap = new MiniMap(v.miniMap, net);
             WorldHud.On(v.emote, () => social.EmoteMenuOpen = !social.EmoteMenuOpen);
             WorldHud.On(v.market, () =>
             {
@@ -182,6 +184,8 @@ namespace CollectionGame.World
         void OnDestroy()
         {
             hud?.Destroy();
+            bubbles?.Destroy();
+            miniMap?.Destroy();
             fishingHud?.Destroy();
             bagPanel?.Destroy();
             quests?.Destroy();
@@ -234,11 +238,12 @@ namespace CollectionGame.World
                 var blocked = WorldBlocked;
                 var keys = Typing ? Vector2.zero : ReadKeys();
                 var mouseHeld = Mouse.current != null && Mouse.current.leftButton.isPressed;
-                // The trade window holds both players in place (the server ignores MOVE and CAST);
-                // an open window holds this player. Keys or a click held from then count after release.
-                if (fishing.BlocksMovement || trade.Active || blocked) inputLatched = true;
+                // The trade window holds both players in place (the server ignores MOVE and CAST).
+                // An open window does not stop walking (31.10.2026, Onur): a walk goes on, keys still
+                // walk, clicks on the map still walk; only casting waits until the windows close.
+                if (fishing.BlocksMovement || trade.Active) inputLatched = true;
                 else if (inputLatched && keys == Vector2.zero && !mouseHeld) inputLatched = false;
-                var frozen = fishing.BlocksMovement || trade.Active || blocked || inputLatched;
+                var frozen = fishing.BlocksMovement || trade.Active || inputLatched;
                 if (frozen) mover.ClearTarget();
                 else ReadMouse();
                 var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
@@ -265,6 +270,7 @@ namespace CollectionGame.World
                 whispers.Tick();
                 npcs.QuestsReady = quests.State != null && quests.State.complete && !quests.State.claimed;
                 hud.Tick(serverName, others.Count + 1, fishing);
+                miniMap?.Tick(mover.Position, npcs.Markers, others.Values.Select(o => o.mover.Position), npcs.QuestsReady);
                 if (!Typing) hud.TryOpenChat();
             }
 
@@ -278,6 +284,33 @@ namespace CollectionGame.World
         void LateUpdate()
         {
             if (cam == null || me == null) return;
+            PlaceCamera();
+            // Chat bubbles stand above the name (and the status sign), uGUI under the windows.
+            bubbles ??= new ChatBubbles();
+            foreach (var v in AllCharacters()) v.BubbleAnchor = BubbleAnchorOf(v);
+            bubbles.Tick(AllCharacters());
+        }
+
+        ChatBubbles bubbles;
+
+        IEnumerable<CharacterView> AllCharacters()
+        {
+            if (me != null) yield return me;
+            foreach (var (view, _) in others.Values) yield return view;
+        }
+
+        /// <summary>Screen point above a character's name (and status sign) where its bubble stack stands.</summary>
+        Vector2 BubbleAnchorOf(CharacterView view)
+        {
+            var head = (Vector2)cam.WorldToScreenPoint(view.transform.position + new Vector3(0f, 1.75f, 0f));
+            var line = ((Gui.Name != null ? Gui.Name.lineHeight : 14f) + 6f) * Gui.Scale;
+            var up = line + 4f * Gui.Scale;
+            if (social.StatusOf.TryGetValue(view.Id, out var status) && !string.IsNullOrEmpty(status)) up += line + 2f * Gui.Scale;
+            return head + new Vector2(0f, up);
+        }
+
+        void PlaceCamera()
+        {
             // Integer zoom keeps the pixel art sharp: one art pixel = zoom screen pixels.
             var zoom = Mathf.Max(1, Mathf.RoundToInt(Screen.height / 480f));
             cam.orthographicSize = Screen.height / (2f * 32f * zoom);
@@ -396,7 +429,7 @@ namespace CollectionGame.World
                         mover.Teleport(new Vector2(t.x, t.y));
                         me.SetState(mover.Position, mover.Facing, false);
                     }
-                    if (!market.OnTeleport(t)) social.OnTeleport(t);
+                    if (!market.OnTeleport(t) && (miniMap == null || !miniMap.OnTeleport(t))) social.OnTeleport(t);
                     break;
                 }
                 case OpCode.EmoteShow:
@@ -560,13 +593,23 @@ namespace CollectionGame.World
             return v;
         }
 
+        /// <summary>The left button went down on the map (not on a window, the HUD or a name tag).</summary>
+        bool pressOnMap;
+
         void ReadMouse()
         {
             var mouse = Mouse.current;
-            if (mouse == null || cam == null || !mouse.leftButton.isPressed) return;
+            if (mouse == null || cam == null) return;
             var screen = mouse.position.ReadValue();
-            // Clicks on the HUD, windows and name tags are not walking.
-            if (UiRoot.PointerOverUi || Gui.IsOverUi(screen)) return;
+            // Only a press that began on the map walks: a click or drag that starts inside a window
+            // never reaches the map, even when the pointer leaves the window while held.
+            if (mouse.leftButton.wasPressedThisFrame) pressOnMap = !UiRoot.PointerOverUi && !Gui.IsOverUi(screen);
+            if (!mouse.leftButton.isPressed)
+            {
+                pressOnMap = false;
+                return;
+            }
+            if (!pressOnMap || UiRoot.PointerOverUi || Gui.IsOverUi(screen)) return;
             GUIUtility.keyboardControl = 0; // clicking the world leaves a text field
             var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
             var point = Coords.ToServer(world);
@@ -646,12 +689,6 @@ namespace CollectionGame.World
                 GUI.Label(new Rect(at.x - size.x / 2f, at.y, size.x, size.y), text, Gui.Emote);
             }
 
-            if (!ClientSettings.Bubbles || view.Bubble == null || Time.time > view.BubbleUntil) return;
-            var content = new GUIContent(view.Bubble);
-            // A few pixels of slack: the scaled GUI matrix rounds text wider than CalcSize says.
-            var width = Mathf.Min(240f, Gui.Bubble.CalcSize(content).x + 8f);
-            var height = Gui.Bubble.CalcHeight(content, width) + 2f;
-            GUI.Box(new Rect(namePos.x - width / 2f, namePos.y - nameSize.y - height - 4f, width, height), content, Gui.Bubble);
         }
 
         void DrawHud()

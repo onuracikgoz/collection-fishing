@@ -516,6 +516,12 @@ namespace CollectionGame.Net
     }
 
     /// <summary>C → S, op 18: "Yanına git" to a friend on this server.</summary>
+    /// <summary>GOTO_SPAWN: "Başlangıca dön"; the server picks the spot (docs/protokol.md).</summary>
+    [Serializable]
+    public class GotoSpawnMsg
+    {
+    }
+
     [Serializable]
     public class GotoFriendMsg
     {
