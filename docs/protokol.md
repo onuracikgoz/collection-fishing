@@ -327,6 +327,20 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.
 - Kilit eşyanın kendisinde durur: `ItemInstance.locked?: true` (`get_inventory`, takas görünümü). Kilitli eşya **satılamaz** (`SELL`), **parçalanamaz** (`SALVAGE`), `MERGE` ve `CRAFT` girdisi olamaz, takasa konamaz: bu işlemler `reason: "LOCKED"` ile reddedilir. Depoya ve deftere konabilir, kilit korunur. Önce kilit açılır.
 - Yeni eşyalar (av, craft, birleştirme, takas) kilitsiz gelir.
 
+## Eşya atma (31.10.2026, Onur)
+
+Çantadaki çöp kovası. Client "Emin misin?" diye sorar, sonra niyeti gönderir; eşyayı sunucu siler.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 65 | C → S | `ITEM_DISCARD` | `{ instanceId }` (Float'lı tek eşya) ya da `{ defId, count }` (yığından `count` tane) |
+| 66 | S → C | `ITEM_DISCARD_RESULT` | `{ ok, instanceId?, defId?, count?, reason? }` (sadece isteyene) |
+
+- Sadece **çantadaki** eşya atılır (defter yuvası, depo, tezgah hariç). Kilitli eşya atılmaz: `LOCKED`. Takas penceresi açıkken (davet dahil) atılmaz: `BUSY`. Çantada olmayan ya da yığında yetmeyen: `NOT_OWNED`. Bozuk gövde: `BAD_REQUEST`.
+- Atılan eşya geri gelmez; karşılığında Coin ya da toz verilmez (parçalamak Tüccar'da).
+- Başarılıysa client çantayı yeniden okur (`get_inventory`).
+- Çantadaki **sıra** sunucuda tutulmaz: client'ın görünümüdür (çanta ve depoda sürükle-bırak, bu cihazda saklanır, `docs/araclar/ui-uygulama.md`).
+
 ## Pazar (Faz 5, pet tezgahı)
 
 Kurallar: `docs/tasarim/09-ekonomi-pazar.md` 12.3. Sunucu: `rules/market.ts` (saf kurallar), `match/market.ts` (mesajlar ve depolama). Oyuncu petini pazar alanına bırakır, pet onun yerine satar; satıcı oyundan çıkana kadar tezgah durur (sunucu değiştirse bile). Tezgah yalnızca Coin ile çalışır.

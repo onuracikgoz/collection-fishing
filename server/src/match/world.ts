@@ -32,6 +32,7 @@ import { QuestState } from '../rules/quest';
 import { FishState } from '../rules/fishing';
 import { Fisher, FishingContext, cancelFishing, flushEnergy, handleCast, handleHook, handleReelDone, tickFishing } from './fishing';
 import { handleItemLock } from './lock';
+import { handleItemDiscard } from './discard';
 import { handleQuestClaim, loadQuestState, rollQuestDay, sendQuests, trackQuest } from './quest';
 import { MarketEnv, MarketState, handleStallOp, initMarket, ownerLeft, sendBoard, sendStalls, settleEnded, tickMarket } from './market';
 import { TradeEnv, TradeRec, cancelTradeOf, handleTradeOp, tickTrades } from './trade';
@@ -646,6 +647,9 @@ export function worldLoop(
       handleGotoSpawn(dispatcher, fishing, state, p, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(nk, logger, dispatcher, state, p, body, now);
+    } else if (m.opCode === OpCode.ITEM_DISCARD && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleItemDiscard(nk, logger, dispatcher, p, !!p.tradeId, body);
     } else if (m.opCode === OpCode.ITEM_LOCK && !storageActions[m.sender.userId]) {
       storageActions[m.sender.userId] = true;
       handleItemLock(nk, logger, dispatcher, p, body);

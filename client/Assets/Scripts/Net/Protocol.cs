@@ -79,6 +79,8 @@ namespace CollectionGame.Net
         public const long BoardResult = 62;
         public const long BoardGoto = 63;
         public const long GotoSpawn = 64;
+        public const long ItemDiscard = 65;
+        public const long ItemDiscardResult = 66;
     }
 
     public static class ErrorCode
@@ -517,6 +519,25 @@ namespace CollectionGame.Net
 
     /// <summary>C → S, op 18: "Yanına git" to a friend on this server.</summary>
     /// <summary>GOTO_SPAWN: "Başlangıca dön"; the server picks the spot (docs/protokol.md).</summary>
+    /// <summary>ITEM_DISCARD: the bag's trash can. instanceId for a Float item, else defId + count of a stack.</summary>
+    [Serializable]
+    public class ItemDiscardMsg
+    {
+        public string instanceId;
+        public string defId;
+        public int count;
+    }
+
+    [Serializable]
+    public class ItemDiscardResultMsg
+    {
+        public bool ok;
+        public string instanceId;
+        public string defId;
+        public int count;
+        public string reason;
+    }
+
     [Serializable]
     public class GotoSpawnMsg
     {
