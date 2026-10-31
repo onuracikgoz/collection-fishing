@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 36;
+        public const int Version = 37;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -458,22 +458,22 @@ namespace CollectionGame.EditorTools
             view.chatLog.verticalOverflow = VerticalWrapMode.Overflow;
             view.chatLog.supportRichText = true;
             // Chat controls on the log's top edge, see-through until the pointer is on them (31.10.2026, Onur):
-            // + / - makes the log bigger or smaller, x closes it (the chat line stays).
-            var controls = At(Node("ChatControls", log), TopRight, new Vector2(-2, 2), new Vector2(46, 20), new Vector2(1, 0));
+            // the grip (hold and drag up / down to resize the log) and x (close it; the chat line stays).
+            var controls = At(Node("ChatControls", log), TopRight, new Vector2(-2, 2), new Vector2(50, 22), new Vector2(1, 0));
             var fade = controls.gameObject.AddComponent<CanvasGroup>();
             fade.alpha = 0.55f;
             controls.gameObject.AddComponent<HoverFade>().group = fade;
             view.chatControls = controls.gameObject;
-            Button ChatControl(string name, string label, float x)
-            {
-                var b = Btn(controls, name, "flat", label, 13);
-                b.GetComponentInChildren<Text>().color = Paper;
-                At((RectTransform)b.transform, BottomLeft, new Vector2(x, 0), new Vector2(22, 20));
-                return b;
-            }
-            view.chatSize = ChatControl("ChatSize", "+", 0);
-            view.chatSizeText = view.chatSize.GetComponentInChildren<Text>();
-            view.chatClose = ChatControl("ChatClose", "x", 24);
+            var grip = At(Node("Grip", controls), BottomLeft, Vector2.zero, new Vector2(26, 22));
+            Img(grip, "button_flat_normal", Image.Type.Sliced, true);
+            IconOn(grip, "ui.grip", 16);
+            view.chatGrip = grip.gameObject.AddComponent<ChatResize>();
+            view.chatGrip.target = log;
+            Tip(grip, "Sohbeti boyutlandır", "Basılı tut, yukarı / aşağı sürükle");
+            view.chatClose = Btn(controls, "ChatClose", "flat", "x", 13);
+            view.chatClose.GetComponentInChildren<Text>().color = Paper;
+            At((RectTransform)view.chatClose.transform, BottomLeft, new Vector2(28, 0), new Vector2(22, 22));
+            Tip(view.chatClose.transform, "Sohbeti kapat", "Yazı alanı kalır");
 
             // XP strip on top of the bar, level tag at its left end.
             var xp = Node("Xp", root);
@@ -534,9 +534,11 @@ namespace CollectionGame.EditorTools
             var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
             field.characterLimit = 120;
             view.chat = field;
-            view.send = Btn(group, "Send", "flat", "↵", 16);
-            view.send.GetComponentInChildren<Text>().color = Paper;
-            At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(44, 40));
+            // Send and, beside it, Emote (31.10.2026, Onur): icon buttons like the window buttons.
+            view.send = IconButton(group, "Send", "ui.send", null, "Gönder", "Enter");
+            At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(40, 40));
+            view.emote = IconButton(group, "Emote", "ui.emote", "T", "Emote", "Kısayol: T");
+            At((RectTransform)view.emote.transform, BottomLeft, new Vector2(956, 12), new Vector2(40, 40));
 
             // Closed log: a small button on the chat line's top-left corner opens it again; red dot = unread.
             view.chatOpen = Btn(root, "ChatOpen", "flat", "^", 12);
@@ -547,29 +549,59 @@ namespace CollectionGame.EditorTools
             view.chatUnread = unread.gameObject;
             view.chatOpen.gameObject.SetActive(false);
 
-            // Window buttons 40x40, 50 apart, ending at 1280; settings apart at 1350 (hud3).
-            // No quest button: the quest window opens at the quest giver NPC (29.10.2026).
-            string[] names = { "Emote", "Market", "Friends", "Profile", "Book", "Bag" };
-            string[] labels = { "Emote\n(T)", "Pazar\n(M)", "Dost\n(O)", "Profil\n(P)", "Defter\n(K)", "Çanta\n(B)" };
-            var buttons = new Button[names.Length];
-            for (var i = 0; i < names.Length; i++)
+            // Window buttons: icons (31.10.2026, Onur), the shortcut small in the corner, the name on hover.
+            // 40x40, 50 apart, ending at 1320; settings apart at 1390 (hud3). No quest button: the quest
+            // window opens at the quest giver NPC (29.10.2026).
+            (string name, string icon, string key, string title)[] buttons =
             {
-                buttons[i] = Btn(bar, names[i], "flat", labels[i], 10);
-                var bl = buttons[i].GetComponentInChildren<Text>();
-                bl.color = Paper;
-                bl.horizontalOverflow = HorizontalWrapMode.Overflow; // one word per line, never split
-                At((RectTransform)buttons[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (names.Length - 1 - i) * 50), 12), new Vector2(48, 40), BottomRight);
+                ("Market", "ui.market", "M", "Pazar"), ("Friends", "ui.friends", "O", "Arkadaşlar"), ("Profile", "ui.profile", "P", "Profil"),
+                ("Book", "ui.book", "K", "Defter"), ("Bag", "ui.bag", "B", "Çanta"),
+            };
+            var made = new Button[buttons.Length];
+            for (var i = 0; i < buttons.Length; i++)
+            {
+                var (name, icon, key, title) = buttons[i];
+                made[i] = IconButton(bar, name, icon, key, title, "Kısayol: " + key);
+                At((RectTransform)made[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (buttons.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
             }
-            view.emote = buttons[0];
-            view.market = buttons[1];
-            view.friends = buttons[2];
-            view.profile = buttons[3];
-            view.book = buttons[4];
-            view.bag = buttons[5];
-            view.settings = Btn(bar, "Settings", "flat", "Ayar", 10);
-            view.settings.GetComponentInChildren<Text>().color = Paper;
+            view.market = made[0];
+            view.friends = made[1];
+            view.profile = made[2];
+            view.book = made[3];
+            view.bag = made[4];
+            view.settings = IconButton(bar, "Settings", "ui.settings", null, "Ayarlar", null);
             At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
             return root.gameObject;
+        }
+
+        /// <summary>A placeholder picture (ItemIcons key) centred on a node, set at runtime by KitIcon.</summary>
+        static Image IconOn(Transform parent, string key, float size)
+        {
+            var img = Img(At(Node("Icon", parent), Center, Vector2.zero, new Vector2(size, size), Center), null, Image.Type.Simple);
+            img.enabled = false;
+            var k = img.gameObject.AddComponent<KitIcon>();
+            k.image = img;
+            k.key = key;
+            return img;
+        }
+
+        /// <summary>Name (and a hint) in the tooltip card while the pointer is on it.</summary>
+        static void Tip(Transform t, string title, string note)
+        {
+            var tip = t.gameObject.AddComponent<HoverTip>();
+            tip.title = title;
+            tip.note = note;
+        }
+
+        /// <summary>A flat HUD button showing a picture, its shortcut letter small in the corner, the name on hover.</summary>
+        static Button IconButton(Transform parent, string name, string icon, string key, string title, string note)
+        {
+            var b = Btn(parent, name, "flat", null);
+            IconOn(b.transform, icon, 32);
+            if (!string.IsNullOrEmpty(key))
+                Txt(At(Node("Key", b.transform), BottomRight, new Vector2(-2, 2), new Vector2(12, 10), BottomRight), key, 8, Paper, TextAnchor.LowerRight, false, true);
+            Tip(b.transform, title, note);
+            return b;
         }
 
         /// <summary>Mini map under the balances (31.10.2026, Onur) and the "Başlangıca dön" button under it.</summary>
@@ -641,9 +673,8 @@ namespace CollectionGame.EditorTools
             // Trash can bottom left (31.10.2026, Onur): drop an item on it, "Emin misin?", gone.
             var trash = At(Node("Trash", body), BottomLeft, new Vector2(18, 10), new Vector2(28, 28));
             Img(trash, "button_square_wood_normal", Image.Type.Sliced, true);
-            var trashIcon = Img(At(Node("Icon", trash), Center, Vector2.zero, new Vector2(16, 16), Center), null, Image.Type.Simple);
-            trashIcon.sprite = null;
-            trash.gameObject.AddComponent<TrashIcon>().icon = trashIcon;
+            IconOn(trash, "trash", 16);
+            Tip(trash, "Çöp kovası", "Eşyayı buraya sürükle");
             view.trash = trash;
             view.trashHighlight = Img(Stretch(Node("Over", trash), -3, -3, -3, -3), "slot_selected");
             view.trashHighlight.pixelsPerUnitMultiplier = 2;

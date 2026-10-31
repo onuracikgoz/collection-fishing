@@ -28,6 +28,8 @@ namespace CollectionGame.UI
         public static bool ShowNames { get => Flag("names", true); set => SetFlag("names", value); }
         public static bool Announcements { get => Flag("announce", true); set => SetFlag("announce", value); }
         public static bool Bubbles { get => Flag("bubbles", true); set => SetFlag("bubbles", value); }
+        /// <summary>Chat log height the player dragged it to (0 = the default).</summary>
+        public static float ChatHeight { get => Get("chatheight", 0f); set => Set("chatheight", value); }
 
         public static string UiScaleName(int s) => s == 0 ? $"{UiRoot.AutoScale(Screen.width, Screen.height):0}x (önerilen)" : $"{s}x";
     }

@@ -17,8 +17,7 @@ namespace CollectionGame.World
     /// </summary>
     public sealed class WorldHud
     {
-        const int LogLines = 4, BigLogLines = 14, KeptLines = 50;
-        const float LogHeight = 88f, BigLogHeight = 300f;
+        const int KeptLines = 50;
 
         public HudView View { get; }
         public PopupView Popup { get; }
@@ -31,7 +30,8 @@ namespace CollectionGame.World
 
         readonly List<string> log = new List<string>();
         int submittedFrame = -1;
-        bool closed, big;
+        bool closed;
+        string baitName;
         int unread;
 
         public WorldHud()
@@ -39,14 +39,16 @@ namespace CollectionGame.World
             var ui = UiRoot.Get();
             View = ui.Spawn<HudView>("Hud");
             Popup = ui.Spawn<PopupView>("Popup");
+            HoverTip.Popup = Popup;
+            if (View != null)
+            {
+                // The bait's name on hover: the text beside the slot stays short (it ran into the chat line).
+                View.bait.Hovered = _ => Popup?.ShowTooltip(new PopupView.Card { title = baitName ?? "Yem", note = "Tıkla ya da Y: yemi değiştir" });
+                View.bait.Left = _ => Popup?.HideTooltip();
+            }
             if (View == null) return;
             View.chat.onEndEdit.AddListener(OnEndEdit);
             View.send.onClick.AddListener(() => Send(View.chat.text));
-            View.chatSize.onClick.AddListener(() =>
-            {
-                big = !big;
-                RefreshChat();
-            });
             View.chatClose.onClick.AddListener(() => SetClosed(true));
             View.chatOpen.onClick.AddListener(() => SetClosed(false));
             RefreshChat();
@@ -121,9 +123,8 @@ namespace CollectionGame.World
             v.chatUnread.SetActive(unread > 0);
             var showLog = !closed && log.Count > 0;
             v.chatLogBox.gameObject.SetActive(showLog);
-            v.chatSizeText.text = big ? "-" : "+";
-            v.chatLogBox.sizeDelta = new Vector2(v.chatLogBox.sizeDelta.x, big ? BigLogHeight : LogHeight);
-            var lines = big ? BigLogLines : LogLines;
+            // The log shows as many lines as its dragged height holds; the box masks the rest.
+            var lines = KeptLines;
             v.chatLog.text = string.Join("\n", log.GetRange(Mathf.Max(0, log.Count - lines), Mathf.Min(lines, log.Count)));
         }
 
@@ -164,7 +165,8 @@ namespace CollectionGame.World
             {
                 if (View.bait.Data as string != "") View.bait.SetEmpty();
                 View.bait.Data = "";
-                Set(View.baitText, "Yem: temel\n(Y)");
+                Set(View.baitText, "Yem\n(Y)");
+                baitName = "Temel yem";
             }
             else
             {
@@ -173,7 +175,8 @@ namespace CollectionGame.World
                 if (View.bait.Data as string != key) View.bait.SetItem(bait, "", Mathf.Max(n, 2), false);
                 View.bait.count.text = n.ToString();
                 View.bait.Data = key;
-                Set(View.baitText, $"Yem\n{FishingController.ItemName(bait)}");
+                Set(View.baitText, "Yem\n(Y)");
+                baitName = $"{FishingController.ItemName(bait)} · {n} adet";
             }
         }
 

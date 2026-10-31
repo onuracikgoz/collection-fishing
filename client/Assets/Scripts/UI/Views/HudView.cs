@@ -40,10 +40,10 @@ namespace CollectionGame.UI.Views
         public RectTransform chatLogBox;
         /// <summary>Chat line and send: always there.</summary>
         public GameObject chatGroup;
-        /// <summary>On the log's top edge, see-through: + / - resizes the log, x closes it.</summary>
+        /// <summary>On the log's top edge, see-through: the grip (drag to resize the log) and x (close it).</summary>
         public GameObject chatControls;
-        public Button chatSize, chatClose;
-        public Text chatSizeText;
+        public ChatResize chatGrip;
+        public Button chatClose;
         /// <summary>Small button on the chat line's corner: opens a closed log; the red dot means unread lines.</summary>
         public Button chatOpen;
         public GameObject chatUnread;

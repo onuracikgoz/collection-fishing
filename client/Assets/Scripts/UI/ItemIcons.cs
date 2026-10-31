@@ -362,6 +362,158 @@ namespace CollectionGame.UI
                 "................",
                 "................",
             },
+            ["market"] = new[]
+            {
+                "................",
+                ".oooooooooooooo.",
+                ".ohfhfhfhfhfhfo.",
+                ".ofhfhfhfhfhfho.",
+                ".oddddddddddddo.",
+                ".oooooooooooooo.",
+                "..ok........ko..",
+                "..ok........ko..",
+                "..ok........ko..",
+                ".oooooooooooooo.",
+                ".ohhhhhhhhhhhfo.",
+                ".offffffffffffo.",
+                ".odddddddddddddo",
+                ".oooooooooooooo.",
+                "..ok........ko..",
+                "..oo........oo..",
+            },
+            ["friends"] = new[]
+            {
+                "................",
+                "................",
+                "...oooo..oooo...",
+                "..ohhffoohhffo..",
+                "..ohfffoohfffo..",
+                "..offffooffffo..",
+                "...oooo..oooo...",
+                "................",
+                "..oooooooooooo..",
+                ".ohhffffoohhffo.",
+                ".ohfffffoohfffo.",
+                ".offffffooffffo.",
+                ".offffffooffffo.",
+                ".oooooooooooooo.",
+                "................",
+                "................",
+            },
+            ["person"] = new[]
+            {
+                "................",
+                "......oooo......",
+                ".....ohhffo.....",
+                ".....ohfffo.....",
+                ".....offffo.....",
+                ".....offffo.....",
+                "......oooo......",
+                "................",
+                "....oooooooo....",
+                "...ohhffffffo...",
+                "...ohfffffffo...",
+                "...offffffffo...",
+                "...offffffffo...",
+                "...oooooooooo...",
+                "................",
+                "................",
+            },
+            ["book"] = new[]
+            {
+                "................",
+                "..oooooooooooo..",
+                "..ofhhhhhhhhfo..",
+                "..ofhffffffhfo..",
+                "..ofhwwwwwwhfo..",
+                "..ofhffffffhfo..",
+                "..ofhwwwwwfhfo..",
+                "..ofhffffffhfo..",
+                "..ofhffffffhfo..",
+                "..ofhffffffhfo..",
+                "..ofhffffffhfo..",
+                "..odddddddddfo..",
+                "..owwwwwwwwwdo..",
+                "..oooooooooooo..",
+                "................",
+                "................",
+            },
+            ["bag"] = new[]
+            {
+                "................",
+                "......oooo......",
+                ".....oo..oo.....",
+                ".....o....o.....",
+                "...oooooooooo...",
+                "..ohhhhhhhhhfo..",
+                "..ohffffffffdo..",
+                "..ooooookoooooo.",
+                "..ohffffkfffdo..",
+                "..ohffffffffdo..",
+                "..ohffffffffdo..",
+                "..offffffffddo..",
+                "..oddddddddddo..",
+                "..oooooooooooo..",
+                "................",
+                "................",
+            },
+            ["gear"] = new[]
+            {
+                "................",
+                "......oooo......",
+                "...oo.ohfo.oo...",
+                "..ohfoohffoofo..",
+                "..offhffffffdo..",
+                "...offfoooffo...",
+                ".oohffo...offoo.",
+                ".ohfffo...offdo.",
+                ".offffo...offdo.",
+                ".oodffo...ofdoo.",
+                "...offfoooffo...",
+                "..offffffffddo..",
+                "..ofdoodddoodo..",
+                "...oo.oddo.oo...",
+                "......oooo......",
+                "................",
+            },
+            ["enter"] = new[]
+            {
+                "................",
+                "................",
+                "...........oo...",
+                "..........ohfo..",
+                "..........offo..",
+                "..........offo..",
+                "....oo....offo..",
+                "...ohfo...offo..",
+                "..ohffooooofffo.",
+                ".ohffffffffffdo.",
+                "..offdddddddddo.",
+                "...odfo.oooooo..",
+                "....oo..........",
+                "................",
+                "................",
+                "................",
+            },
+            ["grip"] = new[]
+            {
+                "................",
+                "................",
+                "................",
+                "................",
+                "..f.f.f.f.f.f...",
+                ".f.f.f.f.f.f.f..",
+                "................",
+                "..f.f.f.f.f.f...",
+                ".f.f.f.f.f.f.f..",
+                "................",
+                "..f.f.f.f.f.f...",
+                ".f.f.f.f.f.f.f..",
+                "................",
+                "................",
+                "................",
+                "................",
+            },
         };
 
         static readonly string[] FishColours = { "4d9be6", "1ebc73", "f79617", "e6904e", "a884f3", "9babb2", "cd683d", "0eaf9b" };
@@ -380,6 +532,19 @@ namespace CollectionGame.UI
 
         static (string kind, string colour) Look(string id)
         {
+            switch (id) // HUD buttons (ui.*)
+            {
+                case "ui.emote": return ("face", "f9c22b");
+                case "ui.market": return ("market", "e6904e");
+                case "ui.friends": return ("friends", "1ebc73");
+                case "ui.profile": return ("person", "8fd3ff");
+                case "ui.book": return ("book", "cd683d");
+                case "ui.bag": return ("bag", "cd683d");
+                case "ui.settings": return ("gear", "9babb2");
+                case "ui.send": return ("enter", "f2e8d0");
+                case "ui.grip": return ("grip", "f2e8d0");
+                case "trash": return ("trash", "9babb2");
+            }
             if (id.StartsWith("bait.")) return ("worm", "f68181");
             if (id.StartsWith("recipe.")) return ("scroll", "fdcbb0");
             if (id.StartsWith("craft.")) return ("star", "f9c22b");
@@ -404,7 +569,6 @@ namespace CollectionGame.UI
                 case "merge": return ("crystal", "a884f3");
                 case "chest": return ("chest", "cd683d");
                 case "emote": return ("face", "f9c22b");
-                case "trash": return ("trash", "9babb2");
             }
             return ("face", FishColours[Hash(id) % FishColours.Length]);
         }

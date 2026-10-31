@@ -119,9 +119,13 @@ F ve **sağ tık** aynı: basılı tut (gösterge dolar), bırak (olta atılır;
 
 ## Sohbet
 
-31.10.2026 (Onur): sohbet geçmişi kutusunun üst kenarında, sağda iki yarı saydam ikon (üstüne gelince tam görünür): **+ / -** geçmişi büyütür (14 satır) / küçültür (4 satır), **x** geçmişi kapatır. **Yazı alanı hiç gizlenmez.** Geçmiş kapalıyken yazı alanının sol üst köşesinde küçük **^** butonu onu açar; okunmamış satır varsa üstünde kırmızı nokta. Chat'e yazarken karakter yürümez.
+31.10.2026 (Onur): sohbet geçmişi kutusunun üst kenarında, sağda iki yarı saydam ikon (üstüne gelince tam görünür): **tutacak** (tırtıklı ikon: basılı tut, yukarı / aşağı sürükle; geçmiş 48 ile 560 birim arasında istediğin kadar büyür / küçülür, boy bu cihazda saklanır, `ChatResize`) ve **x** (geçmişi kapatır). **Yazı alanı hiç gizlenmez.** Geçmiş kapalıyken yazı alanının sol üst köşesinde küçük **^** butonu onu açar; okunmamış satır varsa üstünde kırmızı nokta. Chat'e yazarken karakter yürümez.
 
 Geçmiş, kutunun altından yukarı büyür ve kutu üstte taşanı keser: en yeni satır hep en altta görünür. (Hata, 31.10.2026: yazı `Truncate` ile kesiliyordu, Unity son satırı atınca kutuda en yeni mesaj yerine bir öncekisi görünüyordu.)
+
+### Alt bar butonları (31.10.2026, Onur)
+
+Pencere butonları yazı değil ikon (geçici çizimler, `ItemIcons` `ui.*`): Pazar, Arkadaşlar, Profil, Defter, Çanta; ayrı Ayarlar. Kısayol harfi köşede küçük, ad ve kısayol üstüne gelince kartta (`HoverTip`). Gönder (Enter ikonu) ve **Emote** sohbet satırının hemen sağında. Yem yuvasının yanında sadece "Yem (Y)", yemin adı üstüne gelince.
 
 ### Sohbet balonları
 

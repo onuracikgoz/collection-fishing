@@ -48,7 +48,6 @@ namespace CollectionGame.EditorTools
                 var h = Spawn<HudView>(canvas, "Hud");
                 FillHud(h);
                 h.chatLogBox.sizeDelta = new Vector2(h.chatLogBox.sizeDelta.x, 300);
-                h.chatSizeText.text = "-";
             });
             Shot(outDir, "hud-sohbet-kapali", Path.Combine(drafts, "hud3.png"), canvas =>
             {
@@ -810,6 +809,7 @@ namespace CollectionGame.EditorTools
 
             fill(canvas);
             foreach (var t in canvasGo.GetComponentsInChildren<GameText>(true)) t.Apply();
+            foreach (var k in canvasGo.GetComponentsInChildren<KitIcon>(true)) k.Apply();
             Save(cam, rt, Path.Combine(outDir, name + ".png"));
             if (back != null)
             {
