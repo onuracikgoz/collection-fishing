@@ -4,6 +4,7 @@ import { BAG, BAIT, ROD } from '../config';
 import { OpCode, ShopResultMsg } from '../protocol';
 import { parseBuyBait, planBuyBait } from '../rules/bait';
 import { planRepair, rodView } from '../rules/rod';
+import { baitConfig, currentContent } from './content';
 import { Fisher } from './fishing';
 import { readWallet, rodWrite, stacksWrite } from './playerData';
 
@@ -38,9 +39,10 @@ export function handleShop(
       return { action, ok: true, coin: 0, spent: plan.cost, rod: rodView(plan.rod, ROD) };
     };
   } else {
-    const req = parseBuyBait(body, BAIT);
+    const baits = baitConfig(currentContent(), BAIT.maxBuy);
+    const req = parseBuyBait(body, baits);
     if (!req) return fail('BAD_REQUEST');
-    const plan = planBuyBait(req.defId, req.count, coin, f.bag, BAG, BAIT);
+    const plan = planBuyBait(req.defId, req.count, coin, f.bag, BAG, baits);
     if (!plan.ok) return fail(plan.reason);
     const stacks = { ...f.bag.stacks, [req.defId]: plan.count };
     write = stacksWrite(userId, stacks);

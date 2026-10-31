@@ -78,8 +78,11 @@ export const FISHING: FishingConfig = {
 
 // Integer weights, 10000 = %100 (03-balik-tutma.md 5.0.1).
 // Recipes come with craft in Faz 4, so their weight is 0 for now.
+// Ordinary fish (`fish`, 18-gunluk-gorevler.md) stay at 0 until there are fish items:
+// an empty category falls back to junk. The admin panel's catch table changes these live.
 export const CATCH_TABLE = {
   junk: 2500,
+  fish: 0, // (Öneri when fish exist: 3805, with common 1200)
   common: 5000,
   material: 1200,
   rare: 900,
@@ -220,7 +223,7 @@ export const XP = {
   base: 250,
   perLevel: 250,
   /** XP per successful catch by category. A cast without energy gives none (only junk comes out, and it must not be farmable). */
-  catchXp: { junk: 1, material: 3, common: 10, rare: 25, recipe: 40, epic: 60, legendary: 150, mythic: 400 } as { [c in Category]: number },
+  catchXp: { junk: 1, fish: 3, material: 3, common: 10, rare: 25, recipe: 40, epic: 60, legendary: 150, mythic: 400 } as { [c in Category]: number },
   /** What a level opens, by level (shown on the level-up banner). */
   unlocks: { 10: ['trade'] } as { [level: number]: string[] },
 };
@@ -294,6 +297,8 @@ export const RPC_LIMITS: { default: RateLimit; rpcs: { [rpc: string]: RateLimit 
     set_profile: { perWindow: 5, windowMs: 10 * 1000 },
     friends_status: { perWindow: 5, windowMs: 10 * 1000 },
     get_catalog: { perWindow: 5, windowMs: 10 * 1000 },
+    get_content: { perWindow: 5, windowMs: 10 * 1000 },
+    get_item_art: { perWindow: 30, windowMs: 10 * 1000 },
     whisper_send: { perWindow: WHISPER.perWindow, windowMs: WHISPER.windowMs },
     whisper_settings: { perWindow: 5, windowMs: 10 * 1000 },
     account_delete_request: { perWindow: 5, windowMs: 60 * 1000 },
@@ -358,9 +363,9 @@ export const FRIENDS = {
 // Junk gives 1 dust whether caught with energy or not: the bag stacks junk
 // without remembering how it was caught (acik-sorular.md 14).
 export const ECONOMY: EconomyConfig = {
-  sellPrice: { junk: 1, material: 3, common: 5, rare: 25, epic: 100, legendary: 500, mythic: 3000, recipe: 50 },
+  sellPrice: { junk: 1, fish: 2, material: 3, common: 5, rare: 25, epic: 100, legendary: 500, mythic: 3000, recipe: 50 },
   conditionMultiplier: { pristine: 3, excellent: 1.5, normal: 1, worn: 0.7, damaged: 0.5 },
-  dust: { junk: 1, material: 2, common: 5, rare: 25, epic: 100, legendary: 400, mythic: 2000, recipe: null },
+  dust: { junk: 1, fish: 1, material: 2, common: 5, rare: 25, epic: 100, legendary: 400, mythic: 2000, recipe: null },
   maxEntries: 40, // one request can empty a full bag
   // Recipes sell by grade, not by category (16-ekonomi-tablosu.md 3).
   recipePrice: { normal: 50, good: 250, master: 1000 },

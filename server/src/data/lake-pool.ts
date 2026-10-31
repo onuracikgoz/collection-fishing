@@ -1,3 +1,5 @@
+// Seed only: a fresh server starts with this (seed-content.ts); after the first admin panel save
+// the stored content wins (docs/tasarim/19-icerik-yonetimi.md). Tests still use these lists.
 // What can come out of Büyük Göl. Placeholder ids until the first item set
 // (content/sets/) is ready; the real pool will be loaded from server data.
 // Catch fields (waters, bands, baits, minLevel) follow 03-balik-tutma.md

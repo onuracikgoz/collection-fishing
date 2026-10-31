@@ -2,9 +2,8 @@
 // moves messages, timers and storage around (docs/protokol.md, Balık tutma).
 import { QuestState } from '../rules/quest';
 import { trackQuest } from './quest';
-import { ANNOUNCE, BAG, BAIT, DIAMOND, BOOK_LUCK, CATCH, CATCH_TABLE, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, WATCH, XP } from '../config';
-import { BOOK_PAGES } from '../data/book-pages';
-import { LAKE_POOL } from '../data/lake-pool';
+import { ANNOUNCE, BAG, BAIT, DIAMOND, BOOK_LUCK, CATCH, ENERGY, FISHING, FLOAT_TABLE, REEL_PARAMS, ROD, WATCH, XP } from '../config';
+import { baitConfig, currentContent } from './content';
 import { AnnounceMsg, BobberMsg, BobberState, FishEndMsg, FishOutcome, ItemInstance, OpCode, ReelStartMsg } from '../protocol';
 import { BagSummary } from '../rules/bag';
 import { shouldAnnounce } from '../rules/announce';
@@ -94,7 +93,7 @@ export function handleCast(ctx: FishingContext, f: Fisher, body: unknown, now: n
   const broken = isBroken(f.rod);
   const spent = broken ? { value: f.energy, hasEnergy: false } : spendCast(f.energy, ENERGY);
   if (target.bait) {
-    const b = checkBait(target.bait, !!baitDef(target.bait, BAIT), f.bag.stacks, spent.hasEnergy, broken);
+    const b = checkBait(target.bait, !!baitDef(target.bait, baitConfig(currentContent(), BAIT.maxBuy)), f.bag.stacks, spent.hasEnergy, broken);
     if (!b.ok) return end(ctx, f, 'rejected', { reason: b.reason });
   }
   const writes: nkruntime.StorageWriteRequest[] = [];
@@ -258,11 +257,13 @@ export function tickFishing(ctx: FishingContext, f: Fisher, now: number): void {
       bobber(ctx, f, 'twitch');
     }
     if (now >= fs.biteAt) {
-      const bait = fs.bait ? baitDef(fs.bait, BAIT) : null;
-      const lucky = applyLuck(CATCH_TABLE, luckOf(f.book, BOOK_PAGES, BOOK_LUCK), BOOK_LUCK);
+      const content = currentContent();
+      const baits = baitConfig(content, BAIT.maxBuy);
+      const bait = fs.bait ? baitDef(fs.bait, baits) : null;
+      const lucky = applyLuck(content.catchTable, luckOf(f.book, content.pages, BOOK_LUCK), BOOK_LUCK);
       const table = applyBait(applyBand(lucky, fs.band, CATCH), bait, fs.band);
       const spot = { band: fs.band, water: fs.water || null, level: levelOf(f.xp, XP).level };
-      const roll = rollCatch(LAKE_POOL, table, spot, fs.hasEnergy, Math.random, baitFavour(fs.bait, fs.band, BAIT, CATCH.baitItemFactor));
+      const roll = rollCatch(content.pool, table, spot, fs.hasEnergy, Math.random, baitFavour(fs.bait, fs.band, baits, CATCH.baitItemFactor));
       if (!roll) return end(ctx, f, 'escaped');
       fs.roll = roll;
       fs.phase = 'bite';

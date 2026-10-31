@@ -9,6 +9,18 @@ import { Band } from '../src/rules/water';
 const at = (band: Band, water: string | null = 'buyuk_gol', level = 1): CatchSpot => ({ band, water, level });
 
 describe('rollCatch', () => {
+  it('uses item weights inside a category', () => {
+    const pool: ItemDef[] = [
+      { id: 'a', category: 'junk' },
+      { id: 'b', category: 'junk', weight: 3 },
+    ];
+    const random = seededRandom(5);
+    let b = 0;
+    const n = 40000;
+    for (let i = 0; i < n; i++) if (rollCatch(pool, { junk: 1 }, at('shore'), true, random)!.def.id === 'b') b++;
+    expect(b / n).toBeCloseTo(0.75, 1);
+  });
+
   it('follows the catch table over many casts', () => {
     const random = seededRandom(1);
     const counts: { [k: string]: number } = {};

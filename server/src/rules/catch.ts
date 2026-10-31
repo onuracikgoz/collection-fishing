@@ -4,7 +4,8 @@ import { Random, pickWeighted } from './rng';
 import { Band } from './water';
 
 export type Tier = 'common' | 'rare' | 'epic' | 'legendary' | 'mythic';
-export type Category = 'junk' | 'common' | 'material' | 'rare' | 'epic' | 'recipe' | 'legendary' | 'mythic';
+/** `fish` is the ordinary fish (docs/tasarim/18-gunluk-gorevler.md): it stacks and is not a book record. */
+export type Category = 'junk' | 'fish' | 'common' | 'material' | 'rare' | 'epic' | 'recipe' | 'legendary' | 'mythic';
 export type Condition = 'pristine' | 'excellent' | 'normal' | 'worn' | 'damaged';
 
 /**
@@ -23,6 +24,8 @@ export interface ItemDef {
   baits?: string[];
   /** Lowest player level it comes up for; level 1 if missing. */
   minLevel?: number;
+  /** Weight inside its category, 1 if missing (2 = twice as often as a plain item). */
+  weight?: number;
 }
 
 /** Category weights, integers (e.g. 2500 = %25). */
@@ -118,13 +121,18 @@ export function rollCatch(
   let options = pool.filter((d) => d.category === category && fits(d));
   if (options.length === 0) options = pool.filter((d) => d.category === 'junk' && fits(d));
   if (options.length === 0) return null;
-  const def = favour ? pickItem(options, favour, random) : options[Math.min(options.length - 1, Math.floor(random() * options.length))];
+  const def = favour || options.some((d) => d.weight !== undefined && d.weight !== 1)
+    ? pickItem(options, favour, random)
+    : options[Math.min(options.length - 1, Math.floor(random() * options.length))];
   return { def, tier: tierOf(def.category) };
 }
 
-/** Picks an item from one category, items listing the bait weighing more. Never adds items. */
-function pickItem(options: ItemDef[], favour: ItemFavour, random: Random): ItemDef {
-  const weights = options.map((d) => (d.baits && d.baits.indexOf(favour.bait) >= 0 ? favour.factor : 1));
+/** Picks an item from one category by its weight, items listing the bait weighing more. Never adds items. */
+function pickItem(options: ItemDef[], favour: ItemFavour | null, random: Random): ItemDef {
+  const weights = options.map((d) => {
+    const own = d.weight !== undefined && d.weight > 0 ? d.weight : 1;
+    return favour && d.baits && d.baits.indexOf(favour.bait) >= 0 ? own * favour.factor : own;
+  });
   let total = 0;
   for (const w of weights) total += w;
   let roll = random() * total;

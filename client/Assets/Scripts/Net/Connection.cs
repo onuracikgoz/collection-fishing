@@ -89,6 +89,20 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<CatalogResponse>(rpc.Payload);
         }
 
+        /// <summary>Names, sets and image hashes of every item (admin panel content).</summary>
+        public async Task<ContentResponse> GetContentAsync()
+        {
+            var rpc = await client.RpcAsync(Session, "get_content", "{}");
+            return JsonUtility.FromJson<ContentResponse>(rpc.Payload);
+        }
+
+        /// <summary>Images (128x128 PNG, base64) of up to 40 items.</summary>
+        public async Task<ItemArtResponse> GetItemArtAsync(string[] ids)
+        {
+            var rpc = await client.RpcAsync(Session, "get_item_art", JsonUtility.ToJson(new ItemArtRequest { ids = ids }));
+            return JsonUtility.FromJson<ItemArtResponse>(rpc.Payload);
+        }
+
         public async Task<BookResponse> GetBookAsync(string userId = null)
         {
             var rpc = await client.RpcAsync(Session, "get_book", UserArg(userId));

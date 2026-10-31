@@ -1181,6 +1181,61 @@ namespace CollectionGame.Net
         public ItemStack[] stacks;
     }
 
+    // get_content / get_item_art RPCs: item names, sets and images from the admin panel (docs/protokol.md, İçerik).
+
+    [Serializable]
+    public class ContentItem
+    {
+        public string id;
+        public string name;
+        /// <summary>item, fish, junk, material, bait or recipe.</summary>
+        public string type;
+        public string tier;
+        public string setId;
+        public bool active;
+        /// <summary>Image hash, "" when the server has none.</summary>
+        public string art;
+    }
+
+    [Serializable]
+    public class ContentSet
+    {
+        public string id;
+        public string name;
+        public bool active;
+    }
+
+    [Serializable]
+    public class ContentResponse
+    {
+        public long updatedAt;
+        public ContentItem[] items;
+        public ContentSet[] sets;
+        /// <summary>Ids of the sets that are book pages right now.</summary>
+        public string[] pages;
+    }
+
+    [Serializable]
+    public class ItemArtRequest
+    {
+        public string[] ids;
+    }
+
+    [Serializable]
+    public class ItemArtEntry
+    {
+        public string id;
+        public string hash;
+        /// <summary>128x128 PNG, base64.</summary>
+        public string png;
+    }
+
+    [Serializable]
+    public class ItemArtResponse
+    {
+        public ItemArtEntry[] art;
+    }
+
     // get_catalog RPC: display-only prices and recipes (server/src/rules/catalog.ts).
 
     [Serializable]

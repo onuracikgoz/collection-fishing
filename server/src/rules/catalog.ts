@@ -51,7 +51,7 @@ export interface CatalogSources {
   stash: StashConfig;
 }
 
-const STACK_CATEGORIES: Category[] = ['junk', 'material', 'recipe'];
+const STACK_CATEGORIES: Category[] = ['junk', 'fish', 'material', 'recipe'];
 
 export function buildCatalog(s: CatalogSources): CatalogResponse {
   const grades: { [defId: string]: string } = {};

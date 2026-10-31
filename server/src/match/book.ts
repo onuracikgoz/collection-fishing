@@ -1,7 +1,7 @@
 // Collection Book actions inside the world match (docs/protokol.md, Collection Book).
 // The match is the only writer of a player's book and bag, so its cached copies stay true.
 import { SCORE } from '../config';
-import { BOOK_PAGES } from '../data/book-pages';
+import { currentContent } from './content';
 import { BookResultMsg, OpCode } from '../protocol';
 import { place, scoreOf } from '../rules/book';
 import { Fisher } from './fishing';
@@ -27,7 +27,7 @@ export function handleBookPlace(
   const item = readItem(nk, userId, instanceId);
   if (!item || !inBag(item)) return reply(dispatcher, f, { ok: false, reason: 'NOT_OWNED' });
 
-  const res = place(f.book, BOOK_PAGES, item.defId, { instanceId: item.instanceId, tier: item.tier, float: item.float });
+  const res = place(f.book, currentContent().pages, item.defId, { instanceId: item.instanceId, tier: item.tier, float: item.float });
   if (!res.ok) return reply(dispatcher, f, { ok: false, reason: res.reason, defId: item.defId });
 
   const placed: StoredItem = { ...publicItem(item), inBook: true };
@@ -49,13 +49,13 @@ export function handleBookPlace(
   f.book = res.entries;
   // One item left the bag; a swapped-out copy came back.
   if (!previous) f.bag.items = Math.max(0, f.bag.items - 1);
-  const page = BOOK_PAGES.filter((p) => p.items.indexOf(item.defId) >= 0)[0];
+  const page = currentContent().pages.filter((p) => p.items.indexOf(item.defId) >= 0)[0];
   reply(dispatcher, f, {
     ok: true,
     defId: item.defId,
     page: page ? page.id : undefined,
     slot: publicItem(placed),
     previous: previous || undefined,
-    score: scoreOf(f.book, BOOK_PAGES, SCORE),
+    score: scoreOf(f.book, currentContent().pages, SCORE),
   });
 }

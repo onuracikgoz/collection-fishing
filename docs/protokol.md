@@ -52,6 +52,8 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
+| `get_content` | `{}` | `ContentResponse`, bkz. İçerik: eşya adları ve görselleri | 6 |
+| `get_item_art` | `{ ids: [defId] }` (en fazla 40) | `{ art: [{ id, hash, png }] }` (`png` base64) | 6 |
 | `transfer_code_create` | `{}` (oturumlu) | `{ code, expiresInMs }` (`code`: `ABCD-EFGH`) | 5 |
 | `transfer_code_redeem` | `{ code, steamToken }` (**oturumsuz**, HTTP anahtarıyla) | `{ ok: true }` | 5 |
 | `account_delete_request` | `{ name }` (hesabın kullanıcı adı, aynen) | `{ runAt }` (ms; silinme zamanı) | 7 |
@@ -72,7 +74,8 @@ Oyuncu başına, RPC başına sayılır (`server/src/rpc/limit.ts`, sayılar `co
 | `friends_status` | 10 sn'de 5 (client liste açıkken 5 sn'de bir sorar) |
 | `get_book`, `get_profile` | 10 sn'de 15 |
 | `get_inventory`, `list_servers` | 10 sn'de 10 |
-| `set_profile`, `get_catalog`, `whisper_settings` | 10 sn'de 5 |
+| `set_profile`, `get_catalog`, `get_content`, `whisper_settings` | 10 sn'de 5 |
+| `get_item_art` | 10 sn'de 30 |
 | `whisper_send` | 10 sn'de 10 |
 | `account_delete_*`, `transfer_code_create` | 1 dk'da 5 (`status` 10); taşıma kodunun saatlik sınırı ayrıca geçerli |
 | Diğerleri | 10 sn'de 20 |
@@ -552,7 +555,7 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
 - Sonraki adım (Öneri): balık noktaları (`spot`) ve her noktanın havuzu. Havuzlar sunucu verisidir, dosyada sadece noktanın yeri ve id'si durur.
 ## Fiyat ve recipe listesi (Faz 4)
 
-Client'ın Faz 4 pencereleri (satış, birleştirme, craft, dükkan, depo) fiyatları ve recipe'leri tıklamadan önce göstermek için `get_catalog` çağırır. Sadece gösterim içindir: sayılar `server/src/config.ts` ve `data/recipes.ts`'ten gelir, client'a gömülmez; her sonucu yine yukarıdaki mesajlarda sunucu hesaplar. Cevap config değişmedikçe aynıdır (sunucu bir kez hesaplar), client girişte bir kez ister.
+Client'ın Faz 4 pencereleri (satış, birleştirme, craft, dükkan, depo) fiyatları ve recipe'leri tıklamadan önce göstermek için `get_catalog` çağırır. Sadece gösterim içindir: sayılar `server/src/config.ts` ve admin panelinden yönetilen içerikten (recipe'ler, yemler) gelir, client'a gömülmez; her sonucu yine yukarıdaki mesajlarda sunucu hesaplar. Cevap config ya da içerik değişmedikçe aynıdır; client girişte ve `get_content`'in `updatedAt`'i değişince ister.
 
 Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe bağlı sayı yoktur (`0` = yok):
 
@@ -566,9 +569,24 @@ Unity `JsonUtility` sözlük okuyamadığı için her şey dizidir ve isteğe ba
 - `rodLevels: [{ level, max, fullRepair }]`.
 - `stash: { x, y, range, baseSlots, maxEntries, tiers: [{ slots, price }] }`: Banka noktası (client haritada işaretler) ve genişletme kademeleri.
 
+## İçerik: eşya adları ve görselleri (Faz 6)
+
+Eşyalar, setler, recipe'ler, defter sayfaları, av tablosu, sandıklar ve görevler artık sunucu verisidir; admin paneli (`docs/araclar/admin-paneli.md`) oyun güncellemesi olmadan ekler ve değiştirir (`docs/tasarim/19-icerik-yonetimi.md`). Bu yüzden client eşya adını id'den türetmez, ikonunu build'e gömmez; ikisini de sunucudan alır.
+
+- `get_content` → `ContentResponse`. Girişte bir kez istenir. `updatedAt` değişmişse (client bunu `get_catalog` / `get_book` açarken ya da birkaç dakikada bir tekrar sorarak görür) liste yenilenir.
+  - `updatedAt`: içeriğin son yayın zamanı (ms).
+  - `items: [{ id, name, type, tier, setId, active, art }]`: sunucunun bildiği her eşya ve recipe, pasif olanlar dahil (oyuncudaki eski kopyaların adı görünsün diye). `type`: `item` (Float + Tier), `fish` (sıradan balık), `junk`, `material`, `bait`, `recipe`. `tier`, `setId`, `art` yoksa `""`. Onay bekleyen taslaklar listede yoktur. Recipe'nin adı `Recipe: <eşya adı>`; görseli yoktur (ortak recipe ikonu).
+  - `sets: [{ id, name, active }]`: set sırasıyla. Defter sayfasının `id`'si set id'sidir (`BookResponse.pages[].id`), başlığı buradaki `name`.
+  - `pages: [setId]`: şu an defter sayfası olan setler (profilde "tamamlanan sayfa x/y" için y).
+  - `art`: görselin hash'i (sha256). Client görselleri hash'le önbelleğe alır, sadece hash'i değişen ya da hiç olmayanları `get_item_art` ile ister.
+- `get_item_art` `{ ids }` → `{ art: [{ id, hash, png }] }`: en fazla 40 id; görseli olmayan, bilinmeyen ya da taslak id'ler sessizce atlanır. `png` base64, 128×128 şeffaf PNG; Unity'de Filter Mode **Point** ile `Texture2D.LoadImage`.
+- Ad ve ikon yoksa (ağ hatası, sunucuda görseli olmayan eski yer tutucu eşyalar) client id'den ad türetir ve çizilmiş yer tutucu ikonu (`ItemIcons`) gösterir. Client: `UI/ItemContent.cs`; girişte ve her sunucuya katılırken yüklenir, adı `FishingController.ItemName`, ikonu `ItemIcons.For` kullanır, defter sayfası adı `CollectionController.PageName` (üç eski yer tutucu sayfa Türkçe adını korur).
+
 ## Geliştirici RPC'leri (sadece yerel)
 
 `dev_*` RPC'leri ve `dev_*` match sinyalleri oyun protokolünün parçası değildir; client bunları çağırmaz. Sadece `DEV_TOOLS=true` olan yerel sunucuda çalışır, başka yerde `DEV_TOOLS_OFF` döner. Liste: `docs/araclar/dev-dashboard.md`.
+
+`admin_*` RPC'leri de oyun protokolünün parçası değildir: sadece sunucu anahtarıyla (`runtime.http_key`, oturumsuz) çağrılır, oyuncu oturumuyla her zaman `NOT_ALLOWED` döner. Liste: `docs/araclar/admin-paneli.md`.
 
 ## Hata kodları
 

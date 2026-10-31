@@ -2,8 +2,7 @@
 // The match is the only writer of the bag, so its cached stacks and item count stay true.
 // Items, stacks and the wallet change in one storage transaction.
 import { ECONOMY, FLOAT_TABLE } from '../config';
-import { LAKE_POOL } from '../data/lake-pool';
-import { recipeById } from '../data/recipes';
+import { categoryOf as knownCategory, currentContent, recipeOf } from './content';
 import { EconomyResultMsg, OpCode } from '../protocol';
 import { Category } from '../rules/catch';
 import { EconomyAction, OwnedItem, parseEconomyRequest, planEconomy } from '../rules/economy';
@@ -11,11 +10,10 @@ import { Fisher } from './fishing';
 import { trackQuest } from './quest';
 import { StoredItem, inBag, readWallet, stacksWrite } from './playerData';
 
-const CATEGORY: { [defId: string]: Category } = {};
-for (const d of LAKE_POOL) CATEGORY[d.id] = d.category;
-const categoryOf = (defId: string): Category | null => CATEGORY[defId] || null;
+// Every known item, active or not: copies of an item switched off in the admin panel still sell.
+const categoryOf = (defId: string): Category | null => knownCategory(currentContent(), defId);
 const gradeOf = (defId: string) => {
-  const r = recipeById(defId);
+  const r = recipeOf(currentContent(), defId);
   return r ? r.grade : null;
 };
 

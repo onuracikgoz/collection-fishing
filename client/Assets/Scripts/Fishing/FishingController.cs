@@ -406,6 +406,8 @@ namespace CollectionGame.Fishing
         public static string ItemName(string defId)
         {
             if (string.IsNullOrEmpty(defId)) return "?";
+            var named = ItemContent.Name(defId); // the name from the admin panel
+            if (named != null) return named;
             var dot = defId.LastIndexOf('.');
             return (dot >= 0 ? defId.Substring(dot + 1) : defId).Replace('_', ' ');
         }

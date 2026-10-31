@@ -2,6 +2,7 @@
 // Thin layer: every decision is made by the pure functions in rules/.
 import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, SPAWN_TELEPORT, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
 import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
+import { getContent, invalidateContent } from './content';
 import {
   BubbleMsg,
   CorrectionMsg,
@@ -239,6 +240,7 @@ export function worldJoin(
   state: WorldState,
   presences: nkruntime.Presence[],
 ): { state: WorldState } | null {
+  getContent(nk, logger);
   const map = state.map;
   const now = tick * tickMs;
   const fresh = presences.filter((p) => !state.players[p.userId]).map((p) => p.userId);
@@ -585,6 +587,8 @@ export function worldLoop(
   state: WorldState,
   messages: nkruntime.MatchMessage[],
 ): { state: WorldState } | null {
+  // Items, recipes and pages the admin panel publishes reach the match within seconds.
+  getContent(nk, logger);
   const now = tick * tickMs;
   const moves: { [userId: string]: number } = {};
   const storageActions: { [userId: string]: true } = {};
@@ -755,6 +759,12 @@ export function worldSignal(
     req = JSON.parse(data);
   } catch (_e) {
     return { state };
+  }
+  // The admin panel published new content (admin/rpc.ts): read it on the next tick.
+  if (req.type === 'content_reload') {
+    invalidateContent();
+    getContent(nk, logger);
+    return { state, data: JSON.stringify({ ok: true }) };
   }
   // dev_* signals come only from the developer dashboard's RPCs (debug/).
   const dev = devSignal(ctx, logger, nk, dispatcher, tick, state, req as { [k: string]: unknown });
