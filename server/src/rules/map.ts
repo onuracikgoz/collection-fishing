@@ -1,5 +1,7 @@
 // Map collision. Pure functions, no Nakama dependency.
 
+import type { Random } from './rng';
+
 export interface Rect {
   x: number;
   y: number;
@@ -94,4 +96,28 @@ export function spotNear(
     if (best) return best;
   }
   return null;
+}
+
+/**
+ * A random walkable tile centre inside the size x size tile square centred on (x, y): where
+ * "Başlangıca dön" (GOTO_SPAWN) lands. Null when the square has no walkable tile.
+ */
+export function randomSpotInArea(
+  map: CollisionMap,
+  x: number,
+  y: number,
+  size: number,
+  random: Random,
+): { x: number; y: number } | null {
+  const n = Math.max(1, Math.floor(size));
+  const left = Math.floor(x) - Math.floor(n / 2);
+  const top = Math.floor(y) - Math.floor(n / 2);
+  const spots: { x: number; y: number }[] = [];
+  for (let ty = top; ty < top + n; ty++) {
+    for (let tx = left; tx < left + n; tx++) {
+      if (isWalkable(map, tx + 0.5, ty + 0.5)) spots.push({ x: tx + 0.5, y: ty + 0.5 });
+    }
+  }
+  if (spots.length === 0) return null;
+  return spots[Math.min(spots.length - 1, Math.floor(random() * spots.length))];
 }

@@ -65,6 +65,9 @@ export const OpCode = {
   BOARD_STATE: 61,
   BOARD_RESULT: 62,
   BOARD_GOTO: 63,
+  GOTO_SPAWN: 64,
+  ITEM_DISCARD: 65,
+  ITEM_DISCARD_RESULT: 66,
 } as const;
 
 export const ErrorCode = {
@@ -346,7 +349,7 @@ export interface GotoFriendMsg {
 export interface TeleportMsg {
   x: number;
   y: number;
-  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED (NOT_FRIEND does not apply to BOARD_GOTO). */
+  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED, BUSY (GOTO_SPAWN in a trade). NOT_FRIEND is only GOTO_FRIEND. */
   reason?: string;
 }
 
@@ -427,6 +430,15 @@ export interface TradeEndMsg {
 }
 
 /** S → C, op 49: answer to ITEM_LOCK. */
+/** ITEM_DISCARD_RESULT: only to the player who threw the item away. reason: BAD_REQUEST, NOT_OWNED, LOCKED, BUSY. */
+export interface ItemDiscardResultMsg {
+  ok: boolean;
+  instanceId?: string;
+  defId?: string;
+  count?: number;
+  reason?: string;
+}
+
 export interface ItemLockResultMsg {
   instanceId: string;
   locked: boolean;

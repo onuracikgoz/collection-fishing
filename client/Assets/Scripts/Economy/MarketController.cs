@@ -387,15 +387,13 @@ namespace CollectionGame.Economy
             switch (slot.Data)
             {
                 case ItemInstance it:
-                    var p = prices();
-                    var cond = p != null ? $" · {Prices.ConditionName(p.ConditionOf(it.@float))}" : "";
-                    Popup.ShowTooltip($"<b>{FishingController.ItemName(it.defId)}</b>\n{it.tier}{cond}\nFloat {it.@float:0.0000}");
+                    Popup.ShowTooltip(ItemText.Card(it, prices()));
                     break;
                 case ItemStack st:
-                    Popup.ShowTooltip($"<b>{FishingController.ItemName(st.defId)}</b>\n{st.count} adet");
+                    Popup.ShowTooltip(ItemText.Card(st));
                     break;
                 case StallEntry e:
-                    Popup.ShowTooltip($"<b>{ItemText.Entry(e)}</b>\n{Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}");
+                    Popup.ShowTooltip(new PopupView.Card { title = FishingController.ItemName(e.defId), sub = e.tier, subColour = ItemText.TierColour(e.tier), rows = new[] { ("Fiyat", $"{Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}"), ("Adet", Kit.Num(Mathf.Max(1, e.count))) } });
                     break;
             }
         }

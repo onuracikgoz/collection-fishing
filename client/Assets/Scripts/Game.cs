@@ -168,7 +168,7 @@ namespace CollectionGame
         static readonly string[] Tips =
         {
             "İpucu: Daha temiz Float'lı kopya gelirse deftere koymak sana sorulur.",
-            "İpucu: F basılı tut, bırak: olta at. Şamandıra batınca Space.",
+            "İpucu: F ya da sağ tık basılı tut, bırak: olta at. Şamandıra batınca yine F.",
             "İpucu: Çantadaki değerli eşyayı kilitle; satılmaz, takasa konmaz.",
             "İpucu: Günlük görevler gece yarısı yenilenir, sandık seriyle büyür.",
         };

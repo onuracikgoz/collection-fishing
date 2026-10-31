@@ -43,6 +43,34 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
             });
+            Shot(outDir, "hud-sohbet-buyuk", Path.Combine(drafts, "hud3.png"), canvas =>
+            {
+                var h = Spawn<HudView>(canvas, "Hud");
+                FillHud(h);
+                h.chatLogBox.sizeDelta = new Vector2(h.chatLogBox.sizeDelta.x, 300);
+            });
+            Shot(outDir, "hud-sohbet-kapali", Path.Combine(drafts, "hud3.png"), canvas =>
+            {
+                var h = Spawn<HudView>(canvas, "Hud");
+                FillHud(h);
+                h.chatLogBox.gameObject.SetActive(false);
+                h.chatOpen.gameObject.SetActive(true);
+            });
+            Shot(outDir, "baloncuk", Path.Combine(drafts, "hud3.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var prefab = Resources.Load<GameObject>("UI/Bubble");
+                string[] says = { "Bugün 2 Rare çıktı!", "Kristal setini bitirdin mi?", "1 tane kaldı, Mythic :(" };
+                var y = 0f;
+                for (var i = says.Length - 1; i >= 0; i--)
+                {
+                    var b = UnityEngine.Object.Instantiate(prefab, canvas.transform, false).GetComponent<BubbleView>();
+                    b.Set(says[i]);
+                    b.tail.SetActive(i == says.Length - 1);
+                    b.rect.anchoredPosition = new Vector2(700, 400 + y);
+                    y += b.rect.sizeDelta.y + 4;
+                }
+            });
             Shot(outDir, "canta", Path.Combine(drafts, "canta-v2.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
@@ -54,8 +82,18 @@ namespace CollectionGame.EditorTools
                 FillBag(Spawn<BagView>(canvas, "Bag"));
                 var pop = Spawn<PopupView>(canvas, "Popup");
                 pop.SendMessage("Awake", SendMessageOptions.DontRequireReceiver);
-                pop.ShowMenu("Sazan · 3 adet", new (string, Action)[] { ("Deftere koy", () => { }), ("Kilitle", () => { }), ("Takasa ekle", null), ("Sat / Parçala (NPC yanında)", null) });
+                pop.ShowMenu("Göl Levreği", "rare", CollectionGame.UI.ItemText.TierColour("rare"), new (string, Action)[] { ("Deftere koy", () => { }), ("Kilitle", () => { }), ("Takasa ekle", null), ("Çöpe at", () => { }) });
                 ((RectTransform)pop.menu).anchoredPosition = new Vector2(1100, 360);
+            });
+            Shot(outDir, "tooltip", Path.Combine(drafts, "canta-v2.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                FillBag(Spawn<BagView>(canvas, "Bag"));
+                var pop = Spawn<PopupView>(canvas, "Popup");
+                pop.SendMessage("Awake", SendMessageOptions.DontRequireReceiver);
+                var it = new CollectionGame.Net.ItemInstance { defId = "lake.fish.perch", tier = "rare", @float = 0.0821f };
+                pop.ShowTooltip(CollectionGame.UI.ItemText.Card(it, null, "Tıkla: işlemler · Sürükle: taşı", ("Kondisyon", "Excellent")));
+                ((RectTransform)pop.tooltip).anchoredPosition = new Vector2(1060, 420);
             });
             Shot(outDir, "gorev", Path.Combine(drafts, "npc-gorev.png"), canvas =>
             {
@@ -64,12 +102,12 @@ namespace CollectionGame.EditorTools
                 v.coin.text = "1.240";
                 v.diamond.text = "85";
                 v.hint.text = "Yenilenmeye 9 sa 41 dk · seri 3 gün";
-                (string, string, float, string)[] q = { ("5 balık tut", "balık", 1f, "5 / 5"), ("1 tane rare ya da üstü yakala", "balık", 0.33f, "1 / 3"), ("NPC'ye 5 şey sat", "sat", 0f, "0 / 5") };
+                (string, string, float, string)[] q = { ("5 balık tut", "catch", 1f, "5 / 5"), ("1 tane rare ya da üstü yakala", "catch_tier", 0.33f, "1 / 3"), ("NPC'ye 5 şey sat", "sell", 0f, "0 / 5") };
                 for (var i = 0; i < 3; i++)
                 {
                     var r = v.quests[i];
                     r.icon.SetEmpty();
-                    r.icon.label.text = q[i].Item2;
+                    r.icon.SetIcon(q[i].Item2);
                     r.title.text = q[i].Item1;
                     v.SetBar(r, q[i].Item3);
                     r.count.text = q[i].Item4;
@@ -77,7 +115,7 @@ namespace CollectionGame.EditorTools
                     r.state.text = i == 0 ? "Bitti" : "";
                 }
                 v.chest.icon.SetEmpty();
-                v.chest.icon.label.text = "sandık";
+                v.chest.icon.SetIcon("chest");
                 v.chest.title.text = "4. gün sandığı";
                 v.SetBar(v.chest, 0.33f);
                 v.chest.count.text = "1 / 3";
@@ -188,8 +226,7 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<ProfileView>(canvas, "Profile");
-                v.portrait.SetEmpty();
-                v.portrait.label.text = "Ece";
+                v.portrait.Show("ece-shot-id");
                 v.displayName.text = "Ece";
                 v.level.text = "Lv 12";
                 v.score.text = "2.340";
@@ -212,12 +249,8 @@ namespace CollectionGame.EditorTools
                 var v = Spawn<FriendsView>(canvas, "Friends");
                 var ink = new Color32(0x45, 0x29, 0x3f, 255);
                 var paper = new Color32(0xf2, 0xe8, 0xd0, 255);
-                for (var i = 0; i < 3; i++)
-                {
-                    v.tabs[i].GetComponent<Image>().sprite = i == 0 ? v.tabOn : v.tabOff;
-                    v.tabTexts[i].color = i == 0 ? ink : paper;
-                }
-                v.tabTexts[0].text = "Arkadaşlar 5";
+                for (var i = 0; i < 3; i++) v.tabs[i].Set(i == 0);
+                v.tabs[0].label.text = "Arkadaşlar 5";
                 v.requestCount.text = "2";
                 void Section(string t)
                 {
@@ -254,11 +287,7 @@ namespace CollectionGame.EditorTools
                 {
                     FillHud(Spawn<HudView>(canvas, "Hud"));
                     var v = Spawn<MerchantView>(canvas, "Merchant");
-                    for (var i = 0; i < 4; i++)
-                    {
-                        v.tabs[i].GetComponent<Image>().sprite = i == (sv ? 1 : 0) ? v.tabOn : v.tabOff;
-                        v.tabTexts[i].color = i == (sv ? 1 : 0) ? new Color32(0xf2, 0xe8, 0xd0, 255) : new Color32(0x45, 0x29, 0x3f, 255);
-                    }
+                    for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (sv ? 1 : 0));
                     v.coin.text = "1.240";
                     v.dust.text = "85";
                     v.shop.SetActive(false);
@@ -293,9 +322,8 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<CrafterView>(canvas, "Crafter");
-                v.tabs[0].GetComponent<Image>().sprite = v.tabOn;
-                v.tabTexts[0].color = new Color32(0xf2, 0xe8, 0xd0, 255);
-                v.tabs[1].GetComponent<Image>().sprite = v.tabOff;
+                v.tabs[0].Set(true);
+                v.tabs[1].Set(false);
                 v.dust.text = "85";
                 v.merge.SetActive(false);
                 v.noRecipe.gameObject.SetActive(false);
@@ -331,10 +359,8 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<CrafterView>(canvas, "Crafter");
-                v.tabs[1].GetComponent<Image>().sprite = v.tabOn;
-                v.tabTexts[1].color = new Color32(0xf2, 0xe8, 0xd0, 255);
-                v.tabs[0].GetComponent<Image>().sprite = v.tabOff;
-                v.tabTexts[0].color = new Color32(0x45, 0x29, 0x3f, 255);
+                v.tabs[0].Set(false);
+                v.tabs[1].Set(true);
                 v.dust.text = "85";
                 v.craft.SetActive(false);
                 v.merge.SetActive(true);
@@ -387,8 +413,8 @@ namespace CollectionGame.EditorTools
                 var feet = new Vector2(945, 896 - 455);
                 v.charge.gameObject.SetActive(true);
                 v.charge.anchoredPosition = feet + new Vector2(0, 64);
-                HudView.Fill(v.chargeFill, 0.6f);
-                v.chargeMarker.anchorMin = v.chargeMarker.anchorMax = new Vector2(0.6f, 0.5f);
+                Canvas.ForceUpdateCanvases();
+                v.SetCharge(0.55f);
                 v.hint.gameObject.SetActive(true);
                 v.hint.anchoredPosition = feet + new Vector2(110, -8);
                 v.hintText.text = "basılı tut, bırak";
@@ -489,21 +515,21 @@ namespace CollectionGame.EditorTools
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<EmoteView>(canvas, "Emote");
                 v.current.SetEmpty();
-                v.current.label.text = "Balık";
+                v.current.SetIcon("status.fish");
                 v.currentText.text = "Üstünde duruyor: Balık\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>";
                 string[] st = { "Gülümse", "Kahkaha", "Uykulu", "Balık", "Soru", "Kalp", "Müzik", "Kahve", "Yıldız", "Havalı", "Taç", "Parıltı" };
                 for (var i = 0; i < v.status.Length; i++)
                 {
                     if (i < st.Length) v.status[i].SetItem("x.a", i >= 8 ? "legendary" : "", 1, false, i == 3);
                     else v.status[i].SetEmpty();
-                    v.status[i].label.text = i < st.Length ? st[i] : "";
+                    if (i < st.Length) v.status[i].SetIcon("status." + st[i]);
                 }
                 string[] g = { "el salla", "alkış", "dans", "otur", "gül", "avı göster" };
                 for (var i = 0; i < v.gestures.Length; i++)
                 {
                     v.gestures[i].gameObject.SetActive(i < g.Length);
                     v.gestures[i].SetEmpty();
-                    if (i < g.Length) v.gestures[i].label.text = g[i];
+                    if (i < g.Length) v.gestures[i].SetIcon("gesture." + g[i]);
                 }
             });
             Shot(outDir, "oyuncu-teklif", Path.Combine(drafts, "oyuncu-teklif.png"), canvas =>
@@ -581,6 +607,13 @@ namespace CollectionGame.EditorTools
                 v.blocked.text = "Engellenenler: 2 kişi";
                 v.version.text = "v0.4 · Liman";
             });
+            Shot(outDir, "ayarlar-hesap-ortu", Path.Combine(drafts, "ayarlar-hesap.png"), canvas =>
+            {
+                FillHud(Spawn<HudView>(canvas, "Hud"));
+                var v = Spawn<SettingsView>(canvas, "Settings");
+                SettingsTabs(v, false);
+                v.accountContent.SetActive(false);
+            });
             Shot(outDir, "ayarlar-hesap", Path.Combine(drafts, "ayarlar-hesap.png"), canvas =>
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
@@ -602,7 +635,16 @@ namespace CollectionGame.EditorTools
                 var w = Spawn<WhisperView>(canvas, "Whisper");
                 w.window.title.text = "Mert";
                 w.menuRow.gameObject.SetActive(true);
-                w.log.text = "<color=#1e6f50><b>Mert:</b></color> kristal kaça?\n<b>Sen:</b> 1.900, tezgahta\n<color=#7f708a><i>Kişisel bilgi gizlendi</i></color>\n<color=#9e4539>Oyuncu çevrimiçi değil</color>";
+                void Msg(string nick, string text, bool mine, Color nc, Color tc)
+                {
+                    var l = UnityEngine.Object.Instantiate(w.lineTemplate, w.log, false);
+                    l.gameObject.SetActive(true);
+                    l.Set(nick, text, mine, nc, tc);
+                }
+                var ink = new Color32(0x45, 0x29, 0x3f, 0xff);
+                Msg("Mert", "kristal kaça?", false, new Color32(0x1e, 0x6f, 0x50, 0xff), ink);
+                Msg("Sen", "1.900, tezgahta", true, new Color32(0x9e, 0x45, 0x39, 0xff), ink);
+                Msg(null, "Kişisel bilgi gizlendi", false, Color.gray, Color.gray);
                 var w2 = Spawn<WhisperView>(canvas, "Whisper");
                 w2.window.gameObject.SetActive(false);
                 w2.strip.gameObject.SetActive(true);
@@ -660,8 +702,8 @@ namespace CollectionGame.EditorTools
         {
             var ink = new Color32(0x45, 0x29, 0x3f, 255);
             var paper = new Color32(0xf2, 0xe8, 0xd0, 255);
-            SettingsView.Tab(v.tabGeneral, general, v.tabOn, v.tabOff, paper, ink);
-            SettingsView.Tab(v.tabAccount, !general, v.tabOn, v.tabOff, paper, ink);
+            v.tabGeneral.Set(general);
+            v.tabAccount.Set(!general);
             v.general.SetActive(general);
             v.account.SetActive(!general);
         }
@@ -679,9 +721,20 @@ namespace CollectionGame.EditorTools
         {
             h.place.text = "Liman";
             h.info.text = "12 kişi görüşte";
-            h.score.text = "1.820";
+            h.dust.text = "312";
             h.coin.text = "1.240";
             h.diamond.text = "85";
+            if (h.miniMap != null)
+            {
+                Canvas.ForceUpdateCanvases();
+                var npcs = new (string, string, Vector2)[]
+                {
+                    ("merchant", "Balıkçı Tüccar", new Vector2(73.5f, 52.5f)), ("crafter", "Zanaatkar", new Vector2(70.5f, 45.5f)),
+                    ("quests", "Görevci", new Vector2(60.5f, 49.5f)), ("banker", "Bankacı", new Vector2(31.5f, 77.5f)),
+                };
+                new CollectionGame.World.MiniMap(h.miniMap, null).Tick(CollectionGame.World.LakeMap.Spawn + new Vector2(8, 0), npcs,
+                    new[] { new Vector2(75f, 47f), new Vector2(66f, 58f) }, true);
+            }
             h.level.text = "Lv 7";
             HudView.Fill(h.xpFill, 0.62f);
             h.xpText.text = "XP 1.240 / 2.000";
@@ -693,7 +746,6 @@ namespace CollectionGame.EditorTools
             h.bait.SetItem("lake.bait.worm", "", 12, false);
             h.baitText.text = "Yem";
             h.chatLog.text = "<color=#e6904e>Ece:</color> göl kenarı bugün çok kalabalık\n<color=#8fd3ff>Mert:</color> kristal setini bitirdin mi?\n<color=#f9c22b>Sistem:</color> Kaan bir Pristine Epic yakaladı!";
-            h.questsAlert.SetActive(true);
         }
 
         static void FillBag(BagView b)
@@ -712,7 +764,9 @@ namespace CollectionGame.EditorTools
 
         static void Shot(string outDir, string name, string draftPath, Action<Canvas> fill)
         {
-            const int w = (int)UiRoot.RefWidth, h = (int)UiRoot.RefHeight;
+            // -shotScale 2: the canvas at 2x (a Retina screen), where GameText snaps its sizes differently.
+            var scale = int.TryParse(Arg("-shotScale"), out var sc) && sc > 0 ? sc : 1;
+            int w = (int)UiRoot.RefWidth * scale, h = (int)UiRoot.RefHeight * scale;
             var rt = new RenderTexture(w, h, 24, RenderTextureFormat.ARGB32);
             var camGo = new GameObject("ShotCamera");
             var cam = camGo.AddComponent<Camera>();
@@ -731,7 +785,8 @@ namespace CollectionGame.EditorTools
             canvas.pixelPerfect = true;
             var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
-            scaler.scaleFactor = 1;
+            scaler.scaleFactor = scale;
+            canvas.scaleFactor = scale;
             scaler.referencePixelsPerUnit = UiRoot.PixelsPerUnit;
 
             Texture2D draft = null;
@@ -753,6 +808,8 @@ namespace CollectionGame.EditorTools
             }
 
             fill(canvas);
+            foreach (var t in canvasGo.GetComponentsInChildren<GameText>(true)) t.Apply();
+            foreach (var k in canvasGo.GetComponentsInChildren<KitIcon>(true)) k.Apply();
             Save(cam, rt, Path.Combine(outDir, name + ".png"));
             if (back != null)
             {

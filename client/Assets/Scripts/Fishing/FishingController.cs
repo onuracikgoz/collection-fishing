@@ -62,6 +62,7 @@ namespace CollectionGame.Fishing
         public bool BlocksMovement => State != Phase.Idle && State != Phase.Waiting;
 
         float charge;
+        bool chargeByMouse;
         /// <summary>Cast power 0..1 while F is held (the meter of balik-at).</summary>
         public float Charge => charge;
         bool hookedEarly;
@@ -126,12 +127,23 @@ namespace CollectionGame.Fishing
 
         // ---------- input ----------
 
-        public void Update(Vector2 me, string facing, bool chatOpen, Camera cam)
+        /// <summary>
+        /// F and the right mouse button do the same: hold to charge, let go to cast (F toward the
+        /// facing, the mouse toward the pointer), press to hook, hold to reel. Space also hooks and reels.
+        /// <paramref name="worldBlocked"/> (a window is open) stops a new cast; the hotkeys still work.
+        /// </summary>
+        /// <summary>This frame's right click opened a player's menu (WorldController): it does not cast or hook.</summary>
+        public bool RightClickTaken { get; set; }
+
+        public void Update(Vector2 me, string facing, bool chatOpen, bool worldBlocked, Camera cam)
         {
             var now = Time.time;
             var k = Keyboard.current;
             var mouse = Mouse.current;
             var typing = chatOpen || k == null;
+            var rightDown = mouse != null && mouse.rightButton.wasPressedThisFrame && !UiRoot.PointerOverUi && !RightClickTaken;
+            RightClickTaken = false;
+            var rightHeld = mouse != null && mouse.rightButton.isPressed;
 
             if (!typing && k.bKey.wasPressedThisFrame)
             {
@@ -143,24 +155,29 @@ namespace CollectionGame.Fishing
             switch (State)
             {
                 case Phase.Idle:
-                    if (typing) break;
-                    if (k.fKey.wasPressedThisFrame)
+                    if (typing || worldBlocked) break;
+                    if (k.fKey.wasPressedThisFrame || (rightDown && cam != null))
                     {
                         charge = 0f;
+                        chargeByMouse = !k.fKey.wasPressedThisFrame;
                         SetState(Phase.Charging);
-                    }
-                    else if (mouse != null && mouse.rightButton.wasPressedThisFrame && cam != null && !UiRoot.PointerOverUi)
-                    {
-                        var screen = mouse.position.ReadValue();
-                        var world = cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z));
-                        Cast(Coords.ToServer(world));
                     }
                     break;
 
                 case Phase.Charging:
                     charge = Mathf.Min(1f, charge + Time.deltaTime / ChargeSeconds);
-                    if (typing || !k.fKey.isPressed)
-                        Cast(me + DirVector(facing) * Mathf.Lerp(MinCast, MaxCast, charge));
+                    var held = chargeByMouse ? rightHeld : !typing && k.fKey.isPressed;
+                    if (!held)
+                    {
+                        var dir = DirVector(facing);
+                        if (chargeByMouse && cam != null)
+                        {
+                            var screen = mouse.position.ReadValue();
+                            var world = Coords.ToServer(cam.ScreenToWorldPoint(new Vector3(screen.x, screen.y, -cam.transform.position.z)));
+                            if ((world - me).sqrMagnitude > 0.01f) dir = (world - me).normalized;
+                        }
+                        Cast(me + dir * Mathf.Lerp(MinCast, MaxCast, charge));
+                    }
                     break;
 
                 case Phase.Casting:
@@ -188,7 +205,7 @@ namespace CollectionGame.Fishing
                 case Phase.Waiting:
                 case Phase.Bite:
                     if (typing) break;
-                    if (k.spaceKey.wasPressedThisFrame) Hook();
+                    if (k.spaceKey.wasPressedThisFrame || k.fKey.wasPressedThisFrame || rightDown) Hook();
                     else if (k.escapeKey.wasPressedThisFrame)
                     {
                         net.Send(OpCode.Cancel, new EmptyMsg());
@@ -196,7 +213,7 @@ namespace CollectionGame.Fishing
                     break;
 
                 case Phase.Reeling:
-                    StepReel(typing ? false : k.spaceKey.isPressed || (mouse != null && mouse.leftButton.isPressed));
+                    StepReel(rightHeld || (!typing && (k.spaceKey.isPressed || k.fKey.isPressed || (mouse != null && mouse.leftButton.isPressed))));
                     break;
             }
 
@@ -438,11 +455,11 @@ namespace CollectionGame.Fishing
             switch (State)
             {
                 case Phase.Idle:
-                    return LakeMap.IsNearWater(me, NearWater) ? "F basılı tut, bırak: olta at · sağ tık: suya at · Y: yem · B: çanta" : null;
+                    return LakeMap.IsNearWater(me, NearWater) ? "F ya da sağ tık basılı tut, bırak: olta at · Y: yem · B: çanta" : null;
                 case Phase.Charging: return "Bırakınca atar";
-                case Phase.Waiting: return "Bekle... kıpırdama sahte, şamandıra batınca Space · Esc: topla";
-                case Phase.Bite: return "ÇEK! (Space)";
-                case Phase.Reeling: return "Space basılı tut: yeşil çubuğu balığın üstünde tut";
+                case Phase.Waiting: return "Bekle... kıpırdama sahte, şamandıra batınca F / sağ tık · Esc: topla";
+                case Phase.Bite: return "ÇEK! (F / sağ tık)";
+                case Phase.Reeling: return "F / sağ tık basılı tut: yeşil çubuğu balığın üstünde tut";
                 default: return null;
             }
         }

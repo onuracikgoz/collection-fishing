@@ -231,6 +231,7 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 |---|---|---|---|
 | 18 | C → S | `GOTO_FRIEND` | `{ userId }` ("Yanına git", arkadaş aynı sunucudaysa) |
 | 19 | S → C | `TELEPORT` | `{ x, y, reason? }` (sadece ışınlanan oyuncu; `reason` varsa ışınlanma olmadı, `x, y` mevcut yer) |
+| 64 | C → S | `GOTO_SPAWN` | `{}` ("Başlangıca dön" butonu) |
 | 20 | C → S | `EMOTE` | `{ emote }` |
 | 21 | S → C | `EMOTE_SHOW` | `{ id, emote, defId? }` (oyuncunun kendisi ve onu görenler) |
 | 36 | C → S | `EMOTE_STATUS` | `{ emote }` (`emote`: durum emote kimliği, `null` = kaldır) |
@@ -239,6 +240,7 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 - **Arkadaşlık:** istek gönderme, kabul, silme ve engelleme Nakama'nın kendi arkadaş API'siyle yapılır (`addFriends`, `listFriends`, `deleteFriends`, `blockFriends`). İki taraf da eklediğinde arkadaşlık karşılıklı olur (Nakama durum 0). Sunucunun saydığı arkadaş sadece karşılıklı olandır.
 - **friends_status:** her arkadaş için çevrimiçi mi, hangi sunucuda (`serverName`, `matchId`) ve haritada nerede (`x, y`).
 - **Yanına git:** arkadaş aynı sunucudaysa `GOTO_FRIEND`; sunucu arkadaşın yanındaki boş bir tile'a koyar, balık tutuyorsa olta toplanır (`FISH_END cancelled`), client karakteri `TELEPORT` konumuna atar. Arkadaş başka sunucudaysa client o sunucunun maçına katılım metadata'sında `near: userId` ile girer, `WELCOME` arkadaşın yanındaki yeri verir. `reason`: `NOT_FRIEND`, `NOT_HERE` (arkadaş bu sunucuda değil), `NO_SPOT`, `RATE_LIMITED` (3 sn'de bir, Öneri).
+- **Başlangıca dön:** `GOTO_SPAWN`; sunucu haritanın `spawn` noktasını ortalayan 10x10 tile'lık alandan (Öneri, `SPAWN_TELEPORT.areaTiles`) rastgele yürünür bir tile seçer ve oyuncuyu oraya koyar (tile ortası). Balık tutuyorsa olta toplanır (`FISH_END cancelled`), cevap `TELEPORT`. Client yer seçmez. `reason`: `NO_SPOT` (alanda yürünür tile yok), `RATE_LIMITED` (30 sn'de bir, Öneri; "Yanına git" ile ortak 3 sn kuralı da geçerli), `BUSY` (takastayken).
 - **Emote (hareket):** `wave`, `clap`, `dance`, `cheer`, `sit`, `laugh`, `show_fish`. Kısa animasyondur, bitince kaybolur. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
 - **Durum emote'u** (`10-sosyal.md` 13.2.2): oyuncunun üstünde **kalıcı** balon. Aynı anda bir tane.
   - `EMOTE_STATUS { emote }`: `emote` bir durum emote kimliği ya da `null` (kaldır; Unity `JsonUtility` boş string gönderir, o da kaldır sayılır). Listede olmayan kimlik yok sayılır (hareket emote'larından ayrı liste; `laugh` gibi aynı ad iki listede olabilir, op koduyla ayrılır).
@@ -324,6 +326,20 @@ Kurallar: `docs/tasarim/07-kopya-envanter.md` 9.3.
 - Sadece **çantadaki** Float eşya kilitlenir (defter yuvası ve depo hariç). Aynı duruma tekrar istek `ok` döner. `reason`: `BAD_REQUEST`, `NOT_OWNED`.
 - Kilit eşyanın kendisinde durur: `ItemInstance.locked?: true` (`get_inventory`, takas görünümü). Kilitli eşya **satılamaz** (`SELL`), **parçalanamaz** (`SALVAGE`), `MERGE` ve `CRAFT` girdisi olamaz, takasa konamaz: bu işlemler `reason: "LOCKED"` ile reddedilir. Depoya ve deftere konabilir, kilit korunur. Önce kilit açılır.
 - Yeni eşyalar (av, craft, birleştirme, takas) kilitsiz gelir.
+
+## Eşya atma (31.10.2026, Onur)
+
+Çantadaki çöp kovası. Client "Emin misin?" diye sorar, sonra niyeti gönderir; eşyayı sunucu siler.
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 65 | C → S | `ITEM_DISCARD` | `{ instanceId }` (Float'lı tek eşya) ya da `{ defId, count }` (yığından `count` tane) |
+| 66 | S → C | `ITEM_DISCARD_RESULT` | `{ ok, instanceId?, defId?, count?, reason? }` (sadece isteyene) |
+
+- Sadece **çantadaki** eşya atılır (defter yuvası, depo, tezgah hariç). Kilitli eşya atılmaz: `LOCKED`. Takas penceresi açıkken (davet dahil) atılmaz: `BUSY`. Çantada olmayan ya da yığında yetmeyen: `NOT_OWNED`. Bozuk gövde: `BAD_REQUEST`.
+- Atılan eşya geri gelmez; karşılığında Coin ya da toz verilmez (parçalamak Tüccar'da).
+- Başarılıysa client çantayı yeniden okur (`get_inventory`).
+- Çantadaki **sıra** sunucuda tutulmaz: client'ın görünümüdür (çanta ve depoda sürükle-bırak, bu cihazda saklanır, `docs/araclar/ui-uygulama.md`).
 
 ## Pazar (Faz 5, pet tezgahı)
 

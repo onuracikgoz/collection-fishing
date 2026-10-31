@@ -17,7 +17,7 @@ namespace CollectionGame.World
     /// </summary>
     public sealed class WorldHud
     {
-        const int LogLines = 4;
+        const int KeptLines = 50;
 
         public HudView View { get; }
         public PopupView Popup { get; }
@@ -30,16 +30,28 @@ namespace CollectionGame.World
 
         readonly List<string> log = new List<string>();
         int submittedFrame = -1;
+        bool closed;
+        string baitName;
+        int unread;
 
         public WorldHud()
         {
             var ui = UiRoot.Get();
             View = ui.Spawn<HudView>("Hud");
             Popup = ui.Spawn<PopupView>("Popup");
+            HoverTip.Popup = Popup;
+            if (View != null)
+            {
+                // The bait's name on hover: the text beside the slot stays short (it ran into the chat line).
+                View.bait.Hovered = _ => Popup?.ShowTooltip(new PopupView.Card { title = baitName ?? "Yem", note = "Tıkla ya da Y: yemi değiştir" });
+                View.bait.Left = _ => Popup?.HideTooltip();
+            }
             if (View == null) return;
-            View.chatLog.transform.parent.gameObject.SetActive(false);
             View.chat.onEndEdit.AddListener(OnEndEdit);
             View.send.onClick.AddListener(() => Send(View.chat.text));
+            View.chatClose.onClick.AddListener(() => SetClosed(true));
+            View.chatOpen.onClick.AddListener(() => SetClosed(false));
+            RefreshChat();
         }
 
         public void Destroy()
@@ -90,9 +102,30 @@ namespace CollectionGame.World
         {
             if (View == null) return;
             log.Add($"<color=#{colour}>{Escape(name)}:</color> {Escape(text)}");
-            while (log.Count > LogLines) log.RemoveAt(0);
-            View.chatLog.text = string.Join("\n", log);
-            View.chatLog.transform.parent.gameObject.SetActive(true);
+            while (log.Count > KeptLines) log.RemoveAt(0);
+            if (closed) unread++;
+            RefreshChat();
+        }
+
+        /// <summary>Closes or opens the log; the chat line stays either way (31.10.2026, Onur).</summary>
+        void SetClosed(bool value)
+        {
+            closed = value;
+            if (!closed) unread = 0;
+            RefreshChat();
+        }
+
+        /// <summary>Shows the chat as it is now: log closed (small open button on the line), small or big.</summary>
+        void RefreshChat()
+        {
+            var v = View;
+            v.chatOpen.gameObject.SetActive(closed);
+            v.chatUnread.SetActive(unread > 0);
+            var showLog = !closed && log.Count > 0;
+            v.chatLogBox.gameObject.SetActive(showLog);
+            // The log shows as many lines as its dragged height holds; the box masks the rest.
+            var lines = KeptLines;
+            v.chatLog.text = string.Join("\n", log.GetRange(Mathf.Max(0, log.Count - lines), Mathf.Min(lines, log.Count)));
         }
 
         /// <summary>Players type the text: no rich-text tags of theirs get through.</summary>
@@ -100,14 +133,14 @@ namespace CollectionGame.World
 
         // ---------- per frame ----------
 
-        public void Tick(string serverName, int peopleInView, FishingController fishing, int score, bool questsReady)
+        public void Tick(string serverName, int peopleInView, FishingController fishing)
         {
             if (View == null) return;
             Set(View.place, serverName ?? "");
             Set(View.info, $"{peopleInView} kişi görüşte");
-            Set(View.score, Kit.Num(score));
             Set(View.coin, Kit.Num(fishing.Bag?.coin ?? 0));
             Set(View.diamond, Kit.Num(fishing.Bag?.diamond ?? 0));
+            Set(View.dust, Kit.Num(fishing.Bag?.dust ?? 0));
 
             Set(View.level, $"Lv {Mathf.Max(1, fishing.Level)}");
             var top = fishing.XpNext <= 0;
@@ -123,7 +156,7 @@ namespace CollectionGame.World
             var low = fishing.RodBroken || share < 0.25f;
             var sprite = low ? View.rodLow : View.rodGood;
             if (View.rodFillImage.sprite != sprite) View.rodFillImage.sprite = sprite;
-            Set(View.rodText, fishing.RodBroken ? "Olta KIRIK (E: tamir)" : $"Olta %{Mathf.RoundToInt(share * 100)}");
+            Set(View.rodText, fishing.RodBroken ? "Olta KIRIK (Tüccar: tamir)" : $"Olta %{Mathf.RoundToInt(share * 100)}");
             var rodColour = low ? new Color(0.91f, 0.23f, 0.23f) : new Color(0.95f, 0.91f, 0.82f);
             if (View.rodText.color != rodColour) View.rodText.color = rodColour;
 
@@ -132,7 +165,8 @@ namespace CollectionGame.World
             {
                 if (View.bait.Data as string != "") View.bait.SetEmpty();
                 View.bait.Data = "";
-                Set(View.baitText, "Yem: temel\n(Y)");
+                Set(View.baitText, "Yem\n(Y)");
+                baitName = "Temel yem";
             }
             else
             {
@@ -141,9 +175,9 @@ namespace CollectionGame.World
                 if (View.bait.Data as string != key) View.bait.SetItem(bait, "", Mathf.Max(n, 2), false);
                 View.bait.count.text = n.ToString();
                 View.bait.Data = key;
-                Set(View.baitText, $"Yem\n{FishingController.ItemName(bait)}");
+                Set(View.baitText, "Yem\n(Y)");
+                baitName = $"{FishingController.ItemName(bait)} · {n} adet";
             }
-            if (View.questsAlert.activeSelf != questsReady) View.questsAlert.SetActive(questsReady);
         }
 
         static void Set(Text t, string s)

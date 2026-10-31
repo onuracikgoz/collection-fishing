@@ -25,9 +25,8 @@ namespace CollectionGame.UI.Views
         }
 
         public WindowView window;
-        public Button[] tabs;
-        public Text[] tabTexts;
-        public Sprite tabOn, tabOff, cardOn, cardOff;
+        public TabButton[] tabs;
+        public Sprite cardOn, cardOff;
         public Text dust;
 
         [Header("Craft")]
