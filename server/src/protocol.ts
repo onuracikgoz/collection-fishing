@@ -65,6 +65,7 @@ export const OpCode = {
   BOARD_STATE: 61,
   BOARD_RESULT: 62,
   BOARD_GOTO: 63,
+  GOTO_SPAWN: 64,
 } as const;
 
 export const ErrorCode = {
@@ -346,7 +347,7 @@ export interface GotoFriendMsg {
 export interface TeleportMsg {
   x: number;
   y: number;
-  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED (NOT_FRIEND does not apply to BOARD_GOTO). */
+  /** Set when the move was refused: NOT_FRIEND, NOT_HERE, NO_SPOT, RATE_LIMITED, BUSY (GOTO_SPAWN in a trade). NOT_FRIEND is only GOTO_FRIEND. */
   reason?: string;
 }
 

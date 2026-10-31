@@ -78,6 +78,7 @@ namespace CollectionGame.Net
         public const long BoardState = 61;
         public const long BoardResult = 62;
         public const long BoardGoto = 63;
+        public const long GotoSpawn = 64;
     }
 
     public static class ErrorCode
