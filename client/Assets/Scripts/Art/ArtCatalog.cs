@@ -7,7 +7,8 @@ namespace CollectionGame.Art
     /// <summary>
     /// Every texture under Assets/Art/LPC/, by path relative to that folder
     /// (e.g. "Terrain/terrain_summer.png"), and the UI kit under Assets/Art/UI/
-    /// as "ui/&lt;name&gt;" (e.g. "ui/window"). The editor keeps
+    /// as "ui/&lt;name&gt;" (e.g. "ui/window"), and our own drawings under Assets/Art/Custom/
+    /// as "custom/&lt;path&gt;" (e.g. "custom/Windmill/windmill_tower.png"). The editor keeps
     /// Assets/Resources/ArtCatalog.asset up to date (ArtCatalogBuilder), so
     /// runtime code can build sprites and tiles without scene references.
     /// </summary>
@@ -18,6 +19,9 @@ namespace CollectionGame.Art
         public const string UiRoot = "Assets/Art/UI/";
         /// <summary>Catalog path prefix of the UI kit; LPC folders are capitalised, so it never clashes.</summary>
         public const string UiPrefix = "ui/";
+        /// <summary>Our own art (not LPC), e.g. the windmill drawn by tools/pixel-art/windmill.py.</summary>
+        public const string CustomRoot = "Assets/Art/Custom/";
+        public const string CustomPrefix = "custom/";
 
         [Serializable]
         public struct Entry
@@ -43,7 +47,10 @@ namespace CollectionGame.Art
         /// <summary>A UI kit texture by file name without ".png" (Assets/Art/UI/), or null.</summary>
         public static Texture2D Ui(string name) => Find(UiPrefix + name, UiRoot + name + ".png", false);
 
-        public static Texture2D Texture(string path) => Find(path, Root + path, true);
+        public static Texture2D Texture(string path) =>
+            path.StartsWith(CustomPrefix)
+                ? Find(path, CustomRoot + path.Substring(CustomPrefix.Length), true)
+                : Find(path, Root + path, true);
 
         static Texture2D Find(string path, string assetPath, bool complain)
         {
