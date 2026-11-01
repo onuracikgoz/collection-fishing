@@ -142,7 +142,9 @@ namespace CollectionGame.UI
             var e = new Entry();
             var tex = src.texture;
             if (tex == null || !tex.isReadable) return e; // plain picture
-            var r = src.textureRect;
+            // the sprite's full rect, not textureRect: a runtime sprite's textureRect can be cut to the
+            // opaque pixels, and a painted copy of only that part stretched (fat) in a square slot
+            var r = src.rect;
             int x0 = Mathf.RoundToInt(r.x), y0 = Mathf.RoundToInt(r.y), w = Mathf.RoundToInt(r.width), h = Mathf.RoundToInt(r.height);
             if (w <= 0 || h <= 0) return e;
             var px = tex.GetPixels(x0, y0, w, h);
@@ -283,7 +285,7 @@ namespace CollectionGame.UI
             tex.SetPixels(px);
             tex.Apply(false, true); // the GPU copy is enough, keep no CPU copy
             var pivot = new Vector2(src.pivot.x / w, src.pivot.y / h);
-            var s = Sprite.Create(tex, new Rect(0, 0, w, h), pivot, src.pixelsPerUnit);
+            var s = Sprite.Create(tex, new Rect(0, 0, w, h), pivot, src.pixelsPerUnit, 0, SpriteMeshType.FullRect);
             s.name = src.name + " float";
             return s;
         }
