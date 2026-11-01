@@ -57,7 +57,7 @@ namespace CollectionGame.Economy
             stateAt = Time.time;
             dirty = true;
             shownSecond = -1;
-            if (m.complete && !m.claimed && !wasComplete) Toasts.Show("Günlük görevler bitti: sandığın Görevci'de hazır");
+            if (m.complete && !m.claimed && !wasComplete) Toasts.Show(Loc.T("quest.all_done"));
         }
 
         public void OnClaimResult(QuestClaimResultMsg r)
@@ -68,16 +68,13 @@ namespace CollectionGame.Economy
             Debug.Log($"[Quest] CLAIM ok {r.ok} {r.reason} day {r.chestDay}");
             if (!r.ok)
             {
-                Toasts.Show(r.reason == "NOT_DONE" ? "Önce bütün görevleri bitir"
-                    : r.reason == "ALREADY_CLAIMED" ? "Bugünün sandığını zaten aldın"
-                    : r.reason == "BAG_FULL" ? "Çantada yer yok: yer açıp tekrar dene"
-                    : $"Sandık açılamadı ({r.reason})", true);
+                Toasts.Show(Loc.Reason("quest", r.reason), true);
                 return;
             }
             var parts = new List<string>();
             foreach (var w in r.rewards ?? Array.Empty<QuestReward>())
-                parts.Add(w.kind == "coin" ? $"{Kit.Num(w.count)} Coin" : w.kind == "dust" ? $"{w.count} toz" : $"{FishingController.ItemName(w.defId)} x{w.count}");
-            Toasts.Money($"{r.chestDay}. gün sandığı açıldı", string.Join(", ", parts));
+                parts.Add(w.kind == "coin" ? $"{Kit.Num(w.count)} Coin" : w.kind == "dust" ? Loc.T("common.dust_amount", ("amount", w.count)) : $"{FishingController.ItemName(w.defId)} x{w.count}");
+            Toasts.Money(Loc.T("quest.chest_opened", ("day", r.chestDay)), string.Join(", ", parts));
             if (fishing.Bag != null)
             {
                 fishing.Bag.coin = r.coin;
@@ -91,16 +88,16 @@ namespace CollectionGame.Economy
         {
             switch (q.@event)
             {
-                case "catch": return $"{q.target} balık tut";
+                case "catch": return Loc.T("quest.desc.catch", ("count", q.target));
                 case "catch_tier":
                     var parts = (q.id ?? "").Split('_');
                     var tier = parts.Length >= 3 ? parts[1] : "";
-                    return Tiers.Rank(tier) >= 0 ? $"{q.target} tane {tier} ya da üstü yakala" : $"{q.target} değerli av yakala";
-                case "sell": return $"NPC'ye {q.target} şey sat";
-                case "craft": return $"{q.target} kez craft yap";
-                case "merge": return $"{q.target} kez birleştir";
-                case "trade": return $"{q.target} takas tamamla";
-                case "emote": return $"{q.target} emote yap";
+                    return Tiers.Rank(tier) >= 0 ? Loc.T("quest.desc.catch_tier", ("count", q.target), ("tier", tier)) : Loc.T("quest.desc.catch_valuable", ("count", q.target));
+                case "sell": return Loc.T("quest.desc.sell", ("count", q.target));
+                case "craft": return Loc.T("quest.desc.craft", ("count", q.target));
+                case "merge": return Loc.T("quest.desc.merge", ("count", q.target));
+                case "trade": return Loc.T("quest.desc.trade", ("count", q.target));
+                case "emote": return Loc.T("quest.desc.emote", ("count", q.target));
                 default: return q.id;
             }
         }
@@ -133,6 +130,8 @@ namespace CollectionGame.Economy
         }
 
         /// <summary>Call every frame: follows Open and redraws after a change.</summary>
+        int locVersion;
+
         public void Tick()
         {
             var v = View;
@@ -143,6 +142,11 @@ namespace CollectionGame.Economy
                 dirty = true;
             }
             if (!Open) return;
+            if (locVersion != Loc.Version)
+            {
+                locVersion = Loc.Version; // language changed: redraw the texts
+                dirty = true;
+            }
             if (dirty) Redraw(v);
             var s = State;
             if (s == null) return;
@@ -150,7 +154,7 @@ namespace CollectionGame.Economy
             var sec = (int)left;
             if (sec / 60 == shownSecond / 60 && shownSecond >= 0) return;
             shownSecond = sec;
-            v.hint.text = $"Yenilenmeye {sec / 3600} sa {sec % 3600 / 60} dk · seri {s.streak} gün";
+            v.hint.text = Loc.T("quest.reset_in", ("hours", sec / 3600), ("minutes", sec % 3600 / 60), ("streak", s.streak));
         }
 
         /// <summary>A short word on the quest icon until quest icons exist.</summary>
@@ -175,27 +179,27 @@ namespace CollectionGame.Economy
                 row.title.text = Describe(q);
                 v.SetBar(row, q.target > 0 ? Mathf.Clamp01((float)q.progress / q.target) : 0f);
                 row.count.text = $"{q.progress} / {q.target}";
-                row.reward.text = "Ödül: günün sandığına sayılır";
-                row.state.text = done ? "Bitti" : "";
+                row.reward.text = Loc.T("quest.reward");
+                row.state.text = done ? Loc.T("quest.done") : "";
             }
             if (s == null)
             {
-                v.header.text = "Görevler yükleniyor...";
+                v.header.text = Loc.T("quest.loading");
                 v.chest.root.SetActive(false);
                 return;
             }
-            v.header.text = "Bugünün görevleri";
+            v.header.text = Loc.T("quest.today");
             v.chest.root.SetActive(true);
             v.chest.icon.SetEmpty();
             v.chest.icon.SetIcon("chest");
             var doneCount = quests.Count(q => q.progress >= q.target);
-            v.chest.title.text = $"{s.chestDay}. gün sandığı";
+            v.chest.title.text = Loc.T("quest.chest_title", ("day", s.chestDay));
             v.SetBar(v.chest, quests.Length > 0 ? (float)doneCount / quests.Length : 0f);
             v.chest.count.text = $"{doneCount} / {quests.Length}";
-            v.chest.reward.text = "10. gün sandığı en iyisidir";
+            v.chest.reward.text = Loc.T("quest.chest_best");
             v.chest.state.text = "";
             v.chest.button.interactable = s.complete && !s.claimed && !ClaimPending;
-            v.chest.buttonText.text = s.claimed ? "Alındı" : "Sandığı aç";
+            v.chest.buttonText.text = Loc.T(s.claimed ? "quest.claimed" : "quest.open_chest");
         }
     }
 }

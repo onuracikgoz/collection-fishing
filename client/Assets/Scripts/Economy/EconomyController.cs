@@ -127,7 +127,7 @@ namespace CollectionGame.Economy
             }
             catch (Exception ex)
             {
-                ShowNote("Fiyat listesi alınamadı", true);
+                ShowNote(Loc.T("economy.catalog_failed"), true);
                 Debug.LogWarning($"[Economy] get_catalog failed: {ex.Message}");
             }
             loadingCatalog = false;
@@ -153,8 +153,8 @@ namespace CollectionGame.Economy
                 ShowNote(Reason(r.reason), true);
                 return;
             }
-            if (r.action == "sell") Toasts.Money($"Sattın: +{r.gained} Coin");
-            else Toasts.Money($"Parçaladın: +{r.gained} toz");
+            if (r.action == "sell") Toasts.Money(Loc.T("economy.sold", ("amount", r.gained)));
+            else Toasts.Money(Loc.T("economy.salvaged", ("amount", r.gained)));
             sellItems.Clear();
             sellStacks.Clear();
             fishing.RefreshBag();
@@ -175,14 +175,15 @@ namespace CollectionGame.Economy
             if (hasItem)
             {
                 var cond = Prices != null ? Prices.ConditionOf(r.item.@float) : "";
-                ShowNote($"{(r.action == "merge" ? "Birleştirdin" : "Yaptın")}: {FishingController.ItemName(r.item.defId)} ({r.item.tier}, {Prices.ConditionName(cond)}, Float {r.item.@float:0.0000})", false);
+                ShowNote(Loc.T(r.action == "merge" ? "economy.merged_item" : "economy.crafted_item", ("item", FishingController.ItemName(r.item.defId)), ("tier", r.item.tier),
+                    ("condition", Prices.ConditionName(cond)), ("float", r.item.@float.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture))), false);
                 // The book banners and "Defterdekiyle değiştir?" work off FISH_END's shape.
                 if (r.book != null && !string.IsNullOrEmpty(r.book.page))
                     Crafted?.Invoke(new FishEndMsg { id = net.UserId, outcome = FishOutcome.Caught, defId = r.item.defId, item = r.item, book = r.book });
             }
             else if (r.stack != null && !string.IsNullOrEmpty(r.stack.defId))
             {
-                ShowNote($"Yaptın: {FishingController.ItemName(r.stack.defId)} (çantada {r.stack.count})", false);
+                ShowNote(Loc.T("economy.crafted_stack", ("item", FishingController.ItemName(r.stack.defId)), ("count", r.stack.count)), false);
             }
             if (r.action == "merge") mergeItems.Clear();
             else craftItems.Clear();
@@ -203,12 +204,12 @@ namespace CollectionGame.Economy
             if (r.action == "repair")
             {
                 fishing.SetRod(r.rod);
-                ShowNote($"Olta tamir edildi: {r.rod?.durability}/{r.rod?.max} (-{r.spent} Coin)", false);
+                ShowNote(Loc.T("economy.repaired", ("durability", r.rod?.durability), ("max", r.rod?.max), ("spent", r.spent)), false);
             }
             else
             {
                 if (r.stack != null) fishing.SetStack(r.stack.defId, r.stack.count);
-                ShowNote($"Aldın: {FishingController.ItemName(r.stack?.defId)} (çantada {r.stack?.count}, -{r.spent} Coin)", false);
+                ShowNote(Loc.T("economy.bought", ("item", FishingController.ItemName(r.stack?.defId)), ("count", r.stack?.count), ("spent", r.spent)), false);
                 fishing.RefreshBag(); // slot count
             }
         }
@@ -228,20 +229,20 @@ namespace CollectionGame.Economy
             switch (r.action)
             {
                 case "put":
-                    ShowNote("Depoya kondu", false);
+                    ShowNote(Loc.T("economy.stash_put"), false);
                     putItems.Clear();
                     putStacks.Clear();
                     fishing.RefreshBag();
                     break;
                 case "take":
-                    ShowNote("Çantaya alındı", false);
+                    ShowNote(Loc.T("economy.stash_take"), false);
                     takeItems.Clear();
                     takeStacks.Clear();
                     fishing.RefreshBag();
                     break;
                 case "expand":
                     if (fishing.Bag != null) fishing.Bag.coin = r.coin;
-                    ShowNote($"Depo büyüdü: {Stash?.slotsMax} kutu", false);
+                    ShowNote(Loc.T("economy.stash_expanded", ("slots", Stash?.slotsMax)), false);
                     break;
             }
         }
@@ -290,29 +291,8 @@ namespace CollectionGame.Economy
             }
         }
 
-        static string Reason(string reason)
-        {
-            switch (reason)
-            {
-                case "BAD_REQUEST": return "İstek geçersiz";
-                case "TOO_MANY": return "Bir seferde en fazla 40 satır";
-                case "NOT_OWNED": return "Eşya çantanda (veya depoda) değil";
-                case "NOT_ENOUGH": return "O kadar yok";
-                case "CANNOT_SALVAGE": return "Bu parçalanmaz";
-                case "NOT_SAME_ITEM": return "Birleştirme için aynı eşyadan 3 kopya gerekir";
-                case "NO_RECIPE": return "Bu recipe çantanda yok";
-                case "MISSING_INPUTS": return "Malzemeler eksik";
-                case "NOT_ENOUGH_DUST": return "Toz yetmiyor";
-                case "BAG_FULL": return "Çanta dolu";
-                case "NOT_NEEDED": return "Olta zaten sağlam";
-                case "NOT_ENOUGH_COIN": return "Coin yetmiyor";
-                case "NOT_AT_BANK": return "Depo sadece Banka'da açılır";
-                case "STASH_FULL": return "Depo dolu";
-                case "MAX_LEVEL": return "Depo en büyük boyutta";
-                case "RATE_LIMITED": return "Biraz bekle";
-                default: return $"Olmadı ({reason})";
-            }
-        }
+        /// <summary>Server reason codes: keys economy.err.CODE (Locales/*.json).</summary>
+        static string Reason(string reason) => Loc.Reason("economy", reason);
 
         void ShowNote(string text, bool bad) => Toasts.Show(text, bad);
 
@@ -324,7 +304,7 @@ namespace CollectionGame.Economy
             var bank = Prices?.Catalog.stash;
             if (cam == null || bank == null || bank.range <= 0) return;
             var at = Gui.ToGui(cam.WorldToScreenPoint(Coords.ToUnity(new Vector2(bank.x, bank.y))));
-            const string label = "Banka (Depo)";
+            var label = Loc.T("economy.bank_label");
             var size = Gui.Name.CalcSize(new GUIContent(label)) + new Vector2(6f, 4f);
             var r = new Rect(at.x - size.x / 2f, at.y - size.y, size.x, size.y);
             GUI.Label(new Rect(r.x + 1, r.y + 1, r.width, r.height), label, Gui.Shadow);
@@ -386,9 +366,16 @@ namespace CollectionGame.Economy
             return merchant != null && crafter != null && bank != null;
         }
 
+        int locVersion;
+
         public void Tick()
         {
             if (!Ensure()) return;
+            if (locVersion != Loc.Version)
+            {
+                locVersion = Loc.Version; // language changed: redraw the texts
+                dirty = true;
+            }
             if (Open && Current == Tab.Stash && !NearBank && Prices != null)
             {
                 // Walked away from the bank.
@@ -431,8 +418,8 @@ namespace CollectionGame.Economy
             {
                 case ItemInstance it:
                     Popup.ShowTooltip(Current == Tab.Salvage
-                        ? ItemText.Card(it, Prices, "Parçalamak Float'ı etkilemez", ("Toz", Kit.Num(Prices.DustOf(it))))
-                        : ItemText.Card(it, Prices, null, ("Fiyat", $"{Kit.Num(Prices.SellPrice(it))} Coin")));
+                        ? ItemText.Card(it, Prices, Loc.T("economy.salvage_note"), (Loc.T("common.dust"), Kit.Num(Prices.DustOf(it))))
+                        : ItemText.Card(it, Prices, null, (Loc.T("common.price"), Loc.T("common.coin_amount", ("amount", Kit.Num(Prices.SellPrice(it)))))));
                     break;
                 case ItemStack st:
                     Popup.ShowTooltip(ItemText.Card(st));
@@ -687,7 +674,7 @@ namespace CollectionGame.Economy
             FillGrid(v.bag, merchantSlots, Entries(BagItems, BagStacks), 40, 8, ToggleBasket,
                 e => e is ItemInstance it ? sellItems.Contains(it.instanceId) : e is ItemStack st && sellStacks.ContainsKey(st.defId));
             var basket = Basket();
-            v.basketTitle.text = $"Sepet · {basket.Count} kalem";
+            v.basketTitle.text = Loc.T("economy.basket_title", ("count", basket.Count));
             for (var i = 0; i < v.lines.Length; i++)
             {
                 var line = v.lines[i];
@@ -708,23 +695,23 @@ namespace CollectionGame.Economy
                 line.value.text = value > 0 ? Kit.Num(value) : "—";
                 line.valueIcon.color = salvage ? DustBlue : Gold;
             }
-            v.more.text = basket.Count > v.lines.Length ? $"+{basket.Count - v.lines.Length} kalem daha" : "";
+            v.more.text = basket.Count > v.lines.Length ? Loc.T("economy.basket_more", ("count", basket.Count - v.lines.Length)) : "";
             var total = basket.Sum(e => ValueOf(e, salvage));
             v.totalValue.text = Kit.Num(total);
             v.totalIcon.color = salvage ? DustBlue : Gold;
             var canAll = basket.Count > 0 && basket.All(e => ValueOf(e, salvage) > 0);
             var max = Prices.Catalog.maxEntries > 0 ? Prices.Catalog.maxEntries : 40;
-            v.note.text = basket.Count == 0 ? "Çantadan tıkla, sepete ekle. Sepetteki satıra tıkla, çıkar."
-                : basket.Count > max ? $"Bir seferde en fazla {max} kalem"
-                : !canAll ? (salvage ? "Sepette parçalanmayan eşya var" : "Sepette satılmayan eşya var")
-                : salvage ? "Toz takas edilmez, craft için." : "Çöp ve sıradan balık da burada.";
+            v.note.text = basket.Count == 0 ? Loc.T("economy.basket_hint")
+                : basket.Count > max ? Loc.T("economy.basket_max", ("max", max))
+                : !canAll ? Loc.T(salvage ? "economy.basket_cannot_salvage" : "economy.basket_cannot_sell")
+                : Loc.T(salvage ? "economy.salvage_footer" : "economy.sell_footer");
             v.sellButton.gameObject.SetActive(!salvage);
             v.salvageButton.gameObject.SetActive(salvage);
             var enabled = !Pending && canAll && basket.Count <= max;
             v.sellButton.interactable = v.salvageButton.interactable = enabled;
-            v.sellText.text = Armed(OpCode.Sell) ? "Emin misin? Tekrar bas" : "Sat";
-            v.salvageText.text = Armed(OpCode.Salvage) ? "Emin misin? Tekrar bas" : "Parçala";
-            v.bagHint.text = "tıkla: sepete ekle";
+            v.sellText.text = Loc.T(Armed(OpCode.Sell) ? "common.are_you_sure" : "economy.sell");
+            v.salvageText.text = Loc.T(Armed(OpCode.Salvage) ? "common.are_you_sure" : "economy.salvage");
+            v.bagHint.text = Loc.T("economy.bag_hint");
         }
 
         void RedrawShop(MerchantView v)
@@ -732,17 +719,17 @@ namespace CollectionGame.Economy
             var rod = fishing.Rod;
             if (rod == null || rod.max <= 0)
             {
-                v.rodText.text = "Olta bilgisi yok";
+                v.rodText.text = Loc.T("economy.rod_unknown");
                 HudView.Fill(v.rodFill, 0f);
                 v.repair.interactable = false;
             }
             else
             {
-                v.rodText.text = $"Seviye {rod.level} · Dayanıklılık {rod.durability}/{rod.max}{(fishing.RodBroken ? " · KIRIK" : "")}";
+                v.rodText.text = Loc.T("economy.rod_status", ("level", rod.level), ("durability", rod.durability), ("max", rod.max)) + (fishing.RodBroken ? Loc.T("economy.rod_broken") : "");
                 HudView.Fill(v.rodFill, (float)rod.durability / rod.max);
                 var cost = Prices.RepairCost(rod);
                 v.repair.interactable = !Pending && cost > 0 && Coin > 0;
-                v.repairText.text = cost == 0 ? "Tamire gerek yok" : $"Tamir et ({Kit.Num(Math.Min(cost, Coin))} Coin)";
+                v.repairText.text = cost == 0 ? Loc.T("economy.no_repair") : Loc.T("economy.repair", ("amount", Kit.Num(Math.Min(cost, Coin))));
             }
             for (var i = 0; i < v.baits.Length; i++)
             {
@@ -753,12 +740,12 @@ namespace CollectionGame.Economy
                 var n = BuyCount(b);
                 row.icon.SetItem(b.defId, "", fishing.StackCount(b.defId), false);
                 row.name.text = FishingController.ItemName(b.defId);
-                row.info.text = $"{b.price} Coin · çantada {fishing.StackCount(b.defId)}";
+                row.info.text = Loc.T("economy.bait_info", ("price", b.price), ("count", fishing.StackCount(b.defId)));
                 row.count.text = n.ToString();
                 row.buy.interactable = !Pending && Coin >= (long)n * b.price;
-                row.buyText.text = $"Al ({Kit.Num((long)n * b.price)})";
+                row.buyText.text = Loc.T("economy.buy", ("amount", Kit.Num((long)n * b.price)));
                 row.use.interactable = fishing.StackCount(b.defId) > 0;
-                row.useText.text = fishing.SelectedBait == b.defId ? "Kullanılıyor" : "Kullan";
+                row.useText.text = Loc.T(fishing.SelectedBait == b.defId ? "economy.bait_in_use" : "economy.bait_use");
             }
         }
 
@@ -840,7 +827,7 @@ namespace CollectionGame.Economy
             if (recipe == null) return;
             v.recipeName.text = recipe.output.count > 0 ? $"{OutputName(recipe)} × {recipe.output.count}" : OutputName(recipe);
             var gradeNote = Prices.GradeNote(recipe.grade);
-            v.recipeSub.text = $"{Prices.GradeName(recipe.grade)} recipe · bir kez harcanır{(gradeNote.Length > 0 ? $" · {gradeNote}" : "")}";
+            v.recipeSub.text = Loc.T("craft.recipe_sub", ("grade", Prices.GradeName(recipe.grade))) + (gradeNote.Length > 0 ? $" · {gradeNote}" : "");
             var ready = true;
             var missing = new List<string>();
             var picked = new List<ItemInstance>();
@@ -873,12 +860,12 @@ namespace CollectionGame.Economy
                 n.have.text = e.text;
                 n.have.color = e.ok ? Good : Bad;
             }
-            v.recipeDust.text = $"Toz {recipe.dust}   <color=#7f708a>({Kit.Num(Dust)} var)</color>";
+            v.recipeDust.text = Loc.T("craft.dust_line", ("dust", recipe.dust), ("have", Kit.Num(Dust)));
             v.recipeDust.supportRichText = true;
             if (Dust < recipe.dust)
             {
                 ready = false;
-                missing.Add("toz");
+                missing.Add(Loc.T("craft.missing_dust"));
             }
             if (recipe.output.count == 0)
             {
@@ -891,9 +878,9 @@ namespace CollectionGame.Economy
                 v.quality.text = "";
                 HudView.Fill(v.qualityFill, 0f);
             }
-            v.missing.text = missing.Count > 0 ? $"Eksik: {string.Join(", ", missing)}" : "";
+            v.missing.text = missing.Count > 0 ? Loc.T("craft.missing", ("list", string.Join(", ", missing))) : "";
             v.craftButton.interactable = !Pending && ready;
-            v.craftText.text = "Craft yap";
+            v.craftText.text = Loc.T("craft.craft");
         }
 
         void PickForMerge(SlotView s)
@@ -928,11 +915,11 @@ namespace CollectionGame.Economy
             }
             v.result.SetEmpty();
             v.result.label.text = "?";
-            v.resultName.text = mergeDefId != null ? $"yeni {FishingController.ItemName(mergeDefId)}" : "";
+            v.resultName.text = mergeDefId != null ? Loc.T("merge.result", ("item", FishingController.ItemName(mergeDefId))) : "";
             var tier = picked.FirstOrDefault()?.tier;
             var cost = tier != null ? Prices.MergeDust(tier) : 0;
-            v.mergeDust.text = tier == null ? "Çantadan aynı eşyanın kopyalarına tıkla"
-                : $"Toz {cost}   <color=#7f708a>({tier} · {Kit.Num(Dust)} var) · Coin ücreti yok</color>";
+            v.mergeDust.text = tier == null ? Loc.T("merge.hint")
+                : Loc.T("merge.dust_line", ("dust", cost), ("tier", tier), ("have", Kit.Num(Dust)));
             if (picked.Count > 0)
             {
                 var worst = picked.Max(i => i.@float);
@@ -945,7 +932,7 @@ namespace CollectionGame.Economy
                 HudView.Fill(v.mergeFill, 0f);
             }
             v.mergeButton.interactable = !Pending && picked.Count == need && Dust >= cost;
-            v.mergeNote.text = $"Seçili {picked.Count} / {need} · her birleştirme {need - 1} eşyayı oyundan siler.";
+            v.mergeNote.text = Loc.T("merge.note", ("picked", picked.Count), ("need", need), ("lost", need - 1));
         }
 
         // ----- Banka -----
@@ -979,17 +966,17 @@ namespace CollectionGame.Economy
                     stashRequested = true;
                     Send(OpCode.StashOpen, new EmptyMsg());
                 }
-                v.stashCount.text = "açılıyor...";
+                v.stashCount.text = Loc.T("bank.opening");
                 dirty = true;
                 return;
             }
-            v.stashCount.text = $"{Stash.slotsUsed} / {Stash.slotsMax} yuva";
+            v.stashCount.text = Loc.T("bank.slots", ("used", Stash.slotsUsed), ("max", Stash.slotsMax));
             FillGrid(v.stash, stashSlots, Entries(Stash.items ?? Array.Empty<ItemInstance>(), Stash.stacks ?? Array.Empty<ItemStack>()), Stash.slotsMax, 10,
                 s => MoveOne(s, OpCode.StashTake), null, SlotOrder.For(net.UserId, "stash"), s => MoveOne(s, OpCode.StashTake));
             FillGrid(v.bag, bankBagSlots, Entries(BagItems, BagStacks), fishing.Bag.slotsMax, 8,
                 s => MoveOne(s, OpCode.StashPut), null, SlotOrder.For(net.UserId, "bag"), s => MoveOne(s, OpCode.StashPut));
             var tier = Prices.NextStashTier(Stash.level);
-            v.expandSlots.text = tier != null ? $"+{tier.slots - Stash.slotsMax} yuva" : "En büyük depo";
+            v.expandSlots.text = tier != null ? Loc.T("bank.expand_slots", ("count", tier.slots - Stash.slotsMax)) : Loc.T("bank.max");
             v.expandPrice.text = tier != null ? Kit.Num(tier.price) : "";
             v.expandButton.interactable = !Pending && tier != null && Coin >= tier.price;
         }

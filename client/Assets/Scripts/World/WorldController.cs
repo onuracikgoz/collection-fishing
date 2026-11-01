@@ -79,7 +79,7 @@ namespace CollectionGame.World
                     world.social.FriendsOpen = true;
                     world.social.Refresh();
                 },
-                Logout = () => onDisconnected?.Invoke("Çıkış yaptın"),
+                Logout = () => onDisconnected?.Invoke(Loc.T("world.logged_out")),
             };
             world.collection.OfferTrade = world.trade.Offer;
             world.collection.Whisper = (id, name) => world.whispers.OpenWith(id, name);
@@ -176,7 +176,7 @@ namespace CollectionGame.World
             WorldHud.On(v.repair, () =>
             {
                 if (mover == null || !npcs.TalkIfNear("merchant", mover.Position, () => economy.Show(EconomyController.Tab.Shop)))
-                    Toasts.Show("Olta tamiri Balıkçı Tüccar'da: yanına git", true);
+                    Toasts.Show(Loc.T("world.repair_at_merchant"), true);
             });
             v.bait.Clicked = _ => fishing.CycleBait();
         }
@@ -536,23 +536,23 @@ namespace CollectionGame.World
                     break;
                 case FriendRequestCode:
                 {
-                    var who = JsonUtility.FromJson<FriendNotice>(string.IsNullOrEmpty(n.Json) ? "{}" : n.Json)?.username ?? "Bir oyuncu";
+                    var who = JsonUtility.FromJson<FriendNotice>(string.IsNullOrEmpty(n.Json) ? "{}" : n.Json)?.username ?? Loc.T("world.someone");
                     var id = n.SenderId;
-                    Toasts.Notify($"{who} arkadaş istedi", null, Toasts.Kind.Info, "Kabul", () => social.AddFriend(id, who));
+                    Toasts.Notify(Loc.T("world.friend_request", ("name", who)), null, Toasts.Kind.Info, Loc.T("world.accept"), () => social.AddFriend(id, who));
                     if (social.FriendsOpen) social.Refresh();
                     break;
                 }
                 case FriendAcceptedCode:
                 {
-                    var who = JsonUtility.FromJson<FriendNotice>(string.IsNullOrEmpty(n.Json) ? "{}" : n.Json)?.username ?? "Bir oyuncu";
-                    Toasts.Show($"{who} arkadaşlığını kabul etti");
+                    var who = JsonUtility.FromJson<FriendNotice>(string.IsNullOrEmpty(n.Json) ? "{}" : n.Json)?.username ?? Loc.T("world.someone");
+                    Toasts.Show(Loc.T("world.friend_accepted", ("name", who)));
                     break;
                 }
                 case NotifyCode.LoginLinked:
-                    Toasts.Show("Hesabına yeni bir giriş yolu bağlandı");
+                    Toasts.Show(Loc.T("world.login_linked"));
                     break;
                 case NotifyCode.LoginUnlinked:
-                    Toasts.Show("Hesabından bir giriş yolu kaldırıldı");
+                    Toasts.Show(Loc.T("world.login_unlinked"));
                     break;
                 default:
                     Debug.Log($"[World] notification {n.Code} {n.Subject} {n.Json}");
@@ -593,15 +593,15 @@ namespace CollectionGame.World
         void PlayerMenu(string id, string name)
         {
             var friend = social.Friends.Any(f => f.UserId == id && f.State == Connection.FriendMutual);
-            hud.Popup.ShowMenu(name, friend ? "Arkadaşın" : "Oyuncu", null, new (string, Action)[]
+            hud.Popup.ShowMenu(name, Loc.T(friend ? "player.friend" : "player.player"), null, new (string, Action)[]
             {
-                ("Profil", () => collection.OpenProfile(id)),
-                ("Fısılda", () => whispers.OpenWith(id, name)),
-                ("Takas teklif et", () => trade.Offer(id, name)),
-                ("Defterine bak", () => collection.OpenBook(id, name)),
-                (friend ? "Arkadaşın" : "<color=#91db69>Arkadaş ekle</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
-                ("Engelle", () => Block(id, name)),
-                ("<color=#e83b3b>Şikayet et</color>", () => collection.ReportMenu(id)),
+                (Loc.T("player.profile"), () => collection.OpenProfile(id)),
+                (Loc.T("player.whisper"), () => whispers.OpenWith(id, name)),
+                (Loc.T("player.offer_trade"), () => trade.Offer(id, name)),
+                (Loc.T("player.view_book"), () => collection.OpenBook(id, name)),
+                (friend ? Loc.T("player.friend") : $"<color=#91db69>{Loc.T("player.add_friend")}</color>", friend ? (Action)null : () => social.AddFriend(id, name)),
+                (Loc.T("player.block"), () => Block(id, name)),
+                ($"<color=#e83b3b>{Loc.T("player.report")}</color>", () => collection.ReportMenu(id)),
             });
         }
 
@@ -610,13 +610,13 @@ namespace CollectionGame.World
             try
             {
                 await net.BlockAsync(id);
-                Toasts.Show($"{name} engellendi");
+                Toasts.Show(Loc.T("player.blocked", ("name", name)));
                 social.Refresh();
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"[World] block failed: {e.Message}");
-                Toasts.Show("Engellenemedi", true);
+                Toasts.Show(Loc.T("player.block_failed"), true);
             }
         }
 
@@ -732,7 +732,7 @@ namespace CollectionGame.World
 
         void DrawHud()
         {
-            if (mover == null) GUI.Label(new Rect(10, 80, 400, 24), "Bağlanıyor...", Gui.HudBold);
+            if (mover == null) GUI.Label(new Rect(10, 80, 400, 24), Loc.T("login.busy.connecting"), Gui.HudBold);
             if (mover != null)
             {
                 fishing.DrawGui(mover.Position);

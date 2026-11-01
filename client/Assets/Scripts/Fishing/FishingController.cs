@@ -117,12 +117,12 @@ namespace CollectionGame.Fishing
             if (owned.Count == 0)
             {
                 SelectedBait = null;
-                ShowToast("Çantanda özel yem yok (dükkandan alınır)");
+                ShowToast(Loc.T("fish.no_special_bait"));
                 return;
             }
             var i = SelectedBait == null ? -1 : owned.IndexOf(SelectedBait);
             SelectedBait = i + 1 < owned.Count ? owned[i + 1] : null;
-            ShowToast(SelectedBait == null ? "Temel yem" : $"Yem: {ItemName(SelectedBait)} (çantada {StackCount(SelectedBait)})");
+            ShowToast(SelectedBait == null ? Loc.T("hud.bait_basic") : Loc.T("fish.bait_selected", ("item", ItemName(SelectedBait)), ("count", StackCount(SelectedBait))));
         }
 
         // ---------- input ----------
@@ -193,13 +193,13 @@ namespace CollectionGame.Fishing
                         pendingCast = null;
                         stateSince = now;
                     }
-                    else if (now - stateSince > ReplyTimeout) Reset("Sunucudan cevap gelmedi");
+                    else if (now - stateSince > ReplyTimeout) Reset(Loc.T("fish.no_reply"));
                     break;
 
                 case Phase.Hooked:
                 case Phase.Judging:
                     // Waiting for the server; give up if nothing comes back.
-                    if (now - stateSince > ReplyTimeout + (State == Phase.Judging ? 5f : 0f)) Reset("Sunucudan cevap gelmedi");
+                    if (now - stateSince > ReplyTimeout + (State == Phase.Judging ? 5f : 0f)) Reset(Loc.T("fish.no_reply"));
                     break;
 
                 case Phase.Waiting:
@@ -308,7 +308,7 @@ namespace CollectionGame.Fishing
 
             if (e.id != myId)
             {
-                if (e.outcome == FishOutcome.Caught && !string.IsNullOrEmpty(e.defId)) who?.Say($"Yakaladı: {ItemName(e.defId)}", 4f);
+                if (e.outcome == FishOutcome.Caught && !string.IsNullOrEmpty(e.defId)) who?.Say(Loc.T("fish.say_caught", ("item", ItemName(e.defId))), 4f);
                 return;
             }
 
@@ -324,7 +324,7 @@ namespace CollectionGame.Fishing
             LastOutcome = e.outcome;
             LastEnd = e;
             Debug.Log($"[Fish] FISH_END {e.outcome} {e.reason} {e.defId} energy {e.energy}");
-            ShowToast(e.outcome == FishOutcome.Missed ? (hookedEarly ? "Erken çektin: kıpırdama sahte, şamandıra batınca çek" : "Geç kaldın: şamandıra batınca hemen Space") : Describe(e));
+            ShowToast(e.outcome == FishOutcome.Missed ? Loc.T(hookedEarly ? "fish.too_early" : "fish.too_late") : Describe(e));
             Warnings(e);
             hookedEarly = false;
             if (keepsBobber) return;
@@ -383,12 +383,12 @@ namespace CollectionGame.Fishing
         void Warnings(FishEndMsg e)
         {
             if (e.outcome == FishOutcome.Rejected && e.reason == "BAG_FULL")
-                Toasts.Notify($"Çanta dolu {Bag?.slotsUsed}/{Bag?.slotsMax}", "Av yapılamaz. Sat veya parçala.", Toasts.Kind.Block);
+                Toasts.Notify(Loc.T("fish.bag_full", ("used", Bag?.slotsUsed), ("max", Bag?.slotsMax)), Loc.T("fish.bag_full_note"), Toasts.Kind.Block);
             var lowEnergy = EnergyMax > 0 && Energy <= EnergyMax / 10;
-            if (lowEnergy && !energyWarned) Toasts.Notify($"Enerji azaldı: {Energy}/{EnergyMax}", "Bitince sadece çöp çıkar.", Toasts.Kind.Warn);
+            if (lowEnergy && !energyWarned) Toasts.Notify(Loc.T("fish.low_energy", ("energy", Energy), ("max", EnergyMax)), Loc.T("fish.low_energy_note"), Toasts.Kind.Warn);
             energyWarned = lowEnergy;
             var lowRod = Rod != null && Rod.max > 0 && Rod.durability * 100 / Rod.max <= 15;
-            if (lowRod && !rodWarned) Toasts.Notify($"Olta yıpranıyor: %{Rod.durability * 100 / Rod.max}", "Tüccar'da (Dükkan) tamir et.", Toasts.Kind.Warn);
+            if (lowRod && !rodWarned) Toasts.Notify(Loc.T("fish.rod_wearing", ("percent", Rod.durability * 100 / Rod.max)), Loc.T("fish.rod_wearing_note"), Toasts.Kind.Warn);
             rodWarned = lowRod;
         }
 
@@ -418,26 +418,15 @@ namespace CollectionGame.Fishing
             {
                 case FishOutcome.Caught:
                     if (e.item != null && !string.IsNullOrEmpty(e.item.instanceId))
-                        return $"Yakaladın: {ItemName(e.item.defId)} ({e.item.tier}, Float {e.item.@float:0.0000})";
+                        return Loc.T("fish.caught_item", ("item", ItemName(e.item.defId)), ("tier", e.item.tier), ("float", e.item.@float.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)));
                     if (e.stack != null && !string.IsNullOrEmpty(e.stack.defId))
-                        return $"Yakaladın: {ItemName(e.stack.defId)} (çantada {e.stack.count})";
-                    return $"Yakaladın: {ItemName(e.defId)}";
-                case FishOutcome.Escaped: return "Balık kaçtı";
-                case FishOutcome.Missed: return "Kaçırdın: şamandıra batınca çek";
-                case FishOutcome.Cancelled: return "Oltayı topladın";
+                        return Loc.T("fish.caught_stack", ("item", ItemName(e.stack.defId)), ("count", e.stack.count));
+                    return Loc.T("fish.caught", ("item", ItemName(e.defId)));
+                case FishOutcome.Escaped: return Loc.T("fish.escaped");
+                case FishOutcome.Missed: return Loc.T("fish.missed");
+                case FishOutcome.Cancelled: return Loc.T("fish.cancelled");
                 case FishOutcome.Rejected:
-                    switch (e.reason)
-                    {
-                        case "BUSY": return "Zaten olta atılı";
-                        case "NOT_NEAR_WATER": return "Suya daha yakın dur";
-                        case "NOT_WATER": return "Oraya atılmaz, suya at";
-                        case "TOO_FAR": return "Çok uzak";
-                        case "BAG_FULL": return "Çanta dolu";
-                        case "NO_BAIT": return "Bu yemden kalmadı";
-                        case "NO_ENERGY": return "Enerjin yok: özel yem boşa gitmesin diye atılmadı";
-                        case "ROD_BROKEN": return "Olta kırık: özel yemle atılmaz, önce tamir et";
-                        default: return $"Atış reddedildi ({e.reason})";
-                    }
+                    return Loc.Reason("fish", e.reason);
                 default: return e.outcome;
             }
         }
@@ -457,11 +446,11 @@ namespace CollectionGame.Fishing
             switch (State)
             {
                 case Phase.Idle:
-                    return LakeMap.IsNearWater(me, NearWater) ? "F ya da sağ tık basılı tut, bırak: olta at · Y: yem · B: çanta" : null;
-                case Phase.Charging: return "Bırakınca atar";
-                case Phase.Waiting: return "Bekle... kıpırdama sahte, şamandıra batınca F / sağ tık · Esc: topla";
-                case Phase.Bite: return "ÇEK! (F / sağ tık)";
-                case Phase.Reeling: return "F / sağ tık basılı tut: yeşil çubuğu balığın üstünde tut";
+                    return LakeMap.IsNearWater(me, NearWater) ? Loc.T("fish.hint.idle") : null;
+                case Phase.Charging: return Loc.T("fish.hint.charging");
+                case Phase.Waiting: return Loc.T("fish.hint.waiting");
+                case Phase.Bite: return Loc.T("fish.hint.bite");
+                case Phase.Reeling: return Loc.T("fish.hint.reeling");
                 default: return null;
             }
         }

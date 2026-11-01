@@ -27,11 +27,12 @@ namespace CollectionGame.Collection
         const float BigBannerSeconds = 6f;
 
         // Display names for the placeholder pages (server/src/data/book-pages.ts, 06-defter.md 8.2).
+        /// <summary>The three old placeholder pages: keys book.page.ID.</summary>
         static readonly Dictionary<string, string> PageNames = new Dictionary<string, string>
         {
-            ["lake_fish"] = "Göl Balıkları",
-            ["deep_water"] = "Derin Su",
-            ["treasures"] = "Hazineler",
+            ["lake_fish"] = "book.page.lake_fish",
+            ["deep_water"] = "book.page.deep_water",
+            ["treasures"] = "book.page.treasures",
         };
 
         readonly Connection net;
@@ -65,7 +66,7 @@ namespace CollectionGame.Collection
         /// <summary>Turkish names for the three old placeholder pages, else the set's name from the admin panel.</summary>
         public static string PageName(string id)
         {
-            if (id != null && PageNames.TryGetValue(id, out var n)) return n;
+            if (id != null && PageNames.TryGetValue(id, out var n)) return Loc.T(n);
             return ItemContent.SetName(id) ?? id ?? "?";
         }
 
@@ -102,7 +103,7 @@ namespace CollectionGame.Collection
                 discovered = e;
                 discoveredUntil = Time.time + (e.book.pageComplete ? BigBannerSeconds : BannerSeconds);
                 catchDirty = true;
-                if (e.book.pageComplete) Toasts.Show($"Sayfa tamamlandı: {PageName(e.book.page)}!");
+                if (e.book.pageComplete) Toasts.Show(Loc.T("book.page_complete_toast", ("page", PageName(e.book.page))));
                 Debug.Log($"[Book] discovered {e.defId} on {e.book.page}, complete {e.book.pageComplete}, luck {e.book.luck}, score {e.book.score}");
                 if (MyProfile != null && e.book.score > 0) MyProfile.score = e.book.score;
                 if (BookOpen && bookIsMine) Refresh();
@@ -122,10 +123,10 @@ namespace CollectionGame.Collection
             Debug.Log($"[Book] BOOK_RESULT ok {r.ok} {r.reason} {r.defId} score {r.score}");
             if (r.ok)
             {
-                ShowNote($"Deftere kondu: {FishingController.ItemName(r.defId)} (Score {r.score})");
+                ShowNote(Loc.T("book.placed", ("item", FishingController.ItemName(r.defId)), ("score", r.score)));
                 if (MyProfile != null && r.score > 0) MyProfile.score = r.score;
             }
-            else ShowNote(r.reason == "NOT_OWNED" ? "Eşya çantanda değil" : $"Deftere konamadı ({r.reason})");
+            else ShowNote(Loc.Reason("book", r.reason));
             if (BookOpen && bookIsMine) Refresh();
         }
 
@@ -162,7 +163,7 @@ namespace CollectionGame.Collection
             }
             catch (Exception ex)
             {
-                ShowNote("Defter açılamadı");
+                ShowNote(Loc.T("book.open_failed"));
                 Debug.LogWarning($"[Book] get_book failed: {ex.Message}");
             }
         }
@@ -180,7 +181,7 @@ namespace CollectionGame.Collection
             }
             catch (Exception ex)
             {
-                ShowNote("Profil açılamadı");
+                ShowNote(Loc.T("profile.open_failed"));
                 Debug.LogWarning($"[Book] get_profile failed: {ex.Message}");
             }
         }
@@ -226,14 +227,14 @@ namespace CollectionGame.Collection
                 MyProfile = await net.SetProfileAsync(showcase, hunting, clear);
                 profileDirty = true;
                 if (Profile != null && Profile.userId == MyProfile.userId) Profile = MyProfile;
-                ShowNote("Profil güncellendi");
+                ShowNote(Loc.T("profile.updated"));
             }
             catch (Exception ex)
             {
                 var msg = ex.GetBaseException().Message ?? "";
-                ShowNote(msg.Contains("TOO_MANY") ? $"Vitrinde en fazla {ShowcaseMax} eşya olur"
-                    : msg.Contains("SLOT_EMPTY") ? "Vitrine sadece yuvası dolu eşya konur"
-                    : "Profil güncellenemedi");
+                ShowNote(msg.Contains("TOO_MANY") ? Loc.T("profile.err.too_many", ("max", ShowcaseMax))
+                    : msg.Contains("SLOT_EMPTY") ? Loc.T("profile.err.slot_empty")
+                    : Loc.T("profile.err.failed"));
                 Debug.LogWarning($"[Book] set_profile failed: {msg}");
             }
         }
@@ -297,6 +298,8 @@ namespace CollectionGame.Collection
             return bookView != null && profileView != null && catchView != null;
         }
 
+        int locVersion;
+
         public void Tick()
         {
             if (!Ensure()) return;
@@ -309,6 +312,11 @@ namespace CollectionGame.Collection
             {
                 profileView.window.Open = ProfileOpen;
                 profileDirty = true;
+            }
+            if (locVersion != Loc.Version)
+            {
+                locVersion = Loc.Version; // language changed: redraw the texts
+                bookDirty = profileDirty = true;
             }
             if (BookOpen && bookDirty) RedrawBook();
             if (ProfileOpen && profileDirty) RedrawProfile();
@@ -366,13 +374,13 @@ namespace CollectionGame.Collection
         {
             bookDirty = false;
             var v = bookView;
-            v.owner.text = bookIsMine ? "Defter" : $"{bookOwnerName} defteri";
+            v.owner.text = bookIsMine ? Loc.T("book.mine") : Loc.T("book.of", ("name", bookOwnerName));
             if (Book?.pages == null || Book.pages.Length == 0)
             {
                 v.totalText.text = "...";
                 foreach (var pg in v.pages)
                 {
-                    pg.title.text = "Yükleniyor...";
+                    pg.title.text = Loc.T("common.loading");
                     pg.count.text = "";
                     foreach (var c in pg.cards) SetCard(c, null);
                 }
@@ -384,14 +392,14 @@ namespace CollectionGame.Collection
             var total = Book.pages.Sum(p => p.total);
             HudView.Fill(v.totalFill, total > 0 ? (float)found / total : 0f);
             v.totalText.text = $"{found} / {total}";
-            v.luck.text = $"Şans +%{Book.luck * 100f:0.#}";
+            v.luck.text = Loc.T("book.luck", ("percent", (Book.luck * 100f).ToString("0.#", Loc.Culture)));
             v.score.text = Kit.Num(Book.score);
             var page = Book.pages[PageIndex];
             var name = PageName(page.id);
             v.pages[0].title.text = name;
             v.pages[0].count.text = $"{page.found}/{page.total}";
             v.pages[1].title.text = name;
-            v.pages[1].count.text = $"sayfa {spread + 1}/{Spreads}";
+            v.pages[1].count.text = Loc.T("book.spread", ("page", spread + 1), ("pages", Spreads));
             for (var p = 0; p < v.pages.Length; p++)
                 for (var i = 0; i < v.pages[p].cards.Length; i++)
                     SetCard(v.pages[p].cards[i], RecordAt(p * v.pages[p].cards.Length + i), i + p * v.pages[p].cards.Length < Records.Length - spread * SpreadSize);
@@ -439,11 +447,11 @@ namespace CollectionGame.Collection
             var name = FishingController.ItemName(rec.defId);
             if (rec.state == RecordState.Found)
             {
-                Popup.ShowTooltip(new PopupView.Card { title = name, sub = "Bulundu, yuva boş", note = bookIsMine ? "Tıkla: seçenekler" : null });
+                Popup.ShowTooltip(new PopupView.Card { title = name, sub = Loc.T("book.found_empty"), note = bookIsMine ? Loc.T("book.click_options") : null });
                 return;
             }
             var it = rec.item;
-            Popup.ShowTooltip(it != null ? ItemText.Card(it, null, bookIsMine ? "Tıkla: Vitrine koy, Arıyorum" : null) : new PopupView.Card { title = name });
+            Popup.ShowTooltip(it != null ? ItemText.Card(it, null, bookIsMine ? Loc.T("book.click_showcase") : null) : new PopupView.Card { title = name });
         }
 
         void RecordMenu(int index)
@@ -455,11 +463,11 @@ namespace CollectionGame.Collection
             if (rec.state == RecordState.Filled)
             {
                 var inShowcase = showcase.Contains(rec.defId);
-                entries.Add((inShowcase ? "Vitrinden al" : "Vitrine koy", () =>
+                entries.Add((Loc.T(inShowcase ? "book.showcase_remove" : "book.showcase_add"), () =>
                     SetShowcase(inShowcase ? showcase.Where(d => d != rec.defId).ToArray() : showcase.Append(rec.defId).ToArray())));
             }
             var hunting = MyProfile?.hunting == rec.defId;
-            entries.Add((hunting ? "Aramayı bırak" : "Arıyorum", () => SetHunting(hunting ? null : rec.defId)));
+            entries.Add((Loc.T(hunting ? "book.hunting_stop" : "book.hunting"), () => SetHunting(hunting ? null : rec.defId)));
             Popup.ShowMenu(FishingController.ItemName(rec.defId), entries);
         }
 
@@ -476,7 +484,7 @@ namespace CollectionGame.Collection
             if (discovered != null)
             {
                 var it = discovered.item;
-                v.discover.title.text = discovered.book.pageComplete ? "Sayfa tamamlandı!" : "Yeni keşif!";
+                v.discover.title.text = Loc.T(discovered.book.pageComplete ? "catch.page_complete" : "catch.new");
                 v.discoverSlot.SetItem(discovered.defId, it?.tier, 1, false);
                 v.discoverName.text = FishingController.ItemName(discovered.defId);
                 v.discoverTier.text = it?.tier ?? "";
@@ -503,7 +511,7 @@ namespace CollectionGame.Collection
                     v.oldFloat.text = "?";
                 }
                 v.oldCondition.text = "";
-                v.swapCaption.text = $"{FishingController.ItemName(it.defId)} · {it.tier} · eski kopya çantaya düşer";
+                v.swapCaption.text = Loc.T("catch.swap_caption", ("item", FishingController.ItemName(it.defId)), ("tier", it.tier));
             }
         }
 
@@ -535,11 +543,7 @@ namespace CollectionGame.Collection
             }
         }
 
-        static readonly (string id, string label)[] ReportReasons =
-        {
-            ("spam", "Spam"), ("abuse", "Hakaret"), ("scam", "Dolandırıcılık"),
-            ("personal_info", "Kişisel bilgi"), ("cheating", "Hile"), ("other", "Diğer"),
-        };
+        static readonly string[] ReportReasons = { "spam", "abuse", "scam", "personal_info", "cheating", "other" };
 
         void ReportMenu()
         {
@@ -551,7 +555,7 @@ namespace CollectionGame.Collection
         public void ReportMenu(string userId)
         {
             if (Popup == null || string.IsNullOrEmpty(userId)) return;
-            Popup.ShowMenu("Şikayet et: neden?", ReportReasons.Select(r => (r.label, (Action)(() => Report(userId, r.id)))));
+            Popup.ShowMenu(Loc.T("report.menu_title"), ReportReasons.Select(r => (Loc.T("report.reason." + r), (Action)(() => Report(userId, r)))));
         }
 
         async void Report(string userId, string reason)
@@ -559,11 +563,11 @@ namespace CollectionGame.Collection
             try
             {
                 await net.ReportAsync(userId, reason, null, null);
-                Toasts.Show("Raporun alındı. Teşekkürler.");
+                Toasts.Show(Loc.T("report.sent"));
             }
             catch (Exception e)
             {
-                Toasts.Show(Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Çok fazla rapor gönderdin, sonra tekrar dene" : "Rapor gönderilemedi", true);
+                Toasts.Show(Loc.T(Connection.ErrorOf(e) == ErrorCode.RateLimited ? "report.too_many" : "report.failed"), true);
             }
         }
 
@@ -574,12 +578,12 @@ namespace CollectionGame.Collection
             try
             {
                 await net.BlockAsync(Profile.userId);
-                Toasts.Show($"{name} engellendi");
+                Toasts.Show(Loc.T("player.blocked", ("name", name)));
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"[Book] block failed: {e.Message}");
-                Toasts.Show("Engellenemedi", true);
+                Toasts.Show(Loc.T("player.block_failed"), true);
             }
         }
 
@@ -602,7 +606,7 @@ namespace CollectionGame.Collection
             v.portrait.Show(p?.userId);
             if (p == null)
             {
-                v.displayName.text = "Yükleniyor...";
+                v.displayName.text = Loc.T("common.loading");
                 v.levelTag.SetActive(false);
                 v.hunt.SetActive(false);
                 return;
@@ -610,11 +614,11 @@ namespace CollectionGame.Collection
             var mine = p.userId == net.UserId;
             v.displayName.text = p.username;
             v.levelTag.SetActive(true);
-            v.level.text = $"Lv {Mathf.Max(1, p.level)}";
+            v.level.text = Loc.T("common.level", ("level", Mathf.Max(1, p.level)));
             v.sub.text = "";
             v.score.text = Kit.Num(p.score);
             v.hunt.SetActive(!string.IsNullOrEmpty(p.hunting));
-            v.huntText.text = $"Arıyorum: {FishingController.ItemName(p.hunting)}";
+            v.huntText.text = Loc.T("profile.hunting", ("item", FishingController.ItemName(p.hunting)));
             var show = p.showcase ?? Array.Empty<ItemInstance>();
             for (var i = 0; i < v.showcase.Length; i++)
             {
@@ -624,20 +628,20 @@ namespace CollectionGame.Collection
                 v.showcase[i].Data = it;
             }
             var pages = p.pagesComplete?.Length ?? 0;
-            v.stat1Label.text = "Tamamlanan sayfa";
+            v.stat1Label.text = Loc.T("profile.pages_done");
             v.stat1Value.text = $"{pages}/{TotalPages}";
             HudView.Fill(v.stat1Fill, TotalPages > 0 ? Mathf.Clamp01((float)pages / TotalPages) : 0f);
-            v.stat2Label.text = "Vitrin";
+            v.stat2Label.text = Loc.T("profile.showcase");
             v.stat2Value.text = $"{show.Length}/{ShowcaseMax}";
-            v.stat3Label.text = "Level";
+            v.stat3Label.text = Loc.T("profile.level");
             v.stat3Value.text = Mathf.Max(1, p.level).ToString();
-            v.bookText.text = mine ? "Defterimi aç (K)" : "Defterine bak";
+            v.bookText.text = Loc.T(mine ? "profile.open_my_book" : "player.view_book");
             v.whisper.gameObject.SetActive(!mine);
             v.friend.gameObject.SetActive(!mine);
             v.trade.gameObject.SetActive(!mine);
             v.report.gameObject.SetActive(!mine);
             v.block.gameObject.SetActive(!mine);
-            v.footer.text = mine ? "Vitrin ve Arıyorum defterden seçilir (K)" : "";
+            v.footer.text = mine ? Loc.T("profile.footer") : "";
         }
     }
 }
