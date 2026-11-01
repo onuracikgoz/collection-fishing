@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 37;
+        public const int Version = 38;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -1377,12 +1377,14 @@ namespace CollectionGame.EditorTools
             view.tierFrames = new[] { S("record_common"), S("record_rare"), S("record_epic"), S("record_legendary"), S("record_mythic") };
             view.found = S("record_found");
             view.unknown = S("record_unknown");
-            Img(Abs(w, "Spine", 331, 58, 18, 278), "box_dark");
+            // Both pages and the spine sit in one Spread node, which turns the pages when dragged (BookFlip).
+            var spread = Abs(w, "Spread", 26, 58, 628, 278);
+            Img(Abs(spread, "Spine", 305, 0, 18, 278), "box_dark");
             view.pages = new BookView.Page[2];
             for (var p = 0; p < 2; p++)
             {
-                var pg = Abs(w, "Page" + p, 26 + p * 323, 58, 305, 278);
-                Img(pg, "card");
+                var pg = Abs(spread, "Page" + p, p * 323, 0, 305, 278);
+                Img(pg, "card", Image.Type.Sliced, true); // raycast: an empty bit of page can be grabbed too
                 Img(Stretch(Node("Outline", pg)), "outline");
                 var page = new BookView.Page
                 {
@@ -1412,9 +1414,17 @@ namespace CollectionGame.EditorTools
                 }
                 view.pages[p] = page;
             }
-            view.prev = LinkText(w, "Prev", "<", 250, 349, 20, Ink, TextAnchor.MiddleCenter);
-            view.nav = TextAt(w, "Nav", "", 270, 349, 136, 14, Faint, TextAnchor.MiddleCenter);
-            view.next = LinkText(w, "Next", ">", 406, 349, 20, Ink, TextAnchor.MiddleCenter);
+            // The turning leaf: blank paper hinged on the spine's middle, one page wide.
+            var leaf = At(Node("Leaf", spread), TopLeft, new Vector2(314, 0), new Vector2(314, 278), new Vector2(0, 1));
+            var flip = spread.gameObject.AddComponent<BookFlip>();
+            flip.leaf = leaf;
+            flip.leafPaper = Img(leaf, "card");
+            Img(Stretch(Node("Outline", leaf)), "outline");
+            flip.spineX = 314;
+            view.flip = flip;
+            // Arrows at the far left and right under the pages (no page names there any more, 01.11.2026 Onur).
+            view.prev = SmallButton(w, "Prev", "square_wood", "<", 26, 342, 40, 32, 16);
+            view.next = SmallButton(w, "Next", "square_wood", ">", 614, 342, 40, 32, 16);
             return wrap.gameObject;
         }
 

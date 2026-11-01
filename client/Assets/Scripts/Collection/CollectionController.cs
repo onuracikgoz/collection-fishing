@@ -321,8 +321,9 @@ namespace CollectionGame.Collection
         {
             v.window.Closed = () => BookOpen = false;
             v.window.Open = false;
-            v.prev.onClick.AddListener(() => Turn(-1));
-            v.next.onClick.AddListener(() => Turn(1));
+            v.prev.onClick.AddListener(() => TurnAnimated(-1));
+            v.next.onClick.AddListener(() => TurnAnimated(1));
+            if (v.flip != null) v.flip.Turned = Turn;
             for (var p = 0; p < v.pages.Length; p++)
                 for (var i = 0; i < v.pages[p].cards.Length; i++)
                 {
@@ -337,9 +338,18 @@ namespace CollectionGame.Collection
         BookRecord[] Records => Book?.pages != null && Book.pages.Length > 0 ? Book.pages[Mathf.Clamp(PageIndex, 0, Book.pages.Length - 1)].records ?? Array.Empty<BookRecord>() : Array.Empty<BookRecord>();
         int Spreads => Mathf.Max(1, Mathf.CeilToInt(Records.Length / (float)SpreadSize));
 
+        /// <summary>Arrow buttons: the leaf swings over (it calls <see cref="Turn"/> halfway), or a plain turn on an old prefab.</summary>
+        void TurnAnimated(int step)
+        {
+            if (Book?.pages == null || Book.pages.Length == 0) return;
+            if (bookView.flip != null) bookView.flip.Play(step);
+            else Turn(step);
+        }
+
         void Turn(int step)
         {
             if (Book?.pages == null || Book.pages.Length == 0) return;
+            Popup?.HideTooltip();
             spread += step;
             if (spread < 0)
             {
@@ -394,8 +404,6 @@ namespace CollectionGame.Collection
             for (var p = 0; p < v.pages.Length; p++)
                 for (var i = 0; i < v.pages[p].cards.Length; i++)
                     SetCard(v.pages[p].cards[i], RecordAt(p * v.pages[p].cards.Length + i), i + p * v.pages[p].cards.Length < Records.Length - spread * SpreadSize);
-            var nextPage = Book.pages[(PageIndex + 1) % Book.pages.Length];
-            v.nav.text = Book.pages.Length > 1 ? $"{name} · {PageName(nextPage.id)}" : name;
         }
 
         void SetCard(BookView.Card c, BookRecord rec, bool exists = true)

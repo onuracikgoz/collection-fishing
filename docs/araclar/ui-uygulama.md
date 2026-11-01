@@ -59,6 +59,8 @@ Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sa�
 
 Taslaktan bilerek ayrılanlar (sunucuda karşılığı yok, uydurulmadı): pet seçimi; çanta genişletme satırı; görev başına ödül ve "Teslim et / Değiştir" (sunucuda günlük tek sandık var); karakter görünümü seçimi (`_akis-5`, sadece ad); Google / Facebook / Discord girişi (butonlar kapalı) ve Steam ekranları (`_akis-3`, `_akis-4`); profilde unvan, konum (portre 31.10.2026'dan beri karakterin dünyadaki görünümü: `CharacterPortrait`, baş ve omuzlar; isim ve level rozeti yan yana akar, üst üste binmez); arkadaş satırında Lv ve son görülme; recipe'de "Float seç". Dükkan (olta tamiri, yem) taslaksız, Tüccar'a sekme oldu. Taslaklardaki ◆ NPC pencerelerinde toz; HUD'da elmas gösteriliyor (pano reklamı için), karar Onur'da.
 
+**Defterde sayfa çevirme** (01.11.2026, Onur): alttaki sayfa adı satırı kalktı (oklarla üst üste biniyordu). En solda ve en sağda kare ok butonları var. Sayfa kitap gibi de çevrilir: sağ sayfayı basılı tutup sola sürükle (ileri) ya da sol sayfayı sağa (geri). Sırtın ortasına menteşeli boş bir kağıt yaprağı döner (`UI/Views/BookFlip.cs`); yarıyı geçince ya da hızlı fırlatınca sayfa döner, geri bırakılırsa yerine kapanır. Oklar da aynı animasyonu oynatır.
+
 ### Hâlâ IMGUI
 
 Dünyadaki isim etiketleri, durum emote işaretleri ve haritadaki tezgah etiketleri (uGUI penceresinin altında kalınca çizilmez). Kit görünümlü `UI/Kit.cs` sadece bunlar için kaldı. Sohbet balonları 31.10.2026'dan beri uGUI (aşağıda, Sohbet balonları).
