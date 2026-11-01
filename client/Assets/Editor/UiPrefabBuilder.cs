@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 37;
+        public const int Version = 38;
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -1412,9 +1412,9 @@ namespace CollectionGame.EditorTools
                 }
                 view.pages[p] = page;
             }
-            view.prev = LinkText(w, "Prev", "<", 250, 349, 20, Ink, TextAnchor.MiddleCenter);
-            view.nav = TextAt(w, "Nav", "", 270, 349, 136, 14, Faint, TextAnchor.MiddleCenter);
-            view.next = LinkText(w, "Next", ">", 406, 349, 20, Ink, TextAnchor.MiddleCenter);
+            // Arrows at the far left and right under the pages (no page names there any more, 01.11.2026 Onur).
+            view.prev = SmallButton(w, "Prev", "square_wood", "<", 26, 342, 40, 32, 16);
+            view.next = SmallButton(w, "Next", "square_wood", ">", 614, 342, 40, 32, 16);
             return wrap.gameObject;
         }
 
