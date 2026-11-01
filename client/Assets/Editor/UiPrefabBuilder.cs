@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 39; // 39: labels from Locales keys (LocText)
+        public const int Version = 40; // 40: item inspect window (Inspect)
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -172,6 +172,7 @@ namespace CollectionGame.EditorTools
             Save(BuildWhisper(), "Whisper");
             Save(BuildBubble(), "Bubble");
             Save(BuildConfirm(), "Confirm");
+            Save(BuildInspect(), "Inspect");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
@@ -2444,6 +2445,75 @@ namespace CollectionGame.EditorTools
             view.yes = SmallButton(w, "Yes", "red", L("bag.discard"), 24, 100, 140, 30, 12);
             view.yesText = view.yes.GetComponentInChildren<Text>();
             view.no = SmallButton(w, "No", "wood", L("common.cancel"), 176, 100, 140, 30, 12);
+            return wrap.gameObject;
+        }
+
+        // ================= Item inspect window (InspectView, 01.11.2026 Onur) =================
+
+        static GameObject BuildInspect()
+        {
+            // 440 wide, centred over a dim backdrop; the height follows the story (InspectView.FillStory).
+            var size = new Vector2(440, 496);
+            var wrap = Stretch(Node("Inspect", null));
+            var view = wrap.gameObject.AddComponent<InspectView>();
+            var dim = Stretch(Node("Dim", wrap));
+            var dimImg = Img(dim, "box_dark", Image.Type.Sliced, true);
+            dimImg.color = new Color(1f, 1f, 1f, 0.85f);
+            view.dim = dim.gameObject;
+            view.dimButton = dim.gameObject.AddComponent<Button>();
+            view.dimButton.transition = Selectable.Transition.None;
+            var dimNav = view.dimButton.navigation;
+            dimNav.mode = Navigation.Mode.None;
+            view.dimButton.navigation = dimNav;
+            view.window = Window(wrap, "Window", L("inspect.title"), size);
+            At((RectTransform)view.window.transform, Center, Vector2.zero, size, Center);
+            var w = view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+            view.window.body = (RectTransform)w;
+
+            // Stage: the picture at twice its 128 px source (Point filter, no blur) in the Tier frame.
+            Panel(w, "Stage", 20, 30, 400, 296);
+            var frame = Abs(w, "Frame", 80, 38, 280, 280);
+            view.frame = Img(frame, "slot_empty");
+            view.frame.pixelsPerUnitMultiplier = 1;
+            view.tierFrames = new[] { S("slot_tier_common"), S("slot_tier_rare"), S("slot_tier_epic"), S("slot_tier_legendary"), S("slot_tier_mythic") };
+            view.empty = S("slot_empty");
+            view.icon = Img(At(Node("Icon", frame), Center, Vector2.zero, new Vector2(256, 256), Center), null, Image.Type.Simple);
+            view.icon.preserveAspect = true;
+
+            // Name, Tier · set (names and Tiers stay English).
+            view.itemName = TextAt(w, "Name", "", 20, 346, 400, 30, Ink, TextAnchor.MiddleCenter, true);
+            view.tier = TextAt(w, "Tier", "", 20, 374, 400, 18, Faint, TextAnchor.MiddleCenter);
+            Img(Abs(w, "Divider", 20, 390, 400, 4), "divider");
+
+            // Float: value, condition bar with a marker, condition, origin.
+            var fg = Abs(w, "Float", 0, 398, 440, 84);
+            view.floatGroup = fg.gameObject;
+            TextAt(fg, "FloatLabel", "Float", 20, 12, 120, 14, Ink, TextAnchor.MiddleLeft, true);
+            view.floatValue = TextAt(fg, "FloatValue", "0.0000", 220, 12, 200, 18, Ink, TextAnchor.MiddleRight, true);
+            var bar = Abs(fg, "Bar", 20, 26, 400, 12);
+            Img(bar, "bar_back");
+            var seg = Node("Segment", bar);
+            view.segmentTemplate = Solid(Stretch(seg, 0, 2, 0, 2), Color.white);
+            view.floatBar = bar;
+            view.floatMarker = At(Node("Marker", bar), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(3, 20), Center);
+            Solid(view.floatMarker, Ink);
+            TextAt(fg, "ConditionLabel", L("item.condition"), 20, 54, 200, 14, Ink);
+            view.condition = TextAt(fg, "Condition", "", 220, 54, 200, 14, Ink, TextAnchor.MiddleRight);
+            view.origin = TextAt(fg, "Origin", "", 20, 74, 400, 12, Faint);
+            view.emptyNote = TextAt(w, "Empty", "", 20, 430, 400, 14, Faint, TextAnchor.MiddleCenter);
+
+            // Story (per language, item.story.<id>); hidden when the item has none.
+            var sp = Panel(w, "Story", 20, 490, 400, 80);
+            view.storyPanel = sp;
+            TextAt(sp, "Heading", L("inspect.story"), 12, 14, 300, 14, Ink, TextAnchor.MiddleLeft, true);
+            Img(Abs(sp, "Divider", 10, 26, 380, 4), "divider");
+            view.story = Txt(Abs(sp, "Text", 12, 34, 376, 36), "", 13, Ink, TextAnchor.UpperLeft);
+            view.story.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.story.supportRichText = false;
+            view.baseHeight = 496;
+            view.storyTop = 490;
+            view.storyPad = 44;
             return wrap.gameObject;
         }
 

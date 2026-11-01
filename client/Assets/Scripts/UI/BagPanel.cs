@@ -122,15 +122,25 @@ namespace CollectionGame.UI
                     popup.ShowTooltip(ItemText.Card(it, prices(), Loc.T("bag.slot_hint")));
                     break;
                 case ItemStack st:
-                    popup.ShowTooltip(ItemText.Card(st, Loc.T("bag.slot_hint")));
+                    popup.ShowTooltip(ItemText.Card(st, Loc.T("bag.stack_hint")));
                     break;
             }
         }
 
-        /// <summary>Left click: with a trade open the item goes to the trade, else the menu opens.</summary>
+        /// <summary>
+        /// Left click: with a trade open the item goes to the trade; else an item opens the inspect
+        /// window (01.11.2026, Onur) and a stack the menu. Right click is always the menu.
+        /// </summary>
         void Click(SlotView s)
         {
             if (CanTrade && Give(s.Data)) return;
+            if (s.Data is ItemInstance it)
+            {
+                popup?.HideTooltip();
+                popup?.HideMenu();
+                InspectView.Open(it.defId, it);
+                return;
+            }
             Menu(s);
         }
 
@@ -243,6 +253,7 @@ namespace CollectionGame.UI
                 {
                     var entries = new List<(string, Action)>
                     {
+                        (Loc.T("inspect.open"), () => InspectView.Open(it.defId, it)),
                         (Loc.T("bag.to_book"), () => net.Send(OpCode.BookPlace, new BookPlaceMsg { instanceId = it.instanceId })),
                         (Loc.T(it.locked ? "bag.unlock" : "bag.lock"), () => net.Send(OpCode.ItemLock, new ItemLockMsg { instanceId = it.instanceId, locked = !it.locked })),
                         (Loc.T("bag.add_to_trade"), CanTrade && !it.locked ? () => trade.AddItem(it.instanceId) : (Action)null),

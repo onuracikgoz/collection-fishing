@@ -36,6 +36,14 @@ namespace CollectionGame.UI
         public static string Name(string defId) =>
             !string.IsNullOrEmpty(defId) && items.TryGetValue(defId, out var it) && !string.IsNullOrEmpty(it.name) ? it.name : null;
 
+        /// <summary>The item's Tier from the admin panel ("" for stacks), null when the server does not list it.</summary>
+        public static string Tier(string defId) =>
+            !string.IsNullOrEmpty(defId) && items.TryGetValue(defId, out var it) ? it.tier : null;
+
+        /// <summary>The set the item belongs to, null when it has none or the server does not list it.</summary>
+        public static string SetOf(string defId) =>
+            !string.IsNullOrEmpty(defId) && items.TryGetValue(defId, out var it) && !string.IsNullOrEmpty(it.setId) ? it.setId : null;
+
         /// <summary>The set's name (a book page is named after its set), null when unknown.</summary>
         public static string SetName(string setId) =>
             !string.IsNullOrEmpty(setId) && sets.TryGetValue(setId, out var s) && !string.IsNullOrEmpty(s.name) ? s.name : null;

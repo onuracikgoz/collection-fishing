@@ -12,6 +12,8 @@ Bulut oturumu Unity'yi derleyemediği için pencereler ilk başta Unity'de yazı
 4. `Protocol.cs` bulutta derlenmedi: yeni `EmoteStatus*`, `Announce` sınıfları ve `status`, `emotesOwned` alanları denenmeli.
 5. **Enerji (29.10.2026):** sunucu atış enerjisini artık her atışta değil, av sonucuyla ya da dakikada bir kaydediyor. `FishingController.RefreshBag` içindeki `Energy = Bag.energy;` satırı maçtayken kaldırılmalı (maçtaki değer `WELCOME` / `BOBBER` / `FISH_END`'den gelir); yoksa kaçan bir atıştan sonra çanta açılınca enerji 1 geri gelmiş görünür.
 
+6. **İnceleme penceresi (01.11.2026, bulutta derlenmedi):** `UI/Views/InspectView.cs` derleniyor mu; builder sürümü 40 ile `Inspect.prefab` kuruluyor mu. Çantada bir eşyaya sol tık: resim keskin mi (2 kat, bulanık değil), Tier çerçevesi, kondisyon şeridi ve çizgi doğru yerde mi (katalog yüklendikten sonra), hikayesi olmayan eşyada pencere kısalıyor mu, hikayesi olanda metin kutuya sığıyor mu (`story.preferredHeight`). Esc ve karartmaya tıklama kapatıyor mu.
+
 ## Mac kontrolü sonucu (29.10.2026)
 
 1. Kit içe aktarılıyor, 9-slice kenarları dokuya yazılıyor. Ama parçalar Multiple sprite modunda geliyordu, kesilen sprite'ın (`card_0`) kenarı 0'dı: `PixelArtImporter` (sürüm 3) UI parçalarını artık Single içe aktarıyor. Unity açılınca 172 doku yeniden içe aktarılır, UI `.meta` dosyaları değişir (commit'lenmeli).
@@ -106,6 +108,17 @@ Menü dışarı bir tıklamayla ya da Esc ile kapanır. (Hata, 31.10.2026: menü
 
 - Bir yuvayı başka bir yuvaya sürükle: yer değiştirir. Çanta, depo ve bankadaki çanta. Sıra sunucu verisi değil, bu cihazda hesap başına saklanır (`UI/SlotOrder.cs`); yeni gelen eşya ilk boş yuvaya oturur. Bankada depodan çantaya (ya da tersi) sürüklemek tıklamayla aynı: al / koy.
 - Çantanın sol altında **çöp kovası**: eşyayı üstüne sürükle (ya da menüden "Çöpe at"), "Emin misin?" kutusu (`ConfirmView`, `Confirm` prefabı), onaylarsan `ITEM_DISCARD` (`protokol.md` Eşya atma). Kilitli eşya atılmaz; yığın bütün olarak atılır.
+
+## Eşya inceleme penceresi (01.11.2026, Onur)
+
+CS2'deki inceleme ekranı gibi, oyun 2D olduğu için döndürme yok (`InspectView`, `Inspect` prefabı, builder sürümü 40). Arkada karartma, ortada pencere:
+
+- Üstte zeytin kutuda eşyanın resmi büyük: 128 px kaynak 256 birimde (tam 2 kat, Point filtre, bulanıklaşmaz), Tier renginde yuva çerçevesinde. Sunucuda resmi olmayan eski eşyalar çizilen yer tutucuyu gösterir.
+- Altında ad (büyük), Tier rengiyle "Tier · Set adı". Ad, Tier, set adı ve Float İngilizce kalır.
+- Float: değer (4 basamak), kondisyon şeridi (katalogdaki kondisyon aralıkları renkli parçalar, eşyanın Float'ı mürekkep çizgi), Kondisyon satırı, nereden geldiği ve ne zaman (`inspect.source.*`, tarih seçili dilin biçiminde), kilitliyse "kilitli".
+- En altta **Hikaye**: dile göre ayrı metin, dil anahtarı `item.story.<eşya id>` (admin panelinde yazılır, `get_locale` ile gelir). Hiçbir dilde metin yoksa kutu gizlenir, pencere kısalır.
+
+Açılış: çantada eşyaya **sol tık** (takas açıkken sol tık yine eşyayı takasa koyar), defterde bulunan ya da dolu kayda sol tık (başkasının defterinde de), profilde vitrindeki eşyaya sol tık; ayrıca çanta ve defter menüsünün ilk satırı "İncele". Çanta ve defter menüsü artık **sağ tıkla** açılır. Yığınlara (yem, malzeme) sol tık eskisi gibi menüyü açar. Bulunmuş ama yuvası boş kayıtta Float kısmı yerine "Bulundu, yuva boş" yazar. Kapatma: köşedeki x, karartmaya tıklama ya da Esc.
 
 ## Oyuncuya sağ tık (31.10.2026, Onur)
 
