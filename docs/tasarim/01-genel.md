@@ -50,7 +50,7 @@ Temel oyuncu motivasyonu:
 
 - Birkaç hazır karakter varyasyonu, **unisex** seçenekler.
 - Karakterler Stardew'dan (16×32) daha net olmalı ki kostüm ve kozmetikler anlaşılsın. Hedef: **LPC boyutu, 64×64 kare** (Stardew'un yaklaşık iki katı), aynı hafif üstten açı, hazır kıyafet katmanları. Daha büyük boyut her animasyonu çok pahalılaştırır.
-- Karakterler 4 yönde (aşağı, yukarı, sol, sağ) yürüme animasyonu ister. AI bunu tutarlı üretemediği için **hazır bir karakter sistemi** kullanılır: örneğin LPC karakter üreteci (isim verme şartlı lisans) veya itch.io paketi.
+- Karakterler 4 yönde (aşağı, yukarı, sol, sağ) yürüme animasyonu ister. AI bunu tutarlı üretemediği için **hazır bir karakter sistemi** kullanılır: örneğin LPC karakter üreteci (isim verme şartlı lisans) veya itch.io paketi. Çapraz yürürken yan (sol/sağ) kareler kullanılır; dikeye ~22°'den yakınsa yukarı/aşağı.
 - Eşyalar karakter üzerinde **giyilmez**. Bu sayede her eşya için tek, önden görünüm PNG yeterlidir.
 - İleride birkaç basit kozmetik (renk, şapka vb.) elle eklenebilir.
 

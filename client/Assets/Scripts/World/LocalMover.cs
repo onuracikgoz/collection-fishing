@@ -81,7 +81,7 @@ namespace CollectionGame.World
             }
             if (want == Vector2.zero) return false;
 
-            Facing = FacingFor(want);
+            Facing = FacingFor(want, Facing);
             var chasing = Target.HasValue && input == Vector2.zero;
             var delta = want.normalized * (WalkSpeed * dt);
             if (chasing && delta.magnitude > want.magnitude) delta = want;
@@ -130,10 +130,23 @@ namespace CollectionGame.World
             return true;
         }
 
-        public static string FacingFor(Vector2 v)
+        // LPC sheets only have four directions, so diagonals use the side frames:
+        // we face left/right unless the move is within ~22° of straight up/down.
+        // Once facing a side we keep it until ~16° from vertical, so a click-walk
+        // near the boundary does not flicker between two rows.
+        const float SideToVertical = 2.4f; // |y| > 2.4|x|, about 67.5° from horizontal
+        const float VerticalToSide = 3.5f; // |y| < 3.5|x| keeps a side we already face
+
+        /// <summary>Which sprite row to show for a move <paramref name="v"/> (server tiles, y down).</summary>
+        public static string FacingFor(Vector2 v, string current)
         {
-            if (Mathf.Abs(v.x) > Mathf.Abs(v.y)) return v.x < 0 ? Dir.Left : Dir.Right;
-            return v.y < 0 ? Dir.Up : Dir.Down;
+            var ax = Mathf.Abs(v.x);
+            var ay = Mathf.Abs(v.y);
+            var side = v.x < 0 ? Dir.Left : Dir.Right;
+            var vertical = v.y < 0 ? Dir.Up : Dir.Down;
+            var limit = current == side ? VerticalToSide : SideToVertical;
+            if (ax > 0f && ay <= ax * limit) return side;
+            return ay > 0f ? vertical : side;
         }
     }
 }
