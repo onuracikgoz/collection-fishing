@@ -14,6 +14,8 @@ Bulut oturumu Unity'yi derleyemediği için pencereler ilk başta Unity'de yazı
 
 6. **İnceleme penceresi (01.11.2026, bulutta derlenmedi):** `UI/Views/InspectView.cs` derleniyor mu; builder sürümü 40 ile `Inspect.prefab` kuruluyor mu. Çantada bir eşyaya sol tık: resim keskin mi (2 kat, bulanık değil), Tier çerçevesi, kondisyon şeridi ve çizgi doğru yerde mi (katalog yüklendikten sonra), hikayesi olmayan eşyada pencere kısalıyor mu, hikayesi olanda metin kutuya sığıyor mu (`story.preferredHeight`). Esc ve karartmaya tıklama kapatıyor mu.
 
+7. **Float görünümü (01.11.2026, bulutta derlenmedi):** `UI/FloatLook.cs` ve `UI/FloatShine.cs` derleniyor mu. Katalog yüklendikten sonra çantada Worn / Damaged eşya soluk ve çamurlu, Damaged'da çizik var mı; Pristine'de yıldızlar ve birkaç saniyede bir ışık şeridi, Excellent'te daha seyrek şerit geçiyor mu. Aynı eşya defterde ve inceleme penceresinde aynı görünüyor mu. Eşyayı sürüklerken şerit takılıyor mu. Web build'de de bak.
+
 ## Mac kontrolü sonucu (29.10.2026)
 
 1. Kit içe aktarılıyor, 9-slice kenarları dokuya yazılıyor. Ama parçalar Multiple sprite modunda geliyordu, kesilen sprite'ın (`card_0`) kenarı 0'dı: `PixelArtImporter` (sürüm 3) UI parçalarını artık Single içe aktarıyor. Unity açılınca 172 doku yeniden içe aktarılır, UI `.meta` dosyaları değişir (commit'lenmeli).
@@ -119,6 +121,15 @@ CS2'deki inceleme ekranı gibi, oyun 2D olduğu için döndürme yok (`InspectVi
 - En altta **Hikaye**: dile göre ayrı metin, dil anahtarı `item.story.<eşya id>` (admin panelinde yazılır, `get_locale` ile gelir). Hiçbir dilde metin yoksa kutu gizlenir, pencere kısalır.
 
 Açılış: çantada eşyaya **sol tık** (takas açıkken sol tık yine eşyayı takasa koyar), defterde bulunan ya da dolu kayda sol tık (başkasının defterinde de), profilde vitrindeki eşyaya sol tık; ayrıca çanta ve defter menüsünün ilk satırı "İncele". Çanta ve defter menüsü artık **sağ tıkla** açılır. Yığınlara (yem, malzeme) sol tık eskisi gibi menüyü açar. Bulunmuş ama yuvası boş kayıtta Float kısmı yerine "Bulundu, yuva boş" yazar. Kapatma: köşedeki x, karartmaya tıklama ya da Esc.
+
+## Float görünümü (01.11.2026, Onur, seçenek B)
+
+Eşyanın Float'ı resminde görünür (`UI/FloatLook.cs`): Worn soluk ve altı çamurlu, Damaged daha soluk, daha çamurlu ve çizikli; Normal resmin kendisi; Excellent biraz canlı ve 5 saniyede bir üstünden ışık şeridi geçer; Pristine daha canlı, etrafında küçük yıldızlar, 2,6 saniyede bir şerit (`FloatShine`). Örnek: `docs/gorsel/float-gorunum.png` (B satırı).
+
+- Shader yok. Her kopya için resim bir kez C# ile yeni bir dokuya çizilir ve saklanır; şerit önceden çizilmiş 10 kare. Point filtre, efektler resmin kendi ızgarasında (128 px resimde 4x4 piksellik hücreler, çantada 1 ekran pikseli), bulanıklaşmaz, web build'de de çalışır.
+- Kondisyon sınırları katalogdan (`get_catalog` kondisyon aralıkları) gelir; katalog gelmeden resim düz görünür. Kirin deseni kopyanın instance id'sinden üretilir: iki Worn kopya biraz farklı, bir kopya hep aynı.
+- Görünür olduğu yerler: çanta, depo / banka, takas, pazar, craft ve birleştirme yuvaları, defterdeki dolu kayıt, profil vitrini, yakalama ve değiş-tokuş kutusu, inceleme penceresi. Yığınlarda (yem, malzeme) Float yok, değişmez.
+- Ayar: renk, kir ve şerit sıklığı `FloatLook.StyleOf` içinde (görsel, oyun dengesi değil).
 
 ## Oyuncuya sağ tık (31.10.2026, Onur)
 

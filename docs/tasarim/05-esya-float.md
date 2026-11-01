@@ -63,7 +63,17 @@ Her eşyanın Float aralığı ve kondisyon oranları farklı olabilir. Örneği
 
 Float görünüşe yansır: **kir ve parlaklık**. Damaged/Worn eşya çamurlu ve soluk, Pristine eşya temiz ve parıltılıdır.
 
-Teknik olarak her Float için ayrı görsel üretilmez. Unity'de tek bir shader, herhangi bir PNG'nin üstüne Float değerine göre kir dokusu veya parıltı bindirir.
+Teknik olarak eşya başına ayrı görsel çizilmez. Client, herhangi bir eşya PNG'sinin üstüne Float'a göre kir ve parıltı ekler (karar 01.11.2026, Onur, seçenek B):
+
+| Kondisyon | Görünüm |
+|---|---|
+| Pristine | Biraz daha canlı renk, etrafında küçük yıldızlar, sık sık üstünden ışık şeridi geçer |
+| Excellent | Hafif canlı, daha seyrek ışık şeridi |
+| Normal | Resmin kendisi |
+| Worn | Soluk, altında çamur lekeleri |
+| Damaged | Daha soluk, daha çok çamur, çizikler |
+
+Bu bir shader değil: resim kopya başına bir kez C# ile çizilip saklanır, pixel art ızgarasında kalır, web build'de de çalışır. Kondisyon sınırları sunucu verisidir (katalog). Ayrıntı: `docs/araclar/ui-uygulama.md` Float görünümü.
 
 ### 7.6. Item Instance Yapısı
 

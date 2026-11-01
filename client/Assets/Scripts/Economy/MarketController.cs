@@ -499,7 +499,7 @@ namespace CollectionGame.Economy
                 {
                     var pk = i < picks.Count ? picks[i] : null;
                     if (pk == null) v.stall[i].SetEmpty();
-                    else if (pk.Item != null) v.stall[i].SetItem(pk.Item.defId, pk.Item.tier, 1, false, pk == editing);
+                    else if (pk.Item != null) v.stall[i].SetItem(pk.Item, false, pk == editing);
                     else v.stall[i].SetItem(pk.DefId, "", pk.Count, false, pk == editing);
                     v.stall[i].Data = pk?.Item != null ? (object)pk.Item : pk != null ? new ItemStack { defId = pk.DefId, count = pk.Count } : null;
                     v.tags[i].Set(pk?.Price ?? 0);
@@ -543,7 +543,7 @@ namespace CollectionGame.Economy
                 var slot = bagSlots[i];
                 slot.gameObject.SetActive(i < cells);
                 var e = i < entries.Count ? entries[i] : null;
-                if (e is ItemInstance it) slot.SetItem(it.defId, it.tier, 1, it.locked);
+                if (e is ItemInstance it) slot.SetItem(it, true);
                 else if (e is ItemStack st) slot.SetItem(st.defId, "", st.count, false);
                 else slot.SetEmpty();
                 slot.Data = e;
@@ -644,7 +644,7 @@ namespace CollectionGame.Economy
                 switch (e)
                 {
                     case StallListItem li:
-                        slot.SetItem(li.item.defId, li.item.tier, 1, false, i == selected);
+                        slot.SetItem(li.item, false, i == selected);
                         slot.Data = li.item;
                         v.tags[i].Set(li.price);
                         break;
@@ -670,7 +670,7 @@ namespace CollectionGame.Economy
                 switch (entries[selected])
                 {
                     case StallListItem li:
-                        v.detailSlot.SetItem(li.item.defId, li.item.tier, 1, false);
+                        v.detailSlot.SetItem(li.item, false);
                         v.detailName.text = FishingController.ItemName(li.item.defId);
                         v.detailSub.text = $"{li.item.tier} · {(p != null ? Prices.ConditionName(p.ConditionOf(li.item.@float)) + " · " : "")}Float {li.item.@float:0.0000}";
                         v.countRow.SetActive(false);

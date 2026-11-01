@@ -49,6 +49,16 @@ namespace CollectionGame.UI.Views
             if (lockMark != null) lockMark.SetActive(isLocked);
         }
 
+        /// <summary>
+        /// A copy with a Float: its picture shows the Float (<see cref="FloatLook"/>: dull and muddy when
+        /// worn, sparkles and a light streak when Pristine / Excellent).
+        /// </summary>
+        public void SetItem(ItemInstance it, bool showLock, bool isSelected = false)
+        {
+            SetItem(it.defId, it.tier, 1, showLock && it.locked, isSelected);
+            if (icon != null) FloatLook.Apply(icon, it);
+        }
+
         /// <summary>Shows the placeholder picture for a key (quest event, chest, emote) instead of words.</summary>
         public void SetIcon(string key)
         {
@@ -59,6 +69,7 @@ namespace CollectionGame.UI.Views
         void SetIconSprite(Sprite s)
         {
             if (icon == null) return;
+            FloatLook.Clear(icon);
             icon.sprite = s;
             icon.enabled = s != null;
         }
