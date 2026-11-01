@@ -1412,9 +1412,9 @@ namespace CollectionGame.EditorTools
                 }
                 view.pages[p] = page;
             }
-            view.prev = LinkText(w, "Prev", "<", 250, 349, 20, Ink, TextAnchor.MiddleCenter);
-            view.nav = TextAt(w, "Nav", "", 270, 349, 136, 14, Faint, TextAnchor.MiddleCenter);
-            view.next = LinkText(w, "Next", ">", 406, 349, 20, Ink, TextAnchor.MiddleCenter);
+            // Page arrows sit at the window's left and right edges, level with the middle of the pages.
+            view.prev = LinkText(w, "Prev", "<", 4, 197, 20, Ink, TextAnchor.MiddleCenter);
+            view.next = LinkText(w, "Next", ">", 652, 197, 20, Ink, TextAnchor.MiddleCenter);
             return wrap.gameObject;
         }
 

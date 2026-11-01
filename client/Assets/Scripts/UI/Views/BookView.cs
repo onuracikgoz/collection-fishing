@@ -32,7 +32,6 @@ namespace CollectionGame.UI.Views
         public RectTransform totalFill;
         public Page[] pages;
         public Button prev, next;
-        public Text nav;
         /// <summary>record_common..mythic (Tiers.All order), record_found, record_unknown.</summary>
         public Sprite[] tierFrames;
         public Sprite found, unknown;

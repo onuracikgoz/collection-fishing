@@ -394,8 +394,6 @@ namespace CollectionGame.Collection
             for (var p = 0; p < v.pages.Length; p++)
                 for (var i = 0; i < v.pages[p].cards.Length; i++)
                     SetCard(v.pages[p].cards[i], RecordAt(p * v.pages[p].cards.Length + i), i + p * v.pages[p].cards.Length < Records.Length - spread * SpreadSize);
-            var nextPage = Book.pages[(PageIndex + 1) % Book.pages.Length];
-            v.nav.text = Book.pages.Length > 1 ? $"{name} · {PageName(nextPage.id)}" : name;
         }
 
         void SetCard(BookView.Card c, BookRecord rec, bool exists = true)
