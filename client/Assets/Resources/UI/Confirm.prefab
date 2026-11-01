@@ -233,7 +233,7 @@ RectTransform:
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
-  - {fileID: 747101109789705520}
+  - {fileID: 1609224044081237004}
   m_Father: {fileID: 1004472033599037962}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
@@ -628,6 +628,7 @@ GameObject:
   - component: {fileID: 9164573224347596722}
   - component: {fileID: 6080206423037875169}
   - component: {fileID: 127825540953944523}
+  - component: {fileID: 8036192744867052549}
   m_Layer: 5
   m_Name: Title
   m_TagString: Untagged
@@ -698,6 +699,21 @@ MonoBehaviour:
   m_Text: Emin misin?
   size: 18
   forceShadow: 0
+--- !u!114 &8036192744867052549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5275911274910556627}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 160fbe5f755d34aca89524ad242b6cf0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.LocText
+  key: common.are_you_sure_title
+  hintKey: 
+  applied: Emin misin?
 --- !u!1 &5448097948354631224
 GameObject:
   m_ObjectHideFlags: 0
@@ -755,7 +771,7 @@ MonoBehaviour:
   yes: {fileID: 1689816382292883237}
   no: {fileID: 3631015004312386022}
   yesText: {fileID: 4422322823167131465}
---- !u!1 &5638857463027322287
+--- !u!1 &6188900547516810732
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -763,9 +779,10 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 747101109789705520}
-  - component: {fileID: 225643530670416102}
-  - component: {fileID: 15807907421685063}
+  - component: {fileID: 1609224044081237004}
+  - component: {fileID: 4176384756146837433}
+  - component: {fileID: 6157351562303304337}
+  - component: {fileID: 7372947677577931637}
   m_Layer: 5
   m_Name: Label
   m_TagString: Untagged
@@ -773,13 +790,13 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!224 &747101109789705520
+--- !u!224 &1609224044081237004
 RectTransform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5638857463027322287}
+  m_GameObject: {fileID: 6188900547516810732}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
@@ -792,21 +809,21 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0.5}
   m_SizeDelta: {x: -4, y: -3}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!222 &225643530670416102
+--- !u!222 &4176384756146837433
 CanvasRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5638857463027322287}
+  m_GameObject: {fileID: 6188900547516810732}
   m_CullTransparentMesh: 1
---- !u!114 &15807907421685063
+--- !u!114 &6157351562303304337
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5638857463027322287}
+  m_GameObject: {fileID: 6188900547516810732}
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 91de6a93398a4446da7ff7dc34439143, type: 3}
@@ -836,6 +853,21 @@ MonoBehaviour:
   m_Text: "Vazge\xE7"
   size: 12
   forceShadow: 0
+--- !u!114 &7372947677577931637
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6188900547516810732}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 160fbe5f755d34aca89524ad242b6cf0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.LocText
+  key: common.cancel
+  hintKey: 
+  applied: "Vazge\xE7"
 --- !u!1 &6425003274507406154
 GameObject:
   m_ObjectHideFlags: 0
@@ -847,6 +879,7 @@ GameObject:
   - component: {fileID: 7871002700691551004}
   - component: {fileID: 607352777219783806}
   - component: {fileID: 4422322823167131465}
+  - component: {fileID: 3380114538122519655}
   m_Layer: 5
   m_Name: Label
   m_TagString: Untagged
@@ -917,3 +950,18 @@ MonoBehaviour:
   m_Text: "\xC7\xF6pe at"
   size: 12
   forceShadow: 0
+--- !u!114 &3380114538122519655
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6425003274507406154}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 160fbe5f755d34aca89524ad242b6cf0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::CollectionGame.UI.LocText
+  key: bag.discard
+  hintKey: 
+  applied: "\xC7\xF6pe at"
