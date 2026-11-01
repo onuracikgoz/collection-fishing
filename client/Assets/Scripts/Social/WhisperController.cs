@@ -20,10 +20,11 @@ namespace CollectionGame.Social
     {
         const int MaxLines = 60;
         const int TextMax = 120; // the server trims to the chat limit too
+        /// <summary>Report reasons; their labels are keys report.reason.ID.</summary>
         static readonly (string id, string label)[] ReportReasons =
         {
-            ("spam", "Spam"), ("abuse", "Hakaret"), ("scam", "Dolandırıcılık"),
-            ("personal_info", "Kişisel bilgi"), ("cheating", "Hile"), ("other", "Diğer"),
+            ("spam", "report.reason.spam"), ("abuse", "report.reason.abuse"), ("scam", "report.reason.scam"),
+            ("personal_info", "report.reason.personal_info"), ("cheating", "report.reason.cheating"), ("other", "report.reason.other"),
         };
 
         sealed class Line
@@ -85,7 +86,7 @@ namespace CollectionGame.Social
             var text = space < 0 ? "" : rest.Substring(space + 1).Trim();
             if (name.Length == 0)
             {
-                Toasts.Show("Kullanım: /w Ad mesaj");
+                Toasts.Show(Loc.T("whisper.usage"));
                 return true;
             }
             var c = Find(null, name) ?? Create(null, name);
@@ -164,7 +165,7 @@ namespace CollectionGame.Social
                     if (!string.IsNullOrEmpty(r.toName)) c.Name = r.toName;
                 }
                 Add(c, new Line { Text = r.text ?? text, Mine = true });
-                if (r.masked) Add(c, new Line { Text = "Kişisel bilgi gizlendi", System = true, Masked = true });
+                if (r.masked) Add(c, new Line { Text = Loc.T("whisper.masked"), System = true, Masked = true });
             }
             catch (Exception e)
             {
@@ -179,16 +180,16 @@ namespace CollectionGame.Social
         {
             switch (code)
             {
-                case ErrorCode.Offline: return "Oyuncu çevrimiçi değil";
-                case ErrorCode.NotAllowed: return "Bu oyuncuya şu an yazamazsın";
-                case ErrorCode.LevelTooLow: return "Yabancılara yazmak için level 10 gerekir";
-                case ErrorCode.Muted: return "Susturuldun";
-                case ErrorCode.YouBlocked: return "Bu oyuncuyu engelledin";
-                case ErrorCode.RateLimited: return "Çok hızlı yazıyorsun";
-                case ErrorCode.NotFound: return "Böyle bir oyuncu yok";
-                case ErrorCode.Self: return "Kendine fısıldayamazsın";
-                case ErrorCode.BadRequest: return "Mesaj boş ya da geçersiz";
-                default: return "Gönderilemedi";
+                case ErrorCode.Offline: return Loc.T("whisper.err.offline");
+                case ErrorCode.NotAllowed: return Loc.T("whisper.err.not_allowed");
+                case ErrorCode.LevelTooLow: return Loc.T("whisper.err.level_too_low");
+                case ErrorCode.Muted: return Loc.T("whisper.err.muted");
+                case ErrorCode.YouBlocked: return Loc.T("whisper.err.you_blocked");
+                case ErrorCode.RateLimited: return Loc.T("whisper.err.rate_limited");
+                case ErrorCode.NotFound: return Loc.T("whisper.err.not_found");
+                case ErrorCode.Self: return Loc.T("whisper.err.self");
+                case ErrorCode.BadRequest: return Loc.T("whisper.err.bad_request");
+                default: return Loc.T("whisper.err.failed");
             }
         }
 
@@ -206,12 +207,12 @@ namespace CollectionGame.Social
             try
             {
                 await net.BlockAsync(c.UserId);
-                Add(c, new Line { Text = $"{c.Name} engellendi", System = true });
+                Add(c, new Line { Text = Loc.T("player.blocked", ("name", c.Name)), System = true });
             }
             catch (Exception e)
             {
                 Debug.LogWarning($"[Whisper] block failed: {e.Message}");
-                Add(c, new Line { Text = "Engellenemedi", System = true });
+                Add(c, new Line { Text = Loc.T("player.block_failed"), System = true });
             }
         }
 
@@ -223,12 +224,12 @@ namespace CollectionGame.Social
             try
             {
                 await net.ReportAsync(c.UserId, reason, null, c.LastTheirs);
-                Add(c, new Line { Text = "Raporun alındı. Teşekkürler.", System = true });
+                Add(c, new Line { Text = Loc.T("report.sent"), System = true });
             }
             catch (Exception e)
             {
                 var code = Connection.ErrorOf(e);
-                Add(c, new Line { Text = code == ErrorCode.RateLimited ? "Çok fazla rapor gönderdin, sonra tekrar dene" : "Rapor gönderilemedi", System = true });
+                Add(c, new Line { Text = Loc.T(code == ErrorCode.RateLimited ? "report.too_many" : "report.failed"), System = true });
             }
         }
 
@@ -382,7 +383,7 @@ namespace CollectionGame.Social
                 var l = c.Lines[k++];
                 r.gameObject.SetActive(true);
                 if (l.System) r.Set(null, l.Text, false, Faint, l.Masked ? Faint : SystemLine);
-                else if (l.Mine) r.Set("Sen", l.Text, true, Mine, Ink);
+                else if (l.Mine) r.Set(Loc.T("trade.you"), l.Text, true, Mine, Ink);
                 else r.Set(l.Name, l.Text, false, Theirs, Ink);
             }
         }

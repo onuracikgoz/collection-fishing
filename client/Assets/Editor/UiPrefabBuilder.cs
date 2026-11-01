@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 37;
+        public const int Version = 38; // 38: labels from Locales keys (LocText)
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -69,7 +69,7 @@ namespace CollectionGame.EditorTools
         {
             var locked = HandEdited();
             if (locked.Count > 0 && !EditorUtility.DisplayDialog("UI prefabları",
-                    "Elle düzenlenmiş prefablar da ezilecek:\n" + string.Join(", ", locked) + "\n\nDevam?", "Ez", "Vazgeç"))
+                    "Elle düzenlenmiş prefablar da ezilecek:\n" + string.Join(", ", locked) + "\n\nDevam?", "Ez", L("common.cancel")))
                 return;
             overwrite = true;
             try { Build(); }
@@ -258,9 +258,12 @@ namespace CollectionGame.EditorTools
         /// </summary>
         static Text Txt(RectTransform rt, string text, int size, Color colour, TextAnchor align = TextAnchor.MiddleLeft, bool bold = false, bool shadow = false)
         {
+            var key = Key(text);
+            if (key != null) text = Loc.BundledText(Loc.Base, key);
             var t = rt.gameObject.AddComponent<GameText>();
             t.font = Font;
             t.text = text;
+            if (key != null) Localize(t, key, null);
             t.Size = size;
             t.fontSize = size;
             t.color = colour;
@@ -273,6 +276,19 @@ namespace CollectionGame.EditorTools
             t.lineSpacing = 1.5f; // the pixel font's lines touch at 1: room between lines of wrapped text
             return t;
         }
+
+        /// <summary>
+        /// A label from a key of Resources/Locales/*.json (docs/araclar/dil-destegi.md): the prefab is
+        /// written in Turkish and gets a LocText, which shows the chosen language at runtime. Plain
+        /// strings stay as they are (sample texts the code replaces, numbers, symbols).
+        /// </summary>
+        static string L(string key) => Loc.Marker + key;
+
+        static string Key(string text) =>
+            text != null && text.StartsWith(Loc.Marker, System.StringComparison.Ordinal) ? text.Substring(Loc.Marker.Length) : null;
+
+        static void Localize(Text t, string key, string hintKey) =>
+            t.gameObject.AddComponent<LocText>().Init(key, hintKey, t.text);
 
         static Text Label(Transform parent, string name, string text, int size, Color colour, TextAnchor align = TextAnchor.MiddleLeft, bool bold = false, bool shadow = false) =>
             Txt(Node(name, parent), text, size, colour, align, bold, shadow);
@@ -469,11 +485,11 @@ namespace CollectionGame.EditorTools
             IconOn(grip, "ui.grip", 16);
             view.chatGrip = grip.gameObject.AddComponent<ChatResize>();
             view.chatGrip.target = log;
-            Tip(grip, "Sohbeti boyutlandır", "Basılı tut, yukarı / aşağı sürükle");
+            Tip(grip, L("hud.chat_resize"), L("hud.chat_resize_note"));
             view.chatClose = Btn(controls, "ChatClose", "flat", "x", 13);
             view.chatClose.GetComponentInChildren<Text>().color = Paper;
             At((RectTransform)view.chatClose.transform, BottomLeft, new Vector2(28, 0), new Vector2(22, 22));
-            Tip(view.chatClose.transform, "Sohbeti kapat", "Yazı alanı kalır");
+            Tip(view.chatClose.transform, L("hud.chat_close"), L("hud.chat_close_note"));
 
             // XP strip on top of the bar, level tag at its left end.
             var xp = Node("Xp", root);
@@ -514,8 +530,8 @@ namespace CollectionGame.EditorTools
             view.rodFill = Bar(At(Node("Rod", bar), BottomLeft, new Vector2(220, 32), new Vector2(92, 16)), "bar_fill_green", out view.rodFillImage);
             view.rodGood = S("bar_fill_green");
             view.rodLow = S("bar_fill_red");
-            view.rodText = Txt(At(Node("RodText", bar), BottomLeft, new Vector2(220, 10), new Vector2(100, 20)), "Olta", 13, Paper);
-            view.repair = Btn(bar, "Repair", "square_green", "Tamir", 10);
+            view.rodText = Txt(At(Node("RodText", bar), BottomLeft, new Vector2(220, 10), new Vector2(100, 20)), L("hud.rod_label"), 13, Paper);
+            view.repair = Btn(bar, "Repair", "square_green", L("hud.repair"), 10);
             view.repair.GetComponentInChildren<Text>().horizontalOverflow = HorizontalWrapMode.Overflow;
             At((RectTransform)view.repair.transform, BottomLeft, new Vector2(320, 12), new Vector2(40, 40));
 
@@ -531,13 +547,13 @@ namespace CollectionGame.EditorTools
             var group = Stretch(Node("ChatGroup", bar));
             view.chatGroup = group.gameObject;
             var chat = At(Node("Chat", group), BottomLeft, new Vector2(504, 12), new Vector2(400, 40));
-            var field = Field(chat, "Enter ile yaz...  /w ad ile fısılda", 14);
+            var field = Field(chat, L("hud.chat_placeholder"), 14);
             field.characterLimit = 120;
             view.chat = field;
             // Send and, beside it, Emote (31.10.2026, Onur): icon buttons like the window buttons.
-            view.send = IconButton(group, "Send", "ui.send", null, "Gönder", "Enter");
+            view.send = IconButton(group, "Send", "ui.send", null, L("hud.send"), "Enter");
             At((RectTransform)view.send.transform, BottomLeft, new Vector2(910, 12), new Vector2(40, 40));
-            view.emote = IconButton(group, "Emote", "ui.emote", "T", "Emote", "Kısayol: T");
+            view.emote = IconButton(group, "Emote", "ui.emote", "T", "Emote", L("hud.shortcut"), "T");
             At((RectTransform)view.emote.transform, BottomLeft, new Vector2(956, 12), new Vector2(40, 40));
 
             // Closed log: a small button on the chat line's top-left corner opens it again; red dot = unread.
@@ -554,14 +570,14 @@ namespace CollectionGame.EditorTools
             // window opens at the quest giver NPC (29.10.2026).
             (string name, string icon, string key, string title)[] buttons =
             {
-                ("Market", "ui.market", "M", "Pazar"), ("Friends", "ui.friends", "O", "Arkadaşlar"), ("Profile", "ui.profile", "P", "Profil"),
-                ("Book", "ui.book", "K", "Defter"), ("Bag", "ui.bag", "B", "Çanta"),
+                ("Market", "ui.market", "M", L("hud.market")), ("Friends", "ui.friends", "O", L("friends.title")), ("Profile", "ui.profile", "P", L("player.profile")),
+                ("Book", "ui.book", "K", L("book.mine")), ("Bag", "ui.bag", "B", L("bag.title")),
             };
             var made = new Button[buttons.Length];
             for (var i = 0; i < buttons.Length; i++)
             {
                 var (name, icon, key, title) = buttons[i];
-                made[i] = IconButton(bar, name, icon, key, title, "Kısayol: " + key);
+                made[i] = IconButton(bar, name, icon, key, title, L("hud.shortcut"), key);
                 At((RectTransform)made[i].transform, BottomRight, new Vector2(-(1408 - 1320 + (buttons.Length - 1 - i) * 50), 12), new Vector2(40, 40), BottomRight);
             }
             view.market = made[0];
@@ -569,7 +585,7 @@ namespace CollectionGame.EditorTools
             view.profile = made[2];
             view.book = made[3];
             view.bag = made[4];
-            view.settings = IconButton(bar, "Settings", "ui.settings", null, "Ayarlar", null);
+            view.settings = IconButton(bar, "Settings", "ui.settings", null, L("settings.title"), null);
             At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
             return root.gameObject;
         }
@@ -586,25 +602,27 @@ namespace CollectionGame.EditorTools
         }
 
         /// <summary>Name (and a hint) in the tooltip card while the pointer is on it.</summary>
-        static void Tip(Transform t, string title, string note)
+        /// <summary>title / note may be L("key"): HoverTip resolves them at runtime; noteArg fills {key}.</summary>
+        static void Tip(Transform t, string title, string note, string noteArg = null)
         {
             var tip = t.gameObject.AddComponent<HoverTip>();
             tip.title = title;
             tip.note = note;
+            tip.noteArg = noteArg;
         }
 
         /// <summary>A flat HUD button showing a picture, its shortcut letter small in the corner, the name on hover.</summary>
-        static Button IconButton(Transform parent, string name, string icon, string key, string title, string note)
+        static Button IconButton(Transform parent, string name, string icon, string key, string title, string note, string noteArg = null)
         {
             var b = Btn(parent, name, "flat", null);
             IconOn(b.transform, icon, 32);
             if (!string.IsNullOrEmpty(key))
                 Txt(At(Node("Key", b.transform), BottomRight, new Vector2(-2, 2), new Vector2(12, 10), BottomRight), key, 8, Paper, TextAnchor.LowerRight, false, true);
-            Tip(b.transform, title, note);
+            Tip(b.transform, title, note, noteArg);
             return b;
         }
 
-        /// <summary>Mini map under the balances (31.10.2026, Onur) and the "Başlangıca dön" button under it.</summary>
+        /// <summary>Mini map under the balances (31.10.2026, Onur) and the L("hud.home") button under it.</summary>
         static MiniMapView MiniMap(RectTransform root)
         {
             var box = At(Node("MiniMap", root), TopRight, new Vector2(-12, -56), new Vector2(176, 136));
@@ -635,7 +653,7 @@ namespace CollectionGame.EditorTools
             Solid(Stretch(Node("Edge", me), -1, -1, -1, -1), Ink).transform.SetAsFirstSibling();
             view.me = me;
 
-            view.home = Btn(root, "Home", "wood", "Başlangıca dön", 10);
+            view.home = Btn(root, "Home", "wood", L("hud.home"), 10);
             At((RectTransform)view.home.transform, TopRight, new Vector2(-12, -196), new Vector2(176, 24));
             view.homeText = view.home.GetComponentInChildren<Text>();
             return view;
@@ -648,7 +666,7 @@ namespace CollectionGame.EditorTools
             var wrap = Stretch(Node("Bag", null));
             var view = wrap.gameObject.AddComponent<BagView>();
             // canta-v2: 392 wide, 16 from the right, 81 from the bottom; slots 40 at a 44 pitch from (20, 48).
-            view.window = Window(wrap, "Window", "Çanta", new Vector2(392, 309));
+            view.window = Window(wrap, "Window", L("bag.title"), new Vector2(392, 309));
             At((RectTransform)view.window.transform, BottomRight, new Vector2(-16, 81), new Vector2(392, 309), BottomRight);
             var body = (RectTransform)view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
@@ -670,11 +688,11 @@ namespace CollectionGame.EditorTools
             view.slotTemplate = Slot(grid, "SlotTemplate");
             view.slotTemplate.gameObject.SetActive(false);
 
-            // Trash can bottom left (31.10.2026, Onur): drop an item on it, "Emin misin?", gone.
+            // Trash can bottom left (31.10.2026, Onur): drop an item on it, L("common.are_you_sure_title"), gone.
             var trash = At(Node("Trash", body), BottomLeft, new Vector2(18, 10), new Vector2(28, 28));
             Img(trash, "button_square_wood_normal", Image.Type.Sliced, true);
             IconOn(trash, "trash", 16);
-            Tip(trash, "Çöp kovası", "Eşyayı buraya sürükle");
+            Tip(trash, L("bag.trash"), L("bag.trash_note"));
             view.trash = trash;
             view.trashHighlight = Img(Stretch(Node("Over", trash), -3, -3, -3, -3), "slot_selected");
             view.trashHighlight.pixelsPerUnitMultiplier = 2;
@@ -787,9 +805,14 @@ namespace CollectionGame.EditorTools
             var nav = t.navigation;
             nav.mode = Navigation.Mode.None;
             t.navigation = nav;
-            var text = Txt(At(Node("Label", rt), new Vector2(0, 0.5f), new Vector2(34, 0), new Vector2(400, 22), new Vector2(0, 0.5f)),
-                hint == null ? label : $"{label}  <color=#7f708a>{hint}</color>", 15, Ink);
+            var labelKey = Key(label);
+            var hintKey = Key(hint);
+            var shown = labelKey != null
+                ? LocText.Compose(labelKey, hintKey, k => Loc.BundledText(Loc.Base, k))
+                : hint == null ? label : $"{label}  <color=#7f708a>{hint}</color>";
+            var text = Txt(At(Node("Label", rt), new Vector2(0, 0.5f), new Vector2(34, 0), new Vector2(400, 22), new Vector2(0, 0.5f)), shown, 15, Ink);
             text.supportRichText = true;
+            if (labelKey != null) Localize(text, labelKey, hintKey);
             return t;
         }
 
@@ -847,7 +870,7 @@ namespace CollectionGame.EditorTools
             Solid(At(Node("Icon", rt), new Vector2(0, 0.5f), new Vector2(10, 0), new Vector2(20, 20), new Vector2(0, 0.5f)), icon);
             Txt(At(Node("Name", rt), new Vector2(0, 0.5f), new Vector2(45, 0), new Vector2(95, 22), new Vector2(0, 0.5f)), name, 16, Ink);
             row.status = Txt(At(Node("Status", rt), new Vector2(0, 0.5f), new Vector2(140, 0), new Vector2(165, 22), new Vector2(0, 0.5f)), "bağlı değil", 14, Faint);
-            row.button = Btn(rt, "Button", "wood", "Bağla", 13);
+            row.button = Btn(rt, "Button", "wood", L("settings.link"), 13);
             At((RectTransform)row.button.transform, new Vector2(1, 0.5f), new Vector2(-7, 0), new Vector2(130, 30), new Vector2(1, 0.5f));
             row.buttonText = row.button.GetComponentInChildren<Text>();
             return row;
@@ -868,15 +891,15 @@ namespace CollectionGame.EditorTools
             var size = new Vector2(675, 537);
             var wrap = Stretch(Node("Settings", null));
             var view = wrap.gameObject.AddComponent<SettingsView>();
-            view.window = Window(wrap, "Window", "Ayarlar", size);
+            view.window = Window(wrap, "Window", L("settings.title"), size);
             At((RectTransform)view.window.transform, Center, new Vector2(-1, 31), size, Center);
             var w = view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
             view.window.body = (RectTransform)w;
 
             // Left column: tabs, a vertical divider, the version.
-            view.tabGeneral = Tab(w, "TabGeneral", "Genel", 23, 32, 152, 36, 16, TextAnchor.MiddleLeft);
-            view.tabAccount = Tab(w, "TabAccount", "Hesap", 23, 76, 152, 36, 16, TextAnchor.MiddleLeft);
+            view.tabGeneral = Tab(w, "TabGeneral", L("settings.tab_general"), 23, 32, 152, 36, 16, TextAnchor.MiddleLeft);
+            view.tabAccount = Tab(w, "TabAccount", L("settings.tab_account"), 23, 76, 152, 36, 16, TextAnchor.MiddleLeft);
             var vline = Abs(w, "ColumnDivider", 187, 17, 503, 4);
             Img(vline, "divider");
             vline.pivot = new Vector2(0, 1);
@@ -888,39 +911,56 @@ namespace CollectionGame.EditorTools
             // ---- Genel ----
             var g = Stretch(Node("General", w));
             view.general = g.gameObject;
-            Section(g, "Ses", 42, 57);
-            TextAt(g, "MusicLabel", "Müzik", 203, 76, 120, 15, Ink);
+            Section(g, L("settings.sound"), 42, 57);
+            TextAt(g, "MusicLabel", L("emote.status.note"), 203, 76, 120, 15, Ink);
             view.music = SliderAt(g, "Music", 77, out view.musicValue);
-            TextAt(g, "EffectsLabel", "Efektler", 203, 109, 120, 15, Ink);
+            TextAt(g, "EffectsLabel", L("settings.effects"), 203, 109, 120, 15, Ink);
             view.effects = SliderAt(g, "Effects", 109, out view.effectsValue);
-            view.hitSound = Check(g, "HitSound", "Vuruş sesini her zaman çal", "(müzik kısıksa da)", 143);
-            Section(g, "Ekran", 174, 189);
-            TextAt(g, "LanguageLabel", "Dil", 203, 214, 120, 15, Ink);
+            view.hitSound = Check(g, "HitSound", L("settings.hit_sound"), L("settings.hit_sound_hint"), 143);
+            Section(g, L("settings.screen"), 174, 189);
+            TextAt(g, "LanguageLabel", L("settings.language"), 203, 214, 120, 15, Ink);
             view.language = Choice(g, "Language", 214, out view.languageText);
-            TextAt(g, "ScaleLabel", "Arayüz boyutu", 203, 254, 120, 15, Ink);
+            TextAt(g, "ScaleLabel", L("settings.ui_scale"), 203, 254, 120, 15, Ink);
             view.uiScale = Choice(g, "UiScale", 254, out view.uiScaleText);
-            view.fullScreen = Check(g, "FullScreen", "Tam ekran", "(Steam)", 290);
-            view.showNames = Check(g, "ShowNames", "Oyuncu adlarını göster", null, 318);
-            Section(g, "Sohbet", 349, 364);
-            view.friendsOnly = Check(g, "FriendsOnly", "Sadece arkadaşlardan mesaj al", null, 387);
-            view.announcements = Check(g, "Announcements", "Sistem duyurularını göster", "(nadir avlar)", 415);
-            view.bubbles = Check(g, "Bubbles", "Sohbet balonları", null, 443);
+            view.fullScreen = Check(g, "FullScreen", L("settings.full_screen"), "(Steam)", 290);
+            view.showNames = Check(g, "ShowNames", L("settings.show_names"), null, 318);
+            Section(g, L("settings.chat"), 349, 364);
+            view.friendsOnly = Check(g, "FriendsOnly", L("settings.friends_only"), null, 387);
+            view.announcements = Check(g, "Announcements", L("settings.announcements"), L("settings.announcements_hint"), 415);
+            view.bubbles = Check(g, "Bubbles", L("settings.bubbles"), null, 443);
             view.blocked = TextAt(g, "Blocked", "Engellenenler: 0 kişi", 203, 477, 170, 15, Ink);
             var link = Abs(g, "OpenBlocked", 384, 466, 90, 22);
-            var linkText = Txt(link, "Listeyi aç", 15, Hex("4d65b4"));
+            var linkText = Txt(link, L("settings.open_list"), 15, Hex("4d65b4"));
             linkText.raycastTarget = true;
             view.openBlocked = link.gameObject.AddComponent<Button>();
             view.openBlocked.targetGraphic = linkText;
 
+            // Language list under the Dil field, over the rows below it (off until clicked). SettingsController
+            // copies the hidden row once per language (Locales/languages.json); untranslated ones are greyed out.
+            var langList = Abs(g, "LanguageList", 327, 230, 178, 10);
+            Img(langList, "card", Image.Type.Sliced, true);
+            Layout<VerticalLayoutGroup>(langList, 0, new RectOffset(4, 4, 4, 4));
+            langList.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            var langRow = Btn(langList, "LanguageRow", "flat", "", 13);
+            Size(langRow, minH: 22, prefH: 22, flexW: 1);
+            var langRowText = langRow.GetComponentInChildren<Text>();
+            langRowText.alignment = TextAnchor.MiddleLeft;
+            ((RectTransform)langRowText.transform).offsetMin = new Vector2(8, 2);
+            view.languageRow = langRow;
+            view.languageList = langList.gameObject;
+            langList.SetAsLastSibling();
+            langRow.gameObject.SetActive(false);
+            langList.gameObject.SetActive(false);
+
             // ---- Hesap ----
             // Account > AccountContent (everything on the page; hand-added pieces go here too) and
-            // AccountCover on top: opaque, and the content is switched off until "Göster".
+            // AccountCover on top: opaque, and the content is switched off until L("settings.reveal").
             var acc = Stretch(Node("Account", w));
             view.account = acc.gameObject;
             var a = Stretch(Node("AccountContent", acc));
             view.accountContent = a.gameObject;
-            Section(a, "Giriş yöntemleri", 42, 57);
-            TextAt(a, "Subtitle", "Hepsi aynı karaktere girer. En az biri kalmalı.", 203, 72, 447, 14, Faint);
+            Section(a, L("settings.login_methods"), 42, 57);
+            TextAt(a, "Subtitle", L("settings.login_methods_note"), 203, 72, 447, 14, Faint);
             view.google = LoginRow(a, "Google", Hex("4d9be6"), 92);
             view.facebook = LoginRow(a, "Facebook", Hex("4d65b4"), 137);
             view.discord = LoginRow(a, "Discord", Hex("a884f3"), 183);
@@ -929,37 +969,37 @@ namespace CollectionGame.EditorTools
             var box = Abs(a, "CodeBox", 203, 277, 447, 77);
             Img(box, "box_dark");
             view.codeBox = box.gameObject;
-            Txt(At(Node("Title", box), TopLeft, new Vector2(12, -4), new Vector2(420, 20)), "Steam'de bu kodu yaz:", 14, Paper);
+            Txt(At(Node("Title", box), TopLeft, new Vector2(12, -4), new Vector2(420, 20)), L("settings.code_title"), 14, Paper);
             view.code = Txt(At(Node("Code", box), TopLeft, new Vector2(12, -24), new Vector2(130, 24)), "ABCD-EFGH", 18, Gold, TextAnchor.MiddleLeft, true);
             view.codeTimer = Txt(At(Node("Timer", box), TopLeft, new Vector2(142, -26), new Vector2(290, 20)), "", 14, Paper);
-            Txt(At(Node("Warn", box), TopLeft, new Vector2(12, -52), new Vector2(420, 20)), "Kimseyle paylaşma. Yetkililer asla istemez.", 14, Hex("e83b3b"));
-            Section(a, "Hesap", 379, 394);
+            Txt(At(Node("Warn", box), TopLeft, new Vector2(12, -52), new Vector2(420, 20)), L("settings.code_warn"), 14, Hex("e83b3b"));
+            Section(a, L("settings.tab_account"), 379, 394);
             view.username = TextAt(a, "Username", "Kullanıcı adı:", 203, 418, 220, 15, Ink);
-            TextAt(a, "Fixed", "(değişmez)", 425, 418, 120, 14, Faint);
-            view.logout = Btn(a, "Logout", "wood", "Çıkış yap", 15);
+            TextAt(a, "Fixed", L("settings.username_fixed"), 425, 418, 120, 14, Faint);
+            view.logout = Btn(a, "Logout", "wood", L("settings.logout"), 15);
             At((RectTransform)view.logout.transform, TopLeft, new Vector2(203, -437), new Vector2(159, 33));
-            view.delete = Btn(a, "Delete", "red", "Hesabı sil", 15);
+            view.delete = Btn(a, "Delete", "red", L("settings.delete"), 15);
             At((RectTransform)view.delete.transform, TopLeft, new Vector2(471, -437), new Vector2(179, 33));
-            view.deleteNote = TextAt(a, "DeleteNote", "Silme 14 gün bekler, bu sürede geri alınır.", 300, 486, 343, 14, Hex("e83b3b"), TextAnchor.MiddleRight);
+            view.deleteNote = TextAt(a, "DeleteNote", L("settings.delete_note"), 300, 486, 343, 14, Hex("e83b3b"), TextAnchor.MiddleRight);
             view.error = TextAt(a, "Error", "", 203, 504, 447, 13, Hex("9e4539"));
 
             // Two-step delete: type the username (replaces the buttons while open).
             var c = Abs(a, "Confirm", 203, 430, 447, 66);
             Img(c, "card");
             view.confirm = c.gameObject;
-            Txt(At(Node("Text", c), TopLeft, new Vector2(8, -3), new Vector2(430, 20)), "Her şey kalıcı olarak gider. Onay için kullanıcı adını aynen yaz:", 13, Ink);
+            Txt(At(Node("Text", c), TopLeft, new Vector2(8, -3), new Vector2(430, 20)), L("settings.delete_confirm"), 13, Ink);
             var nameField = At(Node("Name", c), TopLeft, new Vector2(8, -28), new Vector2(170, 30));
-            view.confirmName = Field(nameField, "kullanıcı adı", 14);
-            view.confirmCancel = Btn(c, "Cancel", "wood", "Vazgeç", 14);
+            view.confirmName = Field(nameField, L("settings.username_placeholder"), 14);
+            view.confirmCancel = Btn(c, "Cancel", "wood", L("common.cancel"), 14);
             At((RectTransform)view.confirmCancel.transform, TopLeft, new Vector2(186, -28), new Vector2(110, 30));
-            view.confirmDelete = Btn(c, "Confirm", "red", "Hesabımı sil", 14);
+            view.confirmDelete = Btn(c, "Confirm", "red", L("settings.delete_mine"), 14);
             At((RectTransform)view.confirmDelete.transform, TopLeft, new Vector2(304, -28), new Vector2(135, 30));
             c.gameObject.SetActive(false);
 
             // Pending deletion line (replaces the buttons while a deletion waits).
             view.pending = TextAt(a, "Pending", "", 203, 452, 300, 14, Hex("9e4539"));
             view.pending.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.cancelDeletion = Btn(a, "CancelDeletion", "green", "Silmeyi iptal et", 14);
+            view.cancelDeletion = Btn(a, "CancelDeletion", "green", L("settings.cancel_delete"), 14);
             At((RectTransform)view.cancelDeletion.transform, TopLeft, new Vector2(510, -437), new Vector2(140, 33));
             view.pending.gameObject.SetActive(false);
             view.cancelDeletion.gameObject.SetActive(false);
@@ -968,11 +1008,11 @@ namespace CollectionGame.EditorTools
             var cover = Abs(acc, "AccountCover", 203, 30, 447, 480);
             Img(cover, "panel_cover", Image.Type.Sliced, true);
             view.hidden = cover.gameObject;
-            Txt(At(Node("Title", cover), Center, new Vector2(0, 40), new Vector2(400, 24), Center), "Hesap bilgilerin gizlendi", 17, Paper, TextAnchor.MiddleCenter, true);
+            Txt(At(Node("Title", cover), Center, new Vector2(0, 40), new Vector2(400, 24), Center), L("settings.hidden_title"), 17, Paper, TextAnchor.MiddleCenter, true);
             var hint = Txt(At(Node("Hint", cover), Center, new Vector2(0, 5), new Vector2(380, 40), Center),
-                "Yayın yapıyorsan ya da yanında biri varsa açma.\nBu sayfada hesabını taşıyan kod ve silme ayarı var.", 14, Paper, TextAnchor.MiddleCenter);
+                L("settings.hidden_note"), 14, Paper, TextAnchor.MiddleCenter);
             hint.horizontalOverflow = HorizontalWrapMode.Wrap;
-            view.reveal = Btn(cover, "Reveal", "wood", "Göster", 15);
+            view.reveal = Btn(cover, "Reveal", "wood", L("settings.reveal"), 15);
             At((RectTransform)view.reveal.transform, Center, new Vector2(0, -45), new Vector2(120, 32), Center);
             return wrap.gameObject;
         }
@@ -984,7 +1024,7 @@ namespace CollectionGame.EditorTools
             var side = new TradeView.Side();
             var panel = Abs(w, name, x, 30, 195, 268);
             side.back = Img(panel, "card");
-            side.name = TextAt(panel, "Name", "Sen", 12, 18, 110, 16, Ink);
+            side.name = TextAt(panel, "Name", L("trade.you"), 12, 18, 110, 16, Ink);
             side.level = TextAt(panel, "Level", "", 72, 19, 100, 13, Faint);
             side.slots = new SlotView[8];
             for (var i = 0; i < 8; i++)
@@ -1014,7 +1054,7 @@ namespace CollectionGame.EditorTools
             var size = new Vector2(465, 418);
             var wrap = Stretch(Node("Trade", null));
             var view = wrap.gameObject.AddComponent<TradeView>();
-            view.window = Window(wrap, "Window", "Takas", size);
+            view.window = Window(wrap, "Window", L("notice.unlock.trade"), size);
             At((RectTransform)view.window.transform, Center, new Vector2(38, -23), size, Center);
             var w = view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
@@ -1024,27 +1064,27 @@ namespace CollectionGame.EditorTools
             view.me = TradeSide(w, "Me", 22, true);
             view.them = TradeSide(w, "Them", 250, false);
 
-            view.hint = TextAt(w, "Hint", "Çantadan sürükle. Değişiklik kilidi açar.", 22, 345, 423, 12, Faint, TextAnchor.MiddleCenter);
+            view.hint = TextAt(w, "Hint", L("trade.hint"), 22, 345, 423, 12, Faint, TextAnchor.MiddleCenter);
             var strip = Abs(w, "Strip", 22, 334, 423, 24);
             Img(strip, "box_dark");
             view.strip = strip.gameObject;
             view.stripText = Txt(Stretch(Node("Text", strip)), "", 14, Hex("fbff86"), TextAnchor.MiddleCenter, true);
             strip.gameObject.SetActive(false);
 
-            view.lockButton = Btn(w, "Lock", "wood", "Kilitle", 16);
+            view.lockButton = Btn(w, "Lock", "wood", L("bag.lock"), 16);
             At((RectTransform)view.lockButton.transform, TopLeft, new Vector2(22, -366), new Vector2(138, 40));
             view.lockText = view.lockButton.GetComponentInChildren<Text>();
-            view.confirm = Btn(w, "Confirm", "green", "Onayla", 16);
+            view.confirm = Btn(w, "Confirm", "green", L("trade.confirm"), 16);
             At((RectTransform)view.confirm.transform, TopLeft, new Vector2(175, -366), new Vector2(157, 40));
             view.confirmText = view.confirm.GetComponentInChildren<Text>();
-            view.cancel = Btn(w, "Cancel", "red", "İptal", 16);
+            view.cancel = Btn(w, "Cancel", "red", L("common.cancel_short"), 16);
             At((RectTransform)view.cancel.transform, TopLeft, new Vector2(336, -366), new Vector2(109, 40));
             return wrap.gameObject;
         }
 
         static GameObject BuildCount()
         {
-            // takas-b: the "Kaç tane?" box, 296x150 at (590, 392).
+            // takas-b: the L("common.how_many") box, 296x150 at (590, 392).
             var size = new Vector2(296, 150);
             var wrap = Stretch(Node("Count", null));
             var view = wrap.gameObject.AddComponent<CountView>();
@@ -1059,7 +1099,7 @@ namespace CollectionGame.EditorTools
             var w = view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
             view.window.body = (RectTransform)w;
-            view.question = TextAt(w, "Question", "Kaç tane?", 26, 34, 250, 16, Ink);
+            view.question = TextAt(w, "Question", L("common.how_many"), 26, 34, 250, 16, Ink);
             view.minus = Btn(w, "Minus", "wood", "-", 18);
             At((RectTransform)view.minus.transform, TopLeft, new Vector2(34, -56), new Vector2(38, 32));
             var field = Abs(w, "Value", 98, 56, 98, 32);
@@ -1070,9 +1110,9 @@ namespace CollectionGame.EditorTools
             view.value.textComponent.alignment = TextAnchor.MiddleCenter;
             view.plus = Btn(w, "Plus", "wood", "+", 18);
             At((RectTransform)view.plus.transform, TopLeft, new Vector2(222, -56), new Vector2(38, 32));
-            view.ok = Btn(w, "Ok", "green", "Tamam", 15);
+            view.ok = Btn(w, "Ok", "green", L("common.ok"), 15);
             At((RectTransform)view.ok.transform, TopLeft, new Vector2(34, -100), new Vector2(106, 34));
-            view.cancel = Btn(w, "Cancel", "wood", "Vazgeç", 15);
+            view.cancel = Btn(w, "Cancel", "wood", L("common.cancel"), 15);
             At((RectTransform)view.cancel.transform, TopLeft, new Vector2(154, -100), new Vector2(106, 34));
             return wrap.gameObject;
         }
@@ -1111,16 +1151,16 @@ namespace CollectionGame.EditorTools
             // tezgah-kur: window 756x496 at (324, 128).
             var wrap = Stretch(Node("StallSetup", null));
             var view = wrap.gameObject.AddComponent<StallSetupView>();
-            view.window = DraftWindow(wrap, "Tezgah kur", 324, 128, 756, 496);
+            view.window = DraftWindow(wrap, L("market.setup_title"), 324, 128, 756, 496);
             var w = view.window.transform;
-            TextAt(w, "TitleLabel", "Başlık", 28, 47, 70, 15, Ink);
-            view.title = Field(Abs(w, "Title", 96, 32, 300, 31), "Tezgahına bir başlık yaz", 15);
+            TextAt(w, "TitleLabel", L("market.title_label"), 28, 47, 70, 15, Ink);
+            view.title = Field(Abs(w, "Title", 96, 32, 300, 31), L("market.title_placeholder"), 15);
             view.title.characterLimit = 40;
             Img(Abs(w, "Divider", 28, 75, 700, 4), "divider");
             Panel(w, "StallPanel", 18, 84, 420, 178);
             Panel(w, "BagPanel", 18, 262, 482, 120);
             view.stallHeader = TextAt(w, "StallHeader", "Tezgah · 0 / 12", 28, 96, 180, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.stallHint = TextAt(w, "StallHint", "Çantadan tıkla, fiyat yaz, Koy", 214, 96, 260, 14, Faint);
+            view.stallHint = TextAt(w, "StallHint", L("market.setup_hint"), 214, 96, 260, 14, Faint);
             view.stall = new SlotView[12];
             view.tags = new PriceTag[12];
             for (var i = 0; i < 12; i++)
@@ -1136,24 +1176,24 @@ namespace CollectionGame.EditorTools
             view.picked = picked.gameObject;
             view.pickedName = TextAt(picked, "Name", "", 12, 16, 150, 15, Paper, TextAnchor.MiddleLeft, true);
             view.pickedCondition = TextAt(picked, "Condition", "", 12, 35, 190, 14, DiamondColour);
-            view.countLabel = TextAt(picked, "CountLabel", "Adet", 120, 35, 40, 13, Paper);
+            view.countLabel = TextAt(picked, "CountLabel", L("common.count"), 120, 35, 40, 13, Paper);
             view.count = Field(Abs(picked, "Count", 158, 24, 48, 24), "1", 14);
             view.count.contentType = InputField.ContentType.IntegerNumber;
             view.count.characterLimit = 6;
-            TextAt(picked, "PriceLabel", "Fiyat", 12, 61, 50, 15, Paper);
+            TextAt(picked, "PriceLabel", L("common.price"), 12, 61, 50, 15, Paper);
             var priceField = Abs(picked, "Price", 61, 47, 98, 27);
             view.price = Field(priceField, "0", 15);
             priceField.GetComponent<Image>().sprite = S("input_focus");
             view.price.contentType = InputField.ContentType.IntegerNumber;
             view.price.characterLimit = 10;
             Icon(picked, "Coin", new Vector2(0, 1), new Vector2(166, -61), Gold, 12);
-            view.put = Btn(picked, "Put", "green", "Koy", 15);
+            view.put = Btn(picked, "Put", "green", L("market.put"), 15);
             At((RectTransform)view.put.transform, TopLeft, new Vector2(13, -87), new Vector2(93, 30));
-            view.takeBack = Btn(picked, "TakeBack", "wood", "Geri al", 15);
+            view.takeBack = Btn(picked, "TakeBack", "wood", L("market.take_back"), 15);
             At((RectTransform)view.takeBack.transform, TopLeft, new Vector2(113, -87), new Vector2(93, 30));
 
-            TextAt(w, "BagLabel", "Çanta", 28, 274, 60, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.bagHint = TextAt(w, "BagHint", "kilitli eşya konamaz", 96, 274, 200, 14, Faint);
+            TextAt(w, "BagLabel", L("bag.title"), 28, 274, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.bagHint = TextAt(w, "BagHint", L("market.bag_hint"), 96, 274, 200, 14, Faint);
             view.place = TextAt(w, "Place", "", 499, 272, 230, 12, Faint);
             view.place.horizontalOverflow = HorizontalWrapMode.Wrap;
             // Bag: 10 a row, two rows in sight, the rest scrolls.
@@ -1182,14 +1222,14 @@ namespace CollectionGame.EditorTools
             view.bagTemplate = Slot(content, "SlotTemplate");
             view.bagTemplate.gameObject.SetActive(false);
 
-            view.footer = TextAt(w, "Footer", "Pet sen oyundan çıkana kadar satar, sen balık tutarken de.\nSatıştan pazar ücreti kesilir · satılmayanlar çantana döner.", 28, 437, 500, 14, Faint);
+            view.footer = TextAt(w, "Footer", L("market.setup_footer"), 28, 437, 500, 14, Faint);
             view.footer.horizontalOverflow = HorizontalWrapMode.Wrap;
             ((RectTransform)view.footer.transform).sizeDelta = new Vector2(500, 40);
-            view.open = Btn(w, "Open", "green", "Tezgahı aç", 16);
+            view.open = Btn(w, "Open", "green", L("market.open"), 16);
             At((RectTransform)view.open.transform, TopLeft, new Vector2(553, -417), new Vector2(178, 37));
-            view.recall = Btn(w, "Recall", "red", "Peti geri çağır", 15);
+            view.recall = Btn(w, "Recall", "red", L("market.recall"), 15);
             At((RectTransform)view.recall.transform, TopLeft, new Vector2(553, -417), new Vector2(178, 37));
-            view.board = Btn(w, "Board", "wood", "Pazar Panosu", 15);
+            view.board = Btn(w, "Board", "wood", L("market.board"), 15);
             At((RectTransform)view.board.transform, TopLeft, new Vector2(553, -372), new Vector2(178, 34));
             return wrap.gameObject;
         }
@@ -1199,16 +1239,16 @@ namespace CollectionGame.EditorTools
             // tezgah-tezgah: window 750x420 at (325, 140).
             var wrap = Stretch(Node("Stall", null));
             var view = wrap.gameObject.AddComponent<StallListView>();
-            view.window = DraftWindow(wrap, "Tezgah", 325, 140, 750, 420);
+            view.window = DraftWindow(wrap, L("market.stall"), 325, 140, 750, 420);
             var w = view.window.transform;
             view.pet = SlotAt(w, "Pet", 27, 32, 54);
             view.title = TextAt(w, "Title", "", 95, 44, 360, 18, Ink, TextAnchor.MiddleLeft, true);
             view.owner = TextAt(w, "Owner", "", 95, 66, 360, 14, Faint);
-            view.profile = Btn(w, "Profile", "wood", "Profil", 15);
+            view.profile = Btn(w, "Profile", "wood", L("player.profile"), 15);
             At((RectTransform)view.profile.transform, TopLeft, new Vector2(460, -37), new Vector2(85, 30));
-            view.whisper = Btn(w, "Whisper", "wood", "Fısılda", 15);
+            view.whisper = Btn(w, "Whisper", "wood", L("player.whisper"), 15);
             At((RectTransform)view.whisper.transform, TopLeft, new Vector2(552, -37), new Vector2(86, 30));
-            view.friend = Btn(w, "Friend", "green", "Arkadaş", 15);
+            view.friend = Btn(w, "Friend", "green", L("market.friend"), 15);
             At((RectTransform)view.friend.transform, TopLeft, new Vector2(644, -37), new Vector2(86, 30));
             view.slots = new SlotView[12];
             view.tags = new PriceTag[12];
@@ -1226,12 +1266,12 @@ namespace CollectionGame.EditorTools
             view.detailSlot = SlotAt(card, "Item", 15, 15);
             view.detailName = TextAt(card, "Name", "", 68, 25, 320, 16, Ink, TextAnchor.MiddleLeft, true);
             view.detailSub = TextAt(card, "Sub", "", 68, 45, 330, 14, Faint);
-            TextAt(card, "UnitLabel", "Tanesi", 15, 80, 60, 15, Ink);
+            TextAt(card, "UnitLabel", L("market.unit"), 15, 80, 60, 15, Ink);
             Icon(card, "UnitCoin", new Vector2(0, 1), new Vector2(75, -80), Gold, 12);
             view.unitPrice = TextAt(card, "Unit", "", 92, 80, 200, 16, Ink, TextAnchor.MiddleLeft, true);
             var row = Abs(card, "CountRow", 0, 100, 410, 30);
             view.countRow = row.gameObject;
-            view.countLabel = TextAt(row, "Label", "Kaç tane?", 15, 15, 75, 15, Ink);
+            view.countLabel = TextAt(row, "Label", L("common.how_many"), 15, 15, 75, 15, Ink);
             view.minus = Btn(row, "Minus", "wood", "-", 16);
             At((RectTransform)view.minus.transform, TopLeft, new Vector2(92, -2), new Vector2(30, 26));
             view.count = Field(Abs(row, "Count", 127, 2, 64, 26), "1", 15);
@@ -1244,13 +1284,13 @@ namespace CollectionGame.EditorTools
             maxText.raycastTarget = true;
             view.max = max.gameObject.AddComponent<Button>();
             view.max.targetGraphic = maxText;
-            TextAt(card, "TotalLabel", "Toplam", 15, 151, 60, 15, Ink);
+            TextAt(card, "TotalLabel", L("common.total"), 15, 151, 60, 15, Ink);
             Icon(card, "TotalCoin", new Vector2(0, 1), new Vector2(75, -151), Gold, 12);
             view.total = TextAt(card, "Total", "", 92, 151, 200, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.buy = Btn(card, "Buy", "green", "Satın al", 16);
+            view.buy = Btn(card, "Buy", "green", L("market.buy"), 16);
             At((RectTransform)view.buy.transform, TopLeft, new Vector2(15, -167), new Vector2(380, 32));
             view.buyText = view.buy.GetComponentInChildren<Text>();
-            view.note = TextAt(w, "Note", "Float'lı eşyada Float ve\nkondisyon burada yazar.", 320, 349, 400, 14, Faint);
+            view.note = TextAt(w, "Note", L("market.note"), 320, 349, 400, 14, Faint);
             ((RectTransform)view.note.transform).sizeDelta = new Vector2(400, 40);
             view.footer = TextAt(w, "Footer", "", 27, 388, 600, 14, Faint);
             return wrap.gameObject;
@@ -1261,10 +1301,10 @@ namespace CollectionGame.EditorTools
             // tezgah-pano: window 835x586 at (285, 112).
             var wrap = Stretch(Node("Board", null));
             var view = wrap.gameObject.AddComponent<BoardView>();
-            view.window = DraftWindow(wrap, "Pazar Panosu", 285, 112, 835, 586);
+            view.window = DraftWindow(wrap, L("market.board"), 285, 112, 835, 586);
             var w = view.window.transform;
             Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(30, -43), DiamondColour, 10);
-            view.hint = TextAt(w, "Hint", "Reklamlar sırayla döner · tıkla, tezgahın yanına git", 50, 43, 600, 14, Faint);
+            view.hint = TextAt(w, "Hint", L("market.board_hint"), 50, 43, 600, 14, Faint);
             view.cards = new BoardView.Card[4];
             for (var i = 0; i < 4; i++)
             {
@@ -1282,15 +1322,15 @@ namespace CollectionGame.EditorTools
                     c.slots[j] = SlotAt(rt, "Slot" + j, 15 + j * 72, 62);
                     c.tags[j] = Tag(rt, 13 + j * 72, 108, 52);
                 }
-                c.go = Btn(rt, "Go", "green", "Yanına git", 15);
+                c.go = Btn(rt, "Go", "green", L("market.go"), 15);
                 At((RectTransform)c.go.transform, TopLeft, new Vector2(232, -127), new Vector2(135, 31));
                 view.cards[i] = c;
             }
-            view.empty = TextAt(w, "Empty", "Panoda ilan yok.", 28, 160, 780, 16, Ink, TextAnchor.MiddleCenter);
-            var foot = TextAt(w, "Footer", "Tezgahın açıkken kendini burada ilan edebilirsin.\n<color=#7f708a>İlan tezgah kalkınca kalkar. Eşya miktarı ya da kalitesi değişmez.</color>", 28, 520, 560, 14, Ink);
+            view.empty = TextAt(w, "Empty", L("market.board_empty"), 28, 160, 780, 16, Ink, TextAnchor.MiddleCenter);
+            var foot = TextAt(w, "Footer", L("market.board_footer"), 28, 520, 560, 14, Ink);
             foot.supportRichText = true;
             ((RectTransform)foot.transform).sizeDelta = new Vector2(560, 40);
-            view.advertise = Btn(w, "Advertise", "wood", "Reklam ver", 16);
+            view.advertise = Btn(w, "Advertise", "wood", L("market.advertise"), 16);
             At((RectTransform)view.advertise.transform, TopLeft, new Vector2(620, -510), new Vector2(190, 36));
             view.advertiseText = view.advertise.GetComponentInChildren<Text>();
             return wrap.gameObject;
@@ -1316,7 +1356,7 @@ namespace CollectionGame.EditorTools
             row.state = TextAt(rt, "State", "", 608, 38, 280, 16, Hex("1e6f50"), TextAnchor.MiddleRight, true);
             if (button)
             {
-                row.button = Btn(rt, "Button", "green", "Sandığı aç", 16);
+                row.button = Btn(rt, "Button", "green", L("quest.open_chest"), 16);
                 At((RectTransform)row.button.transform, TopLeft, new Vector2(752, -20), new Vector2(140, 36));
                 row.buttonText = row.button.GetComponentInChildren<Text>();
             }
@@ -1328,20 +1368,20 @@ namespace CollectionGame.EditorTools
             // npc-gorev: window 956x594 at (224, 106); quest cards 906x90, 100 apart from y 114.
             var wrap = Stretch(Node("Quests", null));
             var view = wrap.gameObject.AddComponent<QuestView>();
-            view.window = DraftWindow(wrap, "Görevler", 224, 106, 956, 594);
+            view.window = DraftWindow(wrap, L("quest.title"), 224, 106, 956, 594);
             var w = view.window.transform;
             Icon(w, "CoinIcon", new Vector2(0, 1), new Vector2(766, -42), Gold, 14);
             view.coin = TextAt(w, "Coin", "0", 786, 42, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(866, -42), DiamondColour, 12);
             view.diamond = TextAt(w, "Diamond", "0", 884, 42, 60, 16, Hex("4d9be6"), TextAnchor.MiddleLeft, true);
-            view.header = TextAt(w, "Header", "Bugünün görevleri", 29, 92, 220, 17, Ink);
+            view.header = TextAt(w, "Header", L("quest.today"), 29, 92, 220, 17, Ink);
             view.hint = TextAt(w, "Hint", "", 229, 92, 480, 14, Faint);
             view.quests = new QuestView.Row[3];
             for (var i = 0; i < 3; i++) view.quests[i] = QuestRow(w, "Quest" + i, 114 + i * 100, false);
             view.chest = QuestRow(w, "Chest", 414, true);
             view.barDone = S("bar_fill_green");
             view.barGoing = S("bar_fill_yellow");
-            view.footer = TextAt(w, "Footer", "Görevler gece yarısı yenilenir. Sandık üç görev bitince açılır; içinden Coin, toz, yem ya da recipe çıkar.\nSeri: her gün sandığı alırsan büyür, bir gün kaçırırsan biraz geri düşer.", 29, 535, 900, 14, Faint);
+            view.footer = TextAt(w, "Footer", L("quest.footer"), 29, 535, 900, 14, Faint);
             ((RectTransform)view.footer.transform).sizeDelta = new Vector2(900, 40);
             return wrap.gameObject;
         }
@@ -1365,10 +1405,10 @@ namespace CollectionGame.EditorTools
             // defter-v2: window 676x408 at (192, 104); pages 305x278 at x 26 / 349, y 58; cards 80x80, 100 apart.
             var wrap = Stretch(Node("Book", null));
             var view = wrap.gameObject.AddComponent<BookView>();
-            view.window = DraftWindow(wrap, "Koleksiyon", 192, 104, 676, 408);
+            view.window = DraftWindow(wrap, L("book.title"), 192, 104, 676, 408);
             var w = view.window.transform;
-            view.owner = TextAt(w, "Owner", "Defter", 30, 37, 80, 14, Ink, TextAnchor.MiddleLeft, true);
-            TextAt(w, "TotalLabel", "toplam", 113, 37, 70, 14, Faint);
+            view.owner = TextAt(w, "Owner", L("book.mine"), 30, 37, 80, 14, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(w, "TotalLabel", L("book.total"), 113, 37, 70, 14, Faint);
             view.totalFill = Bar(Abs(w, "Total", 193, 30, 158, 15), "bar_fill_green", out _);
             view.totalText = TextAt(w, "TotalText", "", 361, 37, 70, 14, Ink);
             view.luck = TextAt(w, "Luck", "", 429, 37, 90, 14, Hex("1e6f50"));
@@ -1404,7 +1444,7 @@ namespace CollectionGame.EditorTools
                     card.name.horizontalOverflow = HorizontalWrapMode.Wrap;
                     var badge = At(Node("New", cardRt), TopRight, new Vector2(4, 6), new Vector2(36, 16));
                     Img(badge, "button_red_normal");
-                    Txt(Stretch(Node("Text", badge)), "Yeni", 11, Color.white, TextAnchor.MiddleCenter, true);
+                    Txt(Stretch(Node("Text", badge)), L("catch.new_badge"), 11, Color.white, TextAnchor.MiddleCenter, true);
                     card.newBadge = badge.gameObject;
                     badge.gameObject.SetActive(false);
                     card.hover = cardRt.gameObject.AddComponent<CardHover>();
@@ -1434,7 +1474,7 @@ namespace CollectionGame.EditorTools
             // profil-v3: window 520x460 at (300, 128).
             var wrap = Stretch(Node("Profile", null));
             var view = wrap.gameObject.AddComponent<ProfileView>();
-            view.window = DraftWindow(wrap, "Profil", 300, 128, 520, 460);
+            view.window = DraftWindow(wrap, L("player.profile"), 300, 128, 520, 460);
             var w = view.window.transform;
             // Portrait: the character as it looks now, head and shoulders in a slot frame (31.10.2026, Onur).
             var frame = Abs(w, "Portrait", 28, 28, 104, 104);
@@ -1458,7 +1498,7 @@ namespace CollectionGame.EditorTools
             view.hunt = hunt.gameObject;
             view.huntText = Txt(Stretch(Node("Text", hunt), 10, 0, 8, 0), "", 14, Hex("ae2334"));
             Panel(w, "ShowcasePanel", 21, 164, 478, 124);
-            TextAt(w, "ShowcaseLabel", "Vitrin", 29, 176, 100, 14, Ink);
+            TextAt(w, "ShowcaseLabel", L("profile.showcase"), 29, 176, 100, 14, Ink);
             Img(Abs(w, "ShowcaseLine", 29, 186, 466, 4), "divider");
             view.showcase = new SlotView[3];
             for (var i = 0; i < 3; i++)
@@ -1467,24 +1507,24 @@ namespace CollectionGame.EditorTools
                 view.showcase[i].frame.pixelsPerUnitMultiplier = 1;
                 view.showcase[i].label.SetSize(14);
             }
-            TextAt(w, "CollectionLabel", "Koleksiyon", 29, 300, 120, 14, Ink);
+            TextAt(w, "CollectionLabel", L("book.title"), 29, 300, 120, 14, Ink);
             Stat(w, 0, out view.stat1Label, out view.stat1Value);
             view.stat1Fill = Bar(Abs(w.Find("Stat0"), "Bar", 76, 24, 60, 12), "bar_fill_green", out _);
             Stat(w, 1, out view.stat2Label, out view.stat2Value);
             Stat(w, 2, out view.stat3Label, out view.stat3Value);
-            view.book = Btn(w, "Book", "wood", "Defterine bak", 14);
+            view.book = Btn(w, "Book", "wood", L("player.view_book"), 14);
             At((RectTransform)view.book.transform, TopLeft, new Vector2(29, -384), new Vector2(141, 30));
             view.bookText = view.book.GetComponentInChildren<Text>();
-            view.whisper = Btn(w, "Whisper", "wood", "Fısılda", 14);
+            view.whisper = Btn(w, "Whisper", "wood", L("player.whisper"), 14);
             At((RectTransform)view.whisper.transform, TopLeft, new Vector2(177, -384), new Vector2(101, 30));
-            view.friend = Btn(w, "Friend", "green", "Arkadaş ekle", 14);
+            view.friend = Btn(w, "Friend", "green", L("player.add_friend"), 14);
             At((RectTransform)view.friend.transform, TopLeft, new Vector2(289, -384), new Vector2(121, 30));
-            view.trade = Btn(w, "Trade", "wood", "Takas", 14);
+            view.trade = Btn(w, "Trade", "wood", L("notice.unlock.trade"), 14);
             At((RectTransform)view.trade.transform, TopLeft, new Vector2(421, -384), new Vector2(70, 30));
             view.footer = TextAt(w, "Footer", "", 29, 428, 300, 13, Faint);
-            view.report = LinkText(w, "Report", "Raporla", 378, 428, 60, Hex("e83b3b"), TextAnchor.MiddleRight);
+            view.report = LinkText(w, "Report", L("whisper.report"), 378, 428, 60, Hex("e83b3b"), TextAnchor.MiddleRight);
             TextAt(w, "Dot", "·", 438, 428, 10, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
-            view.block = LinkText(w, "Block", "Engelle", 448, 428, 50, Hex("e83b3b"));
+            view.block = LinkText(w, "Block", L("player.block"), 448, 428, 50, Hex("e83b3b"));
             return wrap.gameObject;
         }
 
@@ -1556,10 +1596,10 @@ namespace CollectionGame.EditorTools
             // arkadaslar-list: window 516x510 at (302, 148); rows 476x46, 50 apart.
             var wrap = Stretch(Node("Friends", null));
             var view = wrap.gameObject.AddComponent<FriendsView>();
-            view.window = DraftWindow(wrap, "Arkadaşlar", 302, 148, 516, 510);
+            view.window = DraftWindow(wrap, L("friends.title"), 302, 148, 516, 510);
             var w = view.window.transform;
             float[] tx = { 23, 148, 233 }, tw = { 115, 77, 75 };
-            string[] tl = { "Arkadaşlar", "İstekler", "Engelli" };
+            string[] tl = { L("friends.title"), L("friends.tab_requests"), L("friends.tab_blocked") };
             view.tabs = new TabButton[3];
             for (var i = 0; i < 3; i++) view.tabs[i] = Tab(w, "Tab" + i, tl[i], tx[i], 17, tw[i], 26, 14);
             var badge = At(Node("Badge", view.tabs[1].transform), TopRight, new Vector2(4, 8), new Vector2(16, 16));
@@ -1567,9 +1607,9 @@ namespace CollectionGame.EditorTools
             view.requestCount = Txt(Stretch(Node("Text", badge)), "0", 11, Color.white, TextAnchor.MiddleCenter, true);
             view.requestBadge = badge.gameObject;
             Img(Abs(w, "TabLine", 23, 43, 470, 4), "divider");
-            view.search = Field(Abs(w, "Search", 23, 57, 358, 30), "Oyuncu adı yaz...", 14);
+            view.search = Field(Abs(w, "Search", 23, 57, 358, 30), L("friends.search"), 14);
             view.search.characterLimit = 16;
-            view.add = SmallButton(w, "Add", "green", "Ekle", 391, 57, 102, 30, 15);
+            view.add = SmallButton(w, "Add", "green", L("friends.add"), 391, 57, 102, 30, 15);
 
             var scroll = Abs(w, "List", 21, 98, 476, 364);
             var sr = scroll.gameObject.AddComponent<ScrollRect>();
@@ -1608,20 +1648,20 @@ namespace CollectionGame.EditorTools
             fr.player = TextAt(row, "Name", "", 50, 14, 260, 16, Ink, TextAnchor.MiddleLeft, true);
             fr.sub = TextAt(row, "Sub", "", 50, 34, 260, 13, Faint);
             fr.sub.supportRichText = true;
-            fr.go = SmallButton(row, "Go", "green", "Git", 314, 10, 82, 26);
+            fr.go = SmallButton(row, "Go", "green", L("friends.go"), 314, 10, 82, 26);
             fr.chat = SmallButton(row, "Chat", "square_wood", "✉", 405, 9, 28, 28, 13);
             fr.menu = SmallButton(row, "Menu", "square_wood", "≡", 439, 9, 28, 28, 14);
-            fr.no = SmallButton(row, "No", "red", "Hayır", 330, 10, 63, 26);
-            fr.yes = SmallButton(row, "Yes", "green", "Kabul", 401, 10, 63, 26);
-            fr.cancel = SmallButton(row, "Cancel", "wood", "İptal", 401, 10, 63, 26);
-            fr.unblock = SmallButton(row, "Unblock", "wood", "Engeli kaldır", 364, 10, 100, 26);
+            fr.no = SmallButton(row, "No", "red", L("friends.no"), 330, 10, 63, 26);
+            fr.yes = SmallButton(row, "Yes", "green", L("world.accept"), 401, 10, 63, 26);
+            fr.cancel = SmallButton(row, "Cancel", "wood", L("common.cancel_short"), 401, 10, 63, 26);
+            fr.unblock = SmallButton(row, "Unblock", "wood", L("friends.unblock"), 364, 10, 100, 26);
             view.rowTemplate = fr;
             row.gameObject.SetActive(false);
             view.rowOnline = S("card");
             view.rowOffline = null;
 
             view.empty = TextAt(w, "Empty", "", 23, 200, 470, 15, Faint, TextAnchor.MiddleCenter);
-            TextAt(w, "PmLabel", "Sadece arkadaşlardan mesaj al", 25, 481, 360, 14, Ink);
+            TextAt(w, "PmLabel", L("settings.friends_only"), 25, 481, 360, 14, Ink);
             var toggle = Abs(w, "FriendsOnly", 469, 469, 24, 24);
             var off = Img(toggle, "checkbox_off", Image.Type.Simple, true);
             var on = Img(Stretch(Node("On", toggle)), "checkbox_on", Image.Type.Simple);
@@ -1688,22 +1728,22 @@ namespace CollectionGame.EditorTools
             // npc-sat / npc-parcala: same frame as npc-gorev; bag at (29,110), basket card at (421,82).
             var wrap = Stretch(Node("Merchant", null));
             var view = wrap.gameObject.AddComponent<MerchantView>();
-            view.window = DraftWindow(wrap, "Balıkçı Tüccar", 224, 106, 956, 594);
+            view.window = DraftWindow(wrap, L("npc.merchant_title"), 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Sat", "Parçala", "Dükkan" });
+            view.tabs = NpcTabs(w, new[] { L("economy.sell"), L("economy.salvage"), L("economy.shop") });
             Balances(w, out view.coin, out view.dust, out view.dustIcon);
 
             var sell = Stretch(Node("Sell", w));
             view.sell = sell.gameObject;
             Panel(sell, "BagPanel", 21, 78, 386, 297);
-            TextAt(sell, "BagLabel", "Çanta", 29, 92, 60, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.bagHint = TextAt(sell, "BagHint", "tıkla: sepete ekle", 97, 92, 250, 14, Faint);
+            TextAt(sell, "BagLabel", L("bag.title"), 29, 92, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.bagHint = TextAt(sell, "BagHint", L("economy.bag_hint"), 97, 92, 250, 14, Faint);
             view.bag = GridAt(sell, "Bag", 29, 110, 8, 5);
-            TextAt(sell, "LockHint", "Kilitli eşya satılmaz, parçalanmaz.", 29, 355, 360, 14, Faint);
+            TextAt(sell, "LockHint", L("economy.lock_hint"), 29, 355, 360, 14, Faint);
             var basket = Abs(sell, "Basket", 421, 82, 512, 489);
             Img(basket, "card");
             Img(Stretch(Node("Outline", basket)), "outline");
-            view.basketTitle = TextAt(basket, "Title", "Sepet", 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.basketTitle = TextAt(basket, "Title", L("economy.basket"), 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
             view.coinMark = null;
             view.lines = new BasketLine[11];
             for (var i = 0; i < view.lines.Length; i++)
@@ -1722,29 +1762,29 @@ namespace CollectionGame.EditorTools
             }
             view.more = TextAt(basket, "More", "", 16, 360, 300, 13, Faint);
             Img(Abs(basket, "Line", 14, 366, 484, 4), "divider");
-            TextAt(basket, "TotalLabel", "Toplam", 16, 390, 120, 17, Ink);
+            TextAt(basket, "TotalLabel", L("common.total"), 16, 390, 120, 17, Ink);
             view.totalIcon = Solid(At(Node("TotalIcon", basket), new Vector2(0, 1), new Vector2(400, -388), new Vector2(14, 14), new Vector2(0, 0.5f)), Gold);
             view.totalValue = TextAt(basket, "Total", "0", 420, 388, 80, 17, Ink, TextAnchor.MiddleLeft, true);
             view.note = TextAt(basket, "Note", "", 16, 412, 480, 14, Faint);
-            view.sellButton = SmallButton(basket, "Sell", "green", "Sat", 16, 437, 478, 36, 17);
+            view.sellButton = SmallButton(basket, "Sell", "green", L("economy.sell"), 16, 437, 478, 36, 17);
             view.sellText = view.sellButton.GetComponentInChildren<Text>();
-            view.salvageButton = SmallButton(basket, "Salvage", "red", "Parçala", 16, 437, 478, 36, 17);
+            view.salvageButton = SmallButton(basket, "Salvage", "red", L("economy.salvage"), 16, 437, 478, 36, 17);
             view.salvageText = view.salvageButton.GetComponentInChildren<Text>();
 
             var shop = Stretch(Node("Shop", w));
             view.shop = shop.gameObject;
             Panel(shop, "RodPanel", 21, 78, 386, 170);
-            TextAt(shop, "RodLabel", "Olta", 29, 92, 100, 16, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(shop, "RodLabel", L("hud.rod_label"), 29, 92, 100, 16, Ink, TextAnchor.MiddleLeft, true);
             view.rodText = TextAt(shop, "Rod", "", 29, 122, 380, 15, Ink);
             view.rodFill = Bar(Abs(shop, "RodBar", 29, 138, 220, 14), "bar_fill_green", out _);
-            view.repair = SmallButton(shop, "Repair", "wood", "Tamir et", 29, 164, 200, 34, 15);
+            view.repair = SmallButton(shop, "Repair", "wood", L("economy.repair_button"), 29, 164, 200, 34, 15);
             view.repairText = view.repair.GetComponentInChildren<Text>();
-            TextAt(shop, "RodNote", "Olta yıprandıkça tamir edilir; kırık olta sadece çöp çıkarır.", 29, 220, 380, 13, Faint).horizontalOverflow = HorizontalWrapMode.Wrap;
+            TextAt(shop, "RodNote", L("economy.rod_note"), 29, 220, 380, 13, Faint).horizontalOverflow = HorizontalWrapMode.Wrap;
             var baitCard = Abs(shop, "Baits", 421, 82, 512, 489);
             Img(baitCard, "card");
             Img(Stretch(Node("Outline", baitCard)), "outline");
-            TextAt(baitCard, "Title", "Özel yem", 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
-            TextAt(baitCard, "Hint", "Yem sadece oranları kaydırır, yeni eşya eklemez. Her atış 1 yem harcar.", 16, 44, 480, 13, Faint);
+            TextAt(baitCard, "Title", L("economy.special_bait"), 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(baitCard, "Hint", L("economy.bait_note"), 16, 44, 480, 13, Faint);
             view.baits = new BaitRow[4];
             for (var i = 0; i < 4; i++)
             {
@@ -1757,9 +1797,9 @@ namespace CollectionGame.EditorTools
                 b.minus = SmallButton(row, "Minus", "wood", "-", 246, 13, 26, 26, 14);
                 b.count = TextAt(row, "Count", "5", 274, 26, 30, 15, Ink, TextAnchor.MiddleCenter, true);
                 b.plus = SmallButton(row, "Plus", "wood", "+", 306, 13, 26, 26, 14);
-                b.buy = SmallButton(row, "Buy", "green", "Al", 338, 13, 76, 26, 13);
+                b.buy = SmallButton(row, "Buy", "green", L("economy.buy_short"), 338, 13, 76, 26, 13);
                 b.buyText = b.buy.GetComponentInChildren<Text>();
-                b.use = SmallButton(row, "Use", "wood", "Kullan", 418, 13, 72, 26, 13);
+                b.use = SmallButton(row, "Use", "wood", L("economy.bait_use"), 418, 13, 72, 26, 13);
                 b.useText = b.use.GetComponentInChildren<Text>();
                 view.baits[i] = b;
             }
@@ -1771,9 +1811,9 @@ namespace CollectionGame.EditorTools
             // npc-craft / npc-birlestir: same frame; recipe cards at (29,110) 247x42, 48 apart; detail card at (297,82).
             var wrap = Stretch(Node("Crafter", null));
             var view = wrap.gameObject.AddComponent<CrafterView>();
-            view.window = DraftWindow(wrap, "Zanaatkar", 224, 106, 956, 594);
+            view.window = DraftWindow(wrap, L("npc.crafter_title"), 224, 106, 956, 594);
             var w = view.window.transform;
-            view.tabs = NpcTabs(w, new[] { "Craft", "Birleştir" });
+            view.tabs = NpcTabs(w, new[] { "Craft", L("merge.tab") });
             view.cardOn = S("button_wood_normal");
             view.cardOff = S("card");
             Balances(w, out _, out view.dust, out _, false);
@@ -1781,7 +1821,7 @@ namespace CollectionGame.EditorTools
             var craft = Stretch(Node("Craft", w));
             view.craft = craft.gameObject;
             Panel(craft, "RecipePanel", 21, 78, 263, 493);
-            TextAt(craft, "RecipesLabel", "Recipe'lerin", 29, 92, 200, 16, Ink);
+            TextAt(craft, "RecipesLabel", L("craft.recipes"), 29, 92, 200, 16, Ink);
             view.recipes = new CrafterView.RecipeCard[8];
             for (var i = 0; i < view.recipes.Length; i++)
             {
@@ -1796,7 +1836,7 @@ namespace CollectionGame.EditorTools
                 c.grade = TextAt(rt, "Grade", "", 44, 30, 195, 13, Faint);
                 view.recipes[i] = c;
             }
-            view.noRecipe = TextAt(craft, "NoRecipe", "Çantanda recipe yok. Recipe balıktan \"şişedeki recipe\" olarak çıkar.", 29, 140, 250, 14, Faint);
+            view.noRecipe = TextAt(craft, "NoRecipe", L("craft.no_recipe"), 29, 140, 250, 14, Faint);
             view.noRecipe.horizontalOverflow = HorizontalWrapMode.Wrap;
             ((RectTransform)view.noRecipe.transform).sizeDelta = new Vector2(250, 60);
             var detail = Abs(craft, "Detail", 297, 82, 636, 489);
@@ -1817,12 +1857,12 @@ namespace CollectionGame.EditorTools
             }
             view.recipeDust = TextAt(detail, "Dust", "", 36, 168, 400, 15, Hex("4d9be6"));
             Solid(At(Node("DustIcon", detail), new Vector2(0, 1), new Vector2(16, -168), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
-            TextAt(detail, "QualityLabel", "Kalite şansı", 16, 205, 120, 15, Ink);
+            TextAt(detail, "QualityLabel", L("craft.quality"), 16, 205, 120, 15, Ink);
             view.qualityFill = Bar(Abs(detail, "QualityBar", 124, 198, 180, 14), "bar_fill_yellow", out _);
             view.quality = TextAt(detail, "Quality", "", 314, 205, 200, 15, Hex("f79617"));
-            view.note = TextAt(detail, "Note", "Çıkan eşyanın Float'ı şansa bağlı, en iyi malzeme garanti vermez.", 16, 233, 600, 14, Faint);
+            view.note = TextAt(detail, "Note", L("craft.note"), 16, 233, 600, 14, Faint);
             view.missing = TextAt(detail, "Missing", "", 16, 420, 600, 14, Hex("e83b3b"));
-            view.craftButton = SmallButton(detail, "Craft", "green", "Craft yap", 16, 437, 604, 36, 17);
+            view.craftButton = SmallButton(detail, "Craft", "green", L("craft.craft"), 16, 437, 604, 36, 17);
             view.craftText = view.craftButton.GetComponentInChildren<Text>();
 
             // Birleştir (31.10.2026, Onur): two sections. Top: the rule, the three inputs and the result in
@@ -1830,8 +1870,8 @@ namespace CollectionGame.EditorTools
             var merge = Stretch(Node("Merge", w));
             view.merge = merge.gameObject;
             Panel(merge, "MergePanel", 21, 78, 914, 268);
-            TextAt(merge, "Desc", "3'ü 1: aynı eşyadan 3 kopya + toz → daha temiz 1 kopya", 37, 98, 860, 15, Ink);
-            TextAt(merge, "Desc2", "Tier değişmez, yeni Float çıkar, girdilerin en kötüsünden kötü olmaz. Recipe gerekmez.", 37, 118, 860, 14, Faint);
+            TextAt(merge, "Desc", L("merge.desc"), 37, 98, 860, 15, Ink);
+            TextAt(merge, "Desc2", L("merge.desc2"), 37, 118, 860, 14, Faint);
             view.inputs = new SlotView[3];
             view.inputNames = new Text[3];
             view.inputFloats = new Text[3];
@@ -1852,13 +1892,13 @@ namespace CollectionGame.EditorTools
             Solid(At(Node("DustIcon", merge), new Vector2(0, 1), new Vector2(520, -160), new Vector2(12, 12), new Vector2(0, 0.5f)), DiamondColour);
             view.mergeDust = TextAt(merge, "Dust", "", 540, 160, 380, 12, Hex("4d9be6"));
             view.mergeDust.supportRichText = true;
-            TextAt(merge, "QualityLabel", "Girdi kalitesi", 520, 192, 130, 12, Ink);
+            TextAt(merge, "QualityLabel", L("merge.quality"), 520, 192, 130, 12, Ink);
             view.mergeFill = Bar(Abs(merge, "QualityBar", 652, 186, 160, 12), "bar_fill_yellow", out _);
             view.mergeQuality = TextAt(merge, "Quality", "", 822, 192, 100, 12, Hex("f79617"));
-            view.mergeButton = SmallButton(merge, "Merge", "green", "Birleştir", 520, 222, 396, 36, 15);
-            view.mergeNote = TextAt(merge, "Note", "Her birleştirme 2 eşyayı oyundan siler.", 37, 300, 880, 12, Faint);
+            view.mergeButton = SmallButton(merge, "Merge", "green", L("merge.tab"), 520, 222, 396, 36, 15);
+            view.mergeNote = TextAt(merge, "Note", L("merge.note_static"), 37, 300, 880, 12, Faint);
             Panel(merge, "BagPanel", 21, 356, 914, 215);
-            TextAt(merge, "BagLabel", "Çanta (aynı eşyadan kopyalar seçilir)", 37, 374, 600, 15, Ink);
+            TextAt(merge, "BagLabel", L("merge.bag"), 37, 374, 600, 15, Ink);
             view.bag = GridAt(merge, "Bag", 37, 392, 10, 3);
             view.barGood = S("bar_fill_green");
             view.barMid = S("bar_fill_yellow");
@@ -1870,28 +1910,28 @@ namespace CollectionGame.EditorTools
             // npc-depo: window 1031x564 at (186, 132); stash 10 wide at (26,60), bag 8 wide at (526,60).
             var wrap = Stretch(Node("Bank", null));
             var view = wrap.gameObject.AddComponent<BankView>();
-            view.window = DraftWindow(wrap, "Banka", 186, 132, 1031, 564);
+            view.window = DraftWindow(wrap, L("bank.title"), 186, 132, 1031, 564);
             var w = view.window.transform;
             Panel(w, "StashPanel", 16, 26, 486, 530);
             Panel(w, "BagPanel", 514, 26, 500, 286);
-            view.stashTitle = TextAt(w, "StashLabel", "Depo", 26, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.stashTitle = TextAt(w, "StashLabel", L("bank.stash"), 26, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.stashCount = TextAt(w, "StashCount", "", 88, 40, 200, 14, Faint);
             view.stash = GridAt(w, "Stash", 26, 60, 10, 10);
-            view.footer = TextAt(w, "Footer", "Depo sadece bankada açılır. Tıkla: çantaya al.", 26, 537, 480, 14, Faint);
-            view.bagTitle = TextAt(w, "BagLabel", "Çanta", 526, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
-            TextAt(w, "BagHint", "tıkla: depoya koy", 596, 40, 300, 14, Faint);
+            view.footer = TextAt(w, "Footer", L("bank.footer"), 26, 537, 480, 14, Faint);
+            view.bagTitle = TextAt(w, "BagLabel", L("bag.title"), 526, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
+            TextAt(w, "BagHint", L("bank.bag_hint"), 596, 40, 300, 14, Faint);
             view.bag = GridAt(w, "Bag", 526, 60, 8, 5);
-            view.hint = TextAt(w, "Hint", "Defter yuvasındaki eşya depoya konmaz.\nDepodaki eşya satılmaz, parçalanmaz;\nönce çantaya al.", 526, 320, 460, 14, Faint);
+            view.hint = TextAt(w, "Hint", L("bank.hint"), 526, 320, 460, 14, Faint);
             ((RectTransform)view.hint.transform).sizeDelta = new Vector2(460, 60);
             var expand = Abs(w, "Expand", 526, 485, 485, 60);
             Img(expand, "card");
             Img(Stretch(Node("Outline", expand)), "outline");
             view.expand = expand.gameObject;
-            TextAt(expand, "Title", "Depoyu genişlet", 12, 16, 260, 16, Ink);
+            TextAt(expand, "Title", L("bank.expand_title"), 12, 16, 260, 16, Ink);
             view.expandSlots = TextAt(expand, "Slots", "", 12, 40, 100, 14, Hex("1e6f50"));
             Icon(expand, "CoinIcon", new Vector2(0, 1), new Vector2(122, -40), Gold, 12);
             view.expandPrice = TextAt(expand, "Price", "", 140, 40, 120, 14, Ink, TextAnchor.MiddleLeft, true);
-            view.expandButton = SmallButton(expand, "Expand", "green", "Genişlet", 352, 11, 118, 38, 15);
+            view.expandButton = SmallButton(expand, "Expand", "green", L("bank.expand"), 352, 11, 118, 38, 15);
             view.expandText = view.expandButton.GetComponentInChildren<Text>();
             return wrap.gameObject;
         }
@@ -1908,9 +1948,9 @@ namespace CollectionGame.EditorTools
             // faint line between them, Derin apart), yellow fill, a white marker standing out above and below.
             var charge = At(Node("Charge", root), BottomLeft, Vector2.zero, new Vector2(214, 66), new Vector2(0.5f, 0));
             Img(charge, "box_dark");
-            TextAt(charge, "Shore", "Kıyı", 13, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
-            TextAt(charge, "Mid", "Orta", 78, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
-            TextAt(charge, "Deep", "Derin", 142, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Shore", L("fish.band.shore"), 13, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Mid", L("fish.band.mid"), 78, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
+            TextAt(charge, "Deep", L("fish.band.deep"), 142, 18, 60, 15, Paper, TextAnchor.MiddleCenter, true);
             RectTransform MeterBox(string name, float x, float w)
             {
                 var box = Abs(charge, name, x, 32, w, 16);
@@ -1936,12 +1976,12 @@ namespace CollectionGame.EditorTools
             view.chargeSub = TextAt(charge, "Sub", "atış mesafesi", 0, 57, 214, 13, Hex("9babb2"), TextAnchor.MiddleCenter, true);
             view.charge = charge;
 
-            // balik-vurus: "!" over the head and "Şimdi tıkla!" in a bubble beside it.
+            // balik-vurus: "!" over the head and L("fish.click_now") in a bubble beside it.
             var bite = At(Node("Bite", root), BottomLeft, Vector2.zero, new Vector2(220, 40), new Vector2(0.5f, 0));
             Txt(At(Node("Mark", bite), new Vector2(0.5f, 0.5f), new Vector2(-50, 0), new Vector2(30, 40), Center), "!", 30, Gold, TextAnchor.MiddleCenter, true, true);
             var bubble = At(Node("Bubble", bite), new Vector2(0.5f, 0.5f), new Vector2(40, 0), new Vector2(120, 26), Center);
             Img(bubble, "box_dark");
-            Txt(Stretch(Node("Text", bubble)), "Şimdi tıkla!", 14, Gold, TextAnchor.MiddleCenter, true);
+            Txt(Stretch(Node("Text", bubble)), L("fish.click_now"), 14, Gold, TextAnchor.MiddleCenter, true);
             view.bite = bite;
 
             // balik-cekme: framed column 120x262: water with the green bar and the fish, progress on the right.
@@ -1962,7 +2002,7 @@ namespace CollectionGame.EditorTools
             fish.anchorMin = fish.anchorMax = new Vector2(0.5f, 0);
             fish.sizeDelta = new Vector2(40, 18);
             Img(fish, "button_flat_normal");
-            Txt(Stretch(Node("Text", fish)), "balık", 9, Paper, TextAnchor.MiddleCenter, true);
+            Txt(Stretch(Node("Text", fish)), L("fish.fish_marker"), 9, Paper, TextAnchor.MiddleCenter, true);
             view.fish = fish;
             var prog = Abs(reel, "Progress", 80, 18, 22, 226);
             Img(prog, "bar_back");
@@ -1989,7 +2029,7 @@ namespace CollectionGame.EditorTools
 
             // balik-kesif: 385x140 at (510, 120).
             var holder = Stretch(Node("Discover", wrap));
-            view.discover = DraftWindow(holder, "Yeni keşif!", 510, 120, 385, 140);
+            view.discover = DraftWindow(holder, L("catch.new"), 510, 120, 385, 140);
             var d = view.discover.transform;
             view.discover.close.gameObject.SetActive(false);
             view.discoverSlot = SlotAt(d, "Slot", 27, 37, 72);
@@ -2000,28 +2040,28 @@ namespace CollectionGame.EditorTools
             view.discoverFloat = TextAt(d, "Float", "", 115, 89, 260, 14, Hex("1e6f50"));
             view.discoverPage = TextAt(d, "Page", "", 115, 111, 260, 13, Faint);
             view.discoverFill = Bar(Abs(d, "PageBar", 115, 121, 100, 8), "bar_fill_green", out _);
-            view.discoverNote = TextAt(d, "Note", "Deftere kondu", 235, 125, 140, 13, Faint);
+            view.discoverNote = TextAt(d, "Note", L("catch.placed"), 235, 125, 140, 13, Faint);
 
             // balik-temiz: 390x200 at (505, 105).
             var holder2 = Stretch(Node("Swap", wrap));
-            view.swap = DraftWindow(holder2, "Daha temiz kopya!", 505, 105, 390, 200);
+            view.swap = DraftWindow(holder2, L("catch.cleaner"), 505, 105, 390, 200);
             var w = view.swap.transform;
             view.swap.close.gameObject.SetActive(false);
-            TextAt(w, "OldLabel", "Defterde", 68, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
+            TextAt(w, "OldLabel", L("catch.in_book"), 68, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
             view.oldSlot = SlotAt(w, "Old", 68, 47, 72);
             view.oldSlot.frame.pixelsPerUnitMultiplier = 1;
             view.oldSlot.label.SetSize(13);
             view.oldFloat = TextAt(w, "OldFloat", "", 58, 132, 92, 15, Faint, TextAnchor.MiddleCenter);
             view.oldCondition = TextAt(w, "OldCond", "", 58, 149, 92, 13, Faint, TextAnchor.MiddleCenter);
             TextAt(w, "Arrow", ">", 180, 83, 30, 20, Ink, TextAnchor.MiddleCenter, true);
-            TextAt(w, "NewLabel", "Yeni", 248, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
+            TextAt(w, "NewLabel", L("catch.new_badge"), 248, 34, 80, 14, Ink, TextAnchor.MiddleCenter);
             view.newSlot = SlotAt(w, "New", 248, 47, 72);
             view.newSlot.frame.pixelsPerUnitMultiplier = 1;
             view.newSlot.label.SetSize(13);
             view.newFloat = TextAt(w, "NewFloat", "", 238, 132, 92, 15, Hex("1e6f50"), TextAnchor.MiddleCenter);
             view.newCondition = TextAt(w, "NewCond", "", 238, 149, 92, 13, Hex("1e6f50"), TextAnchor.MiddleCenter);
-            view.swapYes = SmallButton(w, "Yes", "green", "Değiştir", 35, 163, 158, 30, 15);
-            view.swapNo = SmallButton(w, "No", "wood", "Çantada kalsın", 205, 163, 158, 30, 15);
+            view.swapYes = SmallButton(w, "Yes", "green", L("catch.swap"), 35, 163, 158, 30, 15);
+            view.swapNo = SmallButton(w, "No", "wood", L("catch.keep"), 205, 163, 158, 30, 15);
             var cap = Abs(w, "Caption", 0, 206, 390, 20);
             Img(cap, "box_dark");
             view.swapCaption = Txt(Stretch(Node("Text", cap)), "", 12, Paper, TextAnchor.MiddleCenter);
@@ -2049,7 +2089,7 @@ namespace CollectionGame.EditorTools
                 var timer = Abs(rt, "Timer", 4, 45, 340, 3);
                 timer.pivot = new Vector2(0, 1);
                 b.timer = Solid(timer, Hex("f9c22b"));
-                b.action = SmallButton(rt, "Action", "green", "Kabul", 250, 10, 88, 26, 13);
+                b.action = SmallButton(rt, "Action", "green", L("world.accept"), 250, 10, 88, 26, 13);
                 b.actionText = b.action.GetComponentInChildren<Text>();
                 b.action.gameObject.SetActive(false);
                 rt.gameObject.SetActive(false);
@@ -2079,7 +2119,7 @@ namespace CollectionGame.EditorTools
             Object.DestroyImmediate(view.levelUp.plate.gameObject);
             Object.DestroyImmediate(view.levelUp.close.gameObject);
             var w = view.levelUp.transform;
-            TextAt(w, "Head", "SEVİYE ATLADIN", 0, 24, 505, 14, Faint, TextAnchor.MiddleCenter, true);
+            TextAt(w, "Head", L("notice.level_up"), 0, 24, 505, 14, Faint, TextAnchor.MiddleCenter, true);
             view.level = TextAt(w, "Level", "Lv 1", 0, 56, 505, 34, Ink, TextAnchor.MiddleCenter, true);
             view.unlocks = new GameObject[3];
             view.unlockTitles = new Text[3];
@@ -2112,8 +2152,8 @@ namespace CollectionGame.EditorTools
             view.sub = TextAt(box, "Sub", "", 12, 42, 370, 13, Paper);
             var back = Abs(box, "Timer", 12, 60, 140, 10);
             view.timer = Bar(back, "bar_fill_yellow", out _);
-            view.accept = SmallButton(box, "Accept", "green", "Kabul", 170, 50, 105, 30, 15);
-            view.decline = SmallButton(box, "Decline", "red", "Reddet", 280, 50, 105, 30, 15);
+            view.accept = SmallButton(box, "Accept", "green", L("world.accept"), 170, 50, 105, 30, 15);
+            view.decline = SmallButton(box, "Decline", "red", L("trade.decline"), 280, 50, 105, 30, 15);
             view.caption = Txt(At(Node("Caption", box), TopLeft, new Vector2(4, -98), new Vector2(380, 20)), "", 13, Color.white, TextAnchor.MiddleLeft, true, true);
             box.gameObject.SetActive(false);
             return root.gameObject;
@@ -2143,16 +2183,16 @@ namespace CollectionGame.EditorTools
             view.currentText = TextAt(card, "Text", "", 58, 25, 340, 14, Ink);
             view.currentText.supportRichText = true;
             ((RectTransform)view.currentText.transform).sizeDelta = new Vector2(340, 40);
-            view.remove = SmallButton(card, "Remove", "wood", "Kaldır", 395, 10, 98, 30, 15);
+            view.remove = SmallButton(card, "Remove", "wood", L("settings.unlink"), 395, 10, 98, 30, 15);
             Panel(w, "StatusPanel", 20, 82, 498, 154);
             Panel(w, "GesturePanel", 20, 240, 498, 96);
-            TextAt(w, "StatusLabel", "Durum emote'ları", 30, 95, 170, 16, Ink);
-            TextAt(w, "StatusHint", "tıkla: üstüne tak", 203, 95, 200, 13, Faint);
+            TextAt(w, "StatusLabel", L("emote.status_title"), 30, 95, 170, 16, Ink);
+            TextAt(w, "StatusHint", L("emote.status_hint"), 203, 95, 200, 13, Faint);
             Img(Abs(w, "StatusLine", 30, 106, 478, 4), "divider");
             view.status = new SlotView[16];
             for (var i = 0; i < 16; i++) view.status[i] = EmoteSlot(w, "Status" + i, 30 + i % 8 * 54, 118 + i / 8 * 58);
-            TextAt(w, "GestureLabel", "Hareketler", 30, 252, 170, 16, Ink);
-            TextAt(w, "GestureHint", "tıkla: yap (1-6 tuşları)", 140, 252, 300, 13, Faint);
+            TextAt(w, "GestureLabel", L("emote.gestures"), 30, 252, 170, 16, Ink);
+            TextAt(w, "GestureHint", L("emote.gestures_hint"), 140, 252, 300, 13, Faint);
             Img(Abs(w, "GestureLine", 30, 263, 478, 4), "divider");
             view.gestures = new SlotView[8];
             for (var i = 0; i < 8; i++) view.gestures[i] = EmoteSlot(w, "Gesture" + i, 30 + i * 54, 275);
@@ -2176,30 +2216,30 @@ namespace CollectionGame.EditorTools
             view.titlePlate = plate.gameObject;
             var title = Stretch(Node("Title", root));
             view.title = title.gameObject;
-            view.play = SmallButton(title, "Play", "green", "Oyna", 594, 400, 220, 44, 18);
-            view.settings = SmallButton(title, "Settings", "wood", "Ayarlar", 594, 460, 220, 44, 18);
+            view.play = SmallButton(title, "Play", "green", L("login.play"), 594, 400, 220, 44, 18);
+            view.settings = SmallButton(title, "Settings", "wood", L("settings.title"), 594, 460, 220, 44, 18);
             view.version = TextAt(root, "Version", "", 16, 876, 300, 13, Paper, TextAnchor.MiddleLeft, false);
-            view.credits = TextAt(root, "Credits", "Krediler · LPC Revised", 1092, 876, 300, 13, Paper, TextAnchor.MiddleRight, false);
+            view.credits = TextAt(root, "Credits", L("login.credits"), 1092, 876, 300, 13, Paper, TextAnchor.MiddleRight, false);
 
             // Server address (development builds; the web build uses the page's host).
             var hostHolder = Stretch(Node("Host", root));
-            view.host = DraftWindow(hostHolder, "Ayarlar", 494, 530, 420, 150);
+            view.host = DraftWindow(hostHolder, L("settings.title"), 494, 530, 420, 150);
             var h = view.host.transform;
-            TextAt(h, "Label", "Sunucu adresi", 26, 40, 300, 15, Ink);
+            TextAt(h, "Label", L("login.host"), 26, 40, 300, 15, Ink);
             view.hostField = Field(Abs(h, "Field", 26, 56, 368, 32), "127.0.0.1", 15);
             view.hostField.characterLimit = 64;
-            view.hostSave = SmallButton(h, "Save", "green", "Kaydet", 274, 100, 120, 32, 15);
+            view.hostSave = SmallButton(h, "Save", "green", L("login.save"), 274, 100, 120, 32, 15);
             view.host.Open = false;
 
-            // _akis-2: "Oyuna gir" 516x424 at (444, 220).
+            // _akis-2: L("login.enter") 516x424 at (444, 220).
             var guestHolder = Stretch(Node("Guest", root));
-            view.guest = DraftWindow(guestHolder, "Oyuna gir", 444, 220, 516, 424);
+            view.guest = DraftWindow(guestHolder, L("login.enter"), 444, 220, 516, 424);
             var g = view.guest.transform;
-            view.guestPlay = SmallButton(g, "GuestPlay", "green", "Misafir olarak oyna", 56, 40, 404, 40, 17);
-            var guestNote = TextAt(g, "GuestNote", "Kayıt yok, hemen başla. Sonra Ayarlar > Hesabını koru\nile bir hesap bağlarsın.", 30, 110, 456, 14, Faint, TextAnchor.MiddleCenter);
+            view.guestPlay = SmallButton(g, "GuestPlay", "green", L("login.guest"), 56, 40, 404, 40, 17);
+            var guestNote = TextAt(g, "GuestNote", L("login.guest_note"), 30, 110, 456, 14, Faint, TextAnchor.MiddleCenter);
             ((RectTransform)guestNote.transform).sizeDelta = new Vector2(456, 40);
             Img(Abs(g, "LineL", 60, 146, 140, 4), "divider");
-            TextAt(g, "Or", "veya şununla gir", 200, 148, 116, 13, Faint, TextAnchor.MiddleCenter);
+            TextAt(g, "Or", L("login.or"), 200, 148, 116, 13, Faint, TextAnchor.MiddleCenter);
             Img(Abs(g, "LineR", 316, 146, 140, 4), "divider");
             string[] social = { "G", "f", "D" };
             view.social = new Button[3];
@@ -2208,34 +2248,34 @@ namespace CollectionGame.EditorTools
                 view.social[i] = SmallButton(g, "Social" + i, "square_wood", social[i], 128 + i * 96, 170, 64, 64, 26);
                 view.social[i].interactable = false;
             }
-            TextAt(g, "SocialNote", "Google · Facebook · Discord (yakında)", 30, 252, 456, 13, Faint, TextAnchor.MiddleCenter);
+            TextAt(g, "SocialNote", L("login.social_soon"), 30, 252, 456, 13, Faint, TextAnchor.MiddleCenter);
             TextAt(g, "Private", "Gizli sekmede misafir hesabın kapanınca kaybolur.", 30, 312, 456, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
-            var steam = TextAt(g, "Steam", "Steam'deki hesabınla da bu yollardan birini\nbağlayıp buradan girebilirsin.", 30, 360, 456, 13, Faint, TextAnchor.MiddleCenter);
+            var steam = TextAt(g, "Steam", L("login.steam_note"), 30, 360, 456, 13, Faint, TextAnchor.MiddleCenter);
             ((RectTransform)steam.transform).sizeDelta = new Vector2(456, 40);
             view.guest.Open = false;
 
             // _akis-5: the character, 756x474 at (324, 140). Only the name is kept by the server today.
             var charHolder = Stretch(Node("Character", root));
-            view.character = DraftWindow(charHolder, "Karakterini oluştur", 324, 140, 756, 474);
+            view.character = DraftWindow(charHolder, L("login.character"), 324, 140, 756, 474);
             var c = view.character.transform;
             var preview = Abs(c, "Preview", 28, 28, 276, 356);
             Img(preview, "card");
             Img(Stretch(Node("Outline", preview)), "outline");
-            Txt(Stretch(Node("Text", preview), 10, 10, 10, 10), "Karakter görünümü\nsonra seçilecek", 15, Faint, TextAnchor.MiddleCenter);
-            TextAt(c, "NameLabel", "Ad", 346, 32, 80, 16, Ink);
-            view.nameField = Field(Abs(c, "Name", 420, 16, 300, 32), "Adın", 16);
+            Txt(Stretch(Node("Text", preview), 10, 10, 10, 10), L("login.look_later"), 15, Faint, TextAnchor.MiddleCenter);
+            TextAt(c, "NameLabel", L("login.name"), 346, 32, 80, 16, Ink);
+            view.nameField = Field(Abs(c, "Name", 420, 16, 300, 32), L("login.name_placeholder"), 16);
             view.nameField.characterLimit = 16;
-            TextAt(c, "NameRule", "3-16: harf, rakam, _", 420, 64, 300, 13, Faint);
-            var look = TextAt(c, "Look", "Gövde, ten, saç ve kıyafet seçimi karakter görünümü\nsunucuya eklenince gelecek.", 346, 140, 380, 14, Faint);
+            TextAt(c, "NameRule", L("login.name_rule"), 420, 64, 300, 13, Faint);
+            var look = TextAt(c, "Look", L("login.look_note"), 346, 140, 380, 14, Faint);
             ((RectTransform)look.transform).sizeDelta = new Vector2(380, 40);
-            TextAt(c, "Fixed", "Ad sonra değişmez, iyi düşün.", 346, 410, 380, 13, Faint);
-            view.back = SmallButton(c, "Back", "wood", "Geri", 346, 428, 180, 36, 16);
-            view.next = SmallButton(c, "Next", "green", "Devam", 536, 428, 190, 36, 16);
+            TextAt(c, "Fixed", L("login.name_fixed"), 346, 410, 380, 13, Faint);
+            view.back = SmallButton(c, "Back", "wood", L("login.back"), 346, 428, 180, 36, 16);
+            view.next = SmallButton(c, "Next", "green", L("login.next"), 536, 428, 190, 36, 16);
             view.character.Open = false;
 
             // _akis-6: server list, 716x476 at (344, 128); rows 684x60, 68 apart.
             var srvHolder = Stretch(Node("Servers", root));
-            view.servers = DraftWindow(srvHolder, "Sunucu seç", 344, 128, 716, 476);
+            view.servers = DraftWindow(srvHolder, L("login.servers"), 344, 128, 716, 476);
             var sv = view.servers.transform;
             view.greeting = TextAt(sv, "Greeting", "", 22, 26, 660, 14, Ink);
             view.rowFriends = S("panel_locked");
@@ -2258,7 +2298,7 @@ namespace CollectionGame.EditorTools
                 r.fill = Bar(Abs(rt, "Bar", 290, 14, 200, 14), "bar_fill_green", out r.fillImage);
                 r.count = TextAt(rt, "Count", "", 290, 41, 100, 13, Ink);
                 r.warn = TextAt(rt, "Warn", "", 390, 41, 140, 13, Hex("e83b3b"));
-                r.go = SmallButton(rt, "Go", "green", "Gir", 548, 12, 124, 36, 16);
+                r.go = SmallButton(rt, "Go", "green", L("login.join"), 548, 12, 124, 36, 16);
                 view.rows[i] = r;
             }
             view.refresh = LinkText(sv, "Refresh", "Yenile", 22, 452, 80, Hex("4d65b4"));
@@ -2289,7 +2329,7 @@ namespace CollectionGame.EditorTools
             var wrap = Stretch(Node("Whisper", null));
             var view = wrap.gameObject.AddComponent<WhisperView>();
             var size = new Vector2(300, 210);
-            view.window = Window(wrap, "Window", "Fısıltı", size);
+            view.window = Window(wrap, "Window", L("whisper.title"), size);
             view.window.blocksWorld = false; // a whisper stays open while playing
             At((RectTransform)view.window.transform, BottomRight, new Vector2(-420, 190), size, BottomRight);
             view.plateImage = view.window.plate.GetComponent<Image>();
@@ -2310,8 +2350,8 @@ namespace CollectionGame.EditorTools
             var menu = Node("MenuRow", body);
             Layout<HorizontalLayoutGroup>(menu, 4).childForceExpandWidth = true;
             Size(menu, minH: 22);
-            view.block = Btn(menu, "Block", "red", "Engelle", 12);
-            view.report = Btn(menu, "Report", "wood", "Raporla", 12);
+            view.block = Btn(menu, "Block", "red", L("player.block"), 12);
+            view.report = Btn(menu, "Report", "wood", L("whisper.report"), 12);
             Size(view.block, minH: 22, flexW: 1);
             Size(view.report, minH: 22, flexW: 1);
             view.menuRow = menu;
@@ -2324,7 +2364,7 @@ namespace CollectionGame.EditorTools
             grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
             grid.constraintCount = 3;
             Size(reasons, minH: 43);
-            string[] labels = { "Spam", "Hakaret", "Dolandırıcılık", "Kişisel bilgi", "Hile", "Diğer" };
+            string[] labels = { "Spam", L("report.reason.abuse"), L("report.reason.scam"), L("report.reason.personal_info"), L("report.reason.cheating"), L("report.reason.other") };
             view.reasons = new Button[labels.Length];
             for (var i = 0; i < labels.Length; i++) view.reasons[i] = Btn(reasons, "Reason" + i, "flat", labels[i], 11);
             view.reasonRow = reasons;
@@ -2366,7 +2406,7 @@ namespace CollectionGame.EditorTools
             Layout<HorizontalLayoutGroup>(line, 3);
             Size(line, minH: 24, prefH: 24);
             var input = Node("Input", line);
-            view.input = Field(input, "Yaz, Enter ile gönder", 12);
+            view.input = Field(input, L("whisper.placeholder"), 12);
             view.input.characterLimit = 120;
             Size(view.input, minH: 24, flexW: 1);
             view.send = Btn(line, "Send", "square_wood", "↵", 14);
@@ -2381,7 +2421,7 @@ namespace CollectionGame.EditorTools
             return wrap.gameObject;
         }
 
-        // ================= "Emin misin?" box (ConfirmView) =================
+        // ================= L("common.are_you_sure_title") box (ConfirmView) =================
 
         static GameObject BuildConfirm()
         {
@@ -2397,13 +2437,13 @@ namespace CollectionGame.EditorTools
             var w = view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
             view.window.body = (RectTransform)w;
-            view.title = TextAt(w, "Title", "Emin misin?", 24, 30, 290, 18, Ink);
+            view.title = TextAt(w, "Title", L("common.are_you_sure_title"), 24, 30, 290, 18, Ink);
             view.text = TextAt(w, "Text", "", 24, 62, 292, 12, Ink);
             view.text.horizontalOverflow = HorizontalWrapMode.Wrap;
             ((RectTransform)view.text.transform).sizeDelta = new Vector2(292, 40);
-            view.yes = SmallButton(w, "Yes", "red", "Çöpe at", 24, 100, 140, 30, 12);
+            view.yes = SmallButton(w, "Yes", "red", L("bag.discard"), 24, 100, 140, 30, 12);
             view.yesText = view.yes.GetComponentInChildren<Text>();
-            view.no = SmallButton(w, "No", "wood", "Vazgeç", 176, 100, 140, 30, 12);
+            view.no = SmallButton(w, "No", "wood", L("common.cancel"), 176, 100, 140, 30, 12);
             return wrap.gameObject;
         }
 

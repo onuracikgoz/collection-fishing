@@ -28,17 +28,17 @@ namespace CollectionGame.UI
         public static PopupView.Card Card(ItemInstance it, Prices prices, string note = null, params (string, string)[] extra)
         {
             var rows = new System.Collections.Generic.List<(string, string)>();
-            if (prices != null) rows.Add(("Kondisyon", Prices.ConditionName(prices.ConditionOf(it.@float))));
+            if (prices != null) rows.Add((Loc.T("item.condition"), Prices.ConditionName(prices.ConditionOf(it.@float))));
             rows.Add(("Float", it.@float.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture)));
             rows.AddRange(extra);
-            if (it.locked) rows.Add(("Kilit", "kilitli"));
+            if (it.locked) rows.Add((Loc.T("item.lock"), Loc.T("item.locked")));
             return new PopupView.Card { title = FishingController.ItemName(it.defId), sub = TierName(it.tier), subColour = TierColour(it.tier), rows = rows.ToArray(), note = note };
         }
 
         /// <summary>Tooltip card of a stack: name, count (and any extra rows), note.</summary>
         public static PopupView.Card Card(ItemStack st, string note = null, params (string, string)[] extra)
         {
-            var rows = new System.Collections.Generic.List<(string, string)> { ("Adet", Kit.Num(st.count)) };
+            var rows = new System.Collections.Generic.List<(string, string)> { (Loc.T("common.count"), Kit.Num(st.count)) };
             rows.AddRange(extra);
             return new PopupView.Card { title = FishingController.ItemName(st.defId), rows = rows.ToArray(), note = note };
         }

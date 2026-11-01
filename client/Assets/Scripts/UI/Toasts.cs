@@ -72,8 +72,8 @@ namespace CollectionGame.UI
             else announceCount = 1;
             announceName = name;
             announceTitle = announceCount > 1
-                ? $"<color=#91db69>{name}</color>  {announceCount} nadir av yakaladı!"
-                : $"<color=#91db69>{name}</color>  {what} yakaladı!";
+                ? Loc.T("notice.announce_many", ("name", name), ("count", announceCount))
+                : Loc.T("notice.announce", ("name", name), ("item", what));
             announceSub = sub;
             announceUntil = Time.time + AnnounceSeconds;
             dirty = true;
@@ -169,7 +169,7 @@ namespace CollectionGame.UI
             }
             var hidden = entries.Count - view.boxes.Length;
             view.more.SetActive(hidden > 0);
-            if (hidden > 0) view.moreText.text = $"+{hidden} bildirim daha";
+            if (hidden > 0) view.moreText.text = Loc.T("notice.more", ("count", hidden));
 
             if (announceTitle != null)
             {
@@ -178,7 +178,7 @@ namespace CollectionGame.UI
             }
             if (levelUpUnlocks != null)
             {
-                view.level.text = $"Lv {levelUpLevel}";
+                view.level.text = Loc.T("common.level", ("level", levelUpLevel));
                 for (var i = 0; i < view.unlocks.Length; i++)
                 {
                     var u = i < levelUpUnlocks.Length ? levelUpUnlocks[i] : null;
@@ -196,9 +196,9 @@ namespace CollectionGame.UI
         {
             switch (id)
             {
-                case "trade": return ("Takas", "açıldı");
-                case "market": return ("Pazar tezgahı", "açıldı");
-                default: return (id, "açıldı");
+                case "trade": return (Loc.T("notice.unlock.trade"), Loc.T("notice.unlocked"));
+                case "market": return (Loc.T("notice.unlock.market"), Loc.T("notice.unlocked"));
+                default: return (id, Loc.T("notice.unlocked"));
             }
         }
 

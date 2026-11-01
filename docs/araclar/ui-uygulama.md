@@ -72,7 +72,9 @@ Oyundaki her uGUI yazısı tek bileşendir: `UI/GameText.cs` (builder'da `Txt(..
 - **Netlik ve ölçek:** boyut fontun piksel ızgarasına yuvarlanır, basamaklar geniş (31.10.2026, Onur: rakamlar ve başlıklar çok büyüktü): 18'in altı → 8 (gövde yazısı, rakamlar, bölüm başlıkları), 18-29 → 16 (pencere başlığı, büyük değerler), 30-41 → 24. Çok satırlı yazıda satır aralığı 1.5. Pencere küçükken (1408x896 ekran pikselinin altında, ör. editördeki küçük Game paneli) tuval yarı ölçeğe iner; o zaman yazı fontun kendi piksel boyunun altına düşmesin diye bir basamak büyür (yazı en az 8 ekran pikseli). Tuval her ekranda tam sayı ölçekli olduğu için (1080p 1, Retina 2) fontun pikselleri bölünmez ve düzen her ekranda aynıdır. Unity pixel fontta kalını ve italiği yazıyı yayarak taklit ettiği için kapalı; `<b>`, `<i>` etiketleri de atılır.
 - **Gölge:** açık renkli yazı (koyu kutuların üstündekiler) bir font pikseli sağ-aşağı gölge alır, aynı mesh'te (ayrı `Shadow` bileşeni yok). Koyu yazıya gölge `ForceShadow` ile (harita üstündeki ipuçları).
 
-Kodda boyut değiştirmek: `text.SetSize(n)`. IMGUI stilleri (`Gui`, `Kit`) de kalın yerine `GameFont.Bold` kullanır.
+Kodda boyut değiştirmek: `text.SetSize(n)`.
+
+**Dil (01.11.2026):** builder'da sabit yazı `L("anahtar")` ile yazılır, düz Türkçe metin yazılmaz; kodda `Loc.T("anahtar")`. Ayrıntı: `docs/araclar/dil-destegi.md`. IMGUI stilleri (`Gui`, `Kit`) de kalın yerine `GameFont.Bold` kullanır.
 
 ## Köşeler, pencere zemini, yuvalar (31.10.2026, Onur)
 

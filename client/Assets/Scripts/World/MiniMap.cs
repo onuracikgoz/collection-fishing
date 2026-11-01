@@ -62,10 +62,7 @@ namespace CollectionGame.World
             if (Time.time - sentAt > 3f) return false;
             sentAt = -10f;
             if (!string.IsNullOrEmpty(t.reason))
-                Toasts.Show(t.reason == "RATE_LIMITED" ? "Biraz bekle, sonra tekrar dene"
-                    : t.reason == "BUSY" ? "Takastayken ışınlanamazsın"
-                    : t.reason == "NO_SPOT" ? "Başlangıçta boş yer yok"
-                    : $"Işınlanılamadı ({t.reason})", true);
+                Toasts.Show(Loc.Reason("map.teleport", t.reason), true);
             return true;
         }
 

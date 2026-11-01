@@ -43,7 +43,7 @@ namespace CollectionGame.World
             if (View != null)
             {
                 // The bait's name on hover: the text beside the slot stays short (it ran into the chat line).
-                View.bait.Hovered = _ => Popup?.ShowTooltip(new PopupView.Card { title = baitName ?? "Yem", note = "Tıkla ya da Y: yemi değiştir" });
+                View.bait.Hovered = _ => Popup?.ShowTooltip(new PopupView.Card { title = baitName ?? Loc.T("hud.bait"), note = Loc.T("hud.bait_tip") });
                 View.bait.Left = _ => Popup?.HideTooltip();
             }
             if (View == null) return;
@@ -137,18 +137,18 @@ namespace CollectionGame.World
         {
             if (View == null) return;
             Set(View.place, serverName ?? "");
-            Set(View.info, $"{peopleInView} kişi görüşte");
+            Set(View.info, Loc.T("hud.people_in_view", ("count", peopleInView)));
             Set(View.coin, Kit.Num(fishing.Bag?.coin ?? 0));
             Set(View.diamond, Kit.Num(fishing.Bag?.diamond ?? 0));
             Set(View.dust, Kit.Num(fishing.Bag?.dust ?? 0));
 
-            Set(View.level, $"Lv {Mathf.Max(1, fishing.Level)}");
+            Set(View.level, Loc.T("common.level", ("level", Mathf.Max(1, fishing.Level))));
             var top = fishing.XpNext <= 0;
             HudView.Fill(View.xpFill, top ? 1f : fishing.Xp / (float)fishing.XpNext);
-            Set(View.xpText, top ? "XP en yüksek level" : $"XP {Kit.Num(fishing.Xp)} / {Kit.Num(fishing.XpNext)}");
+            Set(View.xpText, top ? Loc.T("hud.xp_max") : Loc.T("hud.xp", ("xp", Kit.Num(fishing.Xp)), ("next", Kit.Num(fishing.XpNext))));
 
             HudView.Fill(View.energyFill, fishing.EnergyMax > 0 ? fishing.Energy / (float)fishing.EnergyMax : 0f);
-            Set(View.energyText, $"Enerji {fishing.Energy}/{fishing.EnergyMax}");
+            Set(View.energyText, Loc.T("hud.energy", ("energy", fishing.Energy), ("max", fishing.EnergyMax)));
 
             var rod = fishing.Rod;
             var share = rod != null && rod.max > 0 ? rod.durability / (float)rod.max : 1f;
@@ -156,7 +156,7 @@ namespace CollectionGame.World
             var low = fishing.RodBroken || share < 0.25f;
             var sprite = low ? View.rodLow : View.rodGood;
             if (View.rodFillImage.sprite != sprite) View.rodFillImage.sprite = sprite;
-            Set(View.rodText, fishing.RodBroken ? "Olta KIRIK (Tüccar: tamir)" : $"Olta %{Mathf.RoundToInt(share * 100)}");
+            Set(View.rodText, fishing.RodBroken ? Loc.T("hud.rod_broken") : Loc.T("hud.rod", ("percent", Mathf.RoundToInt(share * 100))));
             var rodColour = low ? new Color(0.91f, 0.23f, 0.23f) : new Color(0.95f, 0.91f, 0.82f);
             if (View.rodText.color != rodColour) View.rodText.color = rodColour;
 
@@ -165,8 +165,8 @@ namespace CollectionGame.World
             {
                 if (View.bait.Data as string != "") View.bait.SetEmpty();
                 View.bait.Data = "";
-                Set(View.baitText, "Yem\n(Y)");
-                baitName = "Temel yem";
+                Set(View.baitText, Loc.T("hud.bait_button"));
+                baitName = Loc.T("hud.bait_basic");
             }
             else
             {
@@ -175,8 +175,8 @@ namespace CollectionGame.World
                 if (View.bait.Data as string != key) View.bait.SetItem(bait, "", Mathf.Max(n, 2), false);
                 View.bait.count.text = n.ToString();
                 View.bait.Data = key;
-                Set(View.baitText, "Yem\n(Y)");
-                baitName = $"{FishingController.ItemName(bait)} · {n} adet";
+                Set(View.baitText, Loc.T("hud.bait_button"));
+                baitName = Loc.T("hud.bait_name", ("item", FishingController.ItemName(bait)), ("count", n));
             }
         }
 

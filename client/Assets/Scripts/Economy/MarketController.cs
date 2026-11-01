@@ -159,19 +159,19 @@ namespace CollectionGame.Economy
             switch (r.action)
             {
                 case "open":
-                    Toasts.Show("Tezgah açıldı: petin senin yerine satıyor");
+                    Toasts.Show(Loc.T("market.stall_opened"));
                     picks.Clear();
                     editing = null;
                     break;
                 case "recall":
                     var back = (r.returned?.items?.Length ?? 0) + (r.returned?.stacks?.Length ?? 0);
-                    Toasts.Show(r.reason == "EXPIRED" ? $"Tezgahın süresi doldu, {back} kalem çantana döndü" : $"Pet geri geldi, {back} kalem çantana döndü");
+                    Toasts.Show(Loc.T(r.reason == "EXPIRED" ? "market.stall_expired" : "market.stall_recalled", ("count", back)));
                     break;
                 case "buy":
                     var what = r.item != null && !string.IsNullOrEmpty(r.item.instanceId)
                         ? FishingController.ItemName(r.item.defId)
                         : $"{FishingController.ItemName(r.defId)} x{r.count}";
-                    Toasts.Show($"Aldın: {what} (-{Kit.Num(r.paid)} Coin)");
+                    Toasts.Show(Loc.T("market.bought", ("item", what), ("amount", Kit.Num(r.paid))));
                     if (fishing.Bag != null) fishing.Bag.coin = r.coin;
                     if (r.item != null && !string.IsNullOrEmpty(r.item.instanceId) && r.book != null && !string.IsNullOrEmpty(r.book.page))
                         BookOutcome?.Invoke(new FishEndMsg { id = net.UserId, outcome = FishOutcome.Caught, defId = r.item.defId, item = r.item, book = r.book });
@@ -204,7 +204,7 @@ namespace CollectionGame.Economy
                 return;
             }
             if (r.diamond > 0 && fishing.Bag != null) fishing.Bag.diamond = r.diamond;
-            Toasts.Show(r.action == "remove" ? "İlan panodan kaldırıldı" : "İlanın panoda");
+            Toasts.Show(Loc.T(r.action == "remove" ? "market.ad_removed" : "market.ad_set"));
             if (r.action == "set") fishing.RefreshBag(); // the diamond balance when it came back 0
         }
 
@@ -218,7 +218,7 @@ namespace CollectionGame.Economy
                 Open = false;
                 return true;
             }
-            Toasts.Show(t.reason == "NOT_HERE" ? "Bu ilan artık yok" : t.reason == "NO_SPOT" ? "Tezgahın yanında boş yer yok" : t.reason == "RATE_LIMITED" ? "Biraz bekle, sonra tekrar dene" : $"Gidilemedi ({t.reason})", true);
+            Toasts.Show(t.reason == "NOT_HERE" ? Loc.T("market.goto.not_here") : t.reason == "NO_SPOT" ? Loc.T("market.goto.no_spot") : t.reason == "RATE_LIMITED" ? Loc.T("common.wait_retry") : Loc.T("market.goto.failed", ("code", t.reason)), true);
             return true;
         }
 
@@ -228,7 +228,7 @@ namespace CollectionGame.Economy
             if (e.diamond != null && e.diamond.gained > 0)
             {
                 if (fishing.Bag != null) fishing.Bag.diamond = e.diamond.total;
-                Toasts.Money($"Elmas buldun! (+{e.diamond.gained})");
+                Toasts.Money(Loc.T("market.diamond_found", ("count", e.diamond.gained)));
             }
         }
 
@@ -236,40 +236,12 @@ namespace CollectionGame.Economy
         public void OnSold(StallSoldNotice n)
         {
             var what = n.count > 1 ? $"{FishingController.ItemName(n.defId)} x{n.count}" : FishingController.ItemName(n.defId);
-            Toasts.Money($"Tezgahta satış: +{Kit.Num(n.price - n.fee)}", $"{n.buyer} {what} aldı.");
+            Toasts.Money(Loc.T("market.sale", ("amount", Kit.Num(n.price - n.fee))), Loc.T("market.sale_detail", ("buyer", n.buyer), ("item", what)));
             fishing.RefreshBag();
         }
 
-        static string Reason(string r)
-        {
-            switch (r)
-            {
-                case "BAD_REQUEST": return "İstek geçersiz";
-                case "TOO_MANY": return "Tezgaha daha fazla kalem konamaz";
-                case "BAD_PRICE": return "Fiyat geçersiz";
-                case "NOT_OWNED": return "Eşya çantanda değil";
-                case "NOT_ENOUGH": return "O kadar yok ya da Coin yetmiyor";
-                case "LOCKED": return "Kilitli eşya tezgaha konamaz";
-                case "LEVEL_TOO_LOW": return "Pazar için levelin yetmiyor";
-                case "TRADE_LOCKED": return "Hesabına yeni giriş yolu bağlandı: pazar bir süre kapalı";
-                case "NOT_IN_MARKET": return "Tezgahı pazar alanında açabilirsin";
-                case "NO_SPOT": return "Pazar alanında boş yer yok";
-                case "ALREADY_OPEN": return "Zaten açık bir tezgahın var (başka sunucuda olabilir)";
-                case "BUSY": return "Takas açıkken tezgah açılmaz";
-                case "OTHER_SERVER": return "Tezgahın başka sunucuda: geri çağırmak için oraya dön";
-                case "NOT_OPEN": return "Açık tezgahın yok";
-                case "TOO_FAR": return "Tezgaha yaklaş";
-                case "NOT_FOUND": return "Bu kalem satılmış ya da tezgah kalkmış";
-                case "BAG_FULL": return "Çanta dolu";
-                case "OWN_STALL": return "Kendi tezgahından alamazsın";
-                case "NO_STALL": return "İlan için bu sunucuda açık tezgahın olmalı";
-                case "NOT_IN_STALL": return "Seçtiğin kalem tezgahta yok";
-                case "BOARD_FULL": return "Pano dolu, sonra tekrar dene";
-                case "NOT_ENOUGH_DIAMOND": return "Elmasın yetmiyor";
-                case "RATE_LIMITED": return "Biraz bekle";
-                default: return $"Olmadı ({r})";
-            }
-        }
+        /// <summary>Server reason codes: keys market.err.CODE (Locales/*.json).</summary>
+        static string Reason(string r) => Loc.Reason("market", r);
 
         // ---------- map ----------
 
@@ -299,10 +271,10 @@ namespace CollectionGame.Economy
                 var at = Gui.ToGui(cam.WorldToScreenPoint(Coords.ToUnity(pos)));
                 if (at.x < -100 || at.y < -60 || at.x > Gui.Width + 100 || at.y > Gui.Height + 60) continue;
                 var near = me.HasValue && Vector2.Distance(me.Value, pos) <= NearTiles;
-                var head = string.IsNullOrEmpty(s.title) ? $"{s.name} tezgahı" : $"\"{s.title}\" · {s.name}";
+                var head = string.IsNullOrEmpty(s.title) ? Loc.T("market.stall_of", ("name", s.name)) : $"\"{s.title}\" · {s.name}";
                 var text = head;
                 if (near && s.top != null && s.top.Length > 0)
-                    text += "\n" + string.Join("\n", s.top.Select(e => $"{ItemText.Entry(e)}  {Kit.Num(e.price)}")) + (s.total > s.top.Length ? $"\n+{s.total - s.top.Length} kalem" : "");
+                    text += "\n" + string.Join("\n", s.top.Select(e => $"{ItemText.Entry(e)}  {Kit.Num(e.price)}")) + (s.total > s.top.Length ? "\n" + Loc.T("market.more_items", ("count", s.total - s.top.Length)) : "");
                 var content = new GUIContent(text);
                 var w = Mathf.Max(MarkerStyle.CalcSize(content).x + 4f, 60f);
                 var h = MarkerStyle.CalcHeight(content, w);
@@ -351,9 +323,16 @@ namespace CollectionGame.Economy
             return setup != null && list != null && board != null;
         }
 
+        int locVersion;
+
         public void Tick()
         {
             if (!Ensure()) return;
+            if (locVersion != Loc.Version)
+            {
+                locVersion = Loc.Version; // language changed: redraw the texts
+                dirty = stallDirty = boardDirty = true;
+            }
             if (setup.window.Open != Open)
             {
                 setup.window.Open = Open;
@@ -393,7 +372,7 @@ namespace CollectionGame.Economy
                     Popup.ShowTooltip(ItemText.Card(st));
                     break;
                 case StallEntry e:
-                    Popup.ShowTooltip(new PopupView.Card { title = FishingController.ItemName(e.defId), sub = e.tier, subColour = ItemText.TierColour(e.tier), rows = new[] { ("Fiyat", $"{Kit.Num(e.price)} Coin{(string.IsNullOrEmpty(e.tier) ? " / adet" : "")}"), ("Adet", Kit.Num(Mathf.Max(1, e.count))) } });
+                    Popup.ShowTooltip(new PopupView.Card { title = FishingController.ItemName(e.defId), sub = e.tier, subColour = ItemText.TierColour(e.tier), rows = new[] { (Loc.T("common.price"), Loc.T("common.coin_amount", ("amount", Kit.Num(e.price))) + (string.IsNullOrEmpty(e.tier) ? Loc.T("market.per_unit") : "")), (Loc.T("common.count"), Kit.Num(Mathf.Max(1, e.count))) } });
                     break;
             }
         }
@@ -447,14 +426,14 @@ namespace CollectionGame.Economy
                 editing.Count = Mathf.Clamp(int.TryParse(setup.count.text, out var n) ? n : 1, 1, Mathf.Max(1, fishing.StackCount(editing.DefId)));
             if (editing.Price <= 0)
             {
-                Toasts.Show("Önce bir fiyat yaz", true);
+                Toasts.Show(Loc.T("market.need_price"), true);
                 return;
             }
             if (editingNew)
             {
                 if (picks.Count >= setup.stall.Length)
                 {
-                    Toasts.Show("Tezgah dolu", true);
+                    Toasts.Show(Loc.T("market.stall_full"), true);
                     return;
                 }
                 picks.Add(editing);
@@ -487,20 +466,22 @@ namespace CollectionGame.Economy
             var v = setup;
             var mine = MyStall;
             var open = mine != null;
-            v.window.title.text = open ? "Tezgahım" : "Tezgah kur";
+            v.window.title.text = Loc.T(open ? "market.my_stall" : "market.setup_title");
             v.title.interactable = !open;
             v.title.SetTextWithoutNotify(open ? mine.title : title);
             v.open.gameObject.SetActive(!open);
             v.recall.gameObject.SetActive(open);
-            v.stallHint.text = open ? $"kalan süre {(mine.expiresInMs >= 3600000 ? $"{mine.expiresInMs / 3600000f:0.#} saat" : $"{mine.expiresInMs / 60000} dk")}" : "Çantadan tıkla, fiyat yaz, Koy";
-            v.bagHint.text = open ? "tezgah açıkken eklenemez" : "kilitli eşya konamaz";
-            v.place.text = $"Yer: Pazar alanı, {Stalls.Count} tezgah açık";
+            v.stallHint.text = !open ? Loc.T("market.setup_hint")
+                : mine.expiresInMs >= 3600000 ? Loc.T("market.time_left_hours", ("hours", (mine.expiresInMs / 3600000f).ToString("0.#", Loc.Culture)))
+                : Loc.T("market.time_left_minutes", ("minutes", mine.expiresInMs / 60000));
+            v.bagHint.text = Loc.T(open ? "market.bag_hint_open" : "market.bag_hint");
+            v.place.text = Loc.T("market.place", ("count", Stalls.Count));
 
             // Stall slots: my open stall's first entries, or the picks.
             if (open)
             {
                 var top = mine.top ?? Array.Empty<StallEntry>();
-                v.stallHeader.text = $"Tezgah · {mine.total} kalem";
+                v.stallHeader.text = Loc.T("market.stall_header_total", ("count", mine.total));
                 for (var i = 0; i < v.stall.Length; i++)
                 {
                     var e = i < top.Length ? top[i] : null;
@@ -513,7 +494,7 @@ namespace CollectionGame.Economy
             }
             else
             {
-                v.stallHeader.text = $"Tezgah · {picks.Count} / {v.stall.Length}";
+                v.stallHeader.text = Loc.T("market.stall_header_picks", ("count", picks.Count), ("max", v.stall.Length));
                 for (var i = 0; i < v.stall.Length; i++)
                 {
                     var pk = i < picks.Count ? picks[i] : null;
@@ -529,13 +510,13 @@ namespace CollectionGame.Economy
                     var p = prices();
                     var stack = editing.DefId != null;
                     v.pickedName.text = stack ? FishingController.ItemName(editing.DefId) : $"{FishingController.ItemName(editing.Item.defId)} · {editing.Item.@float:0.0000}";
-                    v.pickedCondition.text = stack ? $"çantada {fishing.StackCount(editing.DefId)}" : p != null ? Prices.ConditionName(p.ConditionOf(editing.Item.@float)) : editing.Item.tier;
+                    v.pickedCondition.text = stack ? Loc.T("common.in_bag", ("count", fishing.StackCount(editing.DefId))) : p != null ? Prices.ConditionName(p.ConditionOf(editing.Item.@float)) : editing.Item.tier;
                     v.countLabel.gameObject.SetActive(stack);
                     v.count.gameObject.SetActive(stack);
                     v.count.SetTextWithoutNotify(editing.Count.ToString());
                     v.price.SetTextWithoutNotify(editing.Price > 0 ? editing.Price.ToString() : "");
-                    v.put.GetComponentInChildren<UnityEngine.UI.Text>().text = editingNew ? "Koy" : "Güncelle";
-                    v.takeBack.GetComponentInChildren<UnityEngine.UI.Text>().text = editingNew ? "Vazgeç" : "Geri al";
+                    v.put.GetComponentInChildren<UnityEngine.UI.Text>().text = Loc.T(editingNew ? "market.put" : "market.update");
+                    v.takeBack.GetComponentInChildren<UnityEngine.UI.Text>().text = Loc.T(editingNew ? "common.cancel" : "market.take_back");
                 }
             }
             v.open.interactable = picks.Count > 0;
@@ -647,9 +628,9 @@ namespace CollectionGame.Economy
             var v = list;
             var s = Viewing;
             var mine = s.userId == net.UserId;
-            v.window.title.text = $"{s.name} tezgahı";
-            v.title.text = string.IsNullOrEmpty(s.title) ? $"{s.name} tezgahı" : $"\"{s.title}\"";
-            v.owner.text = $"{s.name} · pet satıyor";
+            v.window.title.text = Loc.T("market.stall_of", ("name", s.name));
+            v.title.text = string.IsNullOrEmpty(s.title) ? Loc.T("market.stall_of", ("name", s.name)) : $"\"{s.title}\"";
+            v.owner.text = Loc.T("market.owner_line", ("name", s.name));
             v.pet.SetEmpty();
             v.profile.gameObject.SetActive(!mine);
             v.whisper.gameObject.SetActive(!mine);
@@ -698,7 +679,7 @@ namespace CollectionGame.Economy
                     case StallOpenStack st:
                         v.detailSlot.SetItem(st.defId, "", st.count, false);
                         v.detailName.text = FishingController.ItemName(st.defId);
-                        v.detailSub.text = $"{st.count} adet";
+                        v.detailSub.text = Loc.T("market.pieces", ("count", st.count));
                         v.countRow.SetActive(true);
                         v.count.SetTextWithoutNotify(buyCount.ToString());
                         unit = st.price;
@@ -711,9 +692,9 @@ namespace CollectionGame.Economy
                 v.unitPrice.text = Kit.Num(unit);
                 v.total.text = Kit.Num(total);
                 v.buy.interactable = !mine && coin >= total;
-                v.buyText.text = mine ? "Kendi tezgahın" : coin < total ? "Coin yetmiyor" : armedBuy == $"{selected}:{buyCount}" ? "Emin misin? Tekrar bas" : "Satın al";
+                v.buyText.text = Loc.T(mine ? "market.own_stall" : coin < total ? "err.NOT_ENOUGH_COIN" : armedBuy == $"{selected}:{buyCount}" ? "common.are_you_sure" : "market.buy");
             }
-            v.footer.text = $"{entries.Count} kalem · Coin {s.name}'e gider, çevrimdışı olsa da";
+            v.footer.text = Loc.T("market.footer", ("count", entries.Count), ("name", s.name));
         }
 
         // ----- Pano -----
@@ -760,8 +741,8 @@ namespace CollectionGame.Economy
                 c.root.SetActive(ad != null);
                 if (ad == null) continue;
                 c.pet.SetEmpty();
-                c.title.text = string.IsNullOrEmpty(ad.title) ? $"{ad.name} tezgahı" : $"\"{ad.title}\"";
-                c.owner.text = $"{ad.name}'in tezgahı · {ad.total} kalem";
+                c.title.text = string.IsNullOrEmpty(ad.title) ? Loc.T("market.stall_of", ("name", ad.name)) : $"\"{ad.title}\"";
+                c.owner.text = Loc.T("market.ad_owner", ("name", ad.name), ("count", ad.total));
                 var top = ad.top ?? Array.Empty<StallEntry>();
                 for (var j = 0; j < c.slots.Length; j++)
                 {
@@ -775,7 +756,7 @@ namespace CollectionGame.Economy
             }
             v.empty.gameObject.SetActive(Ads.Count == 0);
             v.advertise.interactable = MyStall != null;
-            v.advertiseText.text = MyAd ? "İlanı kaldır" : "Reklam ver";
+            v.advertiseText.text = Loc.T(MyAd ? "market.remove_ad" : "market.advertise");
         }
     }
 }

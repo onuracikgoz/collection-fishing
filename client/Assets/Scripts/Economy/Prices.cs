@@ -89,12 +89,12 @@ namespace CollectionGame.Economy
         public string QualityWord(float? average)
         {
             var steps = Catalog.qualitySteps ?? Array.Empty<float>();
-            if (!average.HasValue) return "Normal";
+            if (!average.HasValue) return Loc.T("craft.quality.normal");
             // Steps are best first: below steps[0] is the best row.
-            string[] words = { "Çok Yüksek", "Yüksek", "Normal" };
+            string[] words = { "craft.quality.very_high", "craft.quality.high", "craft.quality.normal" };
             for (var i = 0; i < steps.Length && i < words.Length; i++)
-                if (average.Value < steps[i]) return words[i];
-            return "Düşük";
+                if (average.Value < steps[i]) return Loc.T(words[i]);
+            return Loc.T("craft.quality.low");
         }
 
         /// <summary>Repair cost for the missing points, like rules/rod.ts: ceil(missing x full / max).</summary>
@@ -136,9 +136,9 @@ namespace CollectionGame.Economy
         {
             switch (grade)
             {
-                case "normal": return "Normal";
-                case "good": return "İyi";
-                case "master": return "Usta";
+                case "normal": return Loc.T("craft.grade.normal");
+                case "good": return Loc.T("craft.grade.good");
+                case "master": return Loc.T("craft.grade.master");
                 default: return grade ?? "";
             }
         }
@@ -148,8 +148,8 @@ namespace CollectionGame.Economy
         {
             switch (grade)
             {
-                case "good": return "Worn / Damaged çıkmaz";
-                case "master": return "en az Excellent";
+                case "good": return Loc.T("craft.grade_note.good");
+                case "master": return Loc.T("craft.grade_note.master");
                 default: return "";
             }
         }

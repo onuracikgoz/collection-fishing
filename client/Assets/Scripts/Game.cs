@@ -66,12 +66,13 @@ namespace CollectionGame
                 PlayerPrefs.Save();
             }
 
-            Busy("Giriş yapılıyor...");
+            Busy(Loc.T("login.busy.logging_in"));
             try
             {
                 net = new Connection(host);
                 await net.LoginAsync(username);
-                Busy("Eşyalar yükleniyor...");
+                await Loc.FetchAsync(net); // server text fixes over the bundled files (never throws)
+                Busy(Loc.T("login.busy.items"));
                 await ItemContent.LoadAsync(net);
                 await RefreshServers();
             }
@@ -83,7 +84,7 @@ namespace CollectionGame
 
         async System.Threading.Tasks.Task RefreshServers()
         {
-            Busy("Sunucular yükleniyor...");
+            Busy(Loc.T("login.busy.servers"));
             servers = await net.ListServersAsync();
             error = null;
             var friendsOn = new Dictionary<string, int>();
@@ -115,7 +116,7 @@ namespace CollectionGame
         async void Join(ServerInfo server, string near = null)
         {
             DestroyWorld();
-            Busy($"{server.name} sunucusuna bağlanıyor...");
+            Busy(Loc.T("login.busy.joining", ("server", server.name)));
             try
             {
                 await ItemContent.LoadAsync(net); // new items / images since login
@@ -137,7 +138,7 @@ namespace CollectionGame
         {
             DestroyWorld();
             _ = net.CloseAsync();
-            error = $"Bağlantı koptu: {reason}";
+            error = Loc.T("login.disconnected", ("reason", reason));
             screen = Page.Servers;
         }
 
@@ -170,10 +171,7 @@ namespace CollectionGame
 
         static readonly string[] Tips =
         {
-            "İpucu: Daha temiz Float'lı kopya gelirse deftere koymak sana sorulur.",
-            "İpucu: F ya da sağ tık basılı tut, bırak: olta at. Şamandıra batınca yine F.",
-            "İpucu: Çantadaki değerli eşyayı kilitle; satılmaz, takasa konmaz.",
-            "İpucu: Günlük görevler gece yarısı yenilenir, sandık seriyle büyür.",
+            "login.tip.1", "login.tip.2", "login.tip.3", "login.tip.4",
         };
 
         LoginView view;
@@ -274,10 +272,10 @@ namespace CollectionGame
             }
             if (loading)
             {
-                view.loadingText.text = screen == Page.World ? busyText ?? "Bağlanıyor..." : busyText;
+                view.loadingText.text = screen == Page.World ? busyText ?? Loc.T("login.busy.connecting") : busyText;
                 // There is no real progress to report: the bar fills slowly while waiting.
                 HudView.Fill(view.loadingFill, 1f - Mathf.Exp(-(Time.time - busySince) / 1.5f));
-                view.tip.text = tip;
+                view.tip.text = Loc.T(tip);
             }
             var err = error ?? "";
             if (view.error.text != err) view.error.text = err;
@@ -305,7 +303,7 @@ namespace CollectionGame
         {
             if (!EnsureView()) return;
             var best = friendsOn.Count > 0 ? friendsOn.OrderByDescending(p => p.Value).First().Key : null;
-            view.greeting.text = best != null ? $"Merhaba {net.Username}! Arkadaşlarının olduğu sunucu üstte." : $"Merhaba {net.Username}! Bir sunucu seç.";
+            view.greeting.text = Loc.T(best != null ? "login.greeting.friends" : "login.greeting", ("name", net.Username));
             var ordered = servers.OrderByDescending(s => friendsOn.TryGetValue(s.name, out var n) ? n : 0).ToArray();
             servers = ordered;
             for (var i = 0; i < view.rows.Length; i++)
@@ -318,12 +316,12 @@ namespace CollectionGame
                 r.back.sprite = friends > 0 ? view.rowFriends : view.rowPlain;
                 r.flag.sprite = s.language == "en" ? view.flagEn : view.flagTr;
                 r.name.text = s.name;
-                r.friends.text = friends > 0 ? $"{friends} arkadaş" : "";
+                r.friends.text = friends > 0 ? Loc.T("login.server.friends", ("count", friends)) : "";
                 var share = s.capacity > 0 ? (float)s.players / s.capacity : 0f;
                 HudView.Fill(r.fill, share);
                 r.fillImage.sprite = share >= 0.9f ? view.fillRed : share >= 0.6f ? view.fillYellow : view.fillGreen;
                 r.count.text = $"{s.players} / {s.capacity}";
-                r.warn.text = share >= 0.9f ? "neredeyse dolu" : "";
+                r.warn.text = share >= 0.9f ? Loc.T("login.server.almost_full") : "";
                 r.go.interactable = s.players < s.capacity;
             }
         }

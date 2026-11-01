@@ -110,7 +110,7 @@ namespace CollectionGame.UI
             var rt = (RectTransform)view.window.transform;
             rt.sizeDelta = new Vector2(rt.sizeDelta.x, 89 + rows * 44); // canta-v2: 309 for 5 rows
             view.capacity.text = $"{bag.slotsUsed} / {bag.slotsMax}";
-            view.balance.text = $"{Kit.Num(bag.coin)} Coin · {Kit.Num(bag.dust)} toz";
+            view.balance.text = Loc.T("bag.balance", ("coin", Kit.Num(bag.coin)), ("dust", Kit.Num(bag.dust)));
         }
 
         void Hover(SlotView s)
@@ -119,10 +119,10 @@ namespace CollectionGame.UI
             switch (s.Data)
             {
                 case ItemInstance it:
-                    popup.ShowTooltip(ItemText.Card(it, prices(), "Tıkla: işlemler · Sürükle: taşı"));
+                    popup.ShowTooltip(ItemText.Card(it, prices(), Loc.T("bag.slot_hint")));
                     break;
                 case ItemStack st:
-                    popup.ShowTooltip(ItemText.Card(st, "Tıkla: işlemler · Sürükle: taşı"));
+                    popup.ShowTooltip(ItemText.Card(st, Loc.T("bag.slot_hint")));
                     break;
             }
         }
@@ -211,14 +211,14 @@ namespace CollectionGame.UI
             switch (data)
             {
                 case ItemInstance it when it.locked:
-                    Toasts.Show("Kilitli eşya atılamaz, önce kilidi aç", true);
+                    Toasts.Show(Loc.T("bag.discard_locked"), true);
                     break;
                 case ItemInstance it:
-                    ConfirmView.Show("Emin misin?", $"{FishingController.ItemName(it.defId)} ({it.tier}) çöpe atılacak. Geri gelmez.", "Çöpe at",
+                    ConfirmView.Show(Loc.T("common.are_you_sure_title"), Loc.T("bag.discard_item", ("item", FishingController.ItemName(it.defId)), ("tier", it.tier)), Loc.T("bag.discard"),
                         () => net.Send(OpCode.ItemDiscard, new ItemDiscardMsg { instanceId = it.instanceId }));
                     break;
                 case ItemStack st:
-                    ConfirmView.Show("Emin misin?", $"{FishingController.ItemName(st.defId)} x{st.count} çöpe atılacak. Geri gelmez.", "Çöpe at",
+                    ConfirmView.Show(Loc.T("common.are_you_sure_title"), Loc.T("bag.discard_stack", ("item", FishingController.ItemName(st.defId)), ("count", st.count)), Loc.T("bag.discard"),
                         () => net.Send(OpCode.ItemDiscard, new ItemDiscardMsg { defId = st.defId, count = st.count }));
                     break;
             }
@@ -227,8 +227,8 @@ namespace CollectionGame.UI
         /// <summary>ITEM_DISCARD_RESULT: read the bag again, say why when it was refused.</summary>
         public void OnDiscardResult(ItemDiscardResultMsg r)
         {
-            if (r.ok) Toasts.Show($"{FishingController.ItemName(r.defId)} çöpe atıldı");
-            else Toasts.Show(r.reason == "LOCKED" ? "Kilitli eşya atılamaz" : r.reason == "BUSY" ? "Takas sürerken eşya atılamaz" : r.reason == "NOT_OWNED" ? "Eşya çantada değil" : $"Atılamadı ({r.reason})", true);
+            if (r.ok) Toasts.Show(Loc.T("bag.discarded", ("item", FishingController.ItemName(r.defId))));
+            else Toasts.Show(Loc.Reason("bag", r.reason), true);
             fishing.RefreshBag();
         }
 
@@ -243,10 +243,10 @@ namespace CollectionGame.UI
                 {
                     var entries = new List<(string, Action)>
                     {
-                        ("Deftere koy", () => net.Send(OpCode.BookPlace, new BookPlaceMsg { instanceId = it.instanceId })),
-                        (it.locked ? "Kilidi aç" : "Kilitle", () => net.Send(OpCode.ItemLock, new ItemLockMsg { instanceId = it.instanceId, locked = !it.locked })),
-                        ("Takasa ekle", CanTrade && !it.locked ? () => trade.AddItem(it.instanceId) : (Action)null),
-                        ("Çöpe at", !it.locked ? () => AskDiscard(it) : (Action)null),
+                        (Loc.T("bag.to_book"), () => net.Send(OpCode.BookPlace, new BookPlaceMsg { instanceId = it.instanceId })),
+                        (Loc.T(it.locked ? "bag.unlock" : "bag.lock"), () => net.Send(OpCode.ItemLock, new ItemLockMsg { instanceId = it.instanceId, locked = !it.locked })),
+                        (Loc.T("bag.add_to_trade"), CanTrade && !it.locked ? () => trade.AddItem(it.instanceId) : (Action)null),
+                        (Loc.T("bag.discard"), !it.locked ? () => AskDiscard(it) : (Action)null),
                     };
                     popup.ShowMenu(FishingController.ItemName(it.defId), it.tier, ItemText.TierColour(it.tier), entries);
                     break;
@@ -255,11 +255,11 @@ namespace CollectionGame.UI
                 {
                     var entries = new List<(string, Action)>();
                     if (st.defId.StartsWith("bait."))
-                        entries.Add((fishing.SelectedBait == st.defId ? "Temel yeme dön" : "Yem olarak kullan",
+                        entries.Add((Loc.T(fishing.SelectedBait == st.defId ? "bag.bait_default" : "bag.bait_use"),
                             () => fishing.SelectedBait = fishing.SelectedBait == st.defId ? null : st.defId));
-                    entries.Add(("Takasa ekle", CanTrade ? () => trade.ChangeStack(st.defId, st.count, st.count) : (Action)null));
-                    entries.Add(("Çöpe at", () => AskDiscard(st)));
-                    popup.ShowMenu(FishingController.ItemName(st.defId), $"{Kit.Num(st.count)} adet", null, entries);
+                    entries.Add((Loc.T("bag.add_to_trade"), CanTrade ? () => trade.ChangeStack(st.defId, st.count, st.count) : (Action)null));
+                    entries.Add((Loc.T("bag.discard"), () => AskDiscard(st)));
+                    popup.ShowMenu(FishingController.ItemName(st.defId), Loc.T("market.pieces", ("count", Kit.Num(st.count))), null, entries);
                     break;
                 }
             }
@@ -268,8 +268,8 @@ namespace CollectionGame.UI
         /// <summary>ITEM_LOCK_RESULT: the lock lives on the item, so read the bag again.</summary>
         public void OnLockResult(ItemLockResultMsg r)
         {
-            if (!r.ok) Toasts.Show(r.reason == "NOT_OWNED" ? "Sadece çantadaki eşya kilitlenir" : $"Kilitlenemedi ({r.reason})", true);
-            else Toasts.Show(r.locked ? "Eşya kilitlendi: satılamaz, parçalanamaz, takasa konamaz" : "Kilit açıldı");
+            if (!r.ok) Toasts.Show(Loc.Reason("bag.lock", r.reason), true);
+            else Toasts.Show(Loc.T(r.locked ? "bag.locked" : "bag.unlocked"));
             fishing.RefreshBag();
         }
     }
