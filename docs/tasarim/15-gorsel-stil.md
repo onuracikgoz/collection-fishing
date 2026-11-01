@@ -14,6 +14,7 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 - Harita ve karakterler: LPC. Harita tile'ları **LPC Revised** (github.com/ElizaWy/LPC) paketinden, lisansı **OGA-BY 3.0**: isim verilir, share-alike yok. Eski LPC parçaları (CC-BY-SA / GPL) kullanılırsa değiştirilen çizimler aynı lisansla paylaşılır. Kredi listesi: `content/CREDITS.md`.
 - LPC'de olta animasyonu yok. Geçici çözüm (**Öneri**): atış için LPC `Legacy - Swing` kareleri, bekleme için `Idle`; olta ve misina kodla çizilir (şamandıra gibi). Kalıcısı Faz 7 öncesi çizdirilir: 4 yön × atış / bekleme / çekme.
 - AI yalnız eşya ikonlarında kullanılır. Tile, bina ve harita parçalarında kullanılmaz: tile kenarları birbirine oturmalı ve LPC'nin ışık / perspektifiyle uyuşmalı.
+- **Deneme (01.11.2026, Onur):** kodla çizilen bina. Yel değirmeni bir script ile (basit 3D şekiller, 3/4 açı, palet tonları) piksel piksel üretilir: `tools/pixel-art/windmill.py` → `client/Assets/Art/Custom/Windmill/`. Oyunda nasıl durduğuna bakılıp kalıp kalmayacağına karar verilecek. Renkler henüz Resurrect 64'e çekilmedi.
 - Eşyalar: AI (Perchance), her eşya ayrı görsel → Item Art Studio (arka plan silme, 128×128, palete çekme) → ortak palet.
 
 ## Tutarlılık kuralları

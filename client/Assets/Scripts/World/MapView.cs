@@ -19,6 +19,11 @@ namespace CollectionGame.World
         const string Terrain = "Terrain/terrain_summer.png";
         const string Bridge = "Structure/Bridges/Wood Bridge A - No Rails.png";
         const string Fountain = "Structure/Misc/Fountain A.png";
+        // Drawn by tools/pixel-art/windmill.py: tower (shadow included) and a sheet of sail frames.
+        const string WindmillTower = "custom/Windmill/windmill_tower.png";
+        const string WindmillSails = "custom/Windmill/windmill_sails.png";
+        const int WindmillFrames = 6;
+        const float WindmillPivotY = 0.1297f; // base centre of the tower, printed by the script
         const int T = 32;
 
         // Tile positions in terrain_summer.png as (column, row) of 32 px cells, top-left origin.
@@ -137,6 +142,34 @@ namespace CollectionGame.World
             }
 
             BuildFountain();
+            BuildWindmill();
+        }
+
+        void BuildWindmill()
+        {
+            var tex = ArtCatalog.Texture(WindmillTower);
+            var sheet = ArtCatalog.Texture(WindmillSails);
+            if (tex == null || sheet == null) return;
+            var go = new GameObject("Windmill");
+            go.transform.SetParent(transform, false);
+            // Tower base centre on the middle of its blocked tiles (LakeMap.Windmill).
+            var w = LakeMap.Windmill;
+            go.transform.position = Coords.ToUnity(new Vector2(w.x + w.width / 2f, w.y + w.height / 2f));
+            var tower = go.AddComponent<SpriteRenderer>();
+            tower.sprite = ArtCatalog.Sprite(WindmillTower, new RectInt(0, 0, tex.width, tex.height), 0.5f, WindmillPivotY);
+            // Sort by the bottom of the sprite, like MapObject.
+            var feet = -tower.bounds.min.y;
+            tower.sortingOrder = CharacterView.SortingOrderFor(feet);
+
+            var sails = new GameObject("Sails");
+            sails.transform.SetParent(go.transform, false);
+            var sr = sails.AddComponent<SpriteRenderer>();
+            sr.sortingOrder = tower.sortingOrder + 1;
+            var fw = sheet.width / WindmillFrames;
+            var frames = new Sprite[WindmillFrames];
+            for (var i = 0; i < WindmillFrames; i++)
+                frames[i] = ArtCatalog.Sprite(WindmillSails, new RectInt(i * fw, 0, fw, sheet.height), 0.5f, WindmillPivotY);
+            sails.AddComponent<SpriteLoop>().Play(frames, 8f);
         }
 
         void BuildFountain()

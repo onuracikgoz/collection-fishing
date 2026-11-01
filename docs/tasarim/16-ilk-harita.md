@@ -87,6 +87,7 @@ LPC Revised paketinden `client/Assets/Art/LPC/` altına eklendi (lisans: `conten
 | Çeşme | `Structure/Misc/Fountain A.png` |
 | Kafe (ve ileride banka) | `Structure/Structures/Paneled House A.png`, `Brick House A.png` |
 | Çit, tabela | `Structure/Fences/Plain Fence A.png`, `Structure/Signs/Sign Backgrounds A.png` |
+| Yel değirmeni (deneme, LPC değil) | `Art/Custom/Windmill/` (kodla çizilir: `tools/pixel-art/windmill.py`). Meydanın kuzeyinde, kule tabanı `(59, 39)` başlayan 3×2 tile engel. Kanatlar 6 kare, `SpriteLoop` döndürür |
 | Sonraki fazlar için hazır | `Terrain/cliff_summer.png` (mağara, kayalık), `FX/WaterRipple.png`, `FX/Splash.png` |
 
 ## Görünüm önizlemesi
