@@ -17,6 +17,7 @@ import {
   beforeLinkSteam,
 } from './hooks/auth';
 import { rpcAccountDeleteCancel, rpcAccountDeleteRequest, rpcAccountDeleteStatus } from './rpc/accountDelete';
+import { rpcGetLocale } from './rpc/getLocale';
 import { rpcReportPlayer, rpcWhisperSend, rpcWhisperSettings } from './rpc/whisper';
 import { rpcTransferCodeCreate, rpcTransferCodeRedeem } from './rpc/transferCode';
 import { ensureServers } from './match/servers';
@@ -42,6 +43,8 @@ import {
   rpcAdminArtPut,
   rpcAdminContent,
   rpcAdminImport,
+  rpcAdminLocaleGet,
+  rpcAdminLocaleSave,
   rpcAdminItemDelete,
   rpcAdminItemSave,
   rpcAdminSetSave,
@@ -91,6 +94,7 @@ function InitModule(
   initializer.registerRpc('get_catalog', rpcGetCatalog);
   initializer.registerRpc('get_content', rpcGetContent);
   initializer.registerRpc('get_item_art', rpcGetItemArt);
+  initializer.registerRpc('get_locale', rpcGetLocale);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
   initializer.registerRpc('transfer_code_create', rpcTransferCodeCreate);
@@ -159,6 +163,8 @@ function InitModule(
   initializer.registerRpc('admin_settings_save', rpcAdminSettingsSave);
   initializer.registerRpc('admin_art_put', rpcAdminArtPut);
   initializer.registerRpc('admin_import', rpcAdminImport);
+  initializer.registerRpc('admin_locale_get', rpcAdminLocaleGet);
+  initializer.registerRpc('admin_locale_save', rpcAdminLocaleSave);
   if (isDevEnabled(ctx)) logger.warn('DEV_TOOLS on: dev_* RPCs work. Never enable this on a test or live server.');
   try {
     ensureServers(nk, logger);

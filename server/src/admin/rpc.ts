@@ -15,6 +15,8 @@ import {
   recipeIdFor,
   validateContent,
 } from '../rules/content';
+import { LANGS, isLang, validateStrings } from '../rules/locale';
+import { readLocale, writeLocale } from '../match/locale';
 import { findWorldMatches } from '../match/servers';
 import { artWrite, contentOptions, readArt, readContentDoc, writeContentDoc, ART_COLLECTION, SYSTEM_USER } from '../match/content';
 
@@ -318,4 +320,40 @@ export function rpcAdminImport(ctx: nkruntime.Context, logger: nkruntime.Logger,
   }
   const next = publish(nk, logger, doc, version);
   return JSON.stringify({ ok: true, version: next, added, updated, skipped });
+}
+
+// --- texts per language (docs/protokol.md, Dil) ---
+
+/** Every language's server texts: `{ langs: { tr: { version, hash, updatedAt, strings }, ... } }`. */
+export function rpcAdminLocaleGet(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, _payload: string): string {
+  adminOnly(ctx);
+  const langs: { [lang: string]: unknown } = {};
+  for (const lang of LANGS) {
+    const l = readLocale(nk, lang);
+    langs[lang] = { version: l.version, hash: l.hash, updatedAt: l.updatedAt, strings: l.strings };
+  }
+  return JSON.stringify({ langs });
+}
+
+/** `{ lang, version, strings }`: replaces the language's texts (an empty text is dropped). `version` is the one read last. */
+export function rpcAdminLocaleSave(ctx: nkruntime.Context, _logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  adminOnly(ctx);
+  const body = parse(payload);
+  if (!isLang(body.lang)) throw fail(ErrorCode.BAD_REQUEST, 'unknown language');
+  const errors = validateStrings(body.strings);
+  if (errors.length > 0) throw fail('LOCALE_INVALID', errors.join('\n'));
+  const strings: { [k: string]: string } = {};
+  const given = body.strings as { [k: string]: string };
+  for (const k of Object.keys(given)) if (given[k].trim() !== '') strings[k] = given[k];
+  const cur = readLocale(nk, body.lang);
+  if (typeof body.version === 'string' && body.version !== cur.version) {
+    throw fail('CONTENT_CHANGED', 'texts changed since you loaded them; reload and try again', 9);
+  }
+  let saved;
+  try {
+    saved = writeLocale(nk, body.lang, strings, cur.version);
+  } catch (e) {
+    throw fail('CONTENT_CHANGED', 'saving failed, someone else saved first: ' + String(e), 9);
+  }
+  return JSON.stringify({ ok: true, version: saved.version, hash: saved.hash, keys: Object.keys(strings).length });
 }

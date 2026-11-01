@@ -5,6 +5,7 @@ Oyundaki her sistemi Unity açmadan, saatlerce oynamadan denemek için tek sayfa
 ```bash
 docker compose up -d                 # yerel Nakama (DEV_TOOLS=true local.yml'de)
 node tools/dev-dashboard/serve.mjs   # http://127.0.0.1:7360
+# ya da admin paneliyle birlikte: cd tools/admin && npm run dev  → http://127.0.0.1:7370/dev/ (panelde "Geliştirici" sekmesi)
 ```
 
 Node dışında bağımlılık yok; derleme adımı yok.

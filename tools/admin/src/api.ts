@@ -24,6 +24,13 @@ export interface StoredArt {
   h: number
 }
 
+export interface LocaleLang {
+  version: string
+  hash: string
+  updatedAt: number
+  strings: Record<string, string>
+}
+
 export class ApiError extends Error {
   code: string
   constructor(code: string, message: string) {
@@ -69,5 +76,8 @@ export const api = {
   settingsSave: (c: Connection, version: string, body: object) => rpc<{ version: string }>(c, 'admin_settings_save', { version, ...body }),
   artPut: (c: Connection, version: string, body: { id: string; png: string; setId?: string; tier?: string; type?: string }) =>
     rpc<{ version: string; created: boolean }>(c, 'admin_art_put', { version, ...body }),
+  localeGet: (c: Connection) => rpc<{ langs: Record<string, LocaleLang> }>(c, 'admin_locale_get'),
+  localeSave: (c: Connection, lang: string, version: string, strings: Record<string, string>) =>
+    rpc<{ version: string; hash: string; keys: number }>(c, 'admin_locale_save', { lang, version, strings }),
   import: (c: Connection, version: string, body: object) => rpc<{ version: string; added: number; updated: number; skipped: string[] }>(c, 'admin_import', { version, ...body }),
 }

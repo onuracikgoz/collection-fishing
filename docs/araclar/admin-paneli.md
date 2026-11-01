@@ -40,6 +40,8 @@ Admin paneli → ZIP yükle → kuyrukta sırayla ayarla → Onayla → oyunda
 | Setler | Set oluşturma, adını değiştirme, pasife alma, sıralama; setin eşyaları defter sırasıyla, sıra değiştirme, pasife alma, başka setten eşya taşıma |
 | Düşme oranları | Av tablosu (kategori ağırlıkları, yüzde ve kategorideki eşya sayısı) ve her eşyanın genel oranı |
 | Sandıklar ve görevler | Seri sandıkları (Coin / toz aralığı, çekiliş sayısı, havuz ve garanti) ve günlük görev listesi |
+| Çeviriler | Oyun yazılarını dile göre düzenleme (aşağıda) |
+| Geliştirici | Dev dashboard (`docs/araclar/dev-dashboard.md`) bu panelin içinde, `/dev/` altında |
 | JSON | Toplu taslak ekleme (JSON kısayolu) ve bütün içeriğin yedeği |
 
 Her kayıt önce panelde, sonra sunucuda bütün içeriğe karşı doğrulanır; hata varsa kaydedilmez ve nedeni yazılır. Kaydedilen değişiklik birkaç saniye içinde bütün sunucularda geçerlidir.
@@ -77,6 +79,15 @@ Görseli hatalı ya da görselsiz bir taslak onaylanırken panel bir kez daha so
 
 Alanlar ve anlamları: `docs/tasarim/19-icerik-yonetimi.md` 2. Liste doğrudan dizi de olabilir (`[ {...}, {...} ]`).
 
+## Çeviriler
+
+Oyun yazıları dil başına düz `anahtar → metin` olarak tutulur (`{count}` gibi adlı yer tutucular). Türkçe ve İngilizce Unity build'inin içindedir (`client/Assets/Resources/Locales/<dil>.json`); diğer diller (de, fr, es, ru, pt-BR, zh-CN, ja, ko, pl) build'de boştur. Sunucu, bu sekmede kaydedilen metinleri dil başına saklar (`locale/<dil>`), istemci `get_locale` ile çeker ve build'deki metnin üstüne yazar. Yani prod'da bir cümleyi düzeltmek ya da yeni dil eklemek için build gerekmez.
+
+- Anahtar listesi build'deki dosyalardan okunur; tablo Türkçe, İngilizce ve seçili dil yan yana gösterir. Filtreler: çevrilmemiş, sunucuda değişen, yer tutucusu Türkçesiyle uyuşmayan.
+- **Çeviri için indir**: bütün anahtarları İngilizce metinle verir; dosyayı çeviriye gönder, çevrilmiş JSON'u **JSON yükle…** ile al, **Kaydet**'e bas. Yükleme kaydetmez, sadece taslağa yazar.
+- Boş metin silinir (o anahtar build'deki metne döner). İki sekme çakışırsa ikincisi "değişti" hatası alır.
+- Eşya ve set adları, Tier adları, `Float`, `Coin` İngilizce kalır (çevrilmez). Eşya hikayeleri dile göre ayrıdır.
+
 ## Admin RPC'leri
 
 Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya başka kayıt girdiyse `CONTENT_CHANGED` döner. Doğrulama hatası `CONTENT_INVALID` (mesajda satır satır nedenler).
@@ -91,6 +102,8 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `admin_settings_save` | `{ version, catchTable?, chests?, quests? }` |
 | `admin_art_put` | `{ version, id, png, setId?, type?, tier? }` görsel; bilinmeyen id yeni taslak |
 | `admin_import` | `{ version, items, sets? }` JSON kısayolu |
+| `admin_locale_get` | Bütün dillerin sunucudaki metinleri `{ langs: { tr: { version, hash, updatedAt, strings } } }` |
+| `admin_locale_save` | `{ lang, version, strings }` o dilin metinlerini değiştirir (`version` o dilin okunan sürümü) |
 
 ## Kod yapısı
 
@@ -101,4 +114,6 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `src/state.ts` | İçerik, derlenmiş hali, küçük resimler ve görsel raporları |
 | `src/artCheck.ts`, `src/images.ts` | Görsel kontrolü, PNG / ZIP okuma (saf, testli) |
 | `src/chance.ts` | Genel düşme oranı |
+| `src/locales.ts` | Build'deki dil dosyaları ve anahtar listesi |
+| `vite.config.ts` | Dev dashboard'u `/dev/` altında sunan eklenti |
 | `src/components/` | Sekmeler ve eşya düzenleme formu |

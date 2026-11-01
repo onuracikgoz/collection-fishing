@@ -299,6 +299,7 @@ export const RPC_LIMITS: { default: RateLimit; rpcs: { [rpc: string]: RateLimit 
     get_catalog: { perWindow: 5, windowMs: 10 * 1000 },
     get_content: { perWindow: 5, windowMs: 10 * 1000 },
     get_item_art: { perWindow: 30, windowMs: 10 * 1000 },
+    get_locale: { perWindow: 5, windowMs: 10 * 1000 },
     whisper_send: { perWindow: WHISPER.perWindow, windowMs: WHISPER.windowMs },
     whisper_settings: { perWindow: 5, windowMs: 10 * 1000 },
     account_delete_request: { perWindow: 5, windowMs: 60 * 1000 },
