@@ -99,9 +99,12 @@ namespace CollectionGame.UI.Views
             var rank = Tiers.Rank(tierId);
 
             frame.sprite = rank >= 0 && tierFrames != null && rank < tierFrames.Length ? tierFrames[rank] : empty;
+            // a copy shows its Float on the picture (FloatLook: mud, scratches, sparkles, light streak)
+            FloatLook.Clear(icon);
             var sprite = ItemIcons.For(defId);
             icon.sprite = sprite;
             icon.enabled = sprite != null;
+            if (it != null) FloatLook.Apply(icon, it);
             icon.preserveAspect = true;
             icon.color = it != null || ItemContent.Icon(defId) != null ? Color.white : new Color(1f, 1f, 1f, 0.85f);
 

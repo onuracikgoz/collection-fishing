@@ -473,7 +473,7 @@ namespace CollectionGame.Economy
                 s.Clicked = click;
                 var e = i < laid.Length ? laid[i] : null;
                 var on = e != null && selected != null && selected(e);
-                if (e is ItemInstance it) s.SetItem(it.defId, it.tier, 1, it.locked, on);
+                if (e is ItemInstance it) s.SetItem(it, true, on);
                 else if (e is ItemStack st) s.SetItem(st.defId, "", st.count, false, on);
                 else s.SetEmpty();
                 s.Data = e;
@@ -684,7 +684,7 @@ namespace CollectionGame.Economy
                 var value = ValueOf(e, salvage);
                 if (e is ItemInstance it)
                 {
-                    line.icon.SetItem(it.defId, it.tier, 1, false);
+                    line.icon.SetItem(it, false);
                     line.name.text = $"{FishingController.ItemName(it.defId)}{(salvage ? "" : $" · {Prices.ConditionName(Prices.ConditionOf(it.@float))}")}";
                 }
                 else if (e is ItemStack st)
@@ -907,7 +907,7 @@ namespace CollectionGame.Economy
             {
                 var it = i < picked.Count ? picked[i] : null;
                 if (it == null) v.inputs[i].SetEmpty();
-                else v.inputs[i].SetItem(it.defId, it.tier, 1, false);
+                else v.inputs[i].SetItem(it, false);
                 v.inputs[i].Data = it;
                 v.inputs[i].Clicked = PickForMerge;
                 v.inputNames[i].text = it != null ? FishingController.ItemName(it.defId) : "";

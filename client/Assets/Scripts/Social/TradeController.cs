@@ -356,7 +356,7 @@ namespace CollectionGame.Social
             {
                 var slot = side.slots[i];
                 if (i >= entries.Count) slot.SetEmpty();
-                else if (entries[i] is ItemInstance it) slot.SetItem(it.defId, it.tier, 1, false);
+                else if (entries[i] is ItemInstance it) slot.SetItem(it, false);
                 else if (entries[i] is ItemStack st) slot.SetItem(st.defId, "", st.count, false);
                 slot.Data = i < entries.Count ? entries[i] : null;
             }
