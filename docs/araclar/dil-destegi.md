@@ -43,6 +43,6 @@ Gömülü dosyalar build'in içindedir. Yeni build çıkarmadan bir cümleyi dü
 ## Mac'te kontrol (bulut oturumu Unity'yi derleyemez)
 
 1. Unity açılınca derleme hatası var mı (`Scripts/Loc/*.cs` yeni; `Loc.T(..., ("ad", değer))` tuple yazımı).
-2. Builder sürümü 38: prefablar kendiliğinden yeniden kurulur. Yeni `.meta` dosyaları (Locales, Loc) commit'lenmeli.
+2. Builder sürümü 39: prefablar kendiliğinden yeniden kurulur. Yeni `.meta` dosyaları (Locales, Loc) commit'lenmeli.
 3. Ayarlar > Genel > Dil: liste açılıyor mu, English seçilince açık pencereler ve HUD İngilizceye dönüyor mu, diğer diller soluk ve tıklanamaz mı.
 4. Sunucuda `get_locale` yokken giriş sorunsuz mu (konsolda sadece `get_locale skipped`).

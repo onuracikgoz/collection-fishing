@@ -220,7 +220,6 @@ namespace CollectionGame.EditorTools
                     c.name.text = names[i];
                     c.newBadge.SetActive(i == 2);
                 }
-                v.nav.text = "Göl Balıkları · Derin Su";
             });
             Shot(outDir, "profil", Path.Combine(drafts, "profil-v3.png"), canvas =>
             {
