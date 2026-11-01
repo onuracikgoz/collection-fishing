@@ -319,7 +319,6 @@ namespace CollectionGame.Social
             var label = s.youConfirmed ? Loc.T("trade.confirmed") : bothLocked && left > 0f ? Loc.T("trade.confirm_in", ("seconds", Mathf.CeilToInt(left))) : Loc.T("trade.confirm");
             if (view.confirmText.text != label) view.confirmText.text = label;
             view.strip.SetActive(bothLocked);
-            view.hint.gameObject.SetActive(!bothLocked);
             if (bothLocked)
             {
                 var strip = s.youConfirmed && !s.themConfirmed ? Loc.T("trade.strip_you_confirmed")

@@ -22,7 +22,6 @@ namespace CollectionGame.UI.Views
         public Text bagHint, place;
         public RectTransform bagGrid;
         public SlotView bagTemplate;
-        public Text footer;
         public Button open, recall, board;
     }
 }

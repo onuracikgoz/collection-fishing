@@ -21,7 +21,7 @@ namespace CollectionGame.UI.Views
         }
 
         public WindowView window;
-        public Text coin, diamond, header, hint, footer;
+        public Text coin, diamond, header, hint;
         public Row[] quests;
         public Row chest;
         /// <summary>npc-gorev: green when done, yellow while going.</summary>

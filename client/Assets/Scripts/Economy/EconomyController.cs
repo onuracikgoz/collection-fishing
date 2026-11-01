@@ -701,17 +701,17 @@ namespace CollectionGame.Economy
             v.totalIcon.color = salvage ? DustBlue : Gold;
             var canAll = basket.Count > 0 && basket.All(e => ValueOf(e, salvage) > 0);
             var max = Prices.Catalog.maxEntries > 0 ? Prices.Catalog.maxEntries : 40;
-            v.note.text = basket.Count == 0 ? Loc.T("economy.basket_hint")
+            // How the basket works is in the info window ("!"); the line only says what is wrong.
+            v.note.text = basket.Count == 0 ? ""
                 : basket.Count > max ? Loc.T("economy.basket_max", ("max", max))
                 : !canAll ? Loc.T(salvage ? "economy.basket_cannot_salvage" : "economy.basket_cannot_sell")
-                : Loc.T(salvage ? "economy.salvage_footer" : "economy.sell_footer");
+                : "";
             v.sellButton.gameObject.SetActive(!salvage);
             v.salvageButton.gameObject.SetActive(salvage);
             var enabled = !Pending && canAll && basket.Count <= max;
             v.sellButton.interactable = v.salvageButton.interactable = enabled;
             v.sellText.text = Loc.T(Armed(OpCode.Sell) ? "common.are_you_sure" : "economy.sell");
             v.salvageText.text = Loc.T(Armed(OpCode.Salvage) ? "common.are_you_sure" : "economy.salvage");
-            v.bagHint.text = Loc.T("economy.bag_hint");
         }
 
         void RedrawShop(MerchantView v)

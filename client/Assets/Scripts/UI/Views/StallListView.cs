@@ -21,6 +21,6 @@ namespace CollectionGame.UI.Views
         public Button minus, plus, max, buy;
         public InputField count;
         public GameObject countRow;
-        public Text buyText, note, footer;
+        public Text buyText, footer;
     }
 }

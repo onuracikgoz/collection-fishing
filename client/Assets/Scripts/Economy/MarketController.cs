@@ -471,10 +471,10 @@ namespace CollectionGame.Economy
             v.title.SetTextWithoutNotify(open ? mine.title : title);
             v.open.gameObject.SetActive(!open);
             v.recall.gameObject.SetActive(open);
-            v.stallHint.text = !open ? Loc.T("market.setup_hint")
+            v.stallHint.text = !open ? ""
                 : mine.expiresInMs >= 3600000 ? Loc.T("market.time_left_hours", ("hours", (mine.expiresInMs / 3600000f).ToString("0.#", Loc.Culture)))
                 : Loc.T("market.time_left_minutes", ("minutes", mine.expiresInMs / 60000));
-            v.bagHint.text = Loc.T(open ? "market.bag_hint_open" : "market.bag_hint");
+            v.bagHint.text = open ? Loc.T("market.bag_hint_open") : "";
             v.place.text = Loc.T("market.place", ("count", Stalls.Count));
 
             // Stall slots: my open stall's first entries, or the picks.

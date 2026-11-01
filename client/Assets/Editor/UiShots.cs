@@ -240,7 +240,6 @@ namespace CollectionGame.EditorTools
                 v.stat2Value.text = "3/3";
                 v.stat3Label.text = "Level";
                 v.stat3Value.text = "12";
-                v.footer.text = "";
             });
             Shot(outDir, "arkadaslar", Path.Combine(drafts, "arkadaslar-list.png"), canvas =>
             {
@@ -312,7 +311,7 @@ namespace CollectionGame.EditorTools
                     v.basketTitle.text = sv ? "Sepet · 4 kalem" : "Sepet · 7 kalem";
                     v.totalValue.text = sv ? "34" : "45";
                     v.totalIcon.color = sv ? new Color32(0x8f, 0xd3, 0xff, 255) : new Color32(0xf9, 0xc2, 0x2b, 255);
-                    v.note.text = sv ? "Toz takas edilmez, craft için." : "Çöp ve sıradan balık da burada.";
+                    v.note.text = "";
                     v.sellButton.gameObject.SetActive(!sv);
                     v.salvageButton.gameObject.SetActive(sv);
                 });
@@ -683,7 +682,6 @@ namespace CollectionGame.EditorTools
             Side(t.me, "Sen", "", mine, bothLocked ? "250" : "0", bothLocked);
             Side(t.them, "Mert", "Lv 12", new[] { ("lake.fish.altin", "epic", 1), ("lake.fish.tunek", "rare", 1), ("lake.mat.scale", "rare", 1) }, "1.500", true);
             t.strip.SetActive(bothLocked);
-            t.hint.gameObject.SetActive(!bothLocked);
             t.stripText.text = "İki taraf kilitledi. Onay 3 sn sonra açılır: 2";
             t.lockText.text = bothLocked ? "Kilidi aç" : "Kilitle";
             t.confirm.interactable = false;

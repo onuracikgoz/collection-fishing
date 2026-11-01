@@ -664,7 +664,6 @@ namespace CollectionGame.Collection
             v.trade.gameObject.SetActive(!mine);
             v.report.gameObject.SetActive(!mine);
             v.block.gameObject.SetActive(!mine);
-            v.footer.text = mine ? Loc.T("profile.footer") : "";
         }
     }
 }

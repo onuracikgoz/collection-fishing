@@ -18,7 +18,6 @@ namespace CollectionGame.UI.Views
         }
 
         public WindowView window;
-        public Text hint;
         public Card[] cards;
         public Text empty;
         public Button advertise;

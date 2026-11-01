@@ -11,7 +11,8 @@ namespace CollectionGame.UI.Views
         public Text balance;
         public RectTransform grid;
         public SlotView slotTemplate;
-        public Text footer;
+        /// <summary>Window height around the slot rows (count line, trash row, padding): height = chrome + rows * 44.</summary>
+        public float chrome = 120;
         /// <summary>Trash can: drop an item on it, confirm, the server throws it away (ITEM_DISCARD).</summary>
         public RectTransform trash;
         public Image trashHighlight;
