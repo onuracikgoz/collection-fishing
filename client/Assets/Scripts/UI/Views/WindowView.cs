@@ -17,6 +17,12 @@ namespace CollectionGame.UI.Views
         public RectTransform plate;
         /// <summary>Optional grip square (whisper windows): dragging it moves the window too.</summary>
         public RectTransform handle;
+        /// <summary>
+        /// The "!" button beside the title (01.11.2026, Onur): opens the info window with this window's
+        /// help, read from Locales keys info.&lt;infoKey&gt;.&lt;n&gt;.title / .text. One per window, not per tab.
+        /// </summary>
+        public Button info;
+        public string infoKey;
 
         /// <summary>
         /// While this window is open the world takes no input: no walking (mouse or WASD), no casting.
@@ -54,6 +60,8 @@ namespace CollectionGame.UI.Views
                 if (Closed != null) Closed();
                 else gameObject.SetActive(false);
             });
+            if (info != null && !string.IsNullOrEmpty(infoKey))
+                info.onClick.AddListener(() => InfoView.Toggle(title != null ? title.text : "", infoKey));
         }
 
         public bool Open

@@ -16,6 +16,8 @@ Bulut oturumu Unity'yi derleyemediği için pencereler ilk başta Unity'de yazı
 
 7. **Float görünümü (01.11.2026, bulutta derlenmedi):** `UI/FloatLook.cs` ve `UI/FloatShine.cs` derleniyor mu. Katalog yüklendikten sonra çantada Worn / Damaged eşya soluk ve çamurlu, Damaged'da çizik var mı; Pristine'de yıldızlar ve birkaç saniyede bir ışık şeridi, Excellent'te daha seyrek şerit geçiyor mu. Aynı eşya defterde ve inceleme penceresinde aynı görünüyor mu. Eşyayı sürüklerken şerit takılıyor mu. Web build'de de bak.
 
+8. **Boşluklar, bilgi penceresi, renk (01.11.2026, bulutta derlenmedi):** builder sürümü 41. Pencerelerin içi kenarlara eşit uzaklıkta mı (`Pad`, her pencerede dört yanda aynı; Profil, Defter, Çanta, Tezgah kur, Emote, Çanta altı satırı). Her pencerenin başlık plakasının sağında `!` var (Ayarlar'da yok); tıklayınca `Info` penceresi başlıklı bölümlerle açılıyor mu, Esc ve karartma kapatıyor mu, uzun metinde kayıyor mu. Panel ve yuva renkleri sıcak parşömen mi (`tools/ui-kit/make_ui_kit.py` yeniden üretildi; 22 doku değişti, `.meta` dosyalarına dokunulmadı).
+
 ## Mac kontrolü sonucu (29.10.2026)
 
 1. Kit içe aktarılıyor, 9-slice kenarları dokuya yazılıyor. Ama parçalar Multiple sprite modunda geliyordu, kesilen sprite'ın (`card_0`) kenarı 0'dı: `PixelArtImporter` (sürüm 3) UI parçalarını artık Single içe aktarıyor. Unity açılınca 172 doku yeniden içe aktarılır, UI `.meta` dosyaları değişir (commit'lenmeli).
@@ -235,3 +237,9 @@ Karar 29.10.2026 (Onur): Knight Online'daki gibi **küçük, aç / kapa** pencer
 ## İkonlar
 
 Hepsi yer tutucu. Gerçekleri Perchance'ten gelecek: `docs/araclar/ui-ikon-promptlari.md`. Dosya adları ve konum (`client/Assets/Art/UI/Icons/`) orada.
+
+## Boşluk ve bilgi penceresi (01.11.2026, Onur)
+
+- **Eşit boşluk:** `UiPrefabBuilder.Pad` (12 birim) çerçeve ile içindeki arasındaki boşluktur. `Fit(window)` pencerenin içindekini ölçer, pencereyi her yanda `Pad` kalacak şekilde boyar ve çocukları kaydırır; taslak pencereler `Finish(window, infoKey)` ile bitirilir. Çanta kendi boşluklarını `Pad`'den kurar (yükseklik `BagView.chrome + satır * 44`).
+- **Bilgi penceresi:** pencere başına tek `!` düğmesi (`WindowView.info`, `infoKey`), sekme başına değil. `Info.prefab` (`InfoView`) tek kutudur: `info.<anahtar>.<n>.title` ve `.text` anahtarlarını `n` = 1, 2, ... sırayla okur (tr.json, en.json). Pencerelerdeki açıklama yazıları (ipuçları, altbilgiler) buraya taşındı; pencerede kalan satırlar yalnız duruma bağlı olanlar (kalan süre, hata, sepet uyarısı).
+- **Yeni pencere:** builder'da son satır `Finish(view.window, "anahtar")`, dil dosyalarına `info.anahtar.1.title/.text`.

@@ -19,13 +19,15 @@ INK = c("2e222f")
 WD, WM, W, WL, WH = map(c, ["45293f", "7a3045", "9e4539", "cd683d", "e6904e"])
 PAPER, PAPER_S, PAPER_D = c("fdcbb0"), c("fca790"), c("e6904e")
 # sage: linen fill of windows, slot / field faces, flat bottom bar
-LINEN, LINEN_W = c("b2ba90"), c("92a984")
-SAGE_L, SAGE, SAGE_M, SAGE_D = c("c7dcd0"), c("92a984"), c("547e64"), c("374e4a")
+# warm parchment (01.11.2026, Onur: cream and olive did not belong together): panel face, its shade
+LINEN, LINEN_W = c("e2d0a8"), c("cdb88c")
+# SAGE_L / SAGE are the light and mid parchment (slots, fields, dividers, tabs); SAGE_M / SAGE_D stay green for the dark HUD bar
+SAGE_L, SAGE, SAGE_M, SAGE_D = c("f2e6c6"), c("c9b283"), c("547e64"), c("374e4a")
 NAIL, NAIL_D = c("f9c22b"), c("4c3e24")
 GREY_D, GREY, GREY_L = c("625565"), c("7f708a"), c("9babb2")
 WHITE = c("ffffff")
 # flat cream inside windows (31.10.2026, Onur: plain, no linen weave; later: closer to white, not skin-coloured)
-CREAM = c("faf7ef")
+CREAM = c("f8f0dc")
 
 # THE corner rounding of the UI kit, in kit pixels (31.10.2026, Onur: square things slightly round).
 # Every box piece (windows, buttons, slots, cards, fields, bubbles...) goes through round_corners(),
@@ -76,7 +78,7 @@ RAMPS = {  # deep, shade, face, light, shine
     "green": (c("165a4c"), c("239063"), c("1ebc73"), c("91db69"), c("cddf6c")),
     "red":   (c("6e2727"), c("ae2334"), c("e83b3b"), c("f68181"), c("fca790")),
 }
-GREY_RAMP = (INK, GREY_D, GREY, GREY_L, c("c7dcd0"))
+GREY_RAMP = (INK, GREY_D, GREY, GREY_L, SAGE_L)
 
 def button(ramp, state, w, h):
     deep, shade, face, light, shine = ramp
@@ -175,7 +177,7 @@ im = new(8, 8)
 r(im, 0, 0, 7, 7, c("2e222f", 210)); round_corners(im); put("nametag", im, 2)
 
 im = new(16, 12)
-r(im, 0, 0, 15, 11, INK); r(im, 1, 1, 14, 10, WHITE); r(im, 1, 10, 14, 10, c("c7dcd0"))
+r(im, 0, 0, 15, 11, INK); r(im, 1, 1, 14, 10, WHITE); r(im, 1, 10, 14, 10, SAGE_L)
 round_corners(im); put("bubble", im, 4)
 put("bubble_tail", from_ascii(["xwwwwwx", ".xwwwx.", "..xwx..", "...x..."], {"x": INK, "w": WHITE}))
 

@@ -19,7 +19,6 @@ namespace CollectionGame.UI.Views
         [Header("Sat / Parçala")]
         public GameObject sell;
         public SlotGrid bag;
-        public Text bagHint;
         public Text basketTitle;
         public BasketLine[] lines;
         public Text more, totalValue, note;

@@ -34,7 +34,7 @@ namespace CollectionGame.UI.Views
         public RecipeCard[] recipes;
         public Text noRecipe;
         public GameObject detail;
-        public Text recipeName, recipeSub, recipeDust, quality, note, missing;
+        public Text recipeName, recipeSub, recipeDust, quality, missing;
         public RectTransform qualityFill;
         public Need[] needs;
         public Button craftButton;

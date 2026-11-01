@@ -7,7 +7,7 @@ namespace CollectionGame.UI.Views
     public sealed class BankView : MonoBehaviour
     {
         public WindowView window;
-        public Text stashTitle, stashCount, bagTitle, hint, footer;
+        public Text stashTitle, stashCount, bagTitle;
         public SlotGrid stash, bag;
         public GameObject expand;
         public Text expandSlots, expandPrice;

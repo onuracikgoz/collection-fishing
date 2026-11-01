@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 40; // 40: item inspect window (Inspect)
+        public const int Version = 41; // 41: equal window padding (Fit), info "!" button and Info window
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -173,6 +173,7 @@ namespace CollectionGame.EditorTools
             Save(BuildBubble(), "Bubble");
             Save(BuildConfirm(), "Confirm");
             Save(BuildInspect(), "Inspect");
+            Save(BuildInfo(), "Info");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
@@ -393,6 +394,123 @@ namespace CollectionGame.EditorTools
 
             view.body = Stretch(Node("Body", rt), 16, 16, 18, 24);
             return view;
+        }
+
+        // ================= Window padding and the info button (01.11.2026, Onur) =================
+
+        // The kit window frame in layout units (window.png: 8 kit px left / top, 10 right / bottom with
+        // the shadow; one kit px is two units). Pad is THE room between the frame and what is inside,
+        // the same on every side of every window: change it here, not in the windows.
+        const float FrameL = 16, FrameT = 16, FrameR = 20, FrameB = 20;
+        public const float Pad = 12;
+
+        /// <summary>
+        /// Equal padding: measures what is inside the window (panels, slots, buttons, fields; a text by
+        /// its aligned edge, since its box is wider than its letters) and resizes the window so that
+        /// box sits <see cref="Pad"/> inside the frame on all four sides, moving the children with it.
+        /// The window keeps its centre. Plate, close and info stay where the frame puts them.
+        /// Call it last, after everything is in the window.
+        /// </summary>
+        static void Fit(WindowView view)
+        {
+            var rt = (RectTransform)view.transform;
+            var size = rt.rect.size;
+            var box = new Vector4(float.MaxValue, float.MaxValue, float.MinValue, float.MinValue); // xMin, top, xMax, bottom (y down)
+            Measure(view, rt, size, ref box);
+            if (box.x > box.z || box.y > box.w) return;
+            var shift = new Vector2(FrameL + Pad - box.x, FrameT + Pad - box.y);
+            var fitted = new Vector2(Mathf.Round(FrameL + Pad + (box.z - box.x) + Pad + FrameR), Mathf.Round(FrameT + Pad + (box.w - box.y) + Pad + FrameB));
+            Shift(view, rt, size, fitted, shift);
+            rt.sizeDelta += fitted - size;
+        }
+
+        static bool Frame(WindowView view, Transform t) =>
+            (view.plate != null && t == view.plate) || (view.close != null && t == view.close.transform) || (view.info != null && t == view.info.transform);
+
+        /// <summary>A full-size holder with no picture (tab pages like Sell / Shop): its children count as the window's.</summary>
+        static bool Holder(RectTransform c) =>
+            c.anchorMin == Vector2.zero && c.anchorMax == Vector2.one && c.offsetMin == Vector2.zero && c.offsetMax == Vector2.zero &&
+            c.GetComponent<Graphic>() == null && c.GetComponent<LayoutGroup>() == null && c.GetComponent<ScrollRect>() == null;
+
+        static void Measure(WindowView view, RectTransform parent, Vector2 size, ref Vector4 box)
+        {
+            foreach (RectTransform c in parent)
+            {
+                if (Frame(view, c)) continue;
+                if (Holder(c))
+                {
+                    Measure(view, c, size, ref box);
+                    continue;
+                }
+                if (c.anchorMin != c.anchorMax) continue; // stretched decoration: follows the window
+                var w = c.rect.width;
+                var h = c.rect.height;
+                var x = c.anchorMin.x * size.x + c.anchoredPosition.x - c.pivot.x * w;
+                var top = (1 - c.anchorMin.y) * size.y - c.anchoredPosition.y - (1 - c.pivot.y) * h;
+                float l = x, r = x + w, t = top, b = top + h;
+                var text = c.GetComponent<Text>();
+                if (text != null && c.GetComponent<Image>() == null)
+                {
+                    if (text.horizontalOverflow != HorizontalWrapMode.Wrap)
+                    {
+                        var ax = (int)text.alignment % 3; // 0 left, 1 centre, 2 right
+                        if (ax == 0) r = l;
+                        else if (ax == 2) l = r;
+                        else l = r = x + w / 2;
+                    }
+                    if (h <= 24) // one line: its letters, not the 22 px line box
+                    {
+                        t = top + h / 2 - 8;
+                        b = top + h / 2 + 8;
+                    }
+                }
+                else if (c.GetComponent<HorizontalLayoutGroup>() != null && c.GetComponent<Graphic>() == null)
+                    r = l; // a row of things: it ends where its last child ends, not at its box
+                box.x = Mathf.Min(box.x, l);
+                box.y = Mathf.Min(box.y, t);
+                box.z = Mathf.Max(box.z, r);
+                box.w = Mathf.Max(box.w, b);
+            }
+        }
+
+        static void Shift(WindowView view, RectTransform parent, Vector2 size, Vector2 fitted, Vector2 shift)
+        {
+            foreach (RectTransform c in parent)
+            {
+                if (Frame(view, c)) continue;
+                if (Holder(c))
+                {
+                    Shift(view, c, size, fitted, shift);
+                    continue;
+                }
+                if (c.anchorMin != c.anchorMax) continue;
+                // Same place in the window's top-left frame of reference, moved by shift, after the resize.
+                var p = c.anchoredPosition;
+                p.x += shift.x + c.anchorMin.x * (size.x - fitted.x);
+                p.y += -shift.y + (1 - c.anchorMin.y) * (fitted.y - size.y);
+                c.anchoredPosition = p;
+            }
+        }
+
+        /// <summary>
+        /// The window's "!" button, right of the title plate (one per window, not per tab; not on
+        /// Ayarlar). It opens the Info window with the texts under info.&lt;key&gt; (tr.json / en.json).
+        /// </summary>
+        static void Info(WindowView view, string key)
+        {
+            var b = Btn(view.plate, "Info", "square_wood", "!", 16);
+            b.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            At((RectTransform)b.transform, new Vector2(1, 0.5f), new Vector2(6, 0), new Vector2(24, 24), new Vector2(0, 0.5f));
+            Tip(b.transform, L("info.title"), L("info.tip"));
+            view.info = b;
+            view.infoKey = key;
+        }
+
+        /// <summary>A draft window's last step: info button and equal padding.</summary>
+        static void Finish(WindowView view, string infoKey)
+        {
+            if (infoKey != null) Info(view, infoKey);
+            Fit(view);
         }
 
         static SlotView Slot(Transform parent, string name, float size = 40)
@@ -666,20 +784,26 @@ namespace CollectionGame.EditorTools
         {
             var wrap = Stretch(Node("Bag", null));
             var view = wrap.gameObject.AddComponent<BagView>();
-            // canta-v2: 392 wide, 16 from the right, 81 from the bottom; slots 40 at a 44 pitch from (20, 48).
-            view.window = Window(wrap, "Window", L("bag.title"), new Vector2(392, 309));
-            At((RectTransform)view.window.transform, BottomRight, new Vector2(-16, 81), new Vector2(392, 309), BottomRight);
+            // canta-v2, 16 from the right, 81 from the bottom; slots 40 at a 44 pitch. Padding (01.11.2026,
+            // Onur): the grid, the count on top and the trash / balance row under it sit Pad inside the frame.
+            const float gridW = 8 * 44 - 4, top = FrameT + Pad, bottomRow = 28, gap = 10;
+            var width = FrameL + Pad + gridW + Pad + FrameR;
+            var gridTop = top + 16 + gap;
+            var gridBottom = FrameB + Pad + bottomRow + gap;
+            view.window = Window(wrap, "Window", L("bag.title"), new Vector2(width, 309));
+            At((RectTransform)view.window.transform, BottomRight, new Vector2(-16, 81), new Vector2(width, gridTop + 5 * 44 - 4 + gridBottom), BottomRight);
+            view.chrome = gridTop - 4 + gridBottom;
             var body = (RectTransform)view.window.transform;
             Object.DestroyImmediate(view.window.body.gameObject);
             view.window.body = body;
-            view.capacity = Txt(At(Node("Capacity", body), TopLeft, new Vector2(22, -20), new Vector2(120, 22)), "0 / 40", 16, Ink);
-            view.balance = Txt(At(Node("Balance", body), BottomRight, new Vector2(-22, 16), new Vector2(200, 20)), "", 14, Faint, TextAnchor.MiddleRight);
+            view.capacity = Txt(At(Node("Capacity", body), TopLeft, new Vector2(FrameL + Pad, -(top - 3)), new Vector2(160, 22)), "0 / 40", 16, Ink);
+            view.balance = Txt(At(Node("Balance", body), BottomRight, new Vector2(-(FrameR + Pad), FrameB + Pad + 3), new Vector2(260, 22), BottomRight), "", 14, Faint, TextAnchor.MiddleRight);
 
             var grid = Node("Grid", body);
             grid.anchorMin = new Vector2(0, 0);
             grid.anchorMax = new Vector2(1, 1);
-            grid.offsetMin = new Vector2(20, 38);
-            grid.offsetMax = new Vector2(-16, -48);
+            grid.offsetMin = new Vector2(FrameL + Pad, gridBottom);
+            grid.offsetMax = new Vector2(-(FrameR + Pad), -gridTop);
             var layout = grid.gameObject.AddComponent<GridLayoutGroup>();
             layout.cellSize = new Vector2(40, 40);
             layout.spacing = new Vector2(4, 4);
@@ -690,7 +814,7 @@ namespace CollectionGame.EditorTools
             view.slotTemplate.gameObject.SetActive(false);
 
             // Trash can bottom left (31.10.2026, Onur): drop an item on it, L("common.are_you_sure_title"), gone.
-            var trash = At(Node("Trash", body), BottomLeft, new Vector2(18, 10), new Vector2(28, 28));
+            var trash = At(Node("Trash", body), BottomLeft, new Vector2(FrameL + Pad, FrameB + Pad), new Vector2(bottomRow, bottomRow));
             Img(trash, "button_square_wood_normal", Image.Type.Sliced, true);
             IconOn(trash, "trash", 16);
             Tip(trash, L("bag.trash"), L("bag.trash_note"));
@@ -698,7 +822,7 @@ namespace CollectionGame.EditorTools
             view.trashHighlight = Img(Stretch(Node("Over", trash), -3, -3, -3, -3), "slot_selected");
             view.trashHighlight.pixelsPerUnitMultiplier = 2;
             view.trashHighlight.enabled = false;
-            view.footer = Txt(At(Node("Footer", body), BottomLeft, new Vector2(54, 16), new Vector2(150, 20)), "Sürükle: taşı / at", 12, Faint);
+            Info(view.window, "bag");
             return wrap.gameObject;
         }
 
@@ -1065,7 +1189,6 @@ namespace CollectionGame.EditorTools
             view.me = TradeSide(w, "Me", 22, true);
             view.them = TradeSide(w, "Them", 250, false);
 
-            view.hint = TextAt(w, "Hint", L("trade.hint"), 22, 345, 423, 12, Faint, TextAnchor.MiddleCenter);
             var strip = Abs(w, "Strip", 22, 334, 423, 24);
             Img(strip, "box_dark");
             view.strip = strip.gameObject;
@@ -1080,6 +1203,7 @@ namespace CollectionGame.EditorTools
             view.confirmText = view.confirm.GetComponentInChildren<Text>();
             view.cancel = Btn(w, "Cancel", "red", L("common.cancel_short"), 16);
             At((RectTransform)view.cancel.transform, TopLeft, new Vector2(336, -366), new Vector2(109, 40));
+            Finish(view.window, "trade");
             return wrap.gameObject;
         }
 
@@ -1161,7 +1285,7 @@ namespace CollectionGame.EditorTools
             Panel(w, "StallPanel", 18, 84, 420, 178);
             Panel(w, "BagPanel", 18, 262, 482, 120);
             view.stallHeader = TextAt(w, "StallHeader", "Tezgah · 0 / 12", 28, 96, 180, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.stallHint = TextAt(w, "StallHint", L("market.setup_hint"), 214, 96, 260, 14, Faint);
+            view.stallHint = TextAt(w, "StallHint", "", 214, 96, 220, 14, Faint);
             view.stall = new SlotView[12];
             view.tags = new PriceTag[12];
             for (var i = 0; i < 12; i++)
@@ -1194,9 +1318,11 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.takeBack.transform, TopLeft, new Vector2(113, -87), new Vector2(93, 30));
 
             TextAt(w, "BagLabel", L("bag.title"), 28, 274, 60, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.bagHint = TextAt(w, "BagHint", L("market.bag_hint"), 96, 274, 200, 14, Faint);
-            view.place = TextAt(w, "Place", "", 499, 272, 230, 12, Faint);
+            view.bagHint = TextAt(w, "BagHint", "", 96, 274, 200, 14, Faint);
+            // Market area line over the Board button, inside the right column (it ran out of the window).
+            view.place = TextAt(w, "Place", "", 510, 350, 221, 12, Faint, TextAnchor.MiddleRight);
             view.place.horizontalOverflow = HorizontalWrapMode.Wrap;
+            ((RectTransform)view.place.transform).sizeDelta = new Vector2(221, 30);
             // Bag: 10 a row, two rows in sight, the rest scrolls.
             var scroll = Abs(w, "Bag", 28, 287, 462, 86);
             var sr = scroll.gameObject.AddComponent<ScrollRect>();
@@ -1223,15 +1349,13 @@ namespace CollectionGame.EditorTools
             view.bagTemplate = Slot(content, "SlotTemplate");
             view.bagTemplate.gameObject.SetActive(false);
 
-            view.footer = TextAt(w, "Footer", L("market.setup_footer"), 28, 437, 500, 14, Faint);
-            view.footer.horizontalOverflow = HorizontalWrapMode.Wrap;
-            ((RectTransform)view.footer.transform).sizeDelta = new Vector2(500, 40);
             view.open = Btn(w, "Open", "green", L("market.open"), 16);
             At((RectTransform)view.open.transform, TopLeft, new Vector2(553, -417), new Vector2(178, 37));
             view.recall = Btn(w, "Recall", "red", L("market.recall"), 15);
             At((RectTransform)view.recall.transform, TopLeft, new Vector2(553, -417), new Vector2(178, 37));
             view.board = Btn(w, "Board", "wood", L("market.board"), 15);
             At((RectTransform)view.board.transform, TopLeft, new Vector2(553, -372), new Vector2(178, 34));
+            Finish(view.window, "stall_setup");
             return wrap.gameObject;
         }
 
@@ -1291,9 +1415,8 @@ namespace CollectionGame.EditorTools
             view.buy = Btn(card, "Buy", "green", L("market.buy"), 16);
             At((RectTransform)view.buy.transform, TopLeft, new Vector2(15, -167), new Vector2(380, 32));
             view.buyText = view.buy.GetComponentInChildren<Text>();
-            view.note = TextAt(w, "Note", L("market.note"), 320, 349, 400, 14, Faint);
-            ((RectTransform)view.note.transform).sizeDelta = new Vector2(400, 40);
-            view.footer = TextAt(w, "Footer", "", 27, 388, 600, 14, Faint);
+            view.footer = TextAt(w, "Footer", "", 27, 349, 600, 14, Faint);
+            Finish(view.window, "stall");
             return wrap.gameObject;
         }
 
@@ -1304,8 +1427,6 @@ namespace CollectionGame.EditorTools
             var view = wrap.gameObject.AddComponent<BoardView>();
             view.window = DraftWindow(wrap, L("market.board"), 285, 112, 835, 586);
             var w = view.window.transform;
-            Icon(w, "DiamondIcon", new Vector2(0, 1), new Vector2(30, -43), DiamondColour, 10);
-            view.hint = TextAt(w, "Hint", L("market.board_hint"), 50, 43, 600, 14, Faint);
             view.cards = new BoardView.Card[4];
             for (var i = 0; i < 4; i++)
             {
@@ -1328,12 +1449,10 @@ namespace CollectionGame.EditorTools
                 view.cards[i] = c;
             }
             view.empty = TextAt(w, "Empty", L("market.board_empty"), 28, 160, 780, 16, Ink, TextAnchor.MiddleCenter);
-            var foot = TextAt(w, "Footer", L("market.board_footer"), 28, 520, 560, 14, Ink);
-            foot.supportRichText = true;
-            ((RectTransform)foot.transform).sizeDelta = new Vector2(560, 40);
             view.advertise = Btn(w, "Advertise", "wood", L("market.advertise"), 16);
             At((RectTransform)view.advertise.transform, TopLeft, new Vector2(620, -510), new Vector2(190, 36));
             view.advertiseText = view.advertise.GetComponentInChildren<Text>();
+            Finish(view.window, "board");
             return wrap.gameObject;
         }
 
@@ -1382,8 +1501,7 @@ namespace CollectionGame.EditorTools
             view.chest = QuestRow(w, "Chest", 414, true);
             view.barDone = S("bar_fill_green");
             view.barGoing = S("bar_fill_yellow");
-            view.footer = TextAt(w, "Footer", L("quest.footer"), 29, 535, 900, 14, Faint);
-            ((RectTransform)view.footer.transform).sizeDelta = new Vector2(900, 40);
+            Finish(view.window, "quests");
             return wrap.gameObject;
         }
 
@@ -1456,6 +1574,7 @@ namespace CollectionGame.EditorTools
             // Arrows at the far left and right under the pages (no page names there any more, 01.11.2026 Onur).
             view.prev = SmallButton(w, "Prev", "square_wood", "<", 26, 342, 40, 32, 16);
             view.next = SmallButton(w, "Next", "square_wood", ">", 614, 342, 40, 32, 16);
+            Finish(view.window, "book");
             return wrap.gameObject;
         }
 
@@ -1522,10 +1641,10 @@ namespace CollectionGame.EditorTools
             At((RectTransform)view.friend.transform, TopLeft, new Vector2(289, -384), new Vector2(121, 30));
             view.trade = Btn(w, "Trade", "wood", L("notice.unlock.trade"), 14);
             At((RectTransform)view.trade.transform, TopLeft, new Vector2(421, -384), new Vector2(70, 30));
-            view.footer = TextAt(w, "Footer", "", 29, 428, 300, 13, Faint);
             view.report = LinkText(w, "Report", L("whisper.report"), 378, 428, 60, Hex("e83b3b"), TextAnchor.MiddleRight);
             TextAt(w, "Dot", "·", 438, 428, 10, 14, Hex("e83b3b"), TextAnchor.MiddleCenter);
             view.block = LinkText(w, "Block", L("player.block"), 448, 428, 50, Hex("e83b3b"));
+            Finish(view.window, "profile");
             return wrap.gameObject;
         }
 
@@ -1670,6 +1789,7 @@ namespace CollectionGame.EditorTools
             view.friendsOnly.targetGraphic = off;
             view.friendsOnly.graphic = on;
             view.friendsOnly.transition = Selectable.Transition.None;
+            Finish(view.window, "friends");
             return wrap.gameObject;
         }
 
@@ -1738,9 +1858,7 @@ namespace CollectionGame.EditorTools
             view.sell = sell.gameObject;
             Panel(sell, "BagPanel", 21, 78, 386, 297);
             TextAt(sell, "BagLabel", L("bag.title"), 29, 92, 60, 16, Ink, TextAnchor.MiddleLeft, true);
-            view.bagHint = TextAt(sell, "BagHint", L("economy.bag_hint"), 97, 92, 250, 14, Faint);
             view.bag = GridAt(sell, "Bag", 29, 110, 8, 5);
-            TextAt(sell, "LockHint", L("economy.lock_hint"), 29, 355, 360, 14, Faint);
             var basket = Abs(sell, "Basket", 421, 82, 512, 489);
             Img(basket, "card");
             Img(Stretch(Node("Outline", basket)), "outline");
@@ -1780,12 +1898,10 @@ namespace CollectionGame.EditorTools
             view.rodFill = Bar(Abs(shop, "RodBar", 29, 138, 220, 14), "bar_fill_green", out _);
             view.repair = SmallButton(shop, "Repair", "wood", L("economy.repair_button"), 29, 164, 200, 34, 15);
             view.repairText = view.repair.GetComponentInChildren<Text>();
-            TextAt(shop, "RodNote", L("economy.rod_note"), 29, 220, 380, 13, Faint).horizontalOverflow = HorizontalWrapMode.Wrap;
             var baitCard = Abs(shop, "Baits", 421, 82, 512, 489);
             Img(baitCard, "card");
             Img(Stretch(Node("Outline", baitCard)), "outline");
             TextAt(baitCard, "Title", L("economy.special_bait"), 16, 22, 300, 16, Ink, TextAnchor.MiddleLeft, true);
-            TextAt(baitCard, "Hint", L("economy.bait_note"), 16, 44, 480, 13, Faint);
             view.baits = new BaitRow[4];
             for (var i = 0; i < 4; i++)
             {
@@ -1804,6 +1920,7 @@ namespace CollectionGame.EditorTools
                 b.useText = b.use.GetComponentInChildren<Text>();
                 view.baits[i] = b;
             }
+            Finish(view.window, "merchant");
             return wrap.gameObject;
         }
 
@@ -1861,7 +1978,6 @@ namespace CollectionGame.EditorTools
             TextAt(detail, "QualityLabel", L("craft.quality"), 16, 205, 120, 15, Ink);
             view.qualityFill = Bar(Abs(detail, "QualityBar", 124, 198, 180, 14), "bar_fill_yellow", out _);
             view.quality = TextAt(detail, "Quality", "", 314, 205, 200, 15, Hex("f79617"));
-            view.note = TextAt(detail, "Note", L("craft.note"), 16, 233, 600, 14, Faint);
             view.missing = TextAt(detail, "Missing", "", 16, 420, 600, 14, Hex("e83b3b"));
             view.craftButton = SmallButton(detail, "Craft", "green", L("craft.craft"), 16, 437, 604, 36, 17);
             view.craftText = view.craftButton.GetComponentInChildren<Text>();
@@ -1903,6 +2019,7 @@ namespace CollectionGame.EditorTools
             view.bag = GridAt(merge, "Bag", 37, 392, 10, 3);
             view.barGood = S("bar_fill_green");
             view.barMid = S("bar_fill_yellow");
+            Finish(view.window, "crafter");
             return wrap.gameObject;
         }
 
@@ -1918,12 +2035,8 @@ namespace CollectionGame.EditorTools
             view.stashTitle = TextAt(w, "StashLabel", L("bank.stash"), 26, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
             view.stashCount = TextAt(w, "StashCount", "", 88, 40, 200, 14, Faint);
             view.stash = GridAt(w, "Stash", 26, 60, 10, 10);
-            view.footer = TextAt(w, "Footer", L("bank.footer"), 26, 537, 480, 14, Faint);
             view.bagTitle = TextAt(w, "BagLabel", L("bag.title"), 526, 40, 60, 16, Ink, TextAnchor.MiddleLeft, true);
-            TextAt(w, "BagHint", L("bank.bag_hint"), 596, 40, 300, 14, Faint);
             view.bag = GridAt(w, "Bag", 526, 60, 8, 5);
-            view.hint = TextAt(w, "Hint", L("bank.hint"), 526, 320, 460, 14, Faint);
-            ((RectTransform)view.hint.transform).sizeDelta = new Vector2(460, 60);
             var expand = Abs(w, "Expand", 526, 485, 485, 60);
             Img(expand, "card");
             Img(Stretch(Node("Outline", expand)), "outline");
@@ -1934,6 +2047,7 @@ namespace CollectionGame.EditorTools
             view.expandPrice = TextAt(expand, "Price", "", 140, 40, 120, 14, Ink, TextAnchor.MiddleLeft, true);
             view.expandButton = SmallButton(expand, "Expand", "green", L("bank.expand"), 352, 11, 118, 38, 15);
             view.expandText = view.expandButton.GetComponentInChildren<Text>();
+            Finish(view.window, "bank");
             return wrap.gameObject;
         }
 
@@ -2188,17 +2302,14 @@ namespace CollectionGame.EditorTools
             Panel(w, "StatusPanel", 20, 82, 498, 154);
             Panel(w, "GesturePanel", 20, 240, 498, 96);
             TextAt(w, "StatusLabel", L("emote.status_title"), 30, 95, 170, 16, Ink);
-            TextAt(w, "StatusHint", L("emote.status_hint"), 203, 95, 200, 13, Faint);
             Img(Abs(w, "StatusLine", 30, 106, 478, 4), "divider");
             view.status = new SlotView[16];
             for (var i = 0; i < 16; i++) view.status[i] = EmoteSlot(w, "Status" + i, 30 + i % 8 * 54, 118 + i / 8 * 58);
             TextAt(w, "GestureLabel", L("emote.gestures"), 30, 252, 170, 16, Ink);
-            TextAt(w, "GestureHint", L("emote.gestures_hint"), 140, 252, 300, 13, Faint);
             Img(Abs(w, "GestureLine", 30, 263, 478, 4), "divider");
             view.gestures = new SlotView[8];
             for (var i = 0; i < 8; i++) view.gestures[i] = EmoteSlot(w, "Gesture" + i, 30 + i * 54, 275);
-            var foot = TextAt(w, "Footer", "Bir tane takılı kalır. Sunucudaki herkes görür.\nYürürken de durur; Kaldır'a basana kadar kalır.", 30, 366, 480, 13, Hex("1e6f50"));
-            ((RectTransform)foot.transform).sizeDelta = new Vector2(480, 40);
+            Finish(view.window, "emote");
             return wrap.gameObject;
         }
 
@@ -2445,6 +2556,60 @@ namespace CollectionGame.EditorTools
             view.yes = SmallButton(w, "Yes", "red", L("bag.discard"), 24, 100, 140, 30, 12);
             view.yesText = view.yes.GetComponentInChildren<Text>();
             view.no = SmallButton(w, "No", "wood", L("common.cancel"), 176, 100, 140, 30, 12);
+            return wrap.gameObject;
+        }
+
+        // ================= Info window (InfoView, 01.11.2026 Onur) =================
+
+        static GameObject BuildInfo()
+        {
+            // 480 wide, centred over a dim backdrop; the height follows the text (InfoView.Fill).
+            var size = new Vector2(480, 300);
+            var wrap = Stretch(Node("Info", null));
+            var view = wrap.gameObject.AddComponent<InfoView>();
+            var dim = Stretch(Node("Dim", wrap));
+            var dimImg = Img(dim, "box_dark", Image.Type.Sliced, true);
+            dimImg.color = new Color(1f, 1f, 1f, 0.6f);
+            view.dim = dim.gameObject;
+            view.dimButton = dim.gameObject.AddComponent<Button>();
+            view.dimButton.transition = Selectable.Transition.None;
+            var dimNav = view.dimButton.navigation;
+            dimNav.mode = Navigation.Mode.None;
+            view.dimButton.navigation = dimNav;
+            view.window = Window(wrap, "Window", L("info.title"), size);
+            At((RectTransform)view.window.transform, Center, Vector2.zero, size, Center);
+            var w = (RectTransform)view.window.transform;
+            Object.DestroyImmediate(view.window.body.gameObject);
+
+            // The list sits Pad inside the frame on every side, like every other window.
+            var scroll = Stretch(Node("Scroll", w), FrameL + Pad, FrameB + Pad, FrameR + Pad, FrameT + Pad);
+            view.window.body = scroll;
+            view.scroll = scroll.gameObject.AddComponent<ScrollRect>();
+            view.scroll.horizontal = false;
+            view.scroll.movementType = ScrollRect.MovementType.Clamped;
+            view.scroll.scrollSensitivity = 30;
+            var viewport = Stretch(Node("Viewport", scroll));
+            viewport.gameObject.AddComponent<RectMask2D>();
+            viewport.gameObject.AddComponent<Image>().color = new Color(0, 0, 0, 0);
+            var content = Node("Content", viewport);
+            content.anchorMin = new Vector2(0, 1);
+            content.anchorMax = new Vector2(1, 1);
+            content.pivot = new Vector2(0.5f, 1);
+            content.offsetMin = content.offsetMax = Vector2.zero;
+            var v = Layout<VerticalLayoutGroup>(content, 6);
+            v.childForceExpandWidth = true;
+            content.gameObject.AddComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            view.scroll.viewport = viewport;
+            view.scroll.content = content;
+            view.list = content;
+
+            view.headingTemplate = Label(content, "Heading", "", 16, Ink, TextAnchor.MiddleLeft, true);
+            view.headingTemplate.horizontalOverflow = HorizontalWrapMode.Wrap;
+            Size(view.headingTemplate, minH: 22);
+            view.textTemplate = Label(content, "Text", "", 13, Faint, TextAnchor.UpperLeft);
+            view.textTemplate.horizontalOverflow = HorizontalWrapMode.Wrap;
+            view.textTemplate.supportRichText = true;
+            view.chrome = FrameT + FrameB + 2 * Pad + 4;
             return wrap.gameObject;
         }
 

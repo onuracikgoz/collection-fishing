@@ -22,7 +22,6 @@ namespace CollectionGame.UI.Views
         public WindowView window;
         public Side me, them;
         public Sprite open, locked;
-        public Text hint;
         public GameObject strip;
         public Text stripText;
         public Button lockButton, confirm, cancel;
