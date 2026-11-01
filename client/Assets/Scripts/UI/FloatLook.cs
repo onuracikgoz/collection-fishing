@@ -60,6 +60,8 @@ namespace CollectionGame.UI
 
         sealed class Entry
         {
+            /// <summary>The picture it was painted from; a new upload (admin panel) paints again.</summary>
+            public Sprite from;
             public Sprite look;
             public Sprite[] shine;
             public float period, phase;
@@ -127,10 +129,10 @@ namespace CollectionGame.UI
             if (band == null) return null;
             var (condition, t) = band.Value;
             var seedKey = string.IsNullOrEmpty(it.instanceId) ? it.defId + "@" + it.@float.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture) : it.instanceId;
-            // the picture can change (admin panel upload), so its id is part of the key
-            var key = seedKey + "|" + condition + "|" + Mathf.RoundToInt(t * 20) + "|" + baseSprite.GetInstanceID();
-            if (cache.TryGetValue(key, out var e)) return e;
+            var key = seedKey + "|" + condition + "|" + Mathf.RoundToInt(t * 20);
+            if (cache.TryGetValue(key, out var e) && e.from == baseSprite) return e;
             e = Paint(baseSprite, StyleOf(condition, t), Hash(seedKey));
+            e.from = baseSprite;
             cache[key] = e;
             return e;
         }
