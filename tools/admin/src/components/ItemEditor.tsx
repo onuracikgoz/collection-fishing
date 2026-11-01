@@ -21,6 +21,7 @@ import {
 } from '../content'
 import { bytesToBase64 } from '../images'
 import type { Admin } from '../state'
+import { Story } from './Story'
 import { ArtView, BAND_LABEL, CATEGORY_LABEL, Field, StatusTag, TIER_LABEL, TYPE_LABEL, Thumb, Toggles } from './bits'
 
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v))
@@ -372,6 +373,8 @@ export function ItemEditor({ admin, item, onDone, queue }: { admin: Admin; item:
               ) : null}
             </>
           )}
+
+          <Story admin={admin} itemId={it.id} />
 
           <h3>Craft</h3>
           <RecipeEditor admin={admin} it={it} onChange={(recipe) => set({ recipe })} />

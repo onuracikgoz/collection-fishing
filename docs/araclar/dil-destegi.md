@@ -38,6 +38,7 @@ Gömülü dosyalar build'in içindedir. Yeni build çıkarmadan bir cümleyi dü
 - Dil değişince `Loc.Changed` olayı ve `Loc.Version` artar: denetleyiciler (`*Controller.Tick`) `Version` değişince pencereyi yeniden çizer.
 - Seçilen dil cihazda (`PlayerPrefs` `cg_lang`). İlk açılışta sistem dili Türkçe ise Türkçe, değilse İngilizce.
 - **Prefab yazıları:** `Editor/UiPrefabBuilder.cs` sabit yazıları `L("anahtar")` ile yazar: prefab Türkçe kaydedilir ve yazıya `LocText` bileşeni eklenir; oyun sırasında seçili dili gösterir, dil değişince değişir. Kodun sonradan doldurduğu bir yazıya (`LocText`'in yazdığından farklı bir metin) `LocText` dokunmaz. Elle Unity'de eklenen yazıya anahtar vermek: `LocText` bileşenini ekle, `key` alanını doldur. Simge tooltip'leri (`HoverTip`) `@@anahtar` biçimini anlar.
+- **Eşya hikayesi:** her eşyanın hikayesi dile göre ayrı bir metindir, anahtarı `item.story.<eşya id'si>`. Dil dosyalarında bulunmaz, admin panelinde eşya düzenleme ekranındaki **Hikaye** bölümünden dil dil yazılır (sunucuya `locale/<dil>` olarak gider, onay beklemez). Client `Loc.T("item.story." + id)` ile okur; seçili dilde yoksa İngilizcesine, o da yoksa hiçbir şey göstermez (anahtar ekranda görünmesin diye inceleme ekranı boş hikayede alanı gizler).
 - Çevrilmeyenler: eşya, set ve tier adları, Float, Coin, Collection Score, göl / sunucu adları, oyuncu adları. NPC adları şimdilik `Resources/Npcs.json`'daki Türkçe adlar (açık soru).
 
 ## Mac'te kontrol (bulut oturumu Unity'yi derleyemez)
