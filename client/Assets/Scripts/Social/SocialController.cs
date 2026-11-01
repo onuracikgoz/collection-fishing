@@ -47,12 +47,12 @@ namespace CollectionGame.Social
         {
             switch (emote)
             {
-                case Emotes.Wave: return "el sallıyor";
-                case Emotes.Clap: return "alkışlıyor";
-                case Emotes.Dance: return "dans ediyor";
-                case Emotes.Sit: return "oturdu";
-                case Emotes.Laugh: return "gülüyor";
-                case Emotes.ShowFish: return $"{FishingController.ItemName(defId)} gösteriyor";
+                case Emotes.Wave: return Loc.T("emote.doing.wave");
+                case Emotes.Clap: return Loc.T("emote.doing.clap");
+                case Emotes.Dance: return Loc.T("emote.doing.dance");
+                case Emotes.Sit: return Loc.T("emote.doing.sit");
+                case Emotes.Laugh: return Loc.T("emote.doing.laugh");
+                case Emotes.ShowFish: return Loc.T("emote.doing.show_fish", ("item", FishingController.ItemName(defId)));
                 default: return emote;
             }
         }
@@ -91,33 +91,12 @@ namespace CollectionGame.Social
         EmoteView emoteView;
         bool emoteDirty = true;
 
-        public static string StatusName(string id)
-        {
-            switch (id)
-            {
-                case "smile": return "Gülümse";
-                case "laugh": return "Kahkaha";
-                case "zzz": return "Uykulu";
-                case "fish": return "Balık";
-                case "ask": return "Soru";
-                case "heart": return "Kalp";
-                case "note": return "Müzik";
-                case "coffee": return "Kahve";
-                case "star": return "Yıldız";
-                case "cool": return "Havalı";
-                case "crown": return "Taç";
-                case "sparkle": return "Parıltı";
-                case "fire": return "Ateş";
-                case "rain": return "Yağmur";
-                case "comet": return "Kuyrukluyıldız";
-                case "goldfish": return "Altın balık";
-                default: return id;
-            }
-        }
+        /// <summary>Status emote names: keys emote.status.ID (Locales/*.json).</summary>
+        public static string StatusName(string id) => Loc.Has("emote.status." + id) ? Loc.T("emote.status." + id) : id;
 
         static string GestureName(string id) =>
-            id == Emotes.Wave ? "el salla" : id == Emotes.Clap ? "alkış" : id == Emotes.Dance ? "dans" : id == Emotes.Sit ? "otur"
-            : id == Emotes.Laugh ? "gül" : id == Emotes.ShowFish ? "avı göster" : id;
+            id == Emotes.Wave ? Loc.T("emote.gesture.wave") : id == Emotes.Clap ? Loc.T("emote.gesture.clap") : id == Emotes.Dance ? Loc.T("emote.gesture.dance")
+            : id == Emotes.Sit ? Loc.T("emote.gesture.sit") : id == Emotes.Laugh ? Loc.T("emote.gesture.laugh") : id == Emotes.ShowFish ? Loc.T("emote.gesture.show_fish") : id;
 
         public void OnWelcome(WelcomeMsg w, string myId)
         {
@@ -137,7 +116,7 @@ namespace CollectionGame.Social
             MyStatus = emote;
             emoteDirty = true;
             if (!string.IsNullOrEmpty(m.reason))
-                UI.Toasts.Show(m.reason == "NOT_OWNED" ? "Bu emote sende yok" : m.reason == "RATE_LIMITED" ? "Biraz bekle" : $"Takılamadı ({m.reason})", true);
+                UI.Toasts.Show(Loc.Reason("emote", m.reason), true);
         }
 
         void Wear(string emote) => net.Send(OpCode.EmoteStatus, new EmoteStatusMsg { emote = emote ?? "" });
@@ -155,7 +134,7 @@ namespace CollectionGame.Social
                 {
                     slot.Clicked = s => { if (s.Data is string id) Wear(id); };
                     // A picture in the slot, the name on hover (31.10.2026, Onur: no words in slots).
-                    slot.Hovered = s => { if (s.Data is string id) Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = StatusName(id), note = "Tıkla: üstüne tak" }); };
+                    slot.Hovered = s => { if (s.Data is string id) Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = StatusName(id), note = Loc.T("emote.wear_tip") }); };
                     slot.Left = _ => Popup?.HideTooltip();
                 }
                 for (var i = 0; i < emoteView.gestures.Length; i++)
@@ -167,8 +146,7 @@ namespace CollectionGame.Social
                     slot.SetEmpty();
                     slot.SetIcon("gesture." + g);
                     slot.Clicked = _ => SendEmote(g);
-                    var name = GestureName(g);
-                    slot.Hovered = _ => Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = name, note = "Tıkla: yap" });
+                    slot.Hovered = _ => Popup?.ShowTooltip(new UI.Views.PopupView.Card { title = GestureName(g), note = Loc.T("emote.do_tip") });
                     slot.Left = _ => Popup?.HideTooltip();
                 }
             }
@@ -183,8 +161,8 @@ namespace CollectionGame.Social
             v.current.SetEmpty();
             v.current.SetIcon(MyStatus != null ? "status." + MyStatus : null);
             v.currentText.text = MyStatus != null
-                ? $"Üstünde duruyor: {StatusName(MyStatus)}\n<color=#7f708a>Seçilince karakterinin üstünde kalır.</color>"
-                : "Üstünde emote yok\n<color=#7f708a>Aşağıdan birine tıkla, karakterinin üstünde kalır.</color>";
+                ? Loc.T("emote.wearing", ("name", StatusName(MyStatus)))
+                : Loc.T("emote.none");
             v.remove.interactable = MyStatus != null;
             var list = FreeStatus.Concat(owned.Where(o => !FreeStatus.Contains(o))).ToList();
             for (var i = 0; i < v.status.Length; i++)
@@ -213,7 +191,7 @@ namespace CollectionGame.Social
         {
             if (!f.online || string.IsNullOrEmpty(f.matchId))
             {
-                ShowNote($"{f.username} şu an oyunda değil");
+                ShowNote(Loc.T("friends.not_online", ("name", f.username)));
                 return;
             }
             if (f.matchId == net.MatchId) net.Send(OpCode.GotoFriend, new GotoFriendMsg { userId = f.userId });
@@ -227,12 +205,7 @@ namespace CollectionGame.Social
             LastTeleport = t;
             Debug.Log($"[Social] TELEPORT ({t.x:0.0}, {t.y:0.0}) {t.reason}");
             if (string.IsNullOrEmpty(t.reason)) return;
-            ShowNote(t.reason == "RATE_LIMITED" ? "Biraz bekle, sonra tekrar dene"
-                : t.reason == "NOT_HERE" ? "Arkadaşın bu sunucuda değil"
-                : t.reason == "NO_SPOT" ? "Yanında boş yer yok"
-                : t.reason == "NOT_FRIEND" ? "Sadece karşılıklı arkadaşının yanına gidebilirsin"
-                : t.reason == "BUSY" ? "Takastayken ışınlanamazsın"
-                : t.reason);
+            ShowNote(Loc.Reason("friends.goto", t.reason));
         }
 
         public void OnEmote(EmoteShowMsg e, World.CharacterView who)
@@ -269,12 +242,12 @@ namespace CollectionGame.Social
             try
             {
                 await net.AddFriendAsync(userId, username);
-                ShowNote($"Arkadaşlık isteği: {username ?? "gönderildi"}");
+                ShowNote(username != null ? Loc.T("friends.request_sent", ("name", username)) : Loc.T("friends.request_sent_anon"));
                 Refresh();
             }
             catch (Exception ex)
             {
-                ShowNote("Oyuncu bulunamadı");
+                ShowNote(Loc.T("friends.not_found"));
                 Debug.LogWarning($"[Social] add friend failed: {ex.Message}");
             }
         }
@@ -366,6 +339,8 @@ namespace CollectionGame.Social
         }
 
         /// <summary>Call every frame.</summary>
+        int locVersion;
+
         public void Tick()
         {
             var v = View;
@@ -376,6 +351,11 @@ namespace CollectionGame.Social
                 dirty = true;
             }
             if (!FriendsOpen) return;
+            if (locVersion != Loc.Version)
+            {
+                locVersion = Loc.Version; // language changed: redraw the texts
+                dirty = true;
+            }
             if (PmOff != null && v.friendsOnly.isOn != PmOff()) v.friendsOnly.SetIsOnWithoutNotify(PmOff());
             if (dirty && !v.search.isFocused) Redraw(v);
         }
@@ -389,7 +369,7 @@ namespace CollectionGame.Social
             var incoming = Friends.Where(f => f.State == Connection.FriendInviteReceived).ToList();
             var sent = Friends.Where(f => f.State == Connection.FriendInviteSent).ToList();
             var blocked = Friends.Where(f => f.State == Connection.FriendBlocked).ToList();
-            v.tabs[0].label.text = $"Arkadaşlar {mutual.Count}";
+            v.tabs[0].label.text = Loc.T("friends.tab_friends", ("count", mutual.Count));
             v.requestBadge.SetActive(incoming.Count > 0);
             v.requestCount.text = incoming.Count.ToString();
             for (var i = 0; i < v.tabs.Length; i++) v.tabs[i].Set(i == (int)tab);
@@ -399,36 +379,36 @@ namespace CollectionGame.Social
                 case FriendsTab.Friends:
                     var online = mutual.Where(f => Status.TryGetValue(f.UserId, out var st) && st.online).OrderBy(f => f.Username).ToList();
                     var offline = mutual.Except(online).OrderBy(f => f.Username).ToList();
-                    if (mutual.Count == 0) v.empty.text = "Henüz arkadaşın yok. Adını yaz ya da birinin kartından ekle.";
-                    if (online.Count > 0) Section(v, $"Çevrimiçi · {online.Count}");
+                    if (mutual.Count == 0) v.empty.text = Loc.T("friends.empty");
+                    if (online.Count > 0) Section(v, Loc.T("friends.online", ("count", online.Count)));
                     foreach (var f in online) FriendLine(v, f, true);
-                    if (offline.Count > 0) Section(v, $"Çevrimdışı · {offline.Count}");
+                    if (offline.Count > 0) Section(v, Loc.T("friends.offline", ("count", offline.Count)));
                     foreach (var f in offline) FriendLine(v, f, false);
                     break;
                 case FriendsTab.Requests:
-                    if (incoming.Count + sent.Count == 0) v.empty.text = "Bekleyen istek yok.";
-                    if (incoming.Count > 0) Section(v, $"Gelen istekler · {incoming.Count}");
+                    if (incoming.Count + sent.Count == 0) v.empty.text = Loc.T("friends.no_requests");
+                    if (incoming.Count > 0) Section(v, Loc.T("friends.incoming", ("count", incoming.Count)));
                     foreach (var f in incoming)
                     {
                         var r = Row(v, f, IsOnline(f));
-                        r.sub.text = IsOnline(f) ? Where(f) : "çevrimdışı";
+                        r.sub.text = IsOnline(f) ? Where(f) : Loc.T("friends.offline_short");
                         Show(r.no, () => Remove(f.UserId));
                         Show(r.yes, () => AddFriend(f.UserId, f.Username));
                     }
-                    if (sent.Count > 0) Section(v, $"Gönderdiğin · {sent.Count}");
+                    if (sent.Count > 0) Section(v, Loc.T("friends.sent", ("count", sent.Count)));
                     foreach (var f in sent)
                     {
                         var r = Row(v, f, IsOnline(f));
-                        r.sub.text = "cevap bekleniyor";
+                        r.sub.text = Loc.T("friends.waiting");
                         Show(r.cancel, () => Remove(f.UserId));
                     }
                     break;
                 default:
-                    if (blocked.Count == 0) v.empty.text = "Engellediğin kimse yok.";
+                    if (blocked.Count == 0) v.empty.text = Loc.T("friends.no_blocked");
                     foreach (var f in blocked)
                     {
                         var r = Row(v, f, false);
-                        r.sub.text = "engelli: sana yazamaz, takas teklif edemez";
+                        r.sub.text = Loc.T("friends.blocked_sub");
                         Show(r.unblock, () => Remove(f.UserId));
                     }
                     break;
@@ -438,7 +418,7 @@ namespace CollectionGame.Social
         bool IsOnline(Connection.Friend f) => Status.TryGetValue(f.UserId, out var st) && st.online;
 
         string Where(Connection.Friend f) =>
-            Status.TryGetValue(f.UserId, out var st) && st.online ? string.IsNullOrEmpty(st.serverName) ? "çevrimiçi" : st.serverName : "çevrimdışı";
+            Status.TryGetValue(f.UserId, out var st) && st.online ? string.IsNullOrEmpty(st.serverName) ? Loc.T("friends.online_short") : st.serverName : Loc.T("friends.offline_short");
 
         void Section(FriendsView v, string text)
         {
@@ -477,10 +457,10 @@ namespace CollectionGame.Social
             Show(r.chat, () => Whisper?.Invoke(f.UserId, f.Username));
             Show(r.menu, () => Popup?.ShowMenu(f.Username, new (string, Action)[]
             {
-                ("Profil kartı", () => OpenProfile?.Invoke(f.UserId)),
-                ("Defterine bak", () => OpenBook?.Invoke(f.UserId, f.Username)),
-                ("Arkadaşlıktan çık", () => Remove(f.UserId)),
-                ("Engelle", () => Block(f.UserId, f.Username)),
+                (Loc.T("friends.profile_card"), () => OpenProfile?.Invoke(f.UserId)),
+                (Loc.T("player.view_book"), () => OpenBook?.Invoke(f.UserId, f.Username)),
+                (Loc.T("friends.remove"), () => Remove(f.UserId)),
+                (Loc.T("player.block"), () => Block(f.UserId, f.Username)),
             }));
         }
 
@@ -489,13 +469,13 @@ namespace CollectionGame.Social
             try
             {
                 await net.BlockAsync(userId);
-                UI.Toasts.Show($"{name} engellendi");
+                UI.Toasts.Show(Loc.T("player.blocked", ("name", name)));
                 Refresh();
             }
             catch (Exception ex)
             {
                 Debug.LogWarning($"[Social] block failed: {ex.Message}");
-                UI.Toasts.Show("Engellenemedi", true);
+                UI.Toasts.Show(Loc.T("player.block_failed"), true);
             }
         }
 

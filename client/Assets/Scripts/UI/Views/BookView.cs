@@ -5,7 +5,7 @@ namespace CollectionGame.UI.Views
 {
     /// <summary>
     /// Collection Book laid out like draft defter-v2: totals line, two facing pages of 3x2 record cards,
-    /// page navigation. Made by UiPrefabBuilder.
+    /// arrow buttons at the far left and right. Made by UiPrefabBuilder.
     /// </summary>
     public sealed class BookView : MonoBehaviour
     {

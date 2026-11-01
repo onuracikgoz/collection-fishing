@@ -53,6 +53,7 @@ namespace CollectionGame.UI
         void Close()
         {
             Open = false;
+            HideLanguages();
             revealed = false;
             confirmDelete = false;
             typedName = "";
@@ -63,6 +64,7 @@ namespace CollectionGame.UI
         void Select(Tab tab)
         {
             dirty = true;
+            HideLanguages();
             Current = tab;
             error = null;
             // The account page opens hidden every time.
@@ -107,7 +109,7 @@ namespace CollectionGame.UI
             }
             catch (Exception e)
             {
-                error = Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Biraz bekle, sonra tekrar dene" : "Ayar kaydedilemedi";
+                error = Loc.T(Connection.ErrorOf(e) == ErrorCode.RateLimited ? "common.wait_retry" : "settings.err.save_failed");
             }
             busy = false;
             dirty = true;
@@ -136,14 +138,14 @@ namespace CollectionGame.UI
                 Deletion = new AccountDeleteStatus { pending = r.runAt > 0, runAt = r.runAt };
                 confirmDelete = false;
                 typedName = "";
-                Toasts.Show($"Hesabın {When(r.runAt)} tarihinde silinecek");
+                Toasts.Show(Loc.T("settings.delete_scheduled", ("date", When(r.runAt))));
             }
             catch (Exception e)
             {
                 var c = Connection.ErrorOf(e);
-                error = c == ErrorCode.BadRequest ? "Kullanıcı adı eşleşmedi: büyük/küçük harfiyle aynen yaz"
-                    : c == ErrorCode.RateLimited ? "Çok fazla deneme, biraz bekle"
-                    : "Silme isteği gönderilemedi";
+                error = Loc.T(c == ErrorCode.BadRequest ? "settings.err.name_mismatch"
+                    : c == ErrorCode.RateLimited ? "settings.err.too_many_tries"
+                    : "settings.err.delete_failed");
             }
             busy = false;
             dirty = true;
@@ -157,11 +159,11 @@ namespace CollectionGame.UI
             {
                 await net.RpcAsync<AccountDeleteStatus>("account_delete_cancel", null);
                 Deletion = new AccountDeleteStatus();
-                Toasts.Show("Hesap silme iptal edildi");
+                Toasts.Show(Loc.T("settings.delete_cancelled"));
             }
             catch (Exception e)
             {
-                error = Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Çok fazla deneme, biraz bekle" : "İptal edilemedi";
+                error = Loc.T(Connection.ErrorOf(e) == ErrorCode.RateLimited ? "settings.err.too_many_tries" : "settings.err.cancel_failed");
             }
             busy = false;
             dirty = true;
@@ -178,21 +180,21 @@ namespace CollectionGame.UI
             }
             catch (Exception e)
             {
-                error = Connection.ErrorOf(e) == ErrorCode.RateLimited ? "Bu saat çok kod ürettin, sonra tekrar dene" : "Kod üretilemedi";
+                error = Loc.T(Connection.ErrorOf(e) == ErrorCode.RateLimited ? "settings.err.too_many_codes" : "settings.err.code_failed");
             }
             busy = false;
             dirty = true;
         }
 
         static string When(long ms) =>
-            DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("d MMMM yyyy HH:mm", CultureInfo.GetCultureInfo("tr-TR"));
+            DateTimeOffset.FromUnixTimeMilliseconds(ms).ToLocalTime().ToString("d MMMM yyyy HH:mm", Loc.Culture);
 
         /// <summary>Notification 104: logging in again cancelled a pending deletion.</summary>
         public void OnDeletionCancelled()
         {
             Deletion = new AccountDeleteStatus();
             dirty = true;
-            Toasts.Show("Tekrar giriş yaptığın için hesap silme iptal edildi");
+            Toasts.Show(Loc.T("settings.delete_cancelled_login"));
         }
 
         // ---------- UI (uGUI: Resources/UI/Settings, drafts ayarlar-genel / ayarlar-hesap) ----------
@@ -258,8 +260,16 @@ namespace CollectionGame.UI
                 if (pmLoaded && x != PmOff) SetPm(x);
             });
 
-            v.languageText.text = "Türkçe";
-            v.language.interactable = false; // one language for now
+            // Language: a list under the field; untranslated languages are greyed out (Locales/languages.json).
+            v.languageText.text = LanguageName(Loc.Current);
+            v.language.onClick.AddListener(() =>
+            {
+                if (v.languageList == null) return;
+                var show = !v.languageList.activeSelf;
+                if (show) FillLanguages(v);
+                v.languageList.SetActive(show);
+            });
+            if (v.languageList != null) v.languageList.SetActive(false);
             v.uiScale.onClick.AddListener(() =>
             {
                 ClientSettings.UiScale = (ClientSettings.UiScale + 1) % 4;
@@ -298,6 +308,57 @@ namespace CollectionGame.UI
             v.cancelDeletion.onClick.AddListener(CancelDeletion);
         }
 
+        int locVersion;
+
+        void HideLanguages()
+        {
+            if (view != null && view.languageList != null) view.languageList.SetActive(false);
+        }
+
+        /// <summary>One row per language from the template row; only translated (enabled) ones can be picked.</summary>
+        void FillLanguages(SettingsView v)
+        {
+            if (v.languageRow == null) return;
+            var parent = v.languageRow.transform.parent;
+            for (var i = parent.childCount - 1; i >= 0; i--)
+            {
+                var child = parent.GetChild(i);
+                if (child != v.languageRow.transform) UnityEngine.Object.Destroy(child.gameObject);
+            }
+            v.languageRow.gameObject.SetActive(false);
+            foreach (var l in Loc.Languages)
+            {
+                var row = UnityEngine.Object.Instantiate(v.languageRow, parent);
+                row.gameObject.SetActive(true);
+                row.name = "Language " + l.code;
+                var name = LanguageName(l);
+                var text = row.GetComponentInChildren<Text>();
+                if (text != null)
+                {
+                    text.text = l.code == Loc.Lang ? $"✓ {name}" : l.enabled ? name : Loc.T("settings.language_soon", ("name", name));
+                    text.color = l.enabled ? Ink : Faint;
+                }
+                row.interactable = l.enabled;
+                var code = l.code;
+                row.onClick.AddListener(() =>
+                {
+                    HideLanguages();
+                    Loc.SetLanguage(code);
+                });
+            }
+        }
+
+        /// <summary>The language's own name, or its English name when the game font lacks its letters (ru, zh, ja, ko).</summary>
+        static string LanguageName(Loc.Language l)
+        {
+            var f = GameFont.Get();
+            if (f == null || string.IsNullOrEmpty(l.name)) return l.english;
+            f.RequestCharactersInTexture(l.name);
+            foreach (var c in l.name)
+                if (!char.IsWhiteSpace(c) && !f.HasCharacter(c)) return l.english;
+            return l.name;
+        }
+
         static void Bind(Toggle t, Func<bool> get, Action<bool> set)
         {
             t.SetIsOnWithoutNotify(get());
@@ -319,11 +380,16 @@ namespace CollectionGame.UI
                 dirty = true;
             }
             if (!Open) return;
+            if (locVersion != Loc.Version)
+            {
+                locVersion = Loc.Version; // language changed: redraw the texts
+                dirty = true;
+            }
             if (dirty && !UiRoot.Typing) Redraw(v);
             if (code != null && v.codeBox.activeSelf)
             {
                 var left = code.expiresInMs / 1000f - (Time.time - codeAt);
-                var text = left > 0f ? $"{(int)left / 60}:{(int)left % 60:00} kaldı · tek kullanımlık" : "Süresi doldu, yenisini üret";
+                var text = left > 0f ? Loc.T("settings.code_left", ("time", $"{(int)left / 60}:{(int)left % 60:00}")) : Loc.T("settings.code_expired");
                 if (v.codeTimer.text != text) v.codeTimer.text = text;
             }
         }
@@ -342,7 +408,8 @@ namespace CollectionGame.UI
                 v.friendsOnly.interactable = pmLoaded && !busy;
                 v.fullScreen.SetIsOnWithoutNotify(Screen.fullScreen);
                 v.uiScaleText.text = ClientSettings.UiScaleName(ClientSettings.UiScale);
-                v.blocked.text = $"Engellenenler: {BlockedCount?.Invoke() ?? 0} kişi";
+                v.languageText.text = LanguageName(Loc.Current);
+                v.blocked.text = Loc.T("settings.blocked_count", ("count", BlockedCount?.Invoke() ?? 0));
                 return;
             }
 
@@ -355,20 +422,20 @@ namespace CollectionGame.UI
             Login(v.discord, l?.Custom ?? false, null);
             // Steam links only with a code from here (protokol.md, Taşıma kodu).
             v.steam.back.enabled = l?.Steam ?? false;
-            v.steam.status.text = l?.Steam == true ? "✓ bağlı" : "bağlı değil";
+            v.steam.status.text = Loc.T(l?.Steam == true ? "settings.linked" : "settings.not_linked");
             v.steam.status.color = l?.Steam == true ? Linked : Faint;
             v.steam.button.interactable = !busy && l?.Steam != true;
-            v.steam.buttonText.text = "Kod üret";
+            v.steam.buttonText.text = Loc.T("settings.make_code");
             v.codeBox.SetActive(code != null);
             if (code != null) v.code.text = code.code;
-            v.username.text = $"Kullanıcı adı: {net.Username}";
+            v.username.text = Loc.T("settings.username", ("name", net.Username));
             v.error.text = error ?? "";
 
             var pending = Deletion != null && Deletion.pending;
             v.pending.gameObject.SetActive(pending);
             v.cancelDeletion.gameObject.SetActive(pending);
             v.cancelDeletion.interactable = !busy;
-            if (pending) v.pending.text = $"Hesabın {When(Deletion.runAt)} tarihinde silinecek. O tarihten önce tekrar girersen silme iptal olur.";
+            if (pending) v.pending.text = Loc.T("settings.delete_pending", ("date", When(Deletion.runAt)));
             v.confirm.SetActive(!pending && confirmDelete);
             var buttons = !pending && !confirmDelete;
             v.logout.gameObject.SetActive(!pending && !confirmDelete);
@@ -385,9 +452,9 @@ namespace CollectionGame.UI
         static void Login(SettingsView.LoginRow row, bool linked, string status)
         {
             row.back.enabled = linked;
-            row.status.text = linked ? status ?? "✓ bağlı" : "bağlı değil";
+            row.status.text = linked ? status ?? Loc.T("settings.linked") : Loc.T("settings.not_linked");
             row.status.color = linked ? Linked : Faint;
-            row.buttonText.text = linked ? "Kaldır" : "Bağla";
+            row.buttonText.text = Loc.T(linked ? "settings.unlink" : "settings.link");
             row.button.interactable = false;
         }
 

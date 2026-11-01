@@ -20,6 +20,9 @@ namespace CollectionGame.UI.Views
         public Toggle hitSound, fullScreen, showNames, friendsOnly, announcements, bubbles;
         public Button language, uiScale;
         public Text languageText, uiScaleText;
+        /// <summary>The list under Dil (off until clicked); languageRow is the hidden template row, copied per language.</summary>
+        public GameObject languageList;
+        public Button languageRow;
         public Text blocked;
         public Button openBlocked;
 

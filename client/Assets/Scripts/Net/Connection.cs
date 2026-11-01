@@ -141,6 +141,13 @@ namespace CollectionGame.Net
             return JsonUtility.FromJson<T>(string.IsNullOrEmpty(rpc.Payload) ? "{}" : rpc.Payload);
         }
 
+        /// <summary>Calls an RPC with a ready JSON body and returns the raw answer (for answers JsonUtility cannot read).</summary>
+        public async Task<string> RpcRawAsync(string id, string json)
+        {
+            var rpc = await client.RpcAsync(Session, id, string.IsNullOrEmpty(json) ? "{}" : json);
+            return rpc.Payload;
+        }
+
         /// <summary>whisper_send. Unity sends empty fields as "", which the server skips.</summary>
         public Task<WhisperSendResponse> WhisperAsync(string userId, string username, string text, string context = null) =>
             RpcAsync<WhisperSendResponse>("whisper_send", new WhisperSendRequest { userId = userId ?? "", username = username ?? "", text = text, context = context ?? "" });
@@ -262,7 +269,7 @@ namespace CollectionGame.Net
             // Only the current socket counts; closing an old one on rejoin is not a disconnect.
             s.Closed += reason =>
             {
-                if (ReferenceEquals(s, socket)) ClosedReason = string.IsNullOrEmpty($"{reason}") ? "Bağlantı kapandı" : $"{reason}";
+                if (ReferenceEquals(s, socket)) ClosedReason = string.IsNullOrEmpty($"{reason}") ? Loc.T("net.closed") : $"{reason}";
             };
 
             await s.ConnectAsync(Session, appearOnline: false);
@@ -328,18 +335,18 @@ namespace CollectionGame.Net
             }
         }
 
-        /// <summary>Turns SDK / server errors into a short Turkish message for the login screen.</summary>
+        /// <summary>Turns SDK / server errors into a short message (in the chosen language) for the login screen.</summary>
         public static string Explain(Exception e)
         {
             var msg = e.GetBaseException().Message ?? "";
-            if (msg.Contains(ErrorCode.ProtocolMismatch)) return "Oyun sürümü sunucuyla uyuşmuyor. Güncel sürümü kullan.";
-            if (msg.Contains(ErrorCode.ServerFull)) return "Sunucu dolu, başka bir sunucu seç.";
+            if (msg.Contains(ErrorCode.ProtocolMismatch)) return Loc.T("net.err.protocol");
+            if (msg.Contains(ErrorCode.ServerFull)) return Loc.T("net.err.server_full");
             if (msg.Contains(ErrorCode.BadRequest) || msg.Contains("invalid username"))
-                return "Kullanıcı adı 3-16 karakter olmalı: harf, rakam ve _ kullanılabilir.";
+                return Loc.T("net.err.bad_username");
             if (msg.Contains("Username is already in use") || msg.Contains("already in use"))
-                return "Bu kullanıcı adı alınmış, başka bir ad dene.";
+                return Loc.T("net.err.username_taken");
             if (msg.Contains("Cannot connect") || msg.Contains("Connection refused") || msg.Contains("ConnectionError") || msg.Contains("timed out"))
-                return "Sunucuya bağlanılamadı. Sunucu açık mı? (repo kökünde: docker compose up -d)";
+                return Loc.T("net.err.cannot_connect");
             return msg;
         }
     }

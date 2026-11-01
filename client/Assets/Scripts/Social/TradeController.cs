@@ -48,7 +48,7 @@ namespace CollectionGame.Social
         {
             if (string.IsNullOrEmpty(userId) || userId == net.UserId) return;
             net.Send(OpCode.TradeOffer, new TradeOfferMsg { userId = userId });
-            Toasts.Show($"Takas teklifi gönderildi: {name}");
+            Toasts.Show(Loc.T("trade.offer_sent", ("name", name)));
         }
 
         void Reply(bool accept)
@@ -144,7 +144,7 @@ namespace CollectionGame.Social
                     foreach (var it in got?.items ?? Array.Empty<ItemInstance>()) parts.Add(FishingController.ItemName(it.defId));
                     foreach (var st in got?.stacks ?? Array.Empty<ItemStack>()) parts.Add($"{FishingController.ItemName(st.defId)} x{st.count}");
                     if (got != null && got.coin > 0) parts.Add($"{Kit.Num(got.coin)} Coin");
-                    Toasts.Money("Takas tamam", parts.Count > 0 ? $"Aldın: {string.Join(", ", parts)}" : null);
+                    Toasts.Money(Loc.T("trade.done"), parts.Count > 0 ? Loc.T("trade.got", ("list", string.Join(", ", parts))) : null);
                     foreach (var b in m.book ?? Array.Empty<TradeBookResult>())
                     {
                         var item = got?.items?.FirstOrDefault(i => i.instanceId == b.instanceId);
@@ -152,9 +152,9 @@ namespace CollectionGame.Social
                             BookOutcome?.Invoke(new FishEndMsg { id = net.UserId, outcome = FishOutcome.Caught, defId = item.defId, item = item, book = b });
                     }
                     break;
-                case "declined": Toasts.Show("Takas teklifi reddedildi"); break;
-                case "expired": Toasts.Show("Takas teklifi cevapsız kaldı"); break;
-                case "cancelled": Toasts.Show(string.IsNullOrEmpty(m.reason) ? "Takas iptal edildi" : EndReason(m), !string.IsNullOrEmpty(m.reason)); break;
+                case "declined": Toasts.Show(Loc.T("trade.declined")); break;
+                case "expired": Toasts.Show(Loc.T("trade.expired")); break;
+                case "cancelled": Toasts.Show(string.IsNullOrEmpty(m.reason) ? Loc.T("trade.cancelled") : EndReason(m), !string.IsNullOrEmpty(m.reason)); break;
                 default: Toasts.Show(EndReason(m), true); break;
             }
             fishing.RefreshBag();
@@ -164,35 +164,13 @@ namespace CollectionGame.Social
         {
             switch (m.reason)
             {
-                case "NOT_HERE": return "Oyuncu bu sunucuda değil";
-                case "TOO_FAR": return "Çok uzaksınız, yanına git";
-                case "BUSY": return "Oyuncu şu an başka bir takasta";
-                case "SELF": return "Kendinle takas yapamazsın";
-                case "RATE_LIMITED": return "Biraz bekle, sonra tekrar teklif et";
-                case "TRADE_LOCKED": return "Hesabına yeni giriş yolu bağlandı: takas bir süre kapalı";
-                case "TARGET_TRADE_LOCKED": return "Karşı tarafın hesabı şu an takasa kapalı";
-                case "LEVEL_TOO_LOW": return "Takas için levelin yetmiyor";
-                case "TARGET_LEVEL_TOO_LOW": return "Karşı tarafın leveli takas için yetmiyor";
-                case "ITEM_GONE": return "Takas olmadı: bir eşya artık yok";
-                case "NOT_ENOUGH": return "Takas olmadı: yığın ya da Coin yetmiyor";
-                case "BAG_FULL": return m.userId == net.UserId ? "Takas olmadı: çantan dolu" : "Takas olmadı: karşı tarafın çantası dolu";
-                case null: case "": return "Takas olmadı";
-                default: return $"Takas olmadı ({m.reason})";
+                case "BAG_FULL": return Loc.T(m.userId == net.UserId ? "trade.end.BAG_FULL_SELF" : "trade.end.BAG_FULL_OTHER");
+                case null: case "": return Loc.T("trade.end.UNKNOWN");
+                default: return Loc.Reason("trade.end", m.reason);
             }
         }
 
-        static string StateReason(string r)
-        {
-            switch (r)
-            {
-                case "TOO_MANY": return "Takasa daha fazla kalem konamaz";
-                case "NOT_OWNED": return "Bu eşya çantanda değil";
-                case "NOT_ENOUGH": return "O kadar yok";
-                case "LOCKED": return "Kilitli eşya takasa konamaz";
-                case "BAD_REQUEST": return "İstek geçersiz";
-                default: return $"Olmadı ({r})";
-            }
-        }
+        static string StateReason(string r) => Loc.Reason("trade", r);
 
         // ---------- UI (uGUI: Resources/UI/Trade after takas-a/b/c, TradeInvite, Count) ----------
 
@@ -277,7 +255,7 @@ namespace CollectionGame.Social
                 ChangeStack(stack.defId, 1, stack.count);
                 return;
             }
-            count.Ask($"Kaç tane? ({FishingController.ItemName(stack.defId)}, {free} var)", free, free, n => ChangeStack(stack.defId, n, stack.count));
+            count.Ask(Loc.T("trade.how_many", ("item", FishingController.ItemName(stack.defId)), ("count", free)), free, free, n => ChangeStack(stack.defId, n, stack.count));
             count.transform.SetAsLastSibling();
         }
 
@@ -316,11 +294,11 @@ namespace CollectionGame.Social
             }
             if (Invite != null)
             {
-                invite.title.text = $"{Invite.name} takas teklif ediyor";
+                invite.title.text = Loc.T("trade.invite_title", ("name", Invite.name));
                 var d = DistanceTo?.Invoke(Invite.from);
-                invite.sub.text = d.HasValue ? $"{d.Value:0} kare uzakta" : "";
+                invite.sub.text = d.HasValue ? Loc.T("trade.invite_distance", ("tiles", d.Value.ToString("0"))) : "";
                 HudView.Fill(invite.timer, Invite.expiresInMs > 0 ? inviteLeft * 1000f / Invite.expiresInMs : 0f);
-                invite.caption.text = $"{Mathf.CeilToInt(inviteLeft)} sn içinde cevap yoksa reddedilir";
+                invite.caption.text = Loc.T("trade.invite_timeout", ("seconds", Mathf.CeilToInt(inviteLeft)));
             }
 
             // Trade window.
@@ -338,15 +316,15 @@ namespace CollectionGame.Social
             var left = ConfirmLeft(s);
             var ready = bothLocked && left <= 0f && !s.youConfirmed;
             view.confirm.interactable = ready;
-            var label = s.youConfirmed ? "Onaylandı" : bothLocked && left > 0f ? $"Onayla ({Mathf.CeilToInt(left)})" : "Onayla";
+            var label = s.youConfirmed ? Loc.T("trade.confirmed") : bothLocked && left > 0f ? Loc.T("trade.confirm_in", ("seconds", Mathf.CeilToInt(left))) : Loc.T("trade.confirm");
             if (view.confirmText.text != label) view.confirmText.text = label;
             view.strip.SetActive(bothLocked);
             view.hint.gameObject.SetActive(!bothLocked);
             if (bothLocked)
             {
-                var strip = s.youConfirmed && !s.themConfirmed ? "Onayladın. Karşı tarafın onayı bekleniyor."
-                    : s.themConfirmed && !s.youConfirmed ? "Karşı taraf onayladı."
-                    : left > 0f ? $"İki taraf kilitledi. Onay {Mathf.CeilToInt(left)} sn sonra açılır" : "İki taraf kilitledi. Onaylayabilirsin.";
+                var strip = s.youConfirmed && !s.themConfirmed ? Loc.T("trade.strip_you_confirmed")
+                    : s.themConfirmed && !s.youConfirmed ? Loc.T("trade.strip_they_confirmed")
+                    : left > 0f ? Loc.T("trade.strip_wait", ("seconds", Mathf.CeilToInt(left))) : Loc.T("trade.strip_ready");
                 if (view.stripText.text != strip) view.stripText.text = strip;
             }
         }
@@ -357,13 +335,13 @@ namespace CollectionGame.Social
         {
             dirty = false;
             var s = State;
-            view.window.title.text = $"Takas · {s.withName}";
-            DrawSide(view.me, s.you, "Sen", "", s.youLocked, s.youConfirmed);
+            view.window.title.text = Loc.T("trade.title", ("name", s.withName));
+            DrawSide(view.me, s.you, Loc.T("trade.you"), "", s.youLocked, s.youConfirmed);
             DrawSide(view.them, s.them, s.withName, "", s.themLocked, s.themConfirmed);
             view.me.coin.SetTextWithoutNotify((s.you?.coin ?? 0).ToString());
             view.them.coin.SetTextWithoutNotify(Kit.Num(s.them?.coin ?? 0));
             view.me.coin.interactable = !s.youLocked;
-            view.lockText.text = s.youLocked ? "Kilidi aç" : "Kilitle";
+            view.lockText.text = Loc.T(s.youLocked ? "bag.unlock" : "bag.lock");
         }
 
         void DrawSide(TradeView.Side side, TradeOfferView offer, string name, string level, bool locked, bool confirmed)
@@ -382,8 +360,8 @@ namespace CollectionGame.Social
                 else if (entries[i] is ItemStack st) slot.SetItem(st.defId, "", st.count, false);
                 slot.Data = i < entries.Count ? entries[i] : null;
             }
-            side.count.text = $"{entries.Count} / {side.slots.Length} eşya";
-            side.status.text = confirmed ? "Onayladı" : locked ? "Kilitledi" : "Hazırlanıyor...";
+            side.count.text = Loc.T("trade.side_count", ("count", entries.Count), ("max", side.slots.Length));
+            side.status.text = Loc.T(confirmed ? "trade.side_confirmed" : locked ? "trade.side_locked" : "trade.side_preparing");
             side.status.color = confirmed ? Green : locked ? Brown : Faint;
         }
     }
