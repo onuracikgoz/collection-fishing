@@ -22,7 +22,8 @@ namespace CollectionGame.UI
             return r >= 0 ? TierColours[r] : Color.white;
         }
 
-        static string TierName(string tier) => string.IsNullOrEmpty(tier) ? "" : char.ToUpperInvariant(tier[0]) + tier.Substring(1);
+        /// <summary>"rare" → "Rare" (Tier names stay English).</summary>
+        public static string TierName(string tier) => string.IsNullOrEmpty(tier) ? "" : char.ToUpperInvariant(tier[0]) + tier.Substring(1);
 
         /// <summary>Tooltip card of a Float item: name, Tier, then Kondisyon / Float (and any extra rows), note.</summary>
         public static PopupView.Card Card(ItemInstance it, Prices prices, string note = null, params (string, string)[] extra)

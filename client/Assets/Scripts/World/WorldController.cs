@@ -122,6 +122,7 @@ namespace CollectionGame.World
                 },
             };
             bagPanel = new BagPanel(net, fishing, trade, () => economy.Prices, hud.Popup);
+            CollectionGame.UI.Views.InspectView.PricesSource = () => economy.Prices;
             fishingHud = new FishingHud();
             trade.Popup = hud.Popup;
             trade.DistanceTo = id =>

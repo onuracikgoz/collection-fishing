@@ -338,7 +338,8 @@ namespace CollectionGame.Collection
                     var hover = v.pages[p].cards[i].hover;
                     hover.Entered = () => HoverRecord(index);
                     hover.Exited = () => Popup?.HideTooltip();
-                    hover.Clicked = hover.RightClicked = () => RecordMenu(index);
+                    hover.Clicked = () => InspectRecord(index);
+                    hover.RightClicked = () => RecordMenu(index);
                 }
         }
 
@@ -447,11 +448,21 @@ namespace CollectionGame.Collection
             var name = FishingController.ItemName(rec.defId);
             if (rec.state == RecordState.Found)
             {
-                Popup.ShowTooltip(new PopupView.Card { title = name, sub = Loc.T("book.found_empty"), note = bookIsMine ? Loc.T("book.click_options") : null });
+                Popup.ShowTooltip(new PopupView.Card { title = name, sub = Loc.T("book.found_empty"), note = Loc.T(bookIsMine ? "book.click_options" : "book.click_inspect") });
                 return;
             }
             var it = rec.item;
-            Popup.ShowTooltip(it != null ? ItemText.Card(it, null, bookIsMine ? Loc.T("book.click_showcase") : null) : new PopupView.Card { title = name });
+            Popup.ShowTooltip(it != null ? ItemText.Card(it, null, Loc.T(bookIsMine ? "book.click_showcase" : "book.click_inspect")) : new PopupView.Card { title = name });
+        }
+
+        /// <summary>Left click on a found or filled record (any book, mine or not): the inspect window.</summary>
+        void InspectRecord(int index)
+        {
+            var rec = RecordAt(index);
+            if (rec == null || rec.state == RecordState.Unknown || string.IsNullOrEmpty(rec.defId)) return;
+            Popup?.HideTooltip();
+            Popup?.HideMenu();
+            InspectView.Open(rec.defId, rec.state == RecordState.Filled ? rec.item : null);
         }
 
         void RecordMenu(int index)
@@ -459,7 +470,7 @@ namespace CollectionGame.Collection
             var rec = RecordAt(index);
             if (Popup == null || rec == null || !bookIsMine || rec.state == RecordState.Unknown) return;
             var showcase = ShowcaseIds();
-            var entries = new List<(string, Action)>();
+            var entries = new List<(string, Action)> { (Loc.T("inspect.open"), () => InspectRecord(index)) };
             if (rec.state == RecordState.Filled)
             {
                 var inShowcase = showcase.Contains(rec.defId);
@@ -540,6 +551,12 @@ namespace CollectionGame.Collection
                         Popup.ShowTooltip(ItemText.Card(it, null));
                 };
                 v.showcase[i].Left = _ => Popup?.HideTooltip();
+                v.showcase[i].Clicked = s =>
+                {
+                    if (!(s.Data is ItemInstance it)) return;
+                    Popup?.HideTooltip();
+                    InspectView.Open(it.defId, it);
+                };
             }
         }
 
