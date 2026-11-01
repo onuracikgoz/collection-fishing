@@ -100,7 +100,7 @@ namespace CollectionGame.UI
                 var s = slots[i];
                 s.gameObject.SetActive(i < count);
                 var e = i < laid.Length ? laid[i] : null;
-                if (e is ItemInstance it) s.SetItem(it.defId, it.tier, 1, it.locked);
+                if (e is ItemInstance it) s.SetItem(it, true);
                 else if (e is ItemStack st) s.SetItem(st.defId, "", st.count, false);
                 else s.SetEmpty();
                 s.Data = e;

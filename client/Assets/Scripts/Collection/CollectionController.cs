@@ -418,7 +418,7 @@ namespace CollectionGame.Collection
                 case RecordState.Filled:
                     var rank = Tiers.Rank(rec.item?.tier);
                     c.frame.sprite = rank >= 0 ? v.tierFrames[rank] : v.found;
-                    ShowIcon(c, rec.defId, Color.white);
+                    ShowIcon(c, rec.defId, Color.white, rec.item);
                     c.mark.color = Ink;
                     c.name.text = FishingController.ItemName(rec.defId);
                     c.name.color = Ink;
@@ -496,7 +496,8 @@ namespace CollectionGame.Collection
             {
                 var it = discovered.item;
                 v.discover.title.text = Loc.T(discovered.book.pageComplete ? "catch.page_complete" : "catch.new");
-                v.discoverSlot.SetItem(discovered.defId, it?.tier, 1, false);
+                if (it != null) v.discoverSlot.SetItem(it, false);
+                else v.discoverSlot.SetItem(discovered.defId, null, 1, false);
                 v.discoverName.text = FishingController.ItemName(discovered.defId);
                 v.discoverTier.text = it?.tier ?? "";
                 v.discoverFloat.text = it != null ? $"Float {it.@float:0.0000}" : "";
@@ -508,12 +509,12 @@ namespace CollectionGame.Collection
             {
                 var it = SwapOffer.item;
                 var old = Book?.pages?.SelectMany(p => p.records ?? Array.Empty<BookRecord>()).FirstOrDefault(r => r.defId == it.defId)?.item;
-                v.newSlot.SetItem(it.defId, it.tier, 1, false);
+                v.newSlot.SetItem(it, false);
                 v.newFloat.text = $"{it.@float:0.0000}";
                 v.newCondition.text = "";
                 if (old != null)
                 {
-                    v.oldSlot.SetItem(old.defId, old.tier, 1, false);
+                    v.oldSlot.SetItem(old, false);
                     v.oldFloat.text = $"{old.@float:0.0000}";
                 }
                 else
@@ -604,14 +605,19 @@ namespace CollectionGame.Collection
             }
         }
 
-        /// <summary>A book card's picture: the item's placeholder icon (dimmed while only found), none on unknown records.</summary>
-        static void ShowIcon(BookView.Card c, string defId, Color tint)
+        /// <summary>
+        /// A book card's picture: the item's icon (dimmed while only found), none on unknown records. A filled
+        /// record shows its copy's Float on the picture (<see cref="FloatLook"/>).
+        /// </summary>
+        static void ShowIcon(BookView.Card c, string defId, Color tint, ItemInstance item = null)
         {
             c.mark.text = "";
             if (c.icon == null) return;
+            FloatLook.Clear(c.icon);
             c.icon.enabled = defId != null;
             if (defId == null) return;
-            c.icon.sprite = ItemIcons.For(defId);
+            if (item != null) FloatLook.Apply(c.icon, item);
+            else c.icon.sprite = ItemIcons.For(defId);
             c.icon.color = tint;
         }
 
@@ -641,7 +647,7 @@ namespace CollectionGame.Collection
             {
                 var it = i < show.Length ? show[i] : null;
                 if (it == null) v.showcase[i].SetEmpty();
-                else v.showcase[i].SetItem(it.defId, it.tier, 1, false);
+                else v.showcase[i].SetItem(it, false);
                 v.showcase[i].Data = it;
             }
             var pages = p.pagesComplete?.Length ?? 0;
