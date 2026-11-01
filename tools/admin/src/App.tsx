@@ -4,6 +4,7 @@ import { useAdmin } from './state'
 import { Items } from './components/Items'
 import { JsonTab } from './components/JsonTab'
 import { Queue } from './components/Queue'
+import { Translations } from './components/Translations'
 import { Sets } from './components/Sets'
 import { ChestsQuests, DropTable } from './components/Settings'
 
@@ -70,6 +71,8 @@ const TABS = [
   ['sets', 'Setler'],
   ['drops', 'Düşme oranları'],
   ['chests', 'Sandıklar ve görevler'],
+  ['texts', 'Çeviriler'],
+  ['dev', 'Geliştirici'],
   ['json', 'JSON'],
 ] as const
 type Tab = (typeof TABS)[number][0]
@@ -116,8 +119,22 @@ function Panel({ conn, first }: { conn: Connection; first: AdminContent }) {
         {tab === 'sets' ? <Sets admin={admin} onOpenItem={openOne} /> : null}
         {tab === 'drops' ? <DropTable admin={admin} onOpenItem={openOne} /> : null}
         {tab === 'chests' ? <ChestsQuests admin={admin} /> : null}
+        {tab === 'texts' ? <Translations admin={admin} /> : null}
+        {tab === 'dev' ? <DevDashboard /> : null}
         {tab === 'json' ? <JsonTab admin={admin} /> : null}
       </main>
     </div>
+  )
+}
+
+/** The dev dashboard (test players, give items, live view), served by this dev server under /dev/. It keeps its own login. */
+function DevDashboard() {
+  return (
+    <>
+      <p className="muted small">
+        Test oyuncuları, eşya verme, sunucu izleme. Yalnızca <code>DEV_TOOLS</code> açık (yerel / test) sunucuda çalışır; canlıda bu sekme bağlanamaz. Ayrı pencerede aç: <a href="/dev/" target="_blank" rel="noreferrer">/dev/</a>
+      </p>
+      <iframe title="Dev dashboard" src="/dev/" style={{ width: '100%', height: 'calc(100vh - 150px)', border: '1px solid var(--line)', borderRadius: 8, background: '#fff' }} />
+    </>
   )
 }
