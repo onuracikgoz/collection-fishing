@@ -86,7 +86,7 @@ Oyun yazıları dil başına düz `anahtar → metin` olarak tutulur (`{count}` 
 - Anahtar listesi build'deki dosyalardan okunur; tablo Türkçe, İngilizce ve seçili dil yan yana gösterir. Filtreler: çevrilmemiş, sunucuda değişen, yer tutucusu Türkçesiyle uyuşmayan.
 - **Çeviri için indir**: bütün anahtarları İngilizce metinle verir; dosyayı çeviriye gönder, çevrilmiş JSON'u **JSON yükle…** ile al, **Kaydet**'e bas. Yükleme kaydetmez, sadece taslağa yazar.
 - Boş metin silinir (o anahtar build'deki metne döner). İki sekme çakışırsa ikincisi "değişti" hatası alır.
-- Eşya ve set adları, Tier adları, `Float`, `Coin` İngilizce kalır (çevrilmez). Eşya hikayeleri dile göre ayrıdır.
+- Eşya ve set adları, Tier adları, `Float`, `Coin` İngilizce kalır (çevrilmez). Eşya hikayeleri dile göre ayrıdır: eşya düzenleme ekranındaki **Hikaye** bölümünde dil seçip yazılır (anahtar `item.story.<id>`, onay beklemez); aynı metinler bu sekmede de görünür.
 
 ## Admin RPC'leri
 
