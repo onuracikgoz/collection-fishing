@@ -20,7 +20,7 @@ import {
 } from './models/project'
 import { isStudioText, parseStudioFile, type StudioFile } from './models/studioFile'
 import { blobFile, downloadSingle, downloadZip, type ExportFile } from './services/exporter'
-import { bufferToPngBlob, loadPngFile } from './services/imageIO'
+import { bufferToPngBlob, loadImageBlob, loadPngFile } from './services/imageIO'
 import { loadProject, saveProject } from './services/projectStorage'
 
 const DEFAULT_PALETTE: GamePalette = { name: 'Resurrect 64 (content/palette.hex)', colors: parseHexPalette(paletteFileText) }
@@ -154,6 +154,46 @@ function App() {
     void importFiles(Array.from(event.dataTransfer.files))
   }
 
+  // Ctrl+V / Cmd+V: panodaki görseli ekler. Panodaki dosyaların adı tarayıcıya göre hep
+  // "image.png" olur; eşya id'si karışmasın diye pasted_1, pasted_2... adı verilir.
+  useEffect(() => {
+    async function onPaste(event: ClipboardEvent) {
+      const target = event.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+      const items = Array.from(event.clipboardData?.items ?? [])
+      const blobs = items.filter((i) => i.kind === 'file' && i.type.startsWith('image/')).map((i) => i.getAsFile()).filter((f): f is File => !!f)
+      const others = items.filter((i) => i.kind === 'file' && !i.type.startsWith('image/')).map((i) => i.getAsFile()).filter((f): f is File => !!f)
+      if (!blobs.length && !others.length) {
+        if (items.length) setMessage({ kind: 'error', text: 'Panoda görsel yok. Görselin kendisini kopyala (sağ tık → Görseli kopyala).' })
+        return
+      }
+      event.preventDefault()
+      if (others.length) await importFiles(others)
+      if (!blobs.length) return
+      const used = new Set(project.images.map((i) => i.fileName))
+      let n = 1
+      const added: ImageEntry[] = []
+      try {
+        for (const blob of blobs) {
+          while (used.has(`pasted_${n}.png`)) n++
+          const name = `pasted_${n}.png`
+          used.add(name)
+          added.push(createImage(name, await loadImageBlob(blob)))
+        }
+      } catch (err) {
+        setMessage({ kind: 'error', text: `Yapıştırılan görsel okunamadı: ${err instanceof Error ? err.message : String(err)}` })
+        return
+      }
+      setProject((p) => ({ ...p, images: [...p.images, ...added] }))
+      setActiveKey(added[0].key)
+      setErasing(false)
+      setMessage({ kind: 'info', text: `Panodan ${added.length} görsel eklendi (${added.map((i) => i.itemId).join(', ')}). Eşya id'sini ortadaki alandan düzelt.` })
+    }
+    const listener = (e: ClipboardEvent) => void onPaste(e)
+    window.addEventListener('paste', listener)
+    return () => window.removeEventListener('paste', listener)
+  })
+
   function removeImage(key: string) {
     setProject((p) => ({ ...p, images: p.images.filter((i) => i.key !== key) }))
     if (activeKey === key) setActiveKey(null)
@@ -277,7 +317,7 @@ function App() {
           <div className="empty-card">
             <h2>Başlamak için dosyaları buraya bırak</h2>
             <ol>
-              <li><b>PNG'ler</b>: Perchance çıktıları, istediğin kadar. Dosya adı = eşya id'si (ör. <code>glass_bottle_blue.png</code>). Aynı eşya için birden fazla aday olabilir.</li>
+              <li><b>PNG'ler</b>: Perchance çıktıları, istediğin kadar. Dosya adı = eşya id'si (ör. <code>glass_bottle_blue.png</code>). Aynı eşya için birden fazla aday olabilir. Kopyaladığın görseli <b>Ctrl+V / Cmd+V</b> ile de yapıştırabilirsin.</li>
               <li><b>set.json</b> (isteğe bağlı): hangi eşyanın görseli eksik, listede görünür.</li>
               <li><b>.studio.json</b> (isteğe bağlı): önceki ayarları geri yükler.</li>
             </ol>
@@ -386,7 +426,7 @@ function App() {
             </section>
           ) : (
             <section className="stage">
-              <p className="hint">Listeden bir görsel seç ya da PNG ekle.</p>
+              <p className="hint">Listeden bir görsel seç, PNG ekle ya da Ctrl+V ile yapıştır.</p>
             </section>
           )}
 

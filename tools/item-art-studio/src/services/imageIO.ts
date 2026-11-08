@@ -1,11 +1,13 @@
 import type { PixelBuffer } from '../engine/pixels'
 
 export function loadPngFile(file: File): Promise<PixelBuffer> {
+  if (file.type !== 'image/png') return Promise.reject(new Error('Lütfen PNG formatında bir görsel seç.'))
+  return loadImageBlob(file)
+}
+
+// Panodan gelen görsel PNG dışında da olabilir (JPEG, WebP); tarayıcının çözebildiği her biçimi alır.
+export function loadImageBlob(file: Blob): Promise<PixelBuffer> {
   return new Promise((resolve, reject) => {
-    if (file.type !== 'image/png') {
-      reject(new Error('Lütfen PNG formatında bir görsel seç.'))
-      return
-    }
     const url = URL.createObjectURL(file)
     const image = new Image()
     image.onload = () => {

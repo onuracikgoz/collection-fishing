@@ -20,7 +20,7 @@ Renk varyantları dahil her defter kaydı Perchance'te ayrı üretilir. Araçta 
 Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → admin paneli (ZIP yükle)
 ```
 
-1. **Dosyaları bırak.** Pencereye istediğin kadar PNG sürükle (veya *Add files*). Aynı anda `set.json`, `.studio.json` ve `.hex` palet dosyası da bırakılabilir.
+1. **Dosyaları bırak.** Pencereye istediğin kadar PNG sürükle (veya *Add files*). Aynı anda `set.json`, `.studio.json` ve `.hex` palet dosyası da bırakılabilir. Perchance'ta görsele sağ tık → *Görseli kopyala* yapıp Studio'da **Ctrl+V / Cmd+V** basarsan görsel doğrudan eklenir (PNG, JPEG veya WebP). Panodan gelen görselin adı yoktur; `pasted_1`, `pasted_2`... diye eklenir, eşya id'sini ortadaki alandan düzelt.
    - **PNG dosya adı = eşya id'si** (`glass_bottle_blue.png` → `glass_bottle_blue`). İndirilen kopyaların `(1)` eki yok sayılır, böylece aynı eşya için birden fazla aday yan yana gelir.
    - Set yüklüyse soldaki liste setin sırasıdır: yeşil nokta onaylı, sarı aday var, gri **görsel yok**. Üstteki sayaç kaç eşyanın hazır olduğunu gösterir. Sette olmayan görseller listenin sonunda "not in set" olarak durur; ortadaki *Item id* alanından doğru id'yi seçebilirsin.
 2. **Hazırla** (sağ panel, her görsel için ayrı; *Use these settings for all* hepsine uygular):
