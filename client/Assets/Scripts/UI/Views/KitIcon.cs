@@ -17,7 +17,7 @@ namespace CollectionGame.UI.Views
         public void Apply()
         {
             if (image == null || string.IsNullOrEmpty(key)) return;
-            image.sprite = ItemIcons.For(key);
+            image.sprite = ItemIcons.ForSlot(key);
             image.enabled = image.sprite != null;
         }
     }

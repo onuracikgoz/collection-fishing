@@ -18,7 +18,8 @@ namespace CollectionGame.UI
 
         static readonly Dictionary<string, ContentItem> items = new Dictionary<string, ContentItem>();
         static readonly Dictionary<string, ContentSet> sets = new Dictionary<string, ContentSet>();
-        static readonly Dictionary<string, (string hash, Sprite sprite)> art = new Dictionary<string, (string, Sprite)>();
+        /// <summary>Per id: the 128 image (sprite) and the optional 32 icon (small, null when the server sent none).</summary>
+        static readonly Dictionary<string, (string hash, Sprite sprite, Sprite small)> art = new Dictionary<string, (string, Sprite, Sprite)>();
         static string[] pages = Array.Empty<string>();
         static bool loading;
 
@@ -55,6 +56,13 @@ namespace CollectionGame.UI
         public static Sprite Icon(string defId) =>
             !string.IsNullOrEmpty(defId) && art.TryGetValue(defId, out var a) && a.sprite != null ? a.sprite : null;
 
+        /// <summary>
+        /// The server's 32x32 icon for slots and items on the ground; the 128 image when the item has no icon,
+        /// null when it has no image at all.
+        /// </summary>
+        public static Sprite SmallIcon(string defId) =>
+            !string.IsNullOrEmpty(defId) && art.TryGetValue(defId, out var a) ? (a.small != null ? a.small : a.sprite) : null;
+
         /// <summary>Loads names, sets and any new or changed images. Never throws; a failure keeps what is cached.</summary>
         public static async Task LoadAsync(Connection net)
         {
@@ -73,7 +81,12 @@ namespace CollectionGame.UI
                 var need = new List<string>();
                 foreach (var it in content.items)
                 {
-                    if (string.IsNullOrEmpty(it.art)) { art.Remove(it.id); continue; }
+                    if (string.IsNullOrEmpty(it.art))
+                    {
+                        if (art.TryGetValue(it.id, out var gone)) Release(gone.sprite, gone.small);
+                        art.Remove(it.id);
+                        continue;
+                    }
                     if (!art.TryGetValue(it.id, out var have) || have.hash != it.art || have.sprite == null) need.Add(it.id);
                 }
                 for (var i = 0; i < need.Count; i += ArtBatch)
@@ -85,12 +98,10 @@ namespace CollectionGame.UI
                         var sprite = MakeSprite(e.png);
                         if (sprite == null) continue;
                         sprite.name = "item " + e.id;
-                        if (art.TryGetValue(e.id, out var old) && old.sprite != null)
-                        {
-                            UnityEngine.Object.Destroy(old.sprite.texture);
-                            UnityEngine.Object.Destroy(old.sprite);
-                        }
-                        art[e.id] = (e.hash, sprite);
+                        var small = MakeSprite(e.icon); // null for older images without an icon
+                        if (small != null) small.name = "item " + e.id + " icon";
+                        if (art.TryGetValue(e.id, out var old)) Release(old.sprite, old.small);
+                        art[e.id] = (e.hash, sprite, small);
                     }
                 }
             }
@@ -104,7 +115,17 @@ namespace CollectionGame.UI
             }
         }
 
-        /// <summary>128x128 PNG (base64) → sprite, Point filter, one world unit wide like the placeholder icons.</summary>
+        static void Release(params Sprite[] sprites)
+        {
+            foreach (var s in sprites)
+            {
+                if (s == null) continue;
+                UnityEngine.Object.Destroy(s.texture);
+                UnityEngine.Object.Destroy(s);
+            }
+        }
+
+        /// <summary>PNG (base64, 128 or 32 px) → sprite, Point filter, one world unit wide like the placeholder icons.</summary>
         static Sprite MakeSprite(string base64)
         {
             if (string.IsNullOrEmpty(base64)) return null;

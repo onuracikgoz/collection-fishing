@@ -44,7 +44,7 @@ namespace CollectionGame.UI.Views
             var rank = Tiers.Rank(tier);
             frame.sprite = isSelected ? selected : rank >= 0 && tiers != null && rank < tiers.Length ? tiers[rank] : empty;
             label.text = "";
-            SetIconSprite(ItemIcons.For(defId));
+            SetIconSprite(ItemIcons.ForSlot(defId));
             count.text = amount > 1 ? amount.ToString() : "";
             if (lockMark != null) lockMark.SetActive(isLocked);
         }
@@ -56,14 +56,14 @@ namespace CollectionGame.UI.Views
         public void SetItem(ItemInstance it, bool showLock, bool isSelected = false)
         {
             SetItem(it.defId, it.tier, 1, showLock && it.locked, isSelected);
-            if (icon != null) FloatLook.Apply(icon, it);
+            if (icon != null) FloatLook.Apply(icon, it, small: true);
         }
 
         /// <summary>Shows the placeholder picture for a key (quest event, chest, emote) instead of words.</summary>
         public void SetIcon(string key)
         {
             label.text = "";
-            SetIconSprite(string.IsNullOrEmpty(key) ? null : ItemIcons.For(key));
+            SetIconSprite(string.IsNullOrEmpty(key) ? null : ItemIcons.ForSlot(key));
         }
 
         void SetIconSprite(Sprite s)

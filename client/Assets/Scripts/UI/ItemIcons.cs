@@ -519,12 +519,22 @@ namespace CollectionGame.UI
 
         static readonly string[] FishColours = { "4d9be6", "1ebc73", "f79617", "e6904e", "a884f3", "9babb2", "cd683d", "0eaf9b" };
 
-        /// <summary>The drawing for an item id (lake.fish.pike, bait.shiny...) or a quest / emote key.</summary>
-        public static Sprite For(string key)
+        /// <summary>
+        /// The picture for big views (book, tooltip, inspect): the server's 128 image, else the drawing for an
+        /// item id (lake.fish.pike, bait.shiny...) or a quest / emote key.
+        /// </summary>
+        public static Sprite For(string key) => Pick(key, ItemContent.Icon(key ?? ""));
+
+        /// <summary>
+        /// The picture for small slots (bag, market, trade) and items on the ground: the server's 32 icon,
+        /// else its 128 image, else the drawing.
+        /// </summary>
+        public static Sprite ForSlot(string key) => Pick(key, ItemContent.SmallIcon(key ?? ""));
+
+        static Sprite Pick(string key, Sprite real)
         {
             key ??= "";
-            var real = ItemContent.Icon(key); // the image the admin panel uploaded
-            if (real != null) return real;
+            if (real != null) return real; // the image the admin panel uploaded
             if (cache.TryGetValue(key, out var s) && s != null) return s;
             var (kind, colour) = Look(key);
             s = Draw(Masks.TryGetValue(kind, out var mask) ? mask : Masks["star"], Hex(colour));

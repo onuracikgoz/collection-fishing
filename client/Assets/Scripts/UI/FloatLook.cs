@@ -76,8 +76,11 @@ namespace CollectionGame.UI
             PricesSource = null;
         }
 
-        /// <summary>Shows a copy on an Image: its picture with the Float look, the streak if it has one.</summary>
-        public static void Apply(Image img, ItemInstance it)
+        /// <summary>
+        /// Shows a copy on an Image: its picture with the Float look, the streak if it has one. small = a slot
+        /// (bag, market, trade): painted on the 32 icon (<see cref="ItemIcons.ForSlot"/>); otherwise on the 128 image.
+        /// </summary>
+        public static void Apply(Image img, ItemInstance it, bool small = false)
         {
             if (img == null) return;
             if (it == null)
@@ -85,7 +88,7 @@ namespace CollectionGame.UI
                 Clear(img);
                 return;
             }
-            var baseSprite = ItemIcons.For(it.defId);
+            var baseSprite = small ? ItemIcons.ForSlot(it.defId) : ItemIcons.For(it.defId);
             var e = Get(it, baseSprite);
             img.sprite = e?.look != null ? e.look : baseSprite;
             img.enabled = img.sprite != null;
@@ -129,7 +132,8 @@ namespace CollectionGame.UI
             if (band == null) return null;
             var (condition, t) = band.Value;
             var seedKey = string.IsNullOrEmpty(it.instanceId) ? it.defId + "@" + it.@float.ToString("0.0000", System.Globalization.CultureInfo.InvariantCulture) : it.instanceId;
-            var key = seedKey + "|" + condition + "|" + Mathf.RoundToInt(t * 20);
+            // the picture's size is in the key: one copy can show its 32 icon in a slot and its 128 image in the book
+            var key = seedKey + "|" + condition + "|" + Mathf.RoundToInt(t * 20) + "|" + baseSprite.rect.width;
             if (cache.TryGetValue(key, out var e) && e.from == baseSprite) return e;
             e = Paint(baseSprite, StyleOf(condition, t), Hash(seedKey));
             e.from = baseSprite;
