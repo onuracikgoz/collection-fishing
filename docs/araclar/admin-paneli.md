@@ -36,7 +36,7 @@ Admin paneli → ZIP yükle → kuyrukta sırayla ayarla → Onayla → oyunda
 | Sekme | Ne yapar |
 |---|---|
 | Onay kuyruğu | ZIP yükleme ve sırayla onay |
-| Eşyalar | Bütün eşyalar; arama ve set / tür / Tier / durum filtreleri (oyunda, pasif, onay bekliyor, craft edilebilir, görseli yok). Tıklayınca düzenleme; görsel değiştirme. **+ Yeni eşya** görselsiz eşya açar (görsel sonra ZIP ya da "Görseli değiştir" ile) |
+| Eşyalar | Bütün eşyalar; arama ve set / tür / Tier / durum filtreleri (oyunda, pasif, onay bekliyor, craft edilebilir, görseli yok). Tıklayınca düzenleme; görsel değiştirme. **+ Yeni eşya** görselsiz eşya açar (görsel sonra ZIP ya da "Görseli / ikonu değiştir" ile). "Görseli / ikonu değiştir" 128 görseli, `@32.png` ikonu, ikisini birden ya da Studio ZIP'ini alır; 32×32 dosya ikon sayılır. Sadece ikon seçilirse görsel aynı kalır. Düzenleme ekranı 32 px ikonun olup olmadığını gösterir |
 | Setler | Set oluşturma, adını değiştirme, pasife alma, sıralama; setin eşyaları defter sırasıyla, sıra değiştirme, pasife alma, başka setten eşya taşıma |
 | Düşme oranları | Av tablosu (kategori ağırlıkları, yüzde ve kategorideki eşya sayısı) ve her eşyanın genel oranı |
 | Sandıklar ve görevler | Seri sandıkları (Coin / toz aralığı, çekiliş sayısı, havuz ve garanti) ve günlük görev listesi |

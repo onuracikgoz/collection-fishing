@@ -70,7 +70,7 @@ export function Report({ report }: { report?: ArtReport }) {
 }
 
 /** The image at game sizes on a checkerboard and on the bag colour. */
-export function ArtView({ png, report }: { png?: string; report?: ArtReport }) {
+export function ArtView({ png, icon, report }: { png?: string; icon?: string; report?: ArtReport }) {
   return (
     <div className="artview">
       <div className="artview-sizes">
@@ -80,12 +80,16 @@ export function ArtView({ png, report }: { png?: string; report?: ArtReport }) {
               <img src={dataUrl(png)} width={256} height={256} alt="" />
             </div>
             <div className="sizes">
-              {[96, 48, 32].map((s) => (
+              {[96, 48].map((s) => (
                 <div key={s} className="bagslot">
                   <img src={dataUrl(png)} width={s} height={s} alt="" />
                   <span>{s}px</span>
                 </div>
               ))}
+              <div className="bagslot" title={icon ? 'Çanta yuvasında görünen 32 px ikon' : '32 px ikon yok: oyun 128 görseli küçültür'}>
+                <img src={dataUrl(icon ?? png)} width={32} height={32} alt="" />
+                <span>{icon ? '32 ikon' : '32 yok'}</span>
+              </div>
             </div>
           </>
         ) : (
@@ -93,6 +97,15 @@ export function ArtView({ png, report }: { png?: string; report?: ArtReport }) {
         )}
       </div>
       <Report report={report} />
+      {png ? (
+        <ul className="report">
+          {icon ? (
+            <li className="lvl-ok">✓ 32×32 yuva ikonu var</li>
+          ) : (
+            <li className="lvl-warn">! 32×32 yuva ikonu yok: çantada 128 görsel küçültülür, bulanık durur. Studio'nun <code>@32.png</code> dosyasını ekle.</li>
+          )}
+        </ul>
+      ) : null}
     </div>
   )
 }
