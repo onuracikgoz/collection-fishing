@@ -98,6 +98,7 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `admin_art_get` | `{ ids }` (en fazla 100) görseller, base64 |
 | `admin_item_save` | `{ version, item }` ekler / günceller; `status: "live"` = onay |
 | `admin_item_delete` | `{ version, id }` sadece taslak (recipe'de kullanılıyorsa hayır) |
+| `admin_item_purge` | `{ version, id }` **sadece geliştirme** (`DEV_TOOLS=true`, yoksa `DEV_TOOLS_OFF`). Oyundaki eşyayı da tamamen siler: bütün oyuncuların kopyaları, çanta / depo yığınları (eşyanın recipe'si dahil), defter kaydı, profil vitrini / "Arıyorum", tezgahtaki ilanı, görseli. Oyundaki oyunculara `dev_reload` gider. Başka bir eşyanın recipe'sinde kullanılıyorsa hayır. Panelde oyundaki eşyanın altında **Tamamen sil (geliştirme)**, id yazarak onaylanır. Canlı sunucuda oyundaki eşya silinmez, pasif yapılır |
 | `admin_set_save` | `{ version, set }` ekler / günceller |
 | `admin_settings_save` | `{ version, catchTable?, chests?, quests? }` |
 | `admin_art_put` | `{ version, id, png, icon?, setId?, type?, tier? }` görsel ve isteğe bağlı 32×32 ikon; ikonsuz yeni görsel eski ikonu siler; bilinmeyen id yeni taslak |
