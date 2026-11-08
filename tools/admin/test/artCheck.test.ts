@@ -25,6 +25,9 @@ describe('checkArt', () => {
   it('catches size, background and palette problems', () => {
     expect(checkArt(img(100, square(5, 95)), PALETTE).level).toBe('error')
     expect(checkArt(img(16, square(1, 15)), PALETTE).level).toBe('warn')
+    // The @32 slot icon is checked against its own size.
+    expect(checkArt(img(32, square(2, 30)), PALETTE, 32).lines[0]).toEqual({ level: 'ok', text: 'Boyut 32×32' })
+    expect(checkArt(img(128, square(8, 120)), PALETTE, 32).level).toBe('error')
     expect(checkArt(img(128, () => [255, 255, 255, 255]), PALETTE).lines.some((l) => /şeffaf değil/.test(l.text))).toBe(true)
     const off = checkArt(img(128, square(8, 120, [10, 200, 30, 255])), PALETTE)
     expect(off.level).toBe('error')

@@ -84,3 +84,22 @@ export function prepareBase(
 
   return { buffer, toSource }
 }
+
+// Oyuna giden iki boyut: defter / tooltip görseli ve çanta yuvası / yer ikonu.
+// Admin paneli ZIP'te `<id>.png` ile `<id>@32.png` dosyalarını eşleştirir.
+export const GAME_ITEM_SIZE = 128
+export const GAME_ICON_SIZE = 32
+
+// Aynı ayarlarla (arka plan, silgi, kontur, palet) iki ayrı boyut. Seçili
+// önizleme boyutu ne olursa olsun export hep bu ikisini üretir. 32'lik ikon
+// 128'liğin küçültülmüşü değil, kaynaktan ayrıca hazırlanır; kontur da
+// kendi boyutunda çizilir.
+export function prepareForGame(
+  source: PixelBuffer,
+  settings: PrepareSettings,
+  palette: Rgb[],
+): { item: PixelBuffer; icon: PixelBuffer } {
+  const at = (size: number) =>
+    prepareBase(source, { ...settings, resize: true, size, padding: paddingFor(size) }, palette).buffer
+  return { item: at(GAME_ITEM_SIZE), icon: at(GAME_ICON_SIZE) }
+}

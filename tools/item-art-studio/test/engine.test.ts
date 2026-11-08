@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { eraseAt, removeBackground } from '../src/engine/background'
 import { countColors, oklabToRgb, rgbToOklab } from '../src/engine/color'
 import { addOutline } from '../src/engine/outline'
-import { prepareBase, DEFAULT_PREPARE, KEEP_HUE_WEIGHT, paddingFor } from '../src/engine/pipeline'
+import { prepareBase, prepareForGame, DEFAULT_PREPARE, GAME_ICON_SIZE, GAME_ITEM_SIZE, KEEP_HUE_WEIGHT, paddingFor } from '../src/engine/pipeline'
 import { quantizeToPalette, parseHexPalette } from '../src/engine/quantize'
 import { fitToSquare } from '../src/engine/resize'
 import { fromRows, px, solid } from './helpers'
@@ -147,5 +147,18 @@ describe('keep hue', () => {
     for (const rgb of [[0, 0, 0], [255, 255, 255], [200, 100, 50], [12, 200, 240]] as Rgb[]) {
       expect(oklabToRgb(rgbToOklab(rgb))).toEqual(rgb)
     }
+  })
+})
+
+describe('game export', () => {
+  it('makes a 128 item image and a 32 icon from the same settings', () => {
+    const big = solid(256, 256, W)
+    for (let y = 60; y < 200; y++) for (let x = 60; x < 200; x++) big.data.set([...R, 255], (y * 256 + x) * 4)
+    const palette = parseHexPalette('ff0000\n000000')
+    // The preview size picked in the UI does not matter.
+    const { item, icon } = prepareForGame(big, { ...DEFAULT_PREPARE, size: 16, padding: 1 }, palette)
+    expect([item.width, icon.width]).toEqual([GAME_ITEM_SIZE, GAME_ICON_SIZE])
+    expect(px(icon, 16, 16)).toEqual([255, 0, 0, 255])
+    expect(px(icon, 0, 16)).toEqual([0, 0, 0, 255]) // outline on the 1 px border
   })
 })

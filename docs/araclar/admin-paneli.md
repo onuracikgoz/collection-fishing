@@ -23,11 +23,11 @@ Giriş ekranında Nakama adresi (yerelde `http://127.0.0.1:7350`) ve sunucu anah
 ```
 collection-set-generator skill → eşya listesi + Perchance promptları
 Perchance → PNG'ler (dosya adı = eşya id'si)
-Item Art Studio → hazırla, onayla → ZIP (sadece <id>.png)
+Item Art Studio → hazırla, onayla → ZIP (<id>.png 128 + <id>@32.png 32)
 Admin paneli → ZIP yükle → kuyrukta sırayla ayarla → Onayla → oyunda
 ```
 
-1. **Onay kuyruğu → ZIP yükle.** ZIP'teki her PNG'nin adı eşya id'sidir (klasör fark etmez, `(1)` eki atılır). Yüklemeden önce her görsel kontrol edilir (aşağıda); hatalı görseller varsayılan olarak yüklenmez, istersen işaretlersin. Yeni id'ler **taslak** olur; seçtiğin set, tür ve Tier taslağa yazılır (sette gelen Float'lı eşya defter eşyası işaretlenir). Taslağı olan id'nin görseli yenilenir. Oyundaki bir eşyanın görseli ancak "oyundaki eşyaların görselini de değiştir" işaretliyse değişir.
+1. **Onay kuyruğu → ZIP yükle.** ZIP'teki her PNG'nin adı eşya id'sidir (klasör fark etmez, `(1)` eki atılır). `<id>@32.png` aynı eşyanın 32×32 çanta / yer ikonudur, ana görselle birlikte yüklenir; ana görseli olmayan `@32` dosyası alınmaz. İkon yoksa oyun yuvada 128'lik görseli kullanır. Yüklemeden önce her görsel kontrol edilir (aşağıda); hatalı görseller varsayılan olarak yüklenmez, istersen işaretlersin. Yeni id'ler **taslak** olur; seçtiğin set, tür ve Tier taslağa yazılır (sette gelen Float'lı eşya defter eşyası işaretlenir). Taslağı olan id'nin görseli yenilenir. Oyundaki bir eşyanın görseli ancak "oyundaki eşyaların görselini de değiştir" işaretliyse değişir.
 2. **Kuyrukta sırayla.** Taslaklar set ve sıra düzeninde tek tek açılır: isim, tür, Tier, set, defter, aktiflik, nereden çıkar (göl, derinlik, yem, level, ağırlık + genel oran), craft (malzemeler her setten, derece, yeni hesaba verme, recipe'nin kendi çıkışı), yem ayarları. **Onayla ve oyuna koy** eşyayı yayınlar ve sıradakine geçer. **Sonra** kuyruğun sonuna atar, **Sil** taslağı siler.
 3. Yeni bir sete ilk defter eşyası onaylanınca oyunda yeni defter sayfası belirir.
 
@@ -52,7 +52,7 @@ Her kayıt önce panelde, sonra sunucuda bütün içeriğe karşı doğrulanır;
 
 | Kontrol | Sonuç |
 |---|---|
-| Boyut 128×128 | Değilse hata (8/16/32 kare ise uyarı: UI ikonu boyutu) |
+| Boyut 128×128 (`@32` ikonda 32×32) | Değilse hata (ana görsel 8/16/32 kare ise uyarı: UI ikonu boyutu) |
 | Arka plan şeffaf | Hiç şeffaf piksel yoksa hata, köşeler boyalıysa uyarı |
 | Yarı saydam piksel | Uyarı (pixel art'ta alfa 0 ya da 255) |
 | Bütün renkler `content/palette.hex`'te | Palet dışı piksel %2'yi geçerse hata, altındaysa uyarı |
@@ -100,7 +100,7 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `admin_item_delete` | `{ version, id }` sadece taslak (recipe'de kullanılıyorsa hayır) |
 | `admin_set_save` | `{ version, set }` ekler / günceller |
 | `admin_settings_save` | `{ version, catchTable?, chests?, quests? }` |
-| `admin_art_put` | `{ version, id, png, setId?, type?, tier? }` görsel; bilinmeyen id yeni taslak |
+| `admin_art_put` | `{ version, id, png, icon?, setId?, type?, tier? }` görsel ve isteğe bağlı 32×32 ikon; ikonsuz yeni görsel eski ikonu siler; bilinmeyen id yeni taslak |
 | `admin_import` | `{ version, items, sets? }` JSON kısayolu |
 | `admin_locale_get` | Bütün dillerin sunucudaki metinleri `{ langs: { tr: { version, hash, updatedAt, strings } } }` |
 | `admin_locale_save` | `{ lang, version, strings }` o dilin metinlerini değiştirir (`version` o dilin okunan sürümü) |

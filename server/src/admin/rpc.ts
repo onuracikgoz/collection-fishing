@@ -231,31 +231,47 @@ export function pngSize(bytes: Uint8Array): { w: number; h: number } | null {
   return { w: u32(16), h: u32(20) };
 }
 
+/** Size of the small slot / ground icon that may come with an item image. */
+export const ICON_SIDE = 32;
+
+function decodeArt(nk: nkruntime.Nakama, value: unknown, label: string): { b64: string; size: { w: number; h: number } } {
+  if (typeof value !== 'string' || value.length === 0) throw fail(ErrorCode.BAD_REQUEST, `${label} (base64) is required`);
+  const b64 = value.replace(/^data:image\/png;base64,/, '');
+  let bytes: Uint8Array;
+  try {
+    bytes = new Uint8Array(nk.base64Decode(b64));
+  } catch (_e) {
+    throw fail(ErrorCode.BAD_REQUEST, `${label} is not base64`);
+  }
+  if (bytes.length > ART_MAX_BYTES) throw fail(ErrorCode.BAD_REQUEST, `${label}: image is larger than ${ART_MAX_BYTES / 1024} KB`);
+  const size = pngSize(bytes);
+  if (!size) throw fail(ErrorCode.BAD_REQUEST, `${label}: not a PNG file`);
+  if (size.w > ART_MAX_SIDE || size.h > ART_MAX_SIDE) throw fail(ErrorCode.BAD_REQUEST, `${label}: image is larger than ${ART_MAX_SIDE} px`);
+  return { b64, size };
+}
+
 /**
- * `{ version, id, png, setId?, tier?, type? }`: stores an item's image (base64 PNG). An unknown id
- * becomes a new draft waiting in the approval queue (the ZIP upload); `setId`, `tier` and `type`
- * only fill a new draft.
+ * `{ version, id, png, icon?, setId?, tier?, type? }`: stores an item's image (base64 PNG) and,
+ * optionally, its 32x32 icon for bag slots and the ground. A new image without an icon drops the
+ * old icon (it would no longer match). An unknown id becomes a new draft waiting in the approval
+ * queue (the ZIP upload); `setId`, `tier` and `type` only fill a new draft.
  */
 export function rpcAdminArtPut(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   adminOnly(ctx);
   const body = parse(payload);
   if (typeof body.id !== 'string' || !ID_PATTERN.test(body.id)) throw fail(ErrorCode.BAD_REQUEST, 'item id must be 2-64 lowercase letters, digits, _ or .');
-  if (typeof body.png !== 'string' || body.png.length === 0) throw fail(ErrorCode.BAD_REQUEST, 'png (base64) is required');
-  const png = body.png.replace(/^data:image\/png;base64,/, '');
-  let bytes: Uint8Array;
-  try {
-    bytes = new Uint8Array(nk.base64Decode(png));
-  } catch (_e) {
-    throw fail(ErrorCode.BAD_REQUEST, 'png is not base64');
+  const { b64: png, size } = decodeArt(nk, body.png, 'png');
+  let icon: string | undefined;
+  if (body.icon !== undefined && body.icon !== null && body.icon !== '') {
+    const decoded = decodeArt(nk, body.icon, 'icon');
+    if (decoded.size.w !== ICON_SIDE || decoded.size.h !== ICON_SIDE) throw fail(ErrorCode.BAD_REQUEST, `icon must be ${ICON_SIDE}x${ICON_SIDE}`);
+    icon = decoded.b64;
   }
-  if (bytes.length > ART_MAX_BYTES) throw fail(ErrorCode.BAD_REQUEST, `image is larger than ${ART_MAX_BYTES / 1024} KB`);
-  const size = pngSize(bytes);
-  if (!size) throw fail(ErrorCode.BAD_REQUEST, 'not a PNG file');
-  if (size.w > ART_MAX_SIDE || size.h > ART_MAX_SIDE) throw fail(ErrorCode.BAD_REQUEST, `image is larger than ${ART_MAX_SIDE} px`);
 
   const { doc, version } = load(nk, body);
   const now = Date.now();
-  const hash = nk.sha256Hash(png);
+  // Without an icon the hash stays what it was before icons existed, so clients do not refetch.
+  const hash = nk.sha256Hash(icon ? png + '|' + icon : png);
   let i = itemIndex(doc, body.id);
   const created = i < 0;
   if (created) {
@@ -276,7 +292,7 @@ export function rpcAdminArtPut(ctx: nkruntime.Context, logger: nkruntime.Logger,
   const it = doc.items[i];
   it.art = { hash, w: size.w, h: size.h };
   it.updatedAt = now;
-  const next = publish(nk, logger, doc, version, [artWrite(it.id, { png, hash, w: size.w, h: size.h })]);
+  const next = publish(nk, logger, doc, version, [artWrite(it.id, icon ? { png, icon, hash, w: size.w, h: size.h } : { png, hash, w: size.w, h: size.h })]);
   return JSON.stringify({ ok: true, version: next, item: it, created });
 }
 

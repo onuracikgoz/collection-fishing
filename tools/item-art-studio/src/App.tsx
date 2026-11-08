@@ -4,7 +4,7 @@ import paletteFileText from '../../../content/palette.hex?raw'
 import { PixelCanvas } from './components/PixelCanvas'
 import { PrepareInspector } from './components/PrepareInspector'
 import { countColors } from './engine/color'
-import type { PrepareSettings } from './engine/pipeline'
+import { prepareForGame, type PrepareSettings } from './engine/pipeline'
 import { parseHexPalette } from './engine/quantize'
 import { usePreparedCache } from './hooks/preparedCache'
 import { itemFileName, parseCollectionSet, type CollectionSet } from './models/collectionSet'
@@ -209,19 +209,22 @@ function App() {
   const setGroups = groups.filter((g) => g.inSet)
   const missing = setGroups.filter((g) => !g.approved)
 
-  // ZIP'te sadece görseller var: `<item id>.png`. Admin paneli dosya adından eşyayı bulur,
+  // ZIP'te sadece görseller var: `<item id>.png` (128, defter) ve `<item id>@32.png` (çanta
+  // yuvası ve yer ikonu). Admin paneli dosya adından eşyayı bulur, ikisini birlikte yükler;
   // eşyanın ayarları (isim, Tier, set, göl...) orada yapılır.
   async function exportZip() {
     try {
       const files: ExportFile[] = []
       for (const group of approvedGroups) {
         const image = group.approved!
-        files.push(await blobFile(`${group.itemId}.png`, await bufferToPngBlob(getPrepared(image, palette.colors).buffer)))
+        const { item, icon } = prepareForGame(image.source, image.prepare, palette.colors)
+        files.push(await blobFile(`${group.itemId}.png`, await bufferToPngBlob(item)))
+        files.push(await blobFile(`${group.itemId}@32.png`, await bufferToPngBlob(icon)))
       }
       downloadZip(files, `${set?.set_id ?? 'items'}-art.zip`)
       setMessage({
         kind: 'info',
-        text: `${files.length} PNG dışa aktarıldı.${missing.length ? ` Sette görseli onaylanmamış ${missing.length} eşya var.` : ''}`,
+        text: `${files.length / 2} eşya dışa aktarıldı (128 ve 32 px).${missing.length ? ` Sette görseli onaylanmamış ${missing.length} eşya var.` : ''}`,
       })
     } catch (err) {
       setMessage({ kind: 'error', text: err instanceof Error ? err.message : String(err) })
