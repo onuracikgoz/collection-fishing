@@ -19,6 +19,8 @@ export interface AdminContent {
 
 export interface StoredArt {
   png: string
+  /** 32x32 bag slot / ground icon (`<id>@32.png`), when one was uploaded. */
+  icon?: string
   hash: string
   w: number
   h: number

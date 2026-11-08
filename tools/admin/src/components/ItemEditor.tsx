@@ -19,7 +19,8 @@ import {
   type Stack,
   recipeIdFor,
 } from '../content'
-import { bytesToBase64 } from '../images'
+import { SLOT_ICON_SIZE } from '../artCheck'
+import { bytesToBase64, decodePng, readZip } from '../images'
 import type { Admin } from '../state'
 import { Story } from './Story'
 import { ArtView, BAND_LABEL, CATEGORY_LABEL, Field, StatusTag, TIER_LABEL, TYPE_LABEL, Thumb, Toggles } from './bits'
@@ -271,9 +272,39 @@ export function ItemEditor({ admin, item, onDone, queue }: { admin: Admin; item:
     })
   }
 
-  const replaceImage = async (file: File) => {
-    const png = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
-    await admin.run('Görsel değişti', (v) => api.artPut(admin.conn, v, { id: it.id, png }))
+  // Takes the 128 image, the 32 icon, both, or the Studio ZIP. A 32x32 PNG is the icon. Giving only
+  // the icon keeps the current image; giving only the image drops the old icon (it may not match).
+  const replaceImage = async (files: File[]) => {
+    let png: string | undefined
+    let icon: string | undefined
+    try {
+      for (const file of files) {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        if (/\.zip$/i.test(file.name)) {
+          const { images } = readZip(bytes)
+          const img = images.find((x) => x.id === it.id) ?? (images.length === 1 ? images[0] : undefined)
+          if (!img) throw new Error(`${file.name}: içinde ${it.id}.png yok`)
+          png = img.png
+          icon = img.icon ?? icon
+          continue
+        }
+        const b64 = bytesToBase64(bytes)
+        const px = await decodePng(b64)
+        if (px.width === SLOT_ICON_SIZE && px.height === SLOT_ICON_SIZE) icon = b64
+        else png = b64
+      }
+    } catch (e) {
+      admin.setNotice({ kind: 'error', text: e instanceof Error ? e.message : String(e) })
+      return
+    }
+    png ??= admin.art[it.id]
+    if (!png) {
+      admin.setNotice({ kind: 'error', text: 'Önce 128 görseli ekle; 32 ikon tek başına yüklenemez.' })
+      return
+    }
+    if (!icon && admin.icons[it.id] && !confirm('Sadece büyük görseli seçtin. Eski 32 px ikon silinecek, devam edilsin mi?')) return
+    const ok = icon ? 'Görsel ve 32 px ikon kaydedildi' : 'Görsel değişti (32 px ikon yok)'
+    await admin.run(ok, (v) => api.artPut(admin.conn, v, { id: it.id, png: png!, icon }))
   }
 
   const sets = admin.data.doc.sets.slice().sort((a, b) => a.order - b.order)
@@ -295,11 +326,22 @@ export function ItemEditor({ admin, item, onDone, queue }: { admin: Admin; item:
 
       <div className="editor-body">
         <section className="editor-art">
-          <ArtView png={admin.art[it.id]} report={admin.reports[it.id]} />
+          <ArtView png={admin.art[it.id]} icon={admin.icons[it.id]} report={admin.reports[it.id]} />
+          {!isNew ? <p className="muted">128 görsel, <code>@32.png</code> ikon ya da Studio ZIP'i seçebilirsin (birden fazla dosya olur).</p> : null}
           {!isNew ? (
             <label className="button ghost">
-              Görseli değiştir…
-              <input type="file" accept="image/png" hidden onChange={(e) => e.target.files?.[0] && replaceImage(e.target.files[0])} />
+              Görseli / ikonu değiştir…
+              <input
+                type="file"
+                accept="image/png,.zip"
+                multiple
+                hidden
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+                  e.target.value = ''
+                  if (files.length) void replaceImage(files)
+                }}
+              />
             </label>
           ) : (
             <p className="muted">Görseli kaydettikten sonra ekleyebilirsin.</p>

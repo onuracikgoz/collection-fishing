@@ -18,6 +18,8 @@ export interface Admin {
   data: AdminContent
   rt: ContentRuntime
   art: Record<string, string>
+  /** 32x32 slot icons by item id; an item without one shows its 128 image shrunk in the game. */
+  icons: Record<string, string>
   reports: Record<string, ArtReport>
   notice: Notice | null
   busy: boolean
@@ -34,6 +36,7 @@ export function useAdmin(conn: Connection, first: AdminContent): Admin {
   const [notice, setNotice] = useState<Notice | null>(null)
   const [busy, setBusy] = useState(false)
   const [art, setArt] = useState<Record<string, string>>({})
+  const [icons, setIcons] = useState<Record<string, string>>({})
   const [reports, setReports] = useState<Record<string, ArtReport>>({})
   const loaded = useRef<Record<string, string>>({})
 
@@ -80,6 +83,14 @@ export function useAdmin(conn: Connection, first: AdminContent): Admin {
               for (const id in r.art) next[id] = r.art[id].png
               return next
             })
+            setIcons((a) => {
+              const next = { ...a }
+              for (const id in r.art) {
+                if (r.art[id].icon) next[id] = r.art[id].icon!
+                else delete next[id]
+              }
+              return next
+            })
             for (const id in r.art) {
               try {
                 const report = checkArt(await decodePng(r.art[id].png), PALETTE)
@@ -105,5 +116,5 @@ export function useAdmin(conn: Connection, first: AdminContent): Admin {
 
   const itemById = useCallback((id: string) => data.doc.items.find((it) => it.id === id), [data])
 
-  return { conn, data, rt, art, reports, notice, busy, setNotice, reload, run, loadArt, itemById }
+  return { conn, data, rt, art, icons, reports, notice, busy, setNotice, reload, run, loadArt, itemById }
 }
