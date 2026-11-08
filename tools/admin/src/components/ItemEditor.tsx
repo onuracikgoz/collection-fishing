@@ -461,9 +461,33 @@ export function ItemEditor({ admin, item, onDone, queue }: { admin: Admin; item:
             ) : null}
           </>
         ) : (
-          <button className="primary" disabled={admin.busy || errors.length > 0} onClick={() => save('live', `${it.name} güncellendi`)}>
-            Kaydet (oyunda hemen değişir)
-          </button>
+          <>
+            <button className="primary" disabled={admin.busy || errors.length > 0} onClick={() => save('live', `${it.name} güncellendi`)}>
+              Kaydet (oyunda hemen değişir)
+            </button>
+            <button
+              className="danger"
+              disabled={admin.busy}
+              title="Sadece geliştirme sunucusunda (DEV_TOOLS=true) çalışır"
+              onClick={() => {
+                const typed = prompt(`${it.id} oyundan tamamen silinecek: bütün oyuncuların kopyaları, yığınları, defter kaydı ve görseli. Geri alınamaz. Sadece geliştirme sunucusunda çalışır.\n\nOnaylamak için eşya id'sini yaz:`)
+                if (typed !== it.id) return
+                let result = ''
+                void admin
+                  .run(`${it.id} silindi`, async (v) => {
+                    const r = await api.itemPurge(admin.conn, v, it.id)
+                    result = `${it.id} silindi: ${r.players} oyuncu, ${r.copies} kopya`
+                  })
+                  .then((d) => {
+                    if (!d) return
+                    admin.setNotice({ kind: 'ok', text: result })
+                    onDone?.()
+                  })
+              }}
+            >
+              Tamamen sil (geliştirme)
+            </button>
+          </>
         )}
       </div>
     </div>

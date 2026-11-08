@@ -46,6 +46,7 @@ import {
   rpcAdminLocaleGet,
   rpcAdminLocaleSave,
   rpcAdminItemDelete,
+  rpcAdminItemPurge,
   rpcAdminItemSave,
   rpcAdminSetSave,
   rpcAdminSettingsSave,
@@ -159,6 +160,7 @@ function InitModule(
   initializer.registerRpc('admin_art_get', rpcAdminArtGet);
   initializer.registerRpc('admin_item_save', rpcAdminItemSave);
   initializer.registerRpc('admin_item_delete', rpcAdminItemDelete);
+  initializer.registerRpc('admin_item_purge', rpcAdminItemPurge);
   initializer.registerRpc('admin_set_save', rpcAdminSetSave);
   initializer.registerRpc('admin_settings_save', rpcAdminSettingsSave);
   initializer.registerRpc('admin_art_put', rpcAdminArtPut);

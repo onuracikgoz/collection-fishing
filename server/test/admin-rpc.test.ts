@@ -7,6 +7,7 @@ import {
   rpcAdminContent,
   rpcAdminImport,
   rpcAdminItemDelete,
+  rpcAdminItemPurge,
   rpcAdminItemSave,
   rpcAdminSetSave,
   rpcAdminSettingsSave,
@@ -50,6 +51,15 @@ function fake() {
       return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
     },
     sha256Hash: (s: string) => createHash('sha256').update(s).digest('hex'),
+    // Only the two queries admin_item_purge makes.
+    sqlQuery: (q: string, params: any[]) => {
+      const rows = [...store.entries()].map(([k, v]) => {
+        const [c, kk, u] = k.split('/');
+        return { c, key: kk, user_id: u, value: v.value };
+      });
+      if (q.includes('FROM users')) return [...new Set(rows.map((r) => r.user_id))].filter((u) => u !== '00000000-0000-0000-0000-000000000000').map((id) => ({ id }));
+      return rows.filter((r) => r.c === 'items' && r.value.defId === params[0]).map((r) => ({ user_id: r.user_id, key: r.key }));
+    },
     matchList: () => [{ matchId: 'm1', label: JSON.stringify({ kind: 'world', serverId: 'mercan' }), size: 0 }],
     matchSignal: (_id: string, data: string) => {
       signals.push(data);
@@ -178,6 +188,32 @@ describe('admin RPCs', () => {
     // Drafts can be deleted.
     w.call(rpcAdminItemDelete, { version: r.version, id: 'sextant' });
     expect(w.content().doc.items.some((x: any) => x.id === 'sextant')).toBe(false);
+  });
+
+  it('purges a live item from every player, only with DEV_TOOLS', () => {
+    const w = fake();
+    const v = w.call(rpcAdminArtPut, { version: '', id: 'image', png: png(128, 128) }).version;
+    const saved = w.call(rpcAdminItemSave, { version: v, item: { ...w.content().doc.items.filter((x: any) => x.id === 'image')[0], tier: 'common', status: 'live' } });
+    const u = '22222222-2222-2222-2222-222222222222';
+    w.nk.storageWrite([
+      { collection: 'items', key: 'c1', userId: u, value: { instanceId: 'c1', defId: 'image', float: 0.5 } },
+      { collection: 'items', key: 'c2', userId: u, value: { instanceId: 'c2', defId: 'lake.fish.carp', float: 0.5 } },
+      { collection: 'book', key: 'entries', userId: u, value: { entries: { image: { foundAt: 1 }, 'lake.fish.carp': { foundAt: 1 } } } },
+      { collection: 'profile', key: 'card', userId: u, value: { showcase: ['image'] } },
+    ]);
+    expect(errOf(() => w.call(rpcAdminItemPurge, { version: saved.version, id: 'image' })).code).toBe('DEV_TOOLS_OFF');
+
+    const dev: any = { userId: '', env: { DEV_TOOLS: 'true' } };
+    const r = w.call(rpcAdminItemPurge, { version: saved.version, id: 'image' }, dev);
+    expect(r).toMatchObject({ ok: true, players: 1, copies: 1 });
+    expect(w.content().doc.items.some((x: any) => x.id === 'image')).toBe(false);
+    const read = (c: string, k: string) => w.nk.storageRead([{ collection: c, key: k, userId: u }])[0]?.value;
+    expect(read('items', 'c1')).toBeUndefined();
+    expect(read('items', 'c2')).toBeDefined();
+    expect(Object.keys(read('book', 'entries').entries)).toEqual(['lake.fish.carp']);
+    expect(read('profile', 'card').showcase).toEqual([]);
+    expect(w.nk.storageRead([{ collection: 'content_art', key: 'image', userId: '00000000-0000-0000-0000-000000000000' }])).toEqual([]);
+    expect(w.signals.some((s) => JSON.parse(s).type === 'dev_reload' && JSON.parse(s).userId === u)).toBe(true);
   });
 
   it('saves the general drop rates, chests and quests', () => {

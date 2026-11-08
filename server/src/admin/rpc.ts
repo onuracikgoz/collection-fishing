@@ -18,6 +18,20 @@ import {
 import { LANGS, isLang, validateStrings } from '../rules/locale';
 import { readLocale, writeLocale } from '../match/locale';
 import { findWorldMatches } from '../match/servers';
+import { isDevEnabled } from '../debug/gate';
+import { purgeBook, purgeListing, purgeProfile, purgeStacks } from '../rules/purge';
+import {
+  bookWrite,
+  profileWrite,
+  readBook,
+  readProfile,
+  readStacks,
+  readStall,
+  readStashState,
+  stacksWrite,
+  stallWrite,
+  stashWrite,
+} from '../match/playerData';
 import { artWrite, contentOptions, readArt, readContentDoc, writeContentDoc, ART_COLLECTION, SYSTEM_USER } from '../match/content';
 
 type Body = { [k: string]: unknown };
@@ -189,6 +203,77 @@ export function rpcAdminItemDelete(ctx: nkruntime.Context, logger: nkruntime.Log
     // no image
   }
   return JSON.stringify({ ok: true, version: next });
+}
+
+/**
+ * `{ version, id }`, development only (DEV_TOOLS=true): removes an item from the game completely,
+ * live or not, with every player's copies, stacks (and its recipe's), book record, profile and
+ * stall mentions, then its image. Players in a match get their bag reloaded.
+ */
+export function rpcAdminItemPurge(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  adminOnly(ctx);
+  if (!isDevEnabled(ctx)) throw fail('DEV_TOOLS_OFF', 'purging live items only works on a development server (DEV_TOOLS=true); make it inactive instead', 7);
+  const body = parse(payload);
+  const { doc, version } = load(nk, body);
+  const i = typeof body.id === 'string' ? itemIndex(doc, body.id) : -1;
+  if (i < 0) throw fail(ErrorCode.NOT_FOUND, 'no such item', 5);
+  const it = doc.items[i];
+  const used = doc.items.filter((x) => x.id !== it.id && x.recipe && x.recipe.stacks.concat(x.recipe.items).some((s) => s.defId === it.id));
+  if (used.length > 0) throw fail(ErrorCode.NOT_ALLOWED, `used in the recipe of ${used.map((x) => x.id).join(', ')}`, 9);
+  const ids = [it.id];
+  if (it.recipe) ids.push(it.recipe.id || recipeIdFor(it.id));
+
+  // Every copy, by owner.
+  const copies: { [userId: string]: string[] } = {};
+  for (const row of nk.sqlQuery("SELECT user_id, key FROM storage WHERE collection = 'items' AND value->>'defId' = $1", [it.id])) {
+    const u = String(row.user_id);
+    (copies[u] = copies[u] || []).push(String(row.key));
+  }
+  const users = nk.sqlQuery("SELECT id FROM users WHERE id <> '00000000-0000-0000-0000-000000000000'", []).map((r) => String(r.id));
+  const touched: string[] = [];
+  let removedCopies = 0;
+  for (const userId of users) {
+    const mine = copies[userId] || [];
+    const writes: nkruntime.StorageWriteRequest[] = [];
+    const stacks = purgeStacks(readStacks(nk, userId), ids);
+    if (stacks) writes.push(stacksWrite(userId, stacks));
+    const stash = readStashState(nk, userId);
+    const stashStacks = purgeStacks(stash.stacks, ids);
+    if (stashStacks) writes.push(stashWrite(userId, { ...stash, stacks: stashStacks }));
+    const book = purgeBook(readBook(nk, userId), ids);
+    if (book) writes.push(bookWrite(userId, book));
+    const profile = purgeProfile(readProfile(nk, userId), ids);
+    if (profile) writes.push(profileWrite(userId, profile));
+    const stall = readStall(nk, userId);
+    const stallNext = stall ? purgeListing(stall, ids, mine) : null;
+    if (stallNext) writes.push(stallWrite(userId, stallNext));
+    if (writes.length === 0 && mine.length === 0) continue;
+    if (writes.length > 0) nk.storageWrite(writes);
+    if (mine.length > 0) nk.storageDelete(mine.map((key) => ({ collection: 'items', key, userId })));
+    removedCopies += mine.length;
+    touched.push(userId);
+  }
+
+  doc.items.splice(i, 1);
+  const next = publish(nk, logger, doc, version);
+  try {
+    nk.storageDelete([{ collection: ART_COLLECTION, key: it.id, userId: SYSTEM_USER }]);
+  } catch (_e) {
+    // no image
+  }
+  // Online players: the match re-reads bag, book and energy from storage.
+  const matches = findWorldMatches(nk);
+  for (const userId of touched) {
+    for (const m in matches) {
+      try {
+        nk.matchSignal(matches[m].matchId, JSON.stringify({ type: 'dev_reload', userId }));
+      } catch (e) {
+        logger.warn('dev_reload to %s failed: %s', m, String(e));
+      }
+    }
+  }
+  logger.info('admin_item_purge %s: %d players, %d copies', it.id, touched.length, removedCopies);
+  return JSON.stringify({ ok: true, version: next, players: touched.length, copies: removedCopies });
 }
 
 /** `{ version, set }`: adds or updates a set. A new active set with book items is a new book page. */
