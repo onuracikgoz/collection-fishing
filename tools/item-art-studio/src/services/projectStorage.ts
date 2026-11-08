@@ -1,3 +1,4 @@
+import { DEFAULT_PREPARE } from '../engine/pipeline'
 import type { ProjectState } from '../models/project'
 
 // Çalışma tarayıcıda (IndexedDB) otomatik saklanır; sayfa yenilense de
@@ -19,7 +20,12 @@ export async function loadProject(): Promise<ProjectState | null> {
   const db = await openDb()
   return new Promise((resolve, reject) => {
     const request = db.transaction(STORE, 'readonly').objectStore(STORE).get(KEY)
-    request.onsuccess = () => resolve((request.result as ProjectState | undefined) ?? null)
+    request.onsuccess = () => {
+      const project = (request.result as ProjectState | undefined) ?? null
+      // Eski kayıtta olmayan yeni ayarlar (kontur, ton, 32 sadeleştirme) varsayılanı alır.
+      if (project) project.images = project.images.map((i) => ({ ...i, prepare: { ...DEFAULT_PREPARE, ...i.prepare } }))
+      resolve(project)
+    }
     request.onerror = () => reject(request.error ?? new Error('Kayıt okunamadı.'))
   })
 }
