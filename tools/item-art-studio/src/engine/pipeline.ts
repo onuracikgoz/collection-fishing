@@ -1,4 +1,5 @@
 import { eraseAt, hardenAlpha, removeBackground, type Point } from './background'
+import { addOutline } from './outline'
 import { quantizeToPalette } from './quantize'
 import { fitToSquare } from './resize'
 import type { PixelBuffer, Rgb } from './pixels'
@@ -15,8 +16,16 @@ export interface PrepareSettings {
   resize: boolean
   size: number
   padding: number
+  // Küçültmeden sonra 1 px koyu kontur çizer (kenar zaten koyuysa çizmez).
+  outline: boolean
   quantize: boolean
+  // Palete çekerken renk tonunu korur: lavanta nane yeşiline değil
+  // beyaza / maviye gider.
+  keepHue: boolean
 }
+
+// keepHue açıkken ton farkının ağırlığı (bkz. labDistance).
+export const KEEP_HUE_WEIGHT = 2
 
 export const DEFAULT_PREPARE: PrepareSettings = {
   removeBackground: true,
@@ -26,7 +35,9 @@ export const DEFAULT_PREPARE: PrepareSettings = {
   resize: true,
   size: 128,
   padding: 4,
+  outline: true,
   quantize: true,
+  keepHue: true,
 }
 
 // Default empty border around the object for an output size: 4 px on a
@@ -63,8 +74,12 @@ export function prepareBase(
     toSource = fit.toSource
   }
 
+  if (settings.outline) {
+    buffer = addOutline(buffer)
+  }
+
   if (settings.quantize && palette.length > 0) {
-    buffer = quantizeToPalette(buffer, palette)
+    buffer = quantizeToPalette(buffer, palette, settings.keepHue ? KEEP_HUE_WEIGHT : 1)
   }
 
   return { buffer, toSource }

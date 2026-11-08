@@ -84,6 +84,11 @@ export function PrepareInspector({
               onChange={(e) => onChange({ padding: Number(e.target.value) })} />
           </label>
         )}
+        <label className="check">
+          <input type="checkbox" checked={prepare.outline} onChange={(e) => onChange({ outline: e.target.checked })} />
+          Add 1 px outline
+        </label>
+        <p className="hint">Küçültünce kaybolan konturu geri çizer. Kenarı zaten koyu olan yerlere dokunmaz.</p>
       </section>
 
       <section className="group">
@@ -92,6 +97,12 @@ export function PrepareInspector({
           <input type="checkbox" checked={prepare.quantize} onChange={(e) => onChange({ quantize: e.target.checked })} />
           Snap to game palette
         </label>
+        {prepare.quantize && (
+          <label className="check">
+            <input type="checkbox" checked={prepare.keepHue} onChange={(e) => onChange({ keepHue: e.target.checked })} />
+            Keep hue
+          </label>
+        )}
         <p className="hint">{paletteName} · {paletteSize} colors</p>
         <label className="btn btn-file">
           Load other .hex

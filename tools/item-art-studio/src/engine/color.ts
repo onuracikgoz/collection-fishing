@@ -31,3 +31,33 @@ export function countColors(data: Uint8ClampedArray): number {
   }
   return colors.size
 }
+
+function linearToSrgb(c: number): number {
+  const v = c <= 0.0031308 ? c * 12.92 : 1.055 * c ** (1 / 2.4) - 0.055
+  return Math.max(0, Math.min(255, Math.round(v * 255)))
+}
+
+export function oklabToRgb([L, a, b]: Lab): Rgb {
+  const l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+  const m = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+  const s = (L - 0.0894841775 * a - 1.291485548 * b) ** 3
+  return [
+    linearToSrgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    linearToSrgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    linearToSrgb(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  ]
+}
+
+// OKLab uzaklığı; `hueWeight` > 1 ise renk tonu farkı daha ağır sayılır.
+// Böylece paletteki en yakın renk açıklıkça yakın ama başka tonda olan
+// (lavanta → nane yeşili gibi) bir renk yerine aynı tona yakın olan seçilir.
+export function labDistance(p: Lab, q: Lab, hueWeight = 1): number {
+  const dL = p[0] - q[0]
+  const da = p[1] - q[1]
+  const db = p[2] - q[2]
+  const dab2 = da * da + db * db
+  if (hueWeight === 1) return dL * dL + dab2
+  const dC = Math.hypot(p[1], p[2]) - Math.hypot(q[1], q[2])
+  const dH2 = Math.max(0, dab2 - dC * dC)
+  return dL * dL + dC * dC + hueWeight * hueWeight * dH2
+}
