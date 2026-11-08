@@ -1,4 +1,4 @@
-import { rgbToOklab as toOklab } from './color'
+import { labDistance, rgbToOklab as toOklab } from './color'
 import { cloneBuffer, hexToRgb, rgbToHex, type PixelBuffer, type Rgb } from './pixels'
 
 // Lospec `.hex` biçimi: her satırda bir renk (`RRGGBB` veya `#RRGGBB`).
@@ -22,7 +22,8 @@ export interface PaletteMatcher {
   nearest(rgb: Rgb): Rgb
 }
 
-export function createPaletteMatcher(palette: Rgb[]): PaletteMatcher {
+// `hueWeight`: 1 düz OKLab; büyüdükçe renk tonu korunur (bkz. labDistance).
+export function createPaletteMatcher(palette: Rgb[], hueWeight = 1): PaletteMatcher {
   const labs = palette.map(toOklab)
   const cache = new Map<number, Rgb>()
 
@@ -37,10 +38,7 @@ export function createPaletteMatcher(palette: Rgb[]): PaletteMatcher {
       let best = 0
       let bestDist = Infinity
       for (let i = 0; i < labs.length; i++) {
-        const dl = lab[0] - labs[i][0]
-        const da = lab[1] - labs[i][1]
-        const db = lab[2] - labs[i][2]
-        const dist = dl * dl + da * da + db * db
+        const dist = labDistance(lab, labs[i], hueWeight)
         if (dist < bestDist) {
           bestDist = dist
           best = i
@@ -54,10 +52,10 @@ export function createPaletteMatcher(palette: Rgb[]): PaletteMatcher {
 
 // Her opak pikseli paletteki en yakın renge çeker. Dithering yok:
 // pixel-art'ta düz renk alanları istenir.
-export function quantizeToPalette(source: PixelBuffer, palette: Rgb[]): PixelBuffer {
+export function quantizeToPalette(source: PixelBuffer, palette: Rgb[], hueWeight = 1): PixelBuffer {
   const out = cloneBuffer(source)
   if (palette.length === 0) return out
-  const matcher = createPaletteMatcher(palette)
+  const matcher = createPaletteMatcher(palette, hueWeight)
   const data = out.data
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue

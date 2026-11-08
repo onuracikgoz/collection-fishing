@@ -117,6 +117,19 @@ describe('admin RPCs', () => {
     expect(list.pages).toEqual(['lake_fish', 'deep_water', 'treasures', 'crafts', 'lost_captain']);
     const art = w.call(rpcGetItemArt, { ids: ['sextant', 'lake.fish.carp'] }, w.player);
     expect(art.art).toEqual([{ id: 'sextant', hash: put.item.art.hash, png: png(128, 128) }]);
+
+    // A 32x32 icon rides along; the hash changes so clients fetch it again.
+    const withIcon = w.call(rpcAdminArtPut, { version: saved.version, id: 'sextant', png: png(128, 128), icon: png(32, 32) });
+    expect(withIcon.item.art.hash).not.toBe(put.item.art.hash);
+    invalidateContent();
+    const art2 = w.call(rpcGetItemArt, { ids: ['sextant'] }, w.player);
+    expect(art2.art).toEqual([{ id: 'sextant', hash: withIcon.item.art.hash, png: png(128, 128), icon: png(32, 32) }]);
+
+    // A new image without an icon drops the old icon.
+    const plain = w.call(rpcAdminArtPut, { version: withIcon.version, id: 'sextant', png: png(128, 128) });
+    expect(plain.item.art.hash).toBe(put.item.art.hash);
+    invalidateContent();
+    expect(w.call(rpcGetItemArt, { ids: ['sextant'] }, w.player).art[0].icon).toBeUndefined();
   });
 
   it('makes a recipe for a craftable item and keeps its id', () => {
@@ -182,5 +195,6 @@ describe('admin RPCs', () => {
     expect(pngSize(new Uint8Array(Buffer.from(png(16, 32), 'base64')))).toEqual({ w: 16, h: 32 });
     expect(errOf(() => w.call(rpcAdminArtPut, { id: 'x_item', png: Buffer.from('hello').toString('base64') })).message).toMatch(/not a PNG/);
     expect(errOf(() => w.call(rpcAdminArtPut, { id: 'x_item', png: png(2048, 16) })).message).toMatch(/larger than 512/);
+    expect(errOf(() => w.call(rpcAdminArtPut, { id: 'x_item', png: png(128, 128), icon: png(64, 64) })).message).toMatch(/icon must be 32x32/);
   });
 });

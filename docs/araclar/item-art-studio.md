@@ -26,9 +26,10 @@ Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → admin
 2. **Hazırla** (sağ panel, her görsel için ayrı; *Use these settings for all* hepsine uygular):
    - **Arka plan:** kenara değen düz arka plan (Perchance'in beyazı) silinir, kenardaki hale temizlenir. Nesnenin içindeki aynı renkli alanlara dokunulmaz. Kalan alanlar için **sihirli silgi** (E): tıklanan renge benzeyen bitişik alan silinir.
    - **Boyut:** nesne kırpılır, ortalanır, seçilen boyuta küçültülür: **Item 128** (defter eşyası, varsayılan), 32, **Icon 16** (HUD, menü, emote ikonu, 1 px kenar), **Inline 8** (yazı yanındaki Coin / toz / kupa, kenarsız). Arayüz 1x çizilip 2x gösterilir; 16'lık ikon ekranda 32 px görünür. Küçük boyutta AI görseli çamurlaşabilir, gerekirse Aseprite / Piskel'de elle düzeltilir. UI ikonları `client/Assets/Art/UI/Icons/` altına konur (`icon_<ad>.png`, `emote_<ad>.png`). Küçültme her bloğun baskın rengini alır; bulanıklaşma ve ara renk olmaz. Küçük görsel büyütülmez.
-   - **Palet:** her piksel ortak paletteki en yakın renge (OKLab) çekilir. Dithering yok.
+   - **Kontur** (*Add 1 px outline*, varsayılan açık): küçültme ince konturu yok eder, çünkü her blok baskın rengini alır. Bu adım nesnenin dışına 1 px kontur çizer: komşu nesne renginin koyu, hafif mora kaymış tonu (LPC'deki gibi, siyah değil). Kenarı zaten koyu olan yerlere dokunmaz, çift kontur olmaz. Palete çekmeden önce yapılır.
+   - **Palet:** her piksel ortak paletteki en yakın renge (OKLab) çekilir. Dithering yok. *Keep hue* (varsayılan açık) renk tonu farkını iki kat ağır sayar: paletinde karşılığı olmayan açık lavanta nane yeşiline değil beyaza / maviye gider.
 3. **Onayla.** Ortada orijinal, oyun ikonu ve oyundaki boyutları (32 / 48 / 96 px). Klavye: **A** onayla, **X** reddet (ve sıradakine geç), **← / →** gez. Bir eşyanın en fazla bir onaylı adayı olur.
-4. **Export ZIP.** Onaylı görseller tek ZIP'te iner. ZIP'te sadece görseller var; admin panelinin onay kuyruğuna yüklenir (`docs/araclar/admin-paneli.md`).
+4. **Export ZIP.** Onaylı görseller tek ZIP'te iner, her eşya için 128 ve 32 px. ZIP'te sadece görseller var; admin panelinin onay kuyruğuna yüklenir (`docs/araclar/admin-paneli.md`).
 
 Çalışma tarayıcıda (IndexedDB) otomatik saklanır; sayfa yenilense de kaybolmaz.
 
@@ -38,8 +39,12 @@ Perchance PNG'leri (+ set.json) → hazırla → onayla → Export ZIP → admin
 
 ```
 <set_id>-art.zip
-└── <item id>.png      onaylı ikonlar, başka dosya yok
+├── <item id>.png      128×128: defter, tooltip
+└── <item id>@32.png   32×32: çanta yuvası, yere düşen eşya
 ```
+
+- Export, sağ panelde seçili boyuttan bağımsız olarak her onaylı eşya için iki dosya üretir (08.11.2026). İkisi de aynı ayarlarla (arka plan, silgi, kontur, palet) kaynaktan ayrı ayrı hazırlanır; 32'lik ikon 128'liğin küçültülmüşü değildir, konturu kendi boyutunda çizilir. Sebep: LPC dünyası 32 px piksel yoğunluğunda, büyük görseli yuvada küçültmek pikselleri karıştırır.
+- Admin paneli ZIP'i olduğu gibi alır, iki boyutu eşleştirip birlikte yükler; ayrıca bir şey yapmak gerekmez.
 
 - Dosya adı eşya id'sidir; admin paneli eşyayı adından bulur. Bilinmeyen id yeni taslak olur, eşyanın bütün ayarları (isim, Tier, set, göl, craft) panelde yapılır.
 - Görsel kontrolü (boyut, şeffaf arka plan, palet, kadraj) panel yüklerken yapar.

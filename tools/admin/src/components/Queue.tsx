@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../api'
-import { checkArt, type ArtReport } from '../artCheck'
+import { checkArt, SLOT_ICON_SIZE, type ArtReport } from '../artCheck'
 import { TIERS, ITEM_TYPES, type ContentItem } from '../content'
 import { decodePng, readZip, type ZipImage } from '../images'
 import { PALETTE, type Admin } from '../state'
@@ -10,6 +10,8 @@ import { Report, TIER_LABEL, TYPE_LABEL, Thumb } from './bits'
 interface Upload {
   img: ZipImage
   report?: ArtReport
+  /** Report of the `@32` icon, if the ZIP has one. */
+  iconReport?: ArtReport
   state: 'new' | 'replace' | 'same' | 'skip'
   result?: string
 }
@@ -50,8 +52,15 @@ export function Queue({ admin }: { admin: Admin }) {
       } catch {
         u.report = { level: 'error', lines: [{ level: 'error', text: 'PNG okunamadı' }] }
       }
+      if (u.img.icon) {
+        try {
+          u.iconReport = checkArt(await decodePng(u.img.icon), PALETTE, SLOT_ICON_SIZE)
+        } catch {
+          u.iconReport = { level: 'error', lines: [{ level: 'error', text: '32 px ikon okunamadı' }] }
+        }
+      }
       // A broken image is not uploaded unless ticked by hand.
-      if (u.report.level === 'error') u.state = 'skip'
+      if (u.report.level === 'error' || u.iconReport?.level === 'error') u.state = 'skip'
     }
     setUploads([...list])
   }
@@ -67,7 +76,7 @@ export function Queue({ admin }: { admin: Admin }) {
         continue
       }
       try {
-        const r = await api.artPut(admin.conn, version, { id: u.img.id, png: u.img.png, setId: setId || undefined, type, tier: type === 'item' ? tier : undefined })
+        const r = await api.artPut(admin.conn, version, { id: u.img.id, png: u.img.png, icon: u.img.icon, setId: setId || undefined, type, tier: type === 'item' ? tier : undefined })
         version = r.version
         u.result = r.created ? 'taslak oluştu' : 'görsel yenilendi'
       } catch (e) {
@@ -88,7 +97,7 @@ export function Queue({ admin }: { admin: Admin }) {
       <section className="card">
         <h2>ZIP yükle</h2>
         <p className="muted">
-          Item Art Studio'nun ZIP'i: içinde sadece <code>&lt;eşya id&gt;.png</code> dosyaları. Yeni id'ler onay bekleyen taslak olur; ayarlarını onaylarken yaparsın.
+          Item Art Studio'nun ZIP'i: her eşya için <code>&lt;eşya id&gt;.png</code> (128 px) ve varsa <code>&lt;eşya id&gt;@32.png</code> (çanta ve yer ikonu). Yeni id'ler onay bekleyen taslak olur; ayarlarını onaylarken yaparsın.
         </p>
         <div className="row">
           <label className="button">
@@ -138,6 +147,7 @@ export function Queue({ admin }: { admin: Admin }) {
                   <tr key={u.img.id}>
                     <td>
                       <Thumb png={u.img.png} size={32} />
+                      {u.img.icon ? <Thumb png={u.img.icon} size={32} /> : null}
                     </td>
                     <td>
                       <b>{u.img.id}</b>
@@ -145,6 +155,14 @@ export function Queue({ admin }: { admin: Admin }) {
                     </td>
                     <td className="grow">
                       <Report report={u.report} />
+                      {u.iconReport ? (
+                        <>
+                          <div className="muted">32 px ikon</div>
+                          <Report report={u.iconReport} />
+                        </>
+                      ) : (
+                        <div className="muted">32 px ikon yok: oyun yuvada 128'lik görseli küçültür</div>
+                      )}
                     </td>
                     <td>
                       {u.result ?? (

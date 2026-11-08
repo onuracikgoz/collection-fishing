@@ -36,7 +36,7 @@ export function rpcGetContent(ctx: nkruntime.Context, logger: nkruntime.Logger, 
 
 export const ART_PER_CALL = 40;
 
-/** `{ ids }` (up to 40) → `{ art: [{ id, hash, png }] }`, png as base64. Unknown ids and drafts are left out. */
+/** `{ ids }` (up to 40) → `{ art: [{ id, hash, png, icon? }] }`, base64 PNGs (icon 32x32). Unknown ids and drafts are left out. */
 export function rpcGetItemArt(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   rpcLimit(nk, ctx.userId, 'get_item_art');
   if (!ctx.userId) throw { message: errorMessage(ErrorCode.BAD_REQUEST, 'no user'), code: 16 } as nkruntime.Error;
@@ -52,6 +52,8 @@ export function rpcGetItemArt(ctx: nkruntime.Context, logger: nkruntime.Logger, 
   const rt = getContent(nk, logger);
   const wanted = (ids as string[]).filter((id, i, a) => a.indexOf(id) === i && rt.known[id] && rt.known[id].art);
   const stored = readArt(nk, wanted);
-  const art = wanted.filter((id) => stored[id]).map((id) => ({ id, hash: stored[id].hash, png: stored[id].png }));
+  const art = wanted
+    .filter((id) => stored[id])
+    .map((id) => (stored[id].icon ? { id, hash: stored[id].hash, png: stored[id].png, icon: stored[id].icon } : { id, hash: stored[id].hash, png: stored[id].png }));
   return JSON.stringify({ art });
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { zipSync } from 'fflate'
-import { idFromFileName, readZip } from '../src/images'
+import { artName, idFromFileName, readZip } from '../src/images'
 
 describe('zip import', () => {
   it('turns file names into item ids', () => {
@@ -25,5 +25,19 @@ describe('zip import', () => {
     expect(r.images.map((i) => i.id)).toEqual(['aa', 'bb'])
     expect(r.images[0].png).toBe('AQID')
     expect(r.bad).toEqual(['ğ.png'])
+  })
+
+  it('pairs <id>@32.png icons with their item image', () => {
+    expect(artName('png/Sextant@32 (1).png')).toEqual({ id: 'sextant', icon: true })
+    expect(idFromFileName('sextant@32.png')).toBe(null)
+    const zip = zipSync({
+      'aa.png': new Uint8Array([1, 2, 3]),
+      'aa@32.png': new Uint8Array([4, 5, 6]),
+      'bb.png': new Uint8Array([7]),
+      'cc@32.png': new Uint8Array([8]),
+    })
+    const r = readZip(zip)
+    expect(r.images.map((i) => [i.id, i.icon ?? null])).toEqual([['aa', 'BAUG'], ['bb', null]])
+    expect(r.bad).toEqual(['cc@32.png'])
   })
 })

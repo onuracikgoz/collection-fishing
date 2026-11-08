@@ -74,7 +74,7 @@ export const api = {
   itemDelete: (c: Connection, version: string, id: string) => rpc<{ version: string }>(c, 'admin_item_delete', { version, id }),
   setSave: (c: Connection, version: string, set: object) => rpc<{ version: string }>(c, 'admin_set_save', { version, set }),
   settingsSave: (c: Connection, version: string, body: object) => rpc<{ version: string }>(c, 'admin_settings_save', { version, ...body }),
-  artPut: (c: Connection, version: string, body: { id: string; png: string; setId?: string; tier?: string; type?: string }) =>
+  artPut: (c: Connection, version: string, body: { id: string; png: string; icon?: string; setId?: string; tier?: string; type?: string }) =>
     rpc<{ version: string; created: boolean }>(c, 'admin_art_put', { version, ...body }),
   localeGet: (c: Connection) => rpc<{ langs: Record<string, LocaleLang> }>(c, 'admin_locale_get'),
   localeSave: (c: Connection, lang: string, version: string, strings: Record<string, string>) =>

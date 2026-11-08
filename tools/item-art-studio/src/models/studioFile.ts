@@ -50,7 +50,9 @@ function parsePrepare(value: unknown): PrepareSettings {
     resize: bool(value.resize, DEFAULT_PREPARE.resize),
     size: num(value.size, DEFAULT_PREPARE.size),
     padding: num(value.padding, DEFAULT_PREPARE.padding),
+    outline: bool(value.outline, DEFAULT_PREPARE.outline),
     quantize: bool(value.quantize, DEFAULT_PREPARE.quantize),
+    keepHue: bool(value.keepHue, DEFAULT_PREPARE.keepHue),
   }
 }
 

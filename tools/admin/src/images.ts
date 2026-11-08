@@ -30,33 +30,65 @@ export function decodePng(base64: string): Promise<Pixels> {
 
 /** "lost_captain/png/Sextant (1).png" → "sextant"; null if the name cannot be an item id. */
 export function idFromFileName(path: string): string | null {
+  const name = artName(path)
+  return name && !name.icon ? name.id : null
+}
+
+/** Suffix of the 32x32 slot / ground icon next to an item image: `sextant@32.png`. */
+export const ICON_SUFFIX = '@32'
+
+/** File name → item id, and whether it is the item's 32x32 icon (`<id>@32.png`). */
+export function artName(path: string): { id: string; icon: boolean } | null {
   const base = path.split('/').pop() ?? path
   if (!/\.png$/i.test(base) || base.startsWith('.')) return null
-  const id = base.replace(/\.png$/i, '').replace(/\s*\(\d+\)$/, '').trim().toLowerCase().replace(/[\s-]+/g, '_')
-  return /^[a-z0-9][a-z0-9_.]{1,63}$/.test(id) ? id : null
+  let stem = base.replace(/\.png$/i, '').replace(/\s*\(\d+\)$/, '').trim()
+  const icon = stem.toLowerCase().endsWith(ICON_SUFFIX)
+  if (icon) stem = stem.slice(0, -ICON_SUFFIX.length)
+  const id = stem.toLowerCase().replace(/[\s-]+/g, '_')
+  return /^[a-z0-9][a-z0-9_.]{1,63}$/.test(id) ? { id, icon } : null
 }
 
 export interface ZipImage {
   id: string
   path: string
   png: string
+  /** The 32x32 icon from `<id>@32.png`, if the ZIP has one. */
+  icon?: string
+  iconPath?: string
 }
 
-/** Every PNG in the ZIP (any folder), by item id. Names that are not ids come back in `bad`. */
+/**
+ * Every item image in the ZIP (any folder), by item id, with its `@32` icon when there is one.
+ * Names that are not ids, and icons without their item image, come back in `bad`.
+ */
 export function readZip(bytes: Uint8Array): { images: ZipImage[]; bad: string[] } {
   const files = unzipSync(bytes, { filter: (f) => !f.name.startsWith('__MACOSX/') && /\.png$/i.test(f.name) })
   const images: ZipImage[] = []
+  const icons = new Map<string, string>()
   const bad: string[] = []
   const seen = new Set<string>()
   for (const path of Object.keys(files).sort()) {
-    const id = idFromFileName(path)
-    if (!id) {
+    const name = artName(path)
+    if (!name) {
       bad.push(path)
       continue
     }
-    if (seen.has(id)) continue
-    seen.add(id)
-    images.push({ id, path, png: bytesToBase64(files[path]) })
+    if (name.icon) {
+      if (!icons.has(name.id)) icons.set(name.id, path)
+      continue
+    }
+    if (seen.has(name.id)) continue
+    seen.add(name.id)
+    images.push({ id: name.id, path, png: bytesToBase64(files[path]) })
   }
+  for (const img of images) {
+    const iconPath = icons.get(img.id)
+    if (iconPath) {
+      img.icon = bytesToBase64(files[iconPath])
+      img.iconPath = iconPath
+      icons.delete(img.id)
+    }
+  }
+  bad.push(...icons.values())
   return { images, bad }
 }

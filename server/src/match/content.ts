@@ -103,6 +103,8 @@ export function writeContentDoc(nk: nkruntime.Nakama, doc: ContentDoc, version: 
 
 export interface StoredArt {
   png: string;
+  /** 32x32 icon for bag slots and the ground; missing on older images. */
+  icon?: string;
   hash: string;
   w: number;
   h: number;

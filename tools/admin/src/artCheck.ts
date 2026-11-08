@@ -20,6 +20,8 @@ export interface ArtReport {
 }
 
 export const ITEM_SIZE = 128
+/** The slot / ground icon that may come with an item image (`<id>@32.png`). */
+export const SLOT_ICON_SIZE = 32
 const ICON_SIZES = [8, 16, 32]
 
 export function parsePalette(text: string): Set<number> {
@@ -33,14 +35,15 @@ export function parsePalette(text: string): Set<number> {
 
 const hex = (rgb: number) => '#' + rgb.toString(16).padStart(6, '0').toUpperCase()
 
-export function checkArt(img: Pixels, palette: Set<number>): ArtReport {
+export function checkArt(img: Pixels, palette: Set<number>, size: number = ITEM_SIZE): ArtReport {
   const lines: CheckLine[] = []
   const add = (level: Level, text: string) => lines.push({ level, text })
   const { width: w, height: h, data } = img
 
-  if (w === ITEM_SIZE && h === ITEM_SIZE) add('ok', `Boyut ${w}×${h}`)
-  else if (w === h && ICON_SIZES.includes(w)) add('warn', `Boyut ${w}×${h}: UI ikonu boyutu, defter eşyası 128×128 olmalı`)
-  else add('error', `Boyut ${w}×${h}: eşya görseli 128×128 olmalı (Item Art Studio, Item 128)`)
+  if (w === size && h === size) add('ok', `Boyut ${w}×${h}`)
+  else if (size === ITEM_SIZE && w === h && ICON_SIZES.includes(w)) add('warn', `Boyut ${w}×${h}: UI ikonu boyutu, defter eşyası 128×128 olmalı`)
+  else if (size === ITEM_SIZE) add('error', `Boyut ${w}×${h}: eşya görseli 128×128 olmalı (Item Art Studio, Item 128)`)
+  else add('error', `Boyut ${w}×${h}: küçük ikon ${size}×${size} olmalı (Item Art Studio export'u)`)
 
   let opaque = 0
   let soft = 0

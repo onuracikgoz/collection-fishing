@@ -53,7 +53,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
 | `get_content` | `{}` | `ContentResponse`, bkz. İçerik: eşya adları ve görselleri | 6 |
-| `get_item_art` | `{ ids: [defId] }` (en fazla 40) | `{ art: [{ id, hash, png }] }` (`png` base64) | 6 |
+| `get_item_art` | `{ ids: [defId] }` (en fazla 40) | `{ art: [{ id, hash, png, icon? }] }` (`png`, `icon` base64) | 6 |
 | `get_locale` | `{ lang, hash? }` | `{ lang, hash, strings? }`, bkz. Dil dosyaları | 6 |
 | `transfer_code_create` | `{}` (oturumlu) | `{ code, expiresInMs }` (`code`: `ABCD-EFGH`) | 5 |
 | `transfer_code_redeem` | `{ code, steamToken }` (**oturumsuz**, HTTP anahtarıyla) | `{ ok: true }` | 5 |
@@ -581,8 +581,9 @@ Eşyalar, setler, recipe'ler, defter sayfaları, av tablosu, sandıklar ve göre
   - `sets: [{ id, name, active }]`: set sırasıyla. Defter sayfasının `id`'si set id'sidir (`BookResponse.pages[].id`), başlığı buradaki `name`.
   - `pages: [setId]`: şu an defter sayfası olan setler (profilde "tamamlanan sayfa x/y" için y).
   - `art`: görselin hash'i (sha256). Client görselleri hash'le önbelleğe alır, sadece hash'i değişen ya da hiç olmayanları `get_item_art` ile ister.
-- `get_item_art` `{ ids }` → `{ art: [{ id, hash, png }] }`: en fazla 40 id; görseli olmayan, bilinmeyen ya da taslak id'ler sessizce atlanır. `png` base64, 128×128 şeffaf PNG; Unity'de Filter Mode **Point** ile `Texture2D.LoadImage`.
-- Ad ve ikon yoksa (ağ hatası, sunucuda görseli olmayan eski yer tutucu eşyalar) client id'den ad türetir ve çizilmiş yer tutucu ikonu (`ItemIcons`) gösterir. Client: `UI/ItemContent.cs`; girişte ve her sunucuya katılırken yüklenir, adı `FishingController.ItemName`, ikonu `ItemIcons.For` kullanır, defter sayfası adı `CollectionController.PageName` (üç eski yer tutucu sayfa Türkçe adını korur).
+- `get_item_art` `{ ids }` → `{ art: [{ id, hash, png, icon? }] }`: en fazla 40 id; görseli olmayan, bilinmeyen ya da taslak id'ler sessizce atlanır. `png` base64, 128×128 şeffaf PNG (defter, tooltip); Unity'de Filter Mode **Point** ile `Texture2D.LoadImage`.
+  - `icon` (08.11.2026): 32×32 şeffaf PNG, çanta yuvası ve yere düşen eşya için. Elle temizlenmiş, konturlu küçük ikondur; 128'lik görselin küçültülmüşü değildir. Eski görsellerde yoktur: o zaman client 128'lik görseli kullanır (bugünkü davranış). `icon` gelince `hash` de değişir, client ikisini birlikte önbelleğe alır. Büyük gösterimde `icon` sadece tam katla (2x, 3x) büyütülür.
+- Ad ve ikon yoksa (ağ hatası, sunucuda görseli olmayan eski yer tutucu eşyalar) client id'den ad türetir ve çizilmiş yer tutucu ikonu (`ItemIcons`) gösterir. Client: `UI/ItemContent.cs`; girişte ve her sunucuya katılırken yüklenir, adı `FishingController.ItemName`, ikonu `ItemIcons.For` (128, defter ve inceleme) ve `ItemIcons.ForSlot` (yuvalar: 32'lik `icon`, yoksa 128, yoksa yer tutucu) kullanır, defter sayfası adı `CollectionController.PageName` (üç eski yer tutucu sayfa Türkçe adını korur).
 
 ## Dil dosyaları (Faz 6, 01.11.2026)
 

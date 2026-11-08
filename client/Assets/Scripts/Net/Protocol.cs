@@ -1228,6 +1228,11 @@ namespace CollectionGame.Net
         public string hash;
         /// <summary>128x128 PNG, base64.</summary>
         public string png;
+        /// <summary>
+        /// 32x32 PNG, base64, for bag slots and items on the ground; a hand-cleaned icon, not a downscale of
+        /// <see cref="png"/>. Empty for older images: the 128 image is used then.
+        /// </summary>
+        public string icon;
     }
 
     [Serializable]
