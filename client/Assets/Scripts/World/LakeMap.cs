@@ -15,6 +15,8 @@ namespace CollectionGame.World
     {
         // Used only by the code-drawn fallback map (MapView, when there is no map prefab).
         public static readonly RectInt Fountain = new RectInt(63, 47, 3, 2);
+        // Windmill north of the plaza (trial art): the tiles its tower stands on, also in Blocked.
+        public static readonly RectInt Windmill = new RectInt(59, 39, 3, 2);
 
         // Drawing only (not collision): the lake's water and the walkable pier through it.
         public static readonly RectInt Lake = new RectInt(76, 30, 40, 37);

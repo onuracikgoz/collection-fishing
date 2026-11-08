@@ -30,7 +30,7 @@ namespace CollectionGame.EditorTools
 
         static void OnPostprocessAllAssets(string[] imported, string[] deleted, string[] moved, string[] movedFrom)
         {
-            bool Touches(string[] paths) => paths.Any(p => p.StartsWith(ArtCatalog.Root) || p.StartsWith(ArtCatalog.UiRoot));
+            bool Touches(string[] paths) => paths.Any(p => p.StartsWith(ArtCatalog.Root) || p.StartsWith(ArtCatalog.UiRoot) || p.StartsWith(ArtCatalog.CustomRoot));
             if (Touches(imported) || Touches(deleted) || Touches(moved) || Touches(movedFrom))
                 EditorApplication.delayCall += () => Refresh();
         }
@@ -60,6 +60,15 @@ namespace CollectionGame.EditorTools
                     .Select(p => new ArtCatalog.Entry
                     {
                         path = ArtCatalog.UiPrefix + Path.GetFileNameWithoutExtension(p),
+                        texture = AssetDatabase.LoadAssetAtPath<Texture2D>(p),
+                    }))
+                .Concat(AssetDatabase.FindAssets("t:Texture2D", new[] { ArtCatalog.CustomRoot.TrimEnd('/') })
+                    .Select(AssetDatabase.GUIDToAssetPath)
+                    .Where(p => p.EndsWith(".png"))
+                    .OrderBy(p => p, System.StringComparer.Ordinal)
+                    .Select(p => new ArtCatalog.Entry
+                    {
+                        path = ArtCatalog.CustomPrefix + p.Substring(ArtCatalog.CustomRoot.Length),
                         texture = AssetDatabase.LoadAssetAtPath<Texture2D>(p),
                     }))
                 .Where(e => e.texture != null)

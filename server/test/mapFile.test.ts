@@ -104,6 +104,8 @@ describe('content/maps/lake.json', () => {
     expect(LAKE_MAP.height).toBe(96);
     const c = buildCollisionMap(LAKE_MAP);
     expect(isWalkable(c, 64, 48)).toBe(false); // fountain
+    expect(isWalkable(c, 60.5, 40)).toBe(false); // windmill
+    expect(isWalkable(c, 60.5, 41.5)).toBe(true); // in front of the windmill
     expect(isWalkable(c, 80, 47.5)).toBe(true); // pier
     expect(isWalkable(c, 90, 47.5)).toBe(false); // water past the pier
     const w = buildWaterMap(LAKE_MAP, WATER);

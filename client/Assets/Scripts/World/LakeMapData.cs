@@ -23,6 +23,7 @@ namespace CollectionGame.World
         public static readonly RectInt[] Blocked =
         {
             new RectInt(63, 47, 3, 2), // fountain
+            new RectInt(59, 39, 3, 2), // windmill
             new RectInt(76, 30, 40, 17),
             new RectInt(76, 49, 40, 18),
             new RectInt(86, 47, 30, 2),
