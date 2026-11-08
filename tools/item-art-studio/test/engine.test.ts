@@ -5,6 +5,7 @@ import { addOutline } from '../src/engine/outline'
 import { prepareBase, prepareForGame, DEFAULT_PREPARE, GAME_ICON_SIZE, GAME_ITEM_SIZE, KEEP_HUE_WEIGHT, paddingFor } from '../src/engine/pipeline'
 import { quantizeToPalette, parseHexPalette } from '../src/engine/quantize'
 import { fitToSquare } from '../src/engine/resize'
+import { despeckle, limitColors } from '../src/engine/simplify'
 import { fromRows, px, solid } from './helpers'
 import type { Rgb } from '../src/engine/pixels'
 
@@ -160,5 +161,36 @@ describe('game export', () => {
     expect([item.width, icon.width]).toEqual([GAME_ITEM_SIZE, GAME_ICON_SIZE])
     expect(px(icon, 16, 16)).toEqual([255, 0, 0, 255])
     expect(px(icon, 0, 16)).toEqual([0, 0, 0, 255]) // outline on the 1 px border
+  })
+})
+
+describe('small icon simplify', () => {
+  it('removes a lone pixel inside a flat area', () => {
+    const img = fromRows(['WWW', 'WRW', 'WWW'], { W, R })
+    expect(px(despeckle(img), 1, 1)).toEqual([...W, 255])
+  })
+
+  it('keeps a pixel that touches its own colour', () => {
+    const img = fromRows(['WWW', 'WRR', 'WWW'], { W, R })
+    expect(px(despeckle(img), 1, 1)).toEqual([...R, 255])
+  })
+
+  it('folds the rarest close colours together', () => {
+    const near: Rgb = [250, 250, 250]
+    const img = fromRows(['WWWW', 'WWWn', 'KKKK'], { W, K, n: near })
+    const out = limitColors(img, 2)
+    expect(countColors(out.data)).toBe(2)
+    expect(px(out, 3, 1)).toEqual([...W, 255])
+    expect(px(out, 0, 2)).toEqual([...K, 255])
+  })
+
+  it('averages blocks for a 32 icon so thin shading keeps its tone', () => {
+    // Stripes: 3 white rows, 1 blue row. Dominant colour would be pure white.
+    const big = solid(128, 128, W)
+    for (let y = 0; y < 128; y += 4) for (let x = 0; x < 128; x++) big.data.set([...B, 255], (y * 128 + x) * 4)
+    const dominant = fitToSquare(big, 32, 0).buffer
+    const averaged = fitToSquare(big, 32, 0, true).buffer
+    expect(px(dominant, 16, 16)).toEqual([...W, 255])
+    expect(px(averaged, 16, 16)[0]).toBeLessThan(220)
   })
 })

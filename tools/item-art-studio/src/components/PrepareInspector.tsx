@@ -89,6 +89,11 @@ export function PrepareInspector({
           Add 1 px outline
         </label>
         <p className="hint">Küçültünce kaybolan konturu geri çizer. Kenarı zaten koyu olan yerlere dokunmaz.</p>
+        <label className="check">
+          <input type="checkbox" checked={prepare.simplifySmall} onChange={(e) => onChange({ simplifySmall: e.target.checked })} />
+          Simplify 32 px icon
+        </label>
+        <p className="hint">32 px ve altında: tonu korur, en çok 8 renk bırakır, tek piksel noktaları siler. Export'taki @32 ikonu da etkiler.</p>
       </section>
 
       <section className="group">

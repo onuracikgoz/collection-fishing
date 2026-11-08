@@ -1,6 +1,7 @@
 import { eraseAt, hardenAlpha, removeBackground, type Point } from './background'
 import { addOutline } from './outline'
 import { quantizeToPalette } from './quantize'
+import { despeckle, limitColors } from './simplify'
 import { fitToSquare } from './resize'
 import type { PixelBuffer, Rgb } from './pixels'
 
@@ -22,7 +23,14 @@ export interface PrepareSettings {
   // Palete çekerken renk tonunu korur: lavanta nane yeşiline değil
   // beyaza / maviye gider.
   keepHue: boolean
+  // 32 px ve altı ikonlar: blok ortalamasıyla küçültür (ince gölge kaybolmaz),
+  // renk sayısını sınırlar ve tek piksellik gürültüyü siler.
+  simplifySmall: boolean
 }
+
+// simplifySmall bu boyut ve altında çalışır; 32'lik ikonda en çok bu kadar renk kalır.
+export const SMALL_ICON_MAX = 32
+export const SMALL_ICON_COLORS = 8
 
 // keepHue açıkken ton farkının ağırlığı (bkz. labDistance).
 export const KEEP_HUE_WEIGHT = 2
@@ -38,6 +46,7 @@ export const DEFAULT_PREPARE: PrepareSettings = {
   outline: true,
   quantize: true,
   keepHue: true,
+  simplifySmall: true,
 }
 
 // Default empty border around the object for an output size: 4 px on a
@@ -68,8 +77,10 @@ export function prepareBase(
   let toSource = (x: number, y: number): Point | null =>
     x >= 0 && y >= 0 && x < source.width && y < source.height ? { x, y } : null
 
+  const small = settings.simplifySmall && settings.resize && settings.size <= SMALL_ICON_MAX
+
   if (settings.resize) {
-    const fit = fitToSquare(buffer, settings.size, settings.padding)
+    const fit = fitToSquare(buffer, settings.size, settings.padding, small)
     buffer = fit.buffer
     toSource = fit.toSource
   }
@@ -80,6 +91,10 @@ export function prepareBase(
 
   if (settings.quantize && palette.length > 0) {
     buffer = quantizeToPalette(buffer, palette, settings.keepHue ? KEEP_HUE_WEIGHT : 1)
+  }
+
+  if (small) {
+    buffer = despeckle(limitColors(buffer, SMALL_ICON_COLORS))
   }
 
   return { buffer, toSource }

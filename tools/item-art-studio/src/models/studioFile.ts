@@ -53,6 +53,7 @@ function parsePrepare(value: unknown): PrepareSettings {
     outline: bool(value.outline, DEFAULT_PREPARE.outline),
     quantize: bool(value.quantize, DEFAULT_PREPARE.quantize),
     keepHue: bool(value.keepHue, DEFAULT_PREPARE.keepHue),
+    simplifySmall: bool(value.simplifySmall, DEFAULT_PREPARE.simplifySmall),
   }
 }
 

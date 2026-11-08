@@ -10,7 +10,7 @@ export interface FitResult {
 // sığmıyorsa küçültür. Küçültürken her hedef piksel, kaynaktaki bloğun en
 // baskın rengini alır: ortalama almadığı için bulanıklaşmaz, yeni ara
 // renkler üretmez. Büyütme yapmaz.
-export function fitToSquare(source: PixelBuffer, size: number, padding = 0): FitResult {
+export function fitToSquare(source: PixelBuffer, size: number, padding = 0, average = false): FitResult {
   const out = createBuffer(size, size)
   const bounds = opaqueBounds(source)
   if (!bounds) return { buffer: out, toSource: () => null }
@@ -62,8 +62,20 @@ export function fitToSquare(source: PixelBuffer, size: number, padding = 0): Fit
       if (opaque * 2 < total) continue
 
       let best: { r: number; g: number; b: number; count: number } | null = null
-      for (const bucket of buckets.values()) {
-        if (!best || bucket.count > best.count) best = bucket
+      if (average) {
+        // Küçük ikon: bloğun ortalaması. İnce gölge ve renk ayrıntısı baskın
+        // renge (çoğunlukla açık dolgu) yenilmez, tonu kalır.
+        best = { r: 0, g: 0, b: 0, count: 0 }
+        for (const bucket of buckets.values()) {
+          best.r += bucket.r
+          best.g += bucket.g
+          best.b += bucket.b
+          best.count += bucket.count
+        }
+      } else {
+        for (const bucket of buckets.values()) {
+          if (!best || bucket.count > best.count) best = bucket
+        }
       }
       if (!best) continue
 
