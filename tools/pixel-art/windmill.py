@@ -6,6 +6,21 @@ palet tonlarına yuvarlanır. Kule sabit bir görsel, kanatlar ayrı dönüş ka
 """
 import math, os
 from PIL import Image
+import colorsys, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from soften import soften
+
+def cozy(im, sat=0.82, val=0.95):
+    """Meydan setiyle aynı tarz: biraz az doygun, renkli kontur (soften), köşelerde ara ton."""
+    im = soften(im, outline_dark=(40, 28, 22), inner=False); px = im.load()
+    for y in range(im.height):
+        for x in range(im.width):
+            r, g, b, a = px[x, y]
+            if a < 200: continue
+            h, s_, v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+            r, g, b = colorsys.hsv_to_rgb(h, s_ * sat, v * val)
+            px[x, y] = (int(r * 255), int(g * 255), int(b * 255), a)
+    return im
 
 SC = float(os.environ.get('SC', '2.4'))   # 1 dünya birimi = SC piksel (2.4: 32px tile, LPC karakter ölçeği)
 W, H = int(round(64 * SC)), int(round(76 * SC))
@@ -196,12 +211,12 @@ def shadow():
 def build(out_dir, frames=6):
     """Oyuna giden iki dosya: kule (gölgesi içinde) ve kanat sprite sheet'i (yan yana kareler)."""
     os.makedirs(out_dir, exist_ok=True)
-    tower = shadow(); tower.alpha_composite(outline(draw_tower()))
+    tower = shadow(); tower.alpha_composite(cozy(outline(draw_tower())))
     tower.save(os.path.join(out_dir, 'windmill_tower.png'))
     sheet = Image.new('RGBA', (W * frames, H), (0, 0, 0, 0))
     for i in range(frames):
         ang = math.radians(20) - i * (math.pi / 2) / frames    # saat yönünde, 4 kanat simetrik: 90° bir tur
-        sheet.paste(outline(draw_sails(ang)), (i * W, 0))
+        sheet.paste(cozy(outline(draw_sails(ang))), (i * W, 0))
     sheet.save(os.path.join(out_dir, 'windmill_sails.png'))
     # Unity'deki pivot: kulenin taban merkezi (MapView.BuildWindmill bu sayıları kullanır)
     print(f'size {W}x{H}, frames {frames}, pivot x={OX / W:.4f} y={(H - OY) / H:.4f}')
