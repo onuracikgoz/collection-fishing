@@ -261,18 +261,17 @@ def water_tile(variant):
 # ---------------- taş döşeme ----------------
 def pave_tile(variant):
     t = Tex(); r = random.Random(1100 + variant)
-    BH, BW = 8, 16
+    BH, BW = 16, 16
     for row in range(T // BH):
         off = (row % 2) * (BW // 2)
         for col in range(T // BW + 1):
             x0 = col * BW + off; y0 = row * BH
-            shade = r.choice((2, 2, 3, 3, 4))
+            shade = r.choice((2, 3, 3, 3, 4))
             for y in range(BH):
                 for x in range(BW):
                     c = PAVE[shade]
-                    if y == 0 or x == 0: c = PAVE[0]          # harç
-                    elif y == 1 or x == 1: c = PAVE[min(shade + 1, 5)]   # açık kenar (ışık sol üstten)
-                    elif y == BH - 1: c = PAVE[max(shade - 1, 0)]
+                    if (x in (0, BW - 1) and y in (0, BH - 1)): c = PAVE[1]
+                    elif y == 0 or x == 0: c = PAVE[1]          # harç: sadece koyu çizgi, kabartma yok (zeminle aynı seviye)
                     t.put(x0 + x, y0 + y, c)
             if r.random() < 0.25:
                 t.put(x0 + r.randrange(3, BW - 3), y0 + r.randrange(2, BH - 2), PAVE[1])
@@ -335,12 +334,15 @@ def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
         for x in range(T):
             if mask[y][x]:
                 c = d[x, y]
-                if not M(x, y - 1) or not M(x, y - 2) and y > 1: c = LP[1]
+                if upper == 'pave': pass                  # taş zeminle aynı seviyede: alt malzemeye gölge düşmez
+                elif not M(x, y - 1) or not M(x, y - 2) and y > 1: c = LP[1]
                 elif not M(x - 1, y) or not M(x + 1, y): c = LP[2]
                 px[x, y] = c
             else:
                 c = g[x, y]
-                if M(x, y + 1) and y < T - 1: c = UP[1] if (x * 7 + y) % 5 else UP[2]
+                if upper == 'pave':
+                    if M(x, y + 1) or M(x, y - 1) or M(x - 1, y) or M(x + 1, y): c = UP[1]   # ince koyu kenar çizgisi, yükselti yok
+                elif M(x, y + 1) and y < T - 1: c = UP[1] if (x * 7 + y) % 5 else UP[2]
                 elif M(x, y - 1) and y > 0: c = UP[-2] if (x * 3) % 4 else UP[-1]
                 elif M(x - 1, y) or M(x + 1, y): c = UP[2]
                 px[x, y] = c
