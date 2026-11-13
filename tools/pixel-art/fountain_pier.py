@@ -248,41 +248,46 @@ def fountain_cozy():
     return c.im
 
 def pier_plank_rows(c, y0, y1, seed):
-    """Dikey tahtalar (iskelenin ekseni yatay, tahtalar karşıya dizili)."""
-    r = random.Random(seed)
-    for x in range(c.w):
-        k = x % 8
-        for y in range(y0, y1):
-            base = 3 if (x // 8) % 2 == 0 else 2
-            col = WOOD[base]
-            if k == 0: col = WOOD[0]               # tahta arası boşluk
-            elif k == 1: col = WOOD[base + 1]        # açık kenar
-            elif k == 7: col = WOOD[base - 1]
-            if (x * 5 + y * 3) % 17 == 0 and k not in (0,): col = WOOD[base - 1]   # damar
-            c.put(x, y, col)
-    # çivi
-    for x in range(4, c.w, 8):
-        for y in (y0 + 3, y1 - 4): c.put(x, y, WOOD[0])
+    """Tahtalar iskeleye dik dizili; genişlik ve ton tahta tahta değişir, aralarında boşluk, uçlarda çivi."""
+    r = random.Random(seed); x = 0
+    while x < c.w:
+        w = r.choice((6, 7, 7, 8)); base = r.choice((2, 3, 3, 4)); worn = r.random() < .25
+        for k in range(w):
+            for y in range(y0, y1):
+                col = WOOD[base]
+                if k == 0: col = WOOD[0]
+                elif k == 1: col = WOOD[min(5, base + 1)]
+                elif k == w - 1: col = WOOD[base - 1]
+                elif (y * 7 + (x + k) * 3 + seed) % 23 == 0: col = WOOD[base - 1]          # damar
+                if worn and (y + k) % 9 == 0 and 1 < k < w - 1: col = WOOD[min(5, base + 1)]
+                if x + k < c.w: c.put(x + k, y, col)
+        if x + 3 < c.w:
+            c.put(x + 3, y0 + 3, WOOD[0]); c.put(x + 3, y1 - 4, WOOD[0])
+        x += w
 
-def pier_mid():
+def pier_mid(seed=1, posts=False):
     c = Canvas(32, 64)
-    pier_plank_rows(c, 4, 56, 1)
-    for x in range(32):                          # üst / alt kiriş kenarı (kalınlık)
-        c.put(x, 56, WOOD[1]); c.put(x, 57, WOOD[0]); c.put(x, 58, WOOD[0])
-        c.put(x, 3, WOOD[5]); 
+    pier_plank_rows(c, 6, 56, seed)
+    for x in range(32):
+        c.put(x, 56, WOOD[1]); c.put(x, 57, WOOD[0]); c.put(x, 58, WOOD[0])            # ön kalınlık
+        c.put(x, 5, WOOD[4])
+    for (px_, py_) in (((2, 6), (2, 54)) if posts else ()):                               # kazık başları (sadece kazıklı parçada)
+        c.ellipse(px_ + 1, py_, 3, 2.5, lambda x, y, py_=py_: WOOD[4] if y < py_ else WOOD[2])
+        c.ellipse(px_ + 1, py_ - 1, 1.5, 1, lambda x, y: WOOD[5])
     return c.im
 
 def pier_end():
     """Uç parça: sağ ucu kapalı, iki kazık."""
     c = Canvas(32, 64)
-    for x in range(0, 28):
-        for y in range(4, 56):
-            c.put(x, y, pier_mid_cache.getpixel((x, y)))
-    for y in range(4, 56): c.put(28, y, WOOD[1]); c.put(29, y, WOOD[0])
-    for x in range(28): c.put(x, 56, WOOD[1]); c.put(x, 57, WOOD[0]); c.put(x, 58, WOOD[0]); c.put(x, 3, WOOD[5])
-    for py in (6, 50):                           # kazıklar
-        c.ellipse(26, py, 5, 4, lambda x, y: WOOD[4] if y < py else WOOD[2])
-        c.ellipse(26, py - 1, 3, 2, lambda x, y: WOOD[5])
+    pier_plank_rows(c, 6, 56, 2)
+    for y in range(64):
+        for x in range(28, 32): c.put(x, y, (0, 0, 0, 0))
+    for y in range(6, 59): c.put(27, y, WOOD[1])
+    for x in range(28):
+        c.put(x, 56, WOOD[1]); c.put(x, 57, WOOD[0]); c.put(x, 58, WOOD[0]); c.put(x, 5, WOOD[4])
+    for (px_, py_) in ((2, 6), (2, 54), (25, 6), (25, 54)):
+        c.ellipse(px_ + 1, py_, 3, 2.5, lambda x, y, py_=py_: WOOD[4] if y < py_ else WOOD[2])
+        c.ellipse(px_ + 1, py_ - 1, 1.5, 1, lambda x, y: WOOD[5])
     return c.im
 
 def shadow(im):
@@ -293,12 +298,15 @@ def shadow(im):
     return c.im
 
 def with_outline(im):
-    c = Canvas(*im.size); c.im.paste(im); c.px = c.im.load(); c.outline(); return c.im
+    c = Canvas(*im.size); c.im.paste(im); c.px = c.im.load(); c.outline(); return soften(c.im)
 
 if __name__ == '__main__':
     f = fountain(); f.save(os.path.join(OUT, 'fountain_ornate.png'))
     f = fountain_cozy(); f.save(os.path.join(OUT, 'fountain.png'))
     pier_mid_cache = pier_mid(); pm = shadow(with_outline(pier_mid_cache)); pm.save(os.path.join(OUT, 'pier_mid.png'))
+    pms = [shadow(with_outline(pier_mid(sd))) for sd in (1, 3, 5)]
+    for i, im_ in enumerate(pms[1:], 2): im_.save(os.path.join(OUT, f'pier_mid_{i}.png'))
+    pp = shadow(with_outline(pier_mid(7, posts=True))); pp.save(os.path.join(OUT, 'pier_post.png'))
     pe = shadow(with_outline(pier_end())); pe.save(os.path.join(OUT, 'pier_end.png'))
     # önizleme
     import importlib.util
@@ -311,7 +319,7 @@ if __name__ == '__main__':
             else: t = g.WATER_T[r.randrange(8)]
             sc.paste(t, (tx * T, ty * T))
     sc.alpha_composite(f, (3 * T - 8, 1 * T))
-    for i in range(7): sc.alpha_composite(pm, ((8 + i) * T, 3 * T))
+    for i in range(7): sc.alpha_composite(pp if i == 3 else pms[i % 3], ((8 + i) * T, 3 * T))
     sc.alpha_composite(pe, (15 * T, 3 * T))
     sc.resize((sc.width * 3, sc.height * 3), Image.NEAREST).save(os.path.join(OUT, 'onizleme.png'))
     print('ok')

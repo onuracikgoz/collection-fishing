@@ -16,8 +16,8 @@ G = [hx(c) for c in ('#2a4d24', '#36652d', '#427a34', '#4b8a37', '#56973d', '#62
 D = [hx(c) for c in ('#5a3a22', '#74502f', '#8a6039', '#9a6c42', '#a6784b', '#b48654', '#c1935e')]
 SN = [hx(c) for c in ('#7f97b0', '#a3b9cd', '#c4d6e4', '#dfeaf2', '#f4f9fc', '#ffffff')]   # kar: mavimsi gölgeler, beyaz tepe
 SAND = [hx(c) for c in ('#b08a58', '#c9a46c', '#dcbd84', '#e8cc96', '#f1dba8', '#f9ecc6')]
-WATER = [hx(c) for c in ('#1c566f', '#276f89', '#3186a0', '#4099ae', '#5db3bf', '#93d3d6')]
-PAVE = [hx(c) for c in ('#5e4d45', '#7e6a5c', '#9b8672', '#b39c84', '#c8b39a', '#dccbb2')]
+WATER = [hx(c) for c in ('#1f4f63', '#285f72', '#2f6f80', '#3a7d8b', '#5a9ba2', '#9fcfc8')]   # cozy: daha koyu, az doygun
+PAVE = [hx(c) for c in ('#5a4a40', '#7c6656', '#98806a', '#ae967c', '#c3ab8f', '#d6c1a4')]
 STONE = [hx(c) for c in ('#4d4a48', '#7a746c', '#a59d90', '#cbc3b3')]
 FLOWERS = [(hx('#f4eed2'), hx('#f2c94c')), (hx('#f2c94c'), hx('#c9772c')), (hx('#e58aa6'), hx('#f6e7a8')), (hx('#a99be8'), hx('#f6e7a8'))]
 
@@ -243,41 +243,56 @@ def sand_tile(variant):
 
 # ---------------- su ----------------
 def water_tile(variant):
-    t = Tex()
+    """Sakin su: düz zemin, sadece iç kısımda çeşide göre değişen yumuşak leke ve seyrek parıltı (kenar bandı düz, dikiş görünmez)."""
+    t = Tex(); r = random.Random(1000 + variant)
     for y in range(T):
-        for x in range(T):
-            n = pnoise(x, y, 51, ((2, 1.0), (3, 0.8)))
-            i = 2 if n < -0.35 else 4 if n > 0.5 else 3
-            t.put(x, y, WATER[i])
-    r0 = random.Random(900)
-    for x, y in scatter(r0, 4, 0, 0, True):
-        for k in range(4): t.put(x + k, y, WATER[4])
-    r = random.Random(1000 + variant)
-    for i, (x, y) in enumerate(scatter(r, 3 + variant % 3, 7, 25, False)):
-        for k in range(r.choice((3, 4, 5))): t.put(x + k, y, WATER[5] if k in (1, 2) else WATER[4])
-        t.put(x + 1, y + 1, WATER[1])
+        for x in range(T): t.put(x, y, WATER[3])
+    for _ in range(1 + variant % 2):                       # iç kısımda yumuşak koyu leke
+        cx_, cy_ = r.randint(10, 22), r.randint(10, 22); rx_, ry_ = r.randint(4, 7), r.randint(2, 4)
+        for y in range(cy_ - ry_, cy_ + ry_ + 1):
+            for x in range(cx_ - rx_, cx_ + rx_ + 1):
+                if ((x - cx_) / rx_) ** 2 + ((y - cy_) / ry_) ** 2 <= 1: t.put(x, y, WATER[2])
+    for i, (x, y) in enumerate(scatter(r, variant % 3, 6, 24, False)):
+        for k in range(r.choice((3, 4))): t.put(x + k, y, WATER[5] if k == 1 else WATER[4])
     return t
 
 # ---------------- taş döşeme ----------------
+COBBLES = None
+def _cobble_layout():
+    """32 px'te kendini tekrar eden düzensiz parke taşı yerleşimi (periyodik Voronoi). Bütün çeşitlerde aynı: kenarlar tutar."""
+    r = random.Random(1234); pts = []
+    while len(pts) < 7:
+        p = (r.uniform(0, T), r.uniform(0, T))
+        if all(min(abs(p[0] - q[0]), T - abs(p[0] - q[0])) ** 2 + min(abs(p[1] - q[1]), T - abs(p[1] - q[1])) ** 2 > 75 for q in pts): pts.append(p)
+    cell = {}
+    for y in range(T):
+        for x in range(T):
+            ds = []
+            for i, (px_, py_) in enumerate(pts):
+                dx = min(abs(x + .5 - px_), T - abs(x + .5 - px_)); dy = min(abs(y + .5 - py_), T - abs(y + .5 - py_))
+                sx = (x + .5 - px_); sx = sx - T if sx > T / 2 else sx + T if sx < -T / 2 else sx
+                sy = (y + .5 - py_); sy = sy - T if sy > T / 2 else sy + T if sy < -T / 2 else sy
+                ds.append((math.hypot(dx, dy * 1.15), i, sx, sy))
+            ds.sort()
+            cell[(x, y)] = (ds[0][1], ds[1][0] - ds[0][0], ds[0][2], ds[0][3])
+    return cell
+
 def pave_tile(variant):
+    """Yuvarlak, düzensiz parke taşları; aralarda toprak ve yer yer yosun. Işık sol üstten."""
+    global COBBLES
+    if COBBLES is None: COBBLES = _cobble_layout()
     t = Tex(); r = random.Random(1100 + variant)
-    BH, BW = 16, 16
-    for row in range(T // BH):
-        off = (row % 2) * (BW // 2)
-        for col in range(T // BW + 1):
-            x0 = col * BW + off; y0 = row * BH
-            shade = r.choice((2, 3, 3, 4, 4))
-            for y in range(BH):
-                for x in range(BW):
-                    c = PAVE[shade]
-                    if (x in (0, BW - 1) and y in (0, BH - 1)): c = PAVE[1]
-                    elif y == 0 or x == 0: c = PAVE[1]          # harç: sadece koyu çizgi, kabartma yok (zeminle aynı seviye)
-                    t.put(x0 + x, y0 + y, c)
-            if r.random() < 0.25:
-                t.put(x0 + r.randrange(3, BW - 3), y0 + r.randrange(2, BH - 2), PAVE[1])
-            if variant % 2 and r.random() < 0.2:
-                px, py = x0 + r.randrange(3, BW - 4), y0 + r.randrange(2, BH - 2)
-                t.put(px, py, PAVE[5]); t.put(px + 1, py, PAVE[4])
+    shade = [r.choice((2, 3, 3, 4)) for _ in range(7)]
+    moss = {r.randrange(7) for _ in range(variant % 3)}
+    for (x, y), (i, gap, sx, sy) in COBBLES.items():
+        if gap < 1.3:
+            c = G[2] if i in moss and (x + y) % 2 else PAVE[1]            # derz: toprak, bazen yosun
+        else:
+            b = shade[i]
+            if sx < -1.5 and sy < -1: b += 1                          # sol üst kenar ışık alır
+            if sx > 1.5 and sy > 1 or gap < 2.2 and sy > 0: b -= 1     # sağ alt gölge
+            c = PAVE[max(1, min(5, b))]
+        t.put(x, y, c)
     return t
 
 NV = 8
@@ -319,7 +334,7 @@ def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
     """Köşe bitleri: 1 = lower. Upper dokusu lower'ın üstüne taşar; kenarda gölge ve açık uç."""
     gi = di = (vi * 3) % NV
     lo, up = MAT[lower], MAT[upper]
-    amp = {'snow': 0.6, 'pave': 0.07, 'sand': 0.5}.get(upper, 0.42)      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
+    amp = {'snow': 0.6, 'pave': 0.3, 'sand': 0.5}.get(upper, 0.42)      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
     d, g = lo['tiles'][di].load(), up['tiles'][gi].load()
     LP, UP = lo['pal'], up['pal']
     im = Image.new('RGBA', (T, T)); px = im.load()
