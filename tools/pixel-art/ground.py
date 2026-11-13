@@ -236,14 +236,14 @@ def smooth(u): return u * u * (3 - 2 * u)
 def wang_tile(lower, upper, nw, ne, sw, se, gi=0, di=0):
     """Köşe bitleri: 1 = lower. Upper dokusu lower'ın üstüne taşar; kenarda gölge ve açık uç."""
     lo, up = MAT[lower], MAT[upper]
-    amp = 0.42 if upper == 'snow' else 0.2      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
+    amp = 0.28 if upper == 'snow' else 0.2      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
     d, g = lo['tiles'][di].load(), up['tiles'][gi].load()
     LP, UP = lo['pal'], up['pal']
     im = Image.new('RGBA', (T, T)); px = im.load()
     def is_lower(x, y):
-        u, v = smooth((x + 0.5) / T), smooth((y + 0.5) / T)
+        u, v = (x + 0.5) / T, (y + 0.5) / T          # doğrusal: gürültü kenarı kıvırsın, sivri kanca çıkmasın
         m = (nw * (1 - u) * (1 - v) + ne * u * (1 - v) + sw * (1 - u) * v + se * u * v)
-        return m + amp * pnoise(x, y, 77, ((2, 1.0), (3, 0.8), (4, 0.6), (6, 0.35))) > 0.5
+        return m + amp * pnoise(x, y, 77, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) > 0.5
     mask = [[is_lower(x, y) for x in range(T)] for y in range(T)]
     def M(x, y):
         return mask[min(T - 1, max(0, y))][min(T - 1, max(0, x))]
@@ -296,18 +296,25 @@ def render_map(pair, vertices, wt, ht, seed=5):
             im.paste(tile, (tx * T, ty * T))
     return im
 
+def blob(cx, cy, rx, ry, seed):
+    """Düzensiz leke: köşe ızgarasında 1/0. Gerçek haritada kenar böyle kıvrıla kıvrıla gider."""
+    r = random.Random(seed); ph = [r.random() * 6.283 for _ in range(3)]
+    def f(x, y):
+        a = math.atan2((y - cy) / ry, (x - cx) / rx); d = math.hypot((x - cx) / rx, (y - cy) / ry)
+        return 1 if d < 1 + 0.28 * math.sin(3 * a + ph[0]) + 0.18 * math.sin(5 * a + ph[1]) + 0.1 * math.sin(2 * a + ph[2]) else 0
+    return f
+
 def preview():
-    W_, H_ = 24, 11
-    def lower(x, y):                      # toprak yol + çimen
+    H_ = 11
+    def road(x, y):
         if 8 <= x <= 10 and y <= 7: return 1
         if 2 <= x <= 17 and 7 <= y <= 11: return 1
         return 0
-    a = render_map('cimen-toprak', lower, 12, H_)
-    snow_edge = lambda x, y: 1 if x < 5 + (y % 3 == 0) + (y > 6) else 0   # sol yarı çimen, sağ kar
-    b = render_map('kar-cimen', lambda x, y: 1 if x <= 3 + (y > 5) else 0, 6, H_, 9)
-    c = render_map('kar-toprak', lambda x, y: 1 if (x <= 3 and y > 2) else 0, 6, H_, 11)
-    sc = Image.new('RGBA', (24 * T, H_ * T))
-    sc.paste(a, (0, 0)); sc.paste(b, (12 * T, 0)); sc.paste(c, (18 * T, 0))
+    a = render_map('cimen-toprak', road, 12, H_)
+    b = render_map('kar-cimen', lambda x, y: 1 - blob(4, 5.5, 2.9, 3.6, 3)(x, y), 8, H_, 9)      # 1 = çimen
+    c = render_map('kar-toprak', blob(4, 5.5, 2.4, 3.5, 5), 8, H_, 11)                            # 1 = toprak yamağı
+    sc = Image.new('RGBA', (28 * T, H_ * T))
+    sc.paste(a, (0, 0)); sc.paste(b, (12 * T, 0)); sc.paste(c, (20 * T, 0))
     sc.save(os.path.join(OUT, 'zemin-sahne-1x.png'))
     sc.resize((sc.width * 2, sc.height * 2), Image.NEAREST).save(os.path.join(OUT, 'zemin-sahne-2x.png'))
 
