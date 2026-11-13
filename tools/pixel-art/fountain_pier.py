@@ -156,6 +156,97 @@ def fountain():
 
     return c.im
 
+RSTONE = [hx(c) for c in ('#55423a', '#765c4a', '#94785e', '#ae9272', '#c4a986', '#d9c2a0')]
+MOSS = [hx(c) for c in ('#36652d', '#4b8a37', '#62a244', '#7cb956')]
+RWATER = [hx(c) for c in ('#225f78', '#2f7790', '#3e8ea3', '#62adb9', '#a4dcdc')]
+PINK, YEL, CREAM = hx('#e58aa6'), hx('#f2c94c'), hx('#f4eed2')
+
+def fountain_cozy():
+    """Köy çeşmesi: düzensiz taşlardan yuvarlak havuz, yosun, tek taş kase, çiçek öbekleri. Sonda yumuşatma."""
+    W, H = 80, 84; c = Canvas(W, H); cx = 40
+    cy, rx, ry, wall = 58, 31, 14, 9
+    rng = random.Random(7)
+    shade = {}
+    def stone_col(a, row, ystep, base):
+        n = 26 if row % 2 == 0 else 27
+        seg = a / 360 * n + (0.5 if row % 2 else 0)
+        idx = int(seg) % n; f = seg - int(seg)
+        key = (row, idx)
+        if key not in shade: shade[key] = rng.choice((-1, 0, 0, 1))
+        if f < 0.09 or ystep: return RSTONE[0] if base < 3 else RSTONE[1]       # derz
+        return RSTONE[max(1, min(5, base + shade[key]))]
+    # duvar: iki sıra taş
+    for off in range(wall, 0, -1):
+        row = 0 if off <= wall // 2 else 1
+        def wfn(x, y, off=off, row=row):
+            a = math.degrees(math.atan2((y + .5 - cy - off) / ry, (x + .5 - cx) / rx)) % 360
+            light = 3 if 100 < a < 200 else 2 if a < 60 else 2
+            if a < 40 or a > 330: light = 1
+            return stone_col(a, row, off == wall // 2 + 1, light)
+        c.ellipse(cx, cy + off, rx, ry, wfn)
+    # üst kenar (kalın taş halka)
+    def rim(x, y):
+        a = math.degrees(math.atan2((y + .5 - cy) / ry, (x + .5 - cx) / rx)) % 360
+        return stone_col(a, 2, False, 4 if 150 < a < 290 else 3)
+    c.ellipse(cx, cy, rx, ry, rim)
+    c.ellipse(cx, cy + 1, rx - 5, ry - 4, lambda x, y: RSTONE[1])                    # iç duvar
+    def pool(x, y):
+        d = math.hypot((x + .5 - cx) / (rx - 6), (y + .5 - cy - 2) / (ry - 5))
+        col = RWATER[2]
+        if y < cy - (ry - 5) * .35: col = RWATER[1]
+        if y < cy - (ry - 5) * .7: col = RWATER[0]
+        if .55 < d < .7 and (x + y) % 3: col = RWATER[3]
+        return col
+    c.ellipse(cx, cy + 2, rx - 6, ry - 5, pool)
+    # nilüfer yaprakları
+    for (lx, ly) in ((cx - 15, cy + 4), (cx + 17, cy + 1)):
+        c.ellipse(lx, ly, 3.2, 1.8, lambda x, y: MOSS[2] if y < ly else MOSS[1])
+        c.put(lx + 1, ly - 1, RWATER[2])
+    c.put(cx - 15, cy + 3, PINK); c.put(cx - 14, cy + 3, CREAM)
+    # orta: taş sütun + tek kase + oluk
+    for y in range(cy - 26, cy + 2):
+        for x in range(cx - 6, cx + 7):
+            t = (x - cx) / 6; row = (y - (cy - 26)) // 4
+            col = RSTONE[4 if t < -.3 else 2 if t > .4 else 3]
+            if (y - (cy - 26)) % 4 == 0 or (x + row * 3) % 6 == 0: col = RSTONE[1]
+            c.put(x, y, col)
+    c.ellipse(cx, cy + 1, 8, 3, lambda x, y: RSTONE[2])
+    by = cy - 28
+    for off in range(5, 0, -1):
+        f = 1 - .35 * off / 5
+        c.ellipse(cx, by + off, 15 * f, 6 * f, lambda x, y: RSTONE[2] if x > cx + 3 else RSTONE[3])
+    c.ellipse(cx, by, 15, 6, lambda x, y: RSTONE[5] if (x < cx and y < by) else RSTONE[4])
+    c.ellipse(cx, by + .5, 12, 4.2, lambda x, y: RWATER[0] if y < by - 1 else RWATER[2])
+    c.ellipse(cx - 3, by, 4, 1.2, lambda x, y: RWATER[3])
+    # kaseden taşan su (iki ince akış)
+    for side in (-1, 1):
+        x0 = cx + side * 13
+        for k in range(0, 24):
+            xx = x0 + side * (1 if k > 3 else 0) + side * (1 if k > 10 else 0)
+            c.put(xx, by + 3 + k, RWATER[4] if k % 3 else RWATER[3])
+        for dx in (-2, 0, 2): c.put(x0 + side * 2 + dx, by + 27, RWATER[4])
+    # tepede küçük oluk (taş topuz)
+    c.ellipse(cx, by - 4, 3, 3, lambda x, y: RSTONE[4] if x < cx else RSTONE[3])
+    c.put(cx, by - 8, RWATER[4]); c.put(cx - 1, by - 7, RWATER[3]); c.put(cx + 1, by - 7, RWATER[3])
+    # yosun: kenarın üstünde ve duvar dibinde öbekler
+    for a in (190, 215, 240, 290, 315, 20, 110, 135, 160):
+        x = int(cx + rx * .93 * math.cos(math.radians(a))); y = int(cy + ry * .93 * math.sin(math.radians(a)))
+        for dx in range(-3, 4):
+            if rng.random() < .8: c.put(x + dx, y + (abs(dx) > 1), MOSS[1 + (dx < 0)])
+        c.put(x, y - 1, MOSS[3])
+    for a in (40, 70, 100, 140):
+        x = int(cx + rx * math.cos(math.radians(a))); y = int(cy + wall + ry * math.sin(math.radians(a)))
+        for dx in range(-4, 5):
+            c.put(x + dx, y - (1 if abs(dx) < 2 else 0), MOSS[1 if dx % 2 else 2])
+    # çiçek öbekleri (önde sol ve sağ)
+    for (fx, fy) in ((cx - 30, cy + 16), (cx + 29, cy + 15)):
+        c.ellipse(fx, fy, 7, 4, lambda x, y: MOSS[1] if y > fy else MOSS[2])
+        for (dx, dy, col) in ((-3, -2, PINK), (0, -3, YEL), (3, -1, PINK), (-1, 0, CREAM), (4, -3, YEL), (-5, 0, YEL)):
+            c.put(fx + dx, fy + dy, col); c.put(fx + dx, fy + dy + 1, MOSS[0])
+    c.outline()
+    c.im = soften(c.im); c.px = c.im.load()
+    return c.im
+
 def pier_plank_rows(c, y0, y1, seed):
     """Dikey tahtalar (iskelenin ekseni yatay, tahtalar karşıya dizili)."""
     r = random.Random(seed)
@@ -205,7 +296,8 @@ def with_outline(im):
     c = Canvas(*im.size); c.im.paste(im); c.px = c.im.load(); c.outline(); return c.im
 
 if __name__ == '__main__':
-    f = fountain(); f.save(os.path.join(OUT, 'fountain.png'))
+    f = fountain(); f.save(os.path.join(OUT, 'fountain_ornate.png'))
+    f = fountain_cozy(); f.save(os.path.join(OUT, 'fountain.png'))
     pier_mid_cache = pier_mid(); pm = shadow(with_outline(pier_mid_cache)); pm.save(os.path.join(OUT, 'pier_mid.png'))
     pe = shadow(with_outline(pier_end())); pe.save(os.path.join(OUT, 'pier_end.png'))
     # önizleme
@@ -218,7 +310,7 @@ if __name__ == '__main__':
             elif tx < 9: t = g.GRASS[r.randrange(8)]
             else: t = g.WATER_T[r.randrange(8)]
             sc.paste(t, (tx * T, ty * T))
-    sc.alpha_composite(f, (3 * T - 6, 1 * T - 12))
+    sc.alpha_composite(f, (3 * T - 8, 1 * T))
     for i in range(7): sc.alpha_composite(pm, ((8 + i) * T, 3 * T))
     sc.alpha_composite(pe, (15 * T, 3 * T))
     sc.resize((sc.width * 3, sc.height * 3), Image.NEAREST).save(os.path.join(OUT, 'onizleme.png'))
