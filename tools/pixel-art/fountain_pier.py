@@ -4,6 +4,8 @@
 """
 import math, os, random
 from PIL import Image
+import sys; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from soften import soften
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'client', 'Assets', 'Art', 'Custom', 'Plaza')
 os.makedirs(OUT, exist_ok=True)
@@ -144,9 +146,7 @@ def fountain():
         c.put(cx + dx, cy + dy, AQUA[3] if k % 2 == 0 else AQUA[2])
 
     c.outline()
-    for y in range(H):                                                              # kontur rengi: koyu mor
-        for x in range(W):
-            if c.px[x, y] == OUTLINE: c.px[x, y] = OUT_C
+    c.im = soften(c.im); c.px = c.im.load()
     # --- yerdeki ıslaklık ve dalga halkaları ---
     for ang in range(0, 181, 6):
         for rr, col in ((1.12, AQUA[1]), (1.22, AQUA[2])):

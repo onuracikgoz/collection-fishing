@@ -16,6 +16,7 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 - AI yalnız eşya ikonlarında kullanılır. Tile, bina ve harita parçalarında kullanılmaz: tile kenarları birbirine oturmalı ve LPC'nin ışık / perspektifiyle uyuşmalı.
 - **Deneme (01.11.2026, Onur):** kodla çizilen bina. Yel değirmeni bir script ile (basit 3D şekiller, 3/4 açı, palet tonları) piksel piksel üretilir: `tools/pixel-art/windmill.py` → `client/Assets/Art/Custom/Windmill/`. Oyunda nasıl durduğuna bakılıp kalıp kalmayacağına karar verilecek. Renkler henüz Resurrect 64'e çekilmedi.
 - **Zemin (13.11.2026, Onur):** çimen, toprak ve kar tile'ları kodla çizilir: `tools/pixel-art/ground.py` → `client/Assets/Art/Custom/Ground/` (32 px dikişsiz dokular ×8 çeşit, çimen-toprak / kar-çimen / kar-toprak için 16'şar parçalık köşe tabanlı geçiş). Çimen onaylandı. Kar, kum, su ve taş döşeme de aynı dosyada; her geçişten 3 çeşit, kenarlar çeşitler arasında ortak. Geçişler: çimen-toprak, kar-çimen, kar-toprak, kum-çimen, kum-su, taş-çimen, taş-kum. Henüz haritaya bağlı değil.
+- **Yumuşatma (13.11.2026, Onur):** kodla çizilen parçalar sert, "cetvelle çizilmiş" durmasın diye son adımda `tools/pixel-art/soften.py` uygulanır: seçici kontur (dış hat yüzeyin kendi renginin koyusu), merdiven köşelerinde ara ton, zıt iç sınırlarda ince geçiş. İlk uygulanan: çeşme (`tools/pixel-art/fountain_pier.py`).
 - Eşyalar: AI (Perchance), her eşya ayrı görsel → Item Art Studio (arka plan silme, 128×128, palete çekme) → ortak palet.
 
 ## Tutarlılık kuralları
