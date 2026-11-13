@@ -249,7 +249,7 @@ def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
     def is_lower(x, y):
         u, v = (x + 0.5) / T, (y + 0.5) / T          # doğrusal: gürültü kenarı kıvırsın, sivri kanca çıkmasın
         m = (nw * (1 - u) * (1 - v) + ne * u * (1 - v) + sw * (1 - u) * v + se * u * v)
-        return m + amp * win(u, v) * pnoise(x, y, 77 + vi * 13, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) > 0.5
+        return m + 0.4 * amp * pnoise(x, y, 77, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) + amp * win(u, v) * pnoise(x, y, 77 + vi * 13, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) > 0.5
     mask = [[is_lower(x, y) for x in range(T)] for y in range(T)]
     def M(x, y):
         return mask[min(T - 1, max(0, y))][min(T - 1, max(0, x))]
