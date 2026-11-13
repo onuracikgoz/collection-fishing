@@ -70,73 +70,83 @@ def lamp():
             if 6 < d < 10: hp[x, y] = (246, 207, 110, int(70 * (1 - (d - 6) / 4)))
     halo.alpha_composite(im); return halo
 
-def bench():
-    """Ahşap bank, 3/4 açı: arkalık geride ve hafif yatık, oturağın üst yüzü görünür, ön kalınlık,
-    yan kol tahtaları, ön ve arka ayaklar, yerde gölge. 50x42."""
-    W, H = 50, 42; c = Canvas(W, H)
-    def plank(x0, x1, y0, rows, base, top_light=True):
-        for i, y in enumerate(range(y0, y0 + rows)):
-            for x in range(x0, x1):
-                col = WOOD[base]
-                if i == 0 and top_light: col = WOOD[min(5, base + 1)]
-                if i == rows - 1: col = WOOD[base - 1]
-                if (x * 7 + y * 3) % 19 == 0: col = WOOD[base - 1]
-                c.put(x, y, col)
-    # yerdeki gölge (oturağın altı ve arkası)
+# --- Mobilya: "önden-üst" bakış (top-down oblique). Kural: üst yüz açık, ön yüz koyu, aralarında koyu çizgi,
+#     her şeyin etrafında kalın koyu kahve kontur, perspektif daralması yok, 2-3 ton. ---
+LINE = hx('#3a2418')
+FW = [hx(c) for c in ('#5c3a22', '#7a4e2c', '#9a6638', '#b9804a', '#d29d62')]   # 0 koyu ön .. 4 parlak kenar
+
+def rect(c, x0, y0, x1, y1, col):
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1): c.put(x, y, col)
+
+def box(c, x0, y0, x1, y1, col, line=True):
+    rect(c, x0, y0, x1, y1, col)
+    if line:
+        for x in range(x0, x1 + 1): c.put(x, y0, LINE); c.put(x, y1, LINE)
+        for y in range(y0, y1 + 1): c.put(x0, y, LINE); c.put(x1, y, LINE)
+
+def ground_shadow(W, H, cx, cy, rx, ry):
     sh = Image.new('RGBA', (W, H), (0, 0, 0, 0)); sp = sh.load()
-    for y in range(26, 42):
-        for x in range(0, W):
-            d = ((x + .5 - 27) / 23) ** 2 + ((y + .5 - 34) / 5.5) ** 2
-            if d <= 1: sp[x, y] = (30, 22, 18, 85 if d < .6 else 45)
-    # arka ayaklar (oturağın arkasında, daha yukarıda)
-    for x0 in (9, 41):
-        for y in range(20, 30): c.put(x0, y, WOOD[1]); c.put(x0 + 1, y, WOOD[0])
-    # arkalık dikmeleri ve iki tahta (biraz geriye yatık: üst tahta 1 px sağa kayık değil, daha koyu)
-    for x0 in (9, 41):
-        for y in range(2, 20): c.put(x0, y, WOOD[2]); c.put(x0 + 1, y, WOOD[1])
-    plank(6, 46, 3, 5, 3)
-    plank(6, 46, 10, 5, 3)
-    for x in range(6, 46): c.put(x, 8, WOOD[0]); c.put(x, 9, WOOD[1])          # tahta arası gölge
-    # oturak üst yüzü: 3 tahta, yukarıdan görünür (açık)
-    for k, y0 in enumerate((17, 20, 23)):
-        plank(4, 46, y0, 3, 4 if k < 2 else 3)
-        for x in range(4, 46): c.put(x, y0 + 2, WOOD[2])                          # tahtalar arası derz
-    # oturak ön kalınlığı
-    for x in range(4, 46): c.put(x, 26, WOOD[2]); c.put(x, 27, WOOD[1])
-    for x in (8, 25, 42): c.put(x, 18, WOOD[1]); c.put(x, 21, WOOD[1]); c.put(x, 24, WOOD[1])   # çiviler
-    # yan kol tahtaları (uçlarda, derinlik verir)
-    for x0, light in ((2, True), (46, False)):
-        for y in range(13, 28):
-            c.put(x0, y, WOOD[3] if light else WOOD[1]); c.put(x0 + 1, y, WOOD[2] if light else WOOD[0])
-        for x in range(x0 - 1, x0 + 3): c.put(x, 12, WOOD[4])                     # kol üstü
-    # ön ayaklar (öne çıkık, yan yüzü görünür)
-    for x0 in (4, 42):
-        for y in range(28, 37):
-            c.put(x0, y, WOOD[3]); c.put(x0 + 1, y, WOOD[2]); c.put(x0 + 2, y, WOOD[1])
-        for x in range(x0, x0 + 3): c.put(x, 37, WOOD[0])
-    im = finish(c)
-    sh.alpha_composite(im); return sh
+    for y in range(H):
+        for x in range(W):
+            if ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 <= 1: sp[x, y] = (20, 40, 15, 70)
+    return sh
+
+def bench():
+    """Bank: arkalık (ön yüz), oturak üst yüzü (açık), oturak ön yüzü (koyu), dört ayak. 48x34."""
+    W, H = 48, 34; c = Canvas(W, H)
+    # arkalık: iki tahta, ön yüzü görünür; üst kenarında açık şerit
+    box(c, 3, 2, 44, 7, FW[2]); rect(c, 4, 3, 43, 3, FW[4])
+    box(c, 3, 7, 44, 12, FW[2]); rect(c, 4, 8, 43, 8, FW[3])
+    for x in (6, 41):                                                 # arkalık dikmeleri oturağa iner
+        box(c, x - 1, 12, x + 1, 15, FW[1])
+    # oturak üst yüzü (açık), tahta derzleri
+    box(c, 1, 15, 46, 23, FW[3])
+    rect(c, 2, 16, 45, 16, FW[4])
+    for y in (18, 21):
+        for x in range(2, 46): c.put(x, y, FW[2])
+    # oturak ön yüzü (koyu)
+    box(c, 1, 23, 46, 26, FW[1])
+    # ayaklar: ön yüz koyu, iç kenar daha koyu
+    for x0 in (3, 40):
+        box(c, x0, 26, x0 + 4, 31, FW[1]); rect(c, x0 + 1, 27, x0 + 1, 30, FW[2])
+    for (x, y) in ((6, 19), (24, 19), (41, 19), (6, 22), (24, 22), (41, 22)): c.put(x, y, FW[1])   # çivi
+    sh = ground_shadow(W, H, 24, 30, 23, 4); sh.alpha_composite(c.im); return sh
+
+def ellipse_line(c, cx, cy, rx, ry):
+    """Elipsin dış kenarına kalın kontur (içerden)."""
+    for y in range(int(cy - ry) - 1, int(cy + ry) + 2):
+        for x in range(int(cx - rx) - 1, int(cx + rx) + 2):
+            d = ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2
+            if d <= 1:
+                n = [((x + dx + .5 - cx) / rx) ** 2 + ((y + dy + .5 - cy) / ry) ** 2 > 1 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))]
+                if any(n): c.put(x, y, LINE)
+
+def round_top(c, cx, cy, rx, ry, thick, planks=True):
+    for off in range(thick, 0, -1): c.ellipse(cx, cy + off, rx, ry, lambda x, y: FW[1])   # ön kalınlık (koyu)
+    ellipse_line(c, cx, cy + thick, rx, ry)
+    c.ellipse(cx, cy, rx, ry, lambda x, y: FW[3])
+    c.ellipse(cx - rx * .15, cy - ry * .25, rx * .7, ry * .45, lambda x, y: FW[4] if planks is None else FW[3])
+    if planks:
+        for k in range(-int(rx) + 4, int(rx) - 2, 5):
+            for y in range(int(cy - ry), int(cy + ry) + 1):
+                x = int(cx + k)
+                if ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 < .85: c.put(x, y, FW[2])
+        for x in range(int(cx - rx * .6), int(cx + rx * .2)): c.put(x, int(cy - ry * .6), FW[4])   # parlak kenar
+    ellipse_line(c, cx, cy, rx, ry)
 
 def table_set():
-    """Yuvarlak ahşap masa + iki tabure. 64x40."""
+    """Yuvarlak masa (tek ayak, çapraz taban) + iki tabure. 64x40."""
     W, H = 64, 40; c = Canvas(W, H); cx = 32
-    for y in range(18, 36):                                                    # masa ayağı
-        for x in range(cx - 2, cx + 3): c.put(x, y, WOOD[2] if x < cx + 1 else WOOD[1])
-    c.ellipse(cx, 36, 6, 2, lambda x, y: WOOD[1])
-    for off in range(3, 0, -1): c.ellipse(cx, 14 + off, 15, 7, lambda x, y: WOOD[2])
-    c.ellipse(cx, 14, 15, 7, lambda x, y: WOOD[4] if (x < cx and y < 14) else WOOD[3])
-    for k in range(-12, 13, 5):                                                # tahta çizgileri
-        for y in range(9, 21):
-            x = cx + k
-            if ((x + .5 - cx) / 15) ** 2 + ((y + .5 - 14) / 7) ** 2 < .9: c.put(x, y, WOOD[2])
-    c.ellipse(cx + 3, 12, 2.5, 1.5, lambda x, y: CREAM)                        # fincan
-    c.put(cx + 3, 12, hx('#7a4a26'))
-    for sx in (8, 56):                                                         # tabureler
-        for y in range(29, 37):
-            c.put(sx - 3, y, WOOD[1]); c.put(sx + 3, y, WOOD[1])
-        for off in range(2, 0, -1): c.ellipse(sx, 27 + off, 6, 3, lambda x, y: WOOD[2])
-        c.ellipse(sx, 27, 6, 3, lambda x, y: WOOD[4] if x < sx else WOOD[3])
-    return finish(c)
+    box(c, cx - 2, 16, cx + 2, 31, FW[1]); rect(c, cx - 1, 17, cx - 1, 30, FW[2])          # ayak
+    box(c, cx - 8, 31, cx + 8, 34, FW[1]); rect(c, cx - 7, 32, cx + 7, 32, FW[2])            # taban
+    round_top(c, cx, 12, 17, 8, 3)
+    c.ellipse(cx + 4, 10, 2.5, 1.5, lambda x, y: CREAM); c.put(cx + 4, 10, hx('#7a4a26')) # fincan
+    for sx in (8, 56):                                                                     # tabureler
+        for lx in (sx - 4, sx + 3):
+            box(c, lx, 29, lx + 1, 35, FW[1])
+        round_top(c, sx, 26, 6, 3.2, 2, planks=False)
+    sh = ground_shadow(W, H, 32, 34, 30, 5); sh.alpha_composite(c.im); return sh
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
