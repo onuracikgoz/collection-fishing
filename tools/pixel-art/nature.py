@@ -175,8 +175,16 @@ def pine(seed=11):
 
 def bush(seed=3, flowers=None):
     W, H = 40, 32; c = Canvas(W, H); cx = 20
-    shadow(c, cx + 1, 27, 16, 4)
-    leafy_canopy(c, cx, 16, 16, 12, TREE_PALS['green'], seed, blobs=5)
+    shadow(c, cx + 1, 28, 19, 3.5)                                   # gölge çalının dibinden başlar
+    best = leafy_canopy(c, cx, 18, 16, 11, TREE_PALS['green'], seed, blobs=5)
+    pal = TREE_PALS['green']
+    # dip: alt kenar yere değer (yarım elips taban), alt sıralar koyu; gölge yanlardan taşar
+    for x in range(cx - 15, cx + 16):
+        lim = 26 + int(2.5 * math.sqrt(max(0, 1 - ((x - cx) / 15) ** 2)))
+        ys = [p[1] for p in best if p[0] == x]
+        if not ys: continue
+        for y in range(max(ys), lim + 1): c.put(x, y, pal[1])
+        c.put(x, lim, pal[0])
     if flowers:
         rng = random.Random(seed)
         for _ in range(7):
