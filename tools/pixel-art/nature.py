@@ -6,14 +6,15 @@ import math, os, random, sys
 from PIL import Image
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fountain_pier import Canvas, hx
+from soften import soften
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'client', 'Assets', 'Art', 'Custom', 'Nature')
 LINE = hx('#3a2418')
-LEAF = [hx(c) for c in ('#24452a', '#2f5e2f', '#3f7a36', '#56973d', '#78b34c', '#a2cf63')]
-PINE = [hx(c) for c in ('#1d3a2e', '#24503a', '#2f6744', '#3f8150', '#5e9e5c')]
-BARK = [hx(c) for c in ('#3b2418', '#5a3622', '#7a4e2c', '#9a6638')]
-ROCK = [hx(c) for c in ('#4a4446', '#6b6466', '#8b8483', '#aaa29c', '#c9c1b6')]
-RED, ORANGE, PINK, YEL, CREAM, LILAC = hx('#d1453b'), hx('#e98a3a'), hx('#e58aa6'), hx('#f2c94c'), hx('#f4eed2'), hx('#a99be8')
+LEAF = [hx(c) for c in ('#2c4a32', '#3a5e3c', '#4a7248', '#5c8650', '#71985e', '#88aa6e')]   # yumuşak, az doygun
+PINE = [hx(c) for c in ('#26403a', '#2f5244', '#3b644e', '#4b7658', '#628a68')]
+BARK = [hx(c) for c in ('#3e2a20', '#5a3e2c', '#745238', '#8c6646')]
+ROCK = [hx(c) for c in ('#4e4644', '#665d58', '#7e746c', '#958a7f', '#ab9f91')]
+RED, ORANGE, PINK, YEL, CREAM, LILAC = hx('#b8524a'), hx('#d08a4a'), hx('#d895a6'), hx('#dcbc5c'), hx('#e8e0c8'), hx('#a79bcf')
 
 def shadow(c, cx, cy, rx, ry):
     """Gölgeyi sonraya sakla: kontur gölgenin etrafına çizilmesin."""
@@ -21,10 +22,9 @@ def shadow(c, cx, cy, rx, ry):
 
 def finish(c, outline=True):
     if outline:
+        # renkli kontur: dış hat, komşu yüzeyin koyusu (siyah değil); sert köşeler ara tonla yumuşar
         c.outline()
-        for y in range(c.h):
-            for x in range(c.w):
-                if c.px[x, y] == (46, 30, 24, 255): c.px[x, y] = LINE
+        c.im = soften(c.im, outline_dark=(40, 30, 26), inner=False); c.px = c.im.load()
     sh = Image.new('RGBA', c.im.size, (0, 0, 0, 0))
     if getattr(c, 'shadow', None):
         cx, cy, rx, ry = c.shadow; sp = sh.load()
@@ -49,11 +49,11 @@ def blob_canopy(c, cx, cy, r, seed, pal=LEAF, lobes=7):
             if dy < -.45 and dx < .1: return pal[4]
             return pal[3]
         # küme sınırı koyu çizgi (önce koyu daire, sonra 1 px içten dolgu)
-        c.ellipse(bx, by, br, br * .9, lambda x, y: LINE)
+        c.ellipse(bx, by, br, br * .9, lambda x, y: pal[0])
         c.ellipse(bx, by, br - 1, br * .9 - 1, col)
     for _ in range(int(r * 1.2)):                         # yaprak benekleri
         x = int(cx + rng.uniform(-r * .8, r * .8)); y = int(cy + rng.uniform(-r * .7, r * .2))
-        if c.px[x, y][3] and c.px[x, y] not in (LINE,): c.put(x, y, pal[5] if y < cy else pal[3])
+        if c.px[x, y][3] and c.px[x, y] != pal[0]: c.put(x, y, pal[4] if y < cy else pal[2])
 
 def trunk(c, cx, y0, y1, w):
     for y in range(y0, y1):
@@ -72,7 +72,7 @@ def round_tree(seed=1, fruit=None):
         rng = random.Random(seed + 9)
         for _ in range(9):
             x = int(cx + rng.uniform(-18, 18)); y = int(30 + rng.uniform(-14, 12))
-            if c.px[x, y][3] and c.px[x, y] != LINE:
+            if c.px[x, y][3] and c.px[x, y] != LEAF[0]:
                 c.put(x, y, fruit); c.put(x + 1, y, fruit); c.put(x, y + 1, fruit); c.put(x + 1, y + 1, BARK[1]); c.put(x, y - 1, CREAM)
     return finish(c)
 
@@ -89,7 +89,7 @@ def pine():
                 col = PINE[3] if s < -.25 else PINE[1] if s > .35 else PINE[2]
                 if yy >= y + 4: col = PINE[0] if s > 0 else PINE[1]
                 c.put(x, yy, col)
-        for x in range(cx - w, cx + w + 1): c.put(x, y + 6, LINE)                 # kat alt çizgisi
+        for x in range(cx - w, cx + w + 1): c.put(x, y + 6, PINE[0])              # kat alt çizgisi
         for k in range(-w + 3, w - 2, 4): c.put(cx + k, y + 5, PINE[0])           # dişli kenar
     c.put(cx, 3, PINE[4]); c.put(cx, 4, PINE[3])
     return finish(c)
@@ -102,7 +102,7 @@ def bush(seed=3, flowers=None):
         rng = random.Random(seed)
         for _ in range(7):
             x = int(cx + rng.uniform(-10, 10)); y = int(15 + rng.uniform(-8, 3))
-            if c.px[x, y][3] and c.px[x, y] != LINE:
+            if c.px[x, y][3] and c.px[x, y] != LEAF[0]:
                 col = rng.choice(flowers)
                 for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)): c.put(x + dx, y + dy, col)
                 c.put(x, y, YEL if col != YEL else CREAM)
@@ -118,9 +118,9 @@ def rock(big=True):
     for y in range(int(cy), int(cy + ry + 3)):                                      # üst/ön sınırı
         for x in range(cx - rx, cx + rx + 1):
             if ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / (ry - 1)) ** 2 <= 1 < ((x + .5 - cx) / rx) ** 2 + ((y + 1.5 - cy) / (ry - 1)) ** 2:
-                c.put(x, y + 1, LINE)
+                c.put(x, y + 1, ROCK[0])
     if big:
-        for k in range(5): c.put(cx + 3 + k // 2, int(cy - 2 + k), LINE)            # çatlak
+        for k in range(5): c.put(cx + 3 + k // 2, int(cy - 2 + k), ROCK[1])            # çatlak
         for x in range(cx - rx + 2, cx - rx + 8): c.put(x, int(cy + ry + 1), LEAF[3])  # yosun
     return finish(c)
 
