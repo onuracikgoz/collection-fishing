@@ -236,13 +236,14 @@ def smooth(u): return u * u * (3 - 2 * u)
 def wang_tile(lower, upper, nw, ne, sw, se, gi=0, di=0):
     """Köşe bitleri: 1 = lower. Upper dokusu lower'ın üstüne taşar; kenarda gölge ve açık uç."""
     lo, up = MAT[lower], MAT[upper]
+    amp = 0.42 if upper == 'snow' else 0.2      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
     d, g = lo['tiles'][di].load(), up['tiles'][gi].load()
     LP, UP = lo['pal'], up['pal']
     im = Image.new('RGBA', (T, T)); px = im.load()
     def is_lower(x, y):
         u, v = smooth((x + 0.5) / T), smooth((y + 0.5) / T)
         m = (nw * (1 - u) * (1 - v) + ne * u * (1 - v) + sw * (1 - u) * v + se * u * v)
-        return m + 0.16 * pnoise(x, y, 77, ((2, 1.0), (4, 0.6))) > 0.5
+        return m + amp * pnoise(x, y, 77, ((2, 1.0), (3, 0.8), (4, 0.6), (6, 0.35))) > 0.5
     mask = [[is_lower(x, y) for x in range(T)] for y in range(T)]
     def M(x, y):
         return mask[min(T - 1, max(0, y))][min(T - 1, max(0, x))]
