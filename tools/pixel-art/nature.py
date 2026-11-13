@@ -63,18 +63,82 @@ def trunk(c, cx, y0, y1, w):
     for x in range(cx - w - 1, cx + w + 2): c.put(x, y1 - 1, BARK[1])           # kök kabarması
     c.put(cx - w - 2, y1 - 1, BARK[1]); c.put(cx + w + 2, y1 - 1, BARK[0])
 
-def round_tree(seed=1, fruit=None):
-    W, H = 64, 80; c = Canvas(W, H); cx = 32
-    shadow(c, cx + 2, 74, 20, 5)
-    trunk(c, cx, 44, 76, 4)
-    blob_canopy(c, cx, 30, 26, seed)
+TREE_PALS = {
+    'green':  [hx(c) for c in ('#1f3d2b', '#2c5634', '#3d7038', '#548a3c', '#73a547', '#9cc25a')],
+    'dark':   [hx(c) for c in ('#173326', '#20473a', '#2b5f45', '#3b7a50', '#56945c', '#7cb06c')],
+    'autumn': [hx(c) for c in ('#4a1f1c', '#7a2e22', '#a8462a', '#c96a32', '#e0923f', '#efb760')],
+    'pink':   [hx(c) for c in ('#4f2a3a', '#7c4558', '#a8606e', '#c98284', '#dfa39a', '#efc7b4')],
+}
+
+def _h(x, y, s): return ((x * 374761393 + y * 668265263 + s * 2147483647) & 0xffffffff) / 0xffffffff
+
+def leafy_canopy(c, cx, cy, rx, ry, pal, seed, blobs=6):
+    """Tırtıklı kenarlı yaprak kütlesi: alt kümelerden oluşur, üstten aydınlanır, yaprak kümesi dokusu taşır."""
+    rng = random.Random(seed)
+    B = [(cx, cy, rx * .62, ry * .62)]
+    for i in range(blobs):
+        a = 2 * math.pi * i / blobs + rng.uniform(-.3, .3)
+        B.append((cx + rx * .48 * math.cos(a), cy + ry * .42 * math.sin(a) - ry * .05, rx * rng.uniform(.42, .52), ry * rng.uniform(.42, .52)))
+    best = {}
+    for y in range(int(cy - ry) - 3, int(cy + ry) + 4):
+        for x in range(int(cx - rx) - 3, int(cx + rx) + 4):
+            f, bb = -9, None
+            for (bx, by, brx, bry) in B:
+                d = 1 - math.hypot((x + .5 - bx) / brx, (y + .5 - by) / bry)
+                if d > f: f, bb = d, (bx, by, brx, bry)
+            jag = (_h(x // 2, y // 2, seed) - .5) * .22 + (_h(x, y, seed + 1) - .5) * .1
+            if f + jag > 0: best[(x, y)] = (f, bb)
+    for (x, y), (f, (bx, by, brx, bry)) in best.items():
+        nx, ny = (x + .5 - bx) / brx, (y + .5 - by) / bry
+        gy = (y - (cy - ry)) / (2 * ry)                                     # 0 üst .. 1 alt
+        l = -.75 * ny - .35 * nx + .5 * f - .9 * (gy - .45)
+        l += (_h(x // 2, y // 2, seed + 7) - .5) * .18                      # doku: 2x2 kümeler halinde
+        tone = 1 if l < -.55 else 2 if l < -.05 else 3 if l < .45 else 4
+        c.put(x, y, pal[tone])
+    # yaprak kümeleri (küçük ^ biçimli yapraklar): açık yerde daha açık, koyu yerde daha koyu
+    pts = list(best.keys()); rng.shuffle(pts)
+    for (x, y) in pts[: len(pts) // 22]:
+        if best[(x, y)][0] < .1: continue
+        col0 = c.px[x, y]; t = pal.index(col0) if col0 in pal else 2
+        up = pal[min(5, t + 1)] if t >= 3 or rng.random() < .55 else pal[max(1, t - 1)]
+        for dx, dy in ((0, 0), (-1, 1), (1, 1), (-2, 2), (2, 2), (0, 1)):       # yaprak: ^ biçimi, 5 px geniş
+            if (x + dx, y + dy) in best: c.put(x + dx, y + dy, up)
+        if (x, y + 2) in best: c.put(x, y + 2, pal[max(1, t - 1)])
+    for _ in range(2):                                                      # tek başına kalan uç pikselleri temizle
+        for p in [p for p in best if sum((p[0] + dx, p[1] + dy) in best for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))) < 2]:
+            best.pop(p); c.put(p[0], p[1], (0, 0, 0, 0))
+    # koyu yeşil kontur ve alt kenar gölgesi
+    for (x, y) in best:
+        if any((x + dx, y + dy) not in best for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))): c.put(x, y, pal[0])
+        elif (x, y + 2) not in best: c.put(x, y, pal[1])
+    return best
+
+def roots_trunk(c, cx, y0, y1, w=4):
+    """Kısa gövde ve yere yayılan kökler (örnekteki gibi)."""
+    for y in range(y0, y1):
+        for x in range(cx - w, cx + w + 1):
+            t = (x - cx) / w
+            c.put(x, y, BARK[3] if t < -.35 else BARK[1] if t > .35 else BARK[2])
+    for side, length, dy in ((-1, 10, 0), (1, 10, 0), (-1, 6, -3), (1, 7, -2), (0, 0, 0)):
+        for k in range(length):
+            x = cx + side * (w - 1 + k); y = y1 - 2 + (k * 2 // 5) + dy
+            c.put(x, y - 1, BARK[2] if side < 0 else BARK[1]); c.put(x, y, BARK[1]); c.put(x, y + 1, BARK[0])
+    for x in range(cx - w, cx + w + 1): c.put(x, y1, BARK[1]); c.put(x, y1 + 1, BARK[0])
+    for y in range(y0, y1):                                                  # gövde konturu
+        c.put(cx - w - 1, y, BARK[0]); c.put(cx + w + 1, y, BARK[0])
+
+def round_tree(seed=1, fruit=None, pal='green'):
+    W, H = 72, 80; c = Canvas(W, H); cx = 36
+    shadow(c, cx + 2, 70, 22, 6)
+    roots_trunk(c, cx, 50, 67)
+    leafy_canopy(c, cx, 33, 30, 27, TREE_PALS[pal], seed)
     if fruit:
         rng = random.Random(seed + 9)
-        for _ in range(9):
-            x = int(cx + rng.uniform(-18, 18)); y = int(30 + rng.uniform(-14, 12))
-            if c.px[x, y][3] and c.px[x, y] != LEAF[0]:
-                c.put(x, y, fruit); c.put(x + 1, y, fruit); c.put(x, y + 1, fruit); c.put(x + 1, y + 1, BARK[1]); c.put(x, y - 1, CREAM)
-    return finish(c)
+        for _ in range(10):
+            x = int(cx + rng.uniform(-22, 22)); y = int(33 + rng.uniform(-18, 16))
+            if c.px[x, y][3] and c.px[x, y] != TREE_PALS[pal][0]:
+                for dx, dy, col in ((0, -1, fruit), (-1, 0, fruit), (0, 0, CREAM), (1, 0, fruit), (0, 1, BARK[1])): c.put(x + dx, y + dy, col)
+    return finish(c, outline=False)
 
 def pine():
     W, H = 48, 84; c = Canvas(W, H); cx = 24
@@ -95,18 +159,18 @@ def pine():
     return finish(c)
 
 def bush(seed=3, flowers=None):
-    W, H = 36, 28; c = Canvas(W, H); cx = 18
-    shadow(c, cx + 1, 24, 15, 3.5)
-    blob_canopy(c, cx, 15, 13, seed, lobes=5)
+    W, H = 40, 32; c = Canvas(W, H); cx = 20
+    shadow(c, cx + 1, 27, 16, 4)
+    leafy_canopy(c, cx, 16, 16, 12, TREE_PALS['green'], seed, blobs=5)
     if flowers:
         rng = random.Random(seed)
         for _ in range(7):
             x = int(cx + rng.uniform(-10, 10)); y = int(15 + rng.uniform(-8, 3))
-            if c.px[x, y][3] and c.px[x, y] != LEAF[0]:
+            if c.px[x, y][3] and c.px[x, y] != TREE_PALS['green'][0]:
                 col = rng.choice(flowers)
                 for dx, dy in ((0, -1), (-1, 0), (1, 0), (0, 1)): c.put(x + dx, y + dy, col)
                 c.put(x, y, YEL if col != YEL else CREAM)
-    return finish(c)
+    return finish(c, outline=False)
 
 def rock(big=True):
     W, H = (40, 30) if big else (22, 18); c = Canvas(W, H); cx = W // 2
@@ -153,7 +217,7 @@ def flower_patch(cols, seed):
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     items = {
-        'tree_round': round_tree(1), 'tree_round_2': round_tree(5), 'tree_apple': round_tree(2, RED), 'tree_orange': round_tree(4, ORANGE),
+        'tree_round': round_tree(1), 'tree_round_2': round_tree(5, pal='dark'), 'tree_apple': round_tree(2, hx('#c0453a')), 'tree_autumn': round_tree(4, pal='autumn'), 'tree_blossom': round_tree(6, pal='pink'),
         'pine': pine(), 'bush': bush(3), 'bush_flower': bush(6, (PINK, CREAM)), 'rock_big': rock(True), 'rock_small': rock(False),
         'stump': stump(), 'flowers_pink': flower_patch((PINK, CREAM), 1), 'flowers_yellow': flower_patch((YEL, CREAM), 2), 'flowers_lilac': flower_patch((LILAC, PINK), 3),
     }
@@ -163,7 +227,7 @@ if __name__ == '__main__':
     T = 32; Wt, Ht = 16, 9; sc = Image.new('RGBA', (Wt * T, Ht * T)); r = random.Random(5)
     for ty in range(Ht):
         for tx in range(Wt): sc.paste(g.GRASS[r.randrange(8)], (tx * T, ty * T))
-    place = [('pine', 8, 10), ('tree_round', 60, 6), ('tree_apple', 140, 30), ('pine', 230, 0), ('tree_orange', 300, 20), ('tree_round_2', 400, 4),
+    place = [('pine', 8, 10), ('tree_round', 60, 6), ('tree_apple', 140, 30), ('pine', 230, 0), ('tree_autumn', 300, 20), ('tree_round_2', 400, 4), ('tree_blossom', 170, 170),
              ('bush', 40, 100), ('bush_flower', 200, 110), ('rock_big', 300, 120), ('rock_small', 360, 140), ('stump', 110, 120), ('bush', 450, 110),
              ('flowers_pink', 30, 150), ('flowers_yellow', 150, 160), ('flowers_lilac', 250, 170), ('flowers_pink', 420, 170), ('rock_small', 470, 60)]
     for name, x, y in sorted(place, key=lambda p: p[2] + items[p[0]].height):
