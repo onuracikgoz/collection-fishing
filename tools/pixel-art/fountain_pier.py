@@ -1,6 +1,6 @@
 """Çeşme ve iskele (kodla piksel piksel, 3/4 açı). docs/tasarim/15-gorsel-stil.md
 Çalıştır: python3 tools/pixel-art/fountain_pier.py -> client/Assets/Art/Custom/Plaza/
-Çeşme: fountain.png (128x128, pivot altta orta). İskele: pier_mid.png, pier_end.png (32x64 parçalar, 2 tile geniş).
+Çeşme: fountain.png (72x100, pivot altta orta). İskele: pier_mid.png, pier_end.png (32x64 parçalar, 2 tile geniş).
 """
 import math, os, random
 from PIL import Image
@@ -37,68 +37,60 @@ def shade_stone(x, cx, rx, base):
     t = (x - cx) / rx
     return STONE[max(0, min(5, base + (1 if t < -0.35 else -1 if t > 0.45 else 0)))]
 
+OUT_C = hx('#484152')
+GOLD = [hx(c) for c in ('#603429', '#794117', '#a16018', '#d19428', '#f4e48d')]
+WHITE = [hx(c) for c in ('#484152', '#726b7e', '#958080', '#c4b59f', '#e3e7d3', '#ebede9')]
+AQUA = [hx(c) for c in ('#2b8fa8', '#3aafc2', '#6cdce7', '#a8f0f2')]
+
 def fountain():
-    W, H = 128, 128; c = Canvas(W, H); cx = 64
-    # zemin gölgesi (yumuşak, yarı saydam)
+    """Üç katlı çeşme: altın kenarlı havuz, gri ayak, beyaz kaseler, turkuaz su. Kendi çizimimiz (LPC'nin 'Fountain A' kompozisyonunu örnek alır)."""
+    W, H = 72, 100; c = Canvas(W, H); cx = 36
+    # dış halkalar (suyun havuzdan taşan dalgası)
+    for ang in range(0, 360, 7):
+        for rr, ch in ((37, 1), (40, 2)):
+            x = int(cx + rr * math.cos(math.radians(ang))); y = int(76 + (rr * .5) * math.sin(math.radians(ang)))
+            if math.sin(math.radians(ang)) > -0.1 and (ang // 7) % 2 == 0: c.put(x, y, AQUA[ch])
+    # havuz: altın duvar + üst kenar + turkuaz su
+    cy, rx, ry, wall = 74, 33, 16, 10
+    for off in range(wall, 0, -1):
+        c.ellipse(cx, cy + off, rx, ry, lambda x, y, off=off: GOLD[1] if off > wall - 2 else GOLD[2] if (x - cx) > -rx * .55 else GOLD[3] if off < 4 else GOLD[2])
+    c.ellipse(cx, cy, rx, ry, lambda x, y: GOLD[4] if y < cy - ry * .55 and x < cx else GOLD[3])
+    c.ellipse(cx, cy + 1, rx - 5, ry - 4, lambda x, y: GOLD[2])                        # iç duvar
+    def pool(x, y):
+        d = math.hypot((x + .5 - cx) / (rx - 6), (y + .5 - (cy + 2)) / (ry - 5))
+        if (int(d * 7) % 2 == 0 and d > .35): return AQUA[2]
+        return AQUA[1]
+    c.ellipse(cx, cy + 2, rx - 6, ry - 5, pool)
+    # ayak ve taban
+    def tier(tcx, tcy, trx, try_, wallh):
+        for off in range(wallh, 0, -1):
+            c.ellipse(tcx, tcy + off, trx, try_, lambda x, y, off=off: WHITE[2] if (x - tcx) > trx * .35 else WHITE[3])
+        c.ellipse(tcx, tcy, trx, try_, lambda x, y: WHITE[5] if y < tcy else WHITE[4])
+        c.ellipse(tcx, tcy + 1, trx - 3, try_ - 2, lambda x, y: AQUA[1])
+        c.ellipse(tcx - 2, tcy, max(2, trx // 2), max(1, try_ // 3), lambda x, y: AQUA[2])
+    def column(tcx, y0, y1, w):
+        for y in range(y0, y1):
+            for x in range(tcx - w, tcx + w + 1):
+                t = (x - tcx) / w; c.put(x, y, WHITE[1] if t > .3 else WHITE[3] if t < -.4 else WHITE[2])
+            if (y - y0) % 4 == 0:
+                for x in range(tcx - w, tcx + w + 1): c.put(x, y, WHITE[0])
+    c.ellipse(cx, cy - 4, 14, 6, lambda x, y: WHITE[4] if y < cy - 4 else WHITE[3])        # taban halkası
+    column(cx, cy - 20, cy - 4, 9)
+    tier(cx, cy - 22, 24, 10, 4)                                                              # 1. kase
+    column(cx, cy - 32, cy - 22, 4)
+    tier(cx, cy - 34, 16, 7, 3)                                                               # 2. kase
+    column(cx, cy - 42, cy - 34, 3)
+    tier(cx, cy - 44, 10, 4, 3)                                                               # 3. kase
+    column(cx, cy - 54, cy - 44, 1)
+    c.put(cx, cy - 56, WHITE[4]); c.put(cx, cy - 55, WHITE[3])
+    # kaselerden süzülen su
+    for (xx, y0, n) in ((cx - 22, cy - 18, 8), (cx + 22, cy - 18, 8), (cx - 14, cy - 29, 7), (cx + 14, cy - 29, 7)):
+        for k in range(n): c.put(xx, y0 + k, AQUA[3] if k % 2 else AQUA[2])
+    c.outline()
+    # dış çizgi rengini çeşmeye uyarla
     for y in range(H):
         for x in range(W):
-            if ((x + .5 - (cx + 6)) / 58) ** 2 + ((y + .5 - 112) / 14) ** 2 <= 1: c.put(x, y, (30, 40, 20, 70))
-    # havuz duvarı (ön yüz) ve üst kenar
-    cy, rx, ry, wall = 88, 54, 30, 12
-    for off in range(wall, -1, -1):
-        c.ellipse(cx, cy + off, rx, ry, lambda x, y, off=off: shade_stone(x, cx, rx, 1 if off > 3 else 2) if off else STONE[4])
-    # taş derzleri duvarda
-    for x in range(cx - rx, cx + rx, 9):
-        for off in range(1, wall):
-            yy = int(cy + off + ry * math.sqrt(max(0, 1 - ((x + .5 - cx) / rx) ** 2)))
-            if 0 <= x < c.w and 0 <= yy < c.h and c.px[x, yy][3]: c.put(x, yy, STONE[0])
-    # üst kenar halkası + su
-    c.ellipse(cx, cy, rx, ry, lambda x, y: STONE[5] if (x - cx) < -rx * .3 and y < cy else STONE[4])
-    rim = 7
-    rng = random.Random(3)
-    def water(x, y):
-        d = math.hypot((x + .5 - cx) / (rx - rim), (y + .5 - cy) / (ry - rim * .6))
-        i = 3 if d < 0.8 else 2
-        if y < cy - (ry - rim * .6) * .55 and d > .6: i = 1          # iç duvar gölgesi (arka kenar)
-        n = (x * 7 + y * 13) % 11
-        if i == 3 and n == 0: i = 4
-        return WATER[i]
-    c.ellipse(cx, cy, rx - rim, ry - rim * .6, water)
-    # dalga halkaları (parıltı yayları)
-    for rr, ph in ((0.5, 0), (0.75, 2), (0.9, 5)):
-        for a in range(0, 360, 6):
-            if (a // 6 + ph) % 3: continue
-            x = int(cx + (rx - rim) * rr * math.cos(math.radians(a))); y = int(cy + (ry - rim * .6) * rr * math.sin(math.radians(a)))
-            if y > cy - 6: c.put(x, y, WATER[5])
-    # orta ayak (gövde)
-    for y in range(cy - 34, cy + 2):
-        for x in range(cx - 8, cx + 9):
-            t = (x - cx) / 8
-            c.put(x, y, STONE[4 if t < -.3 else 2 if t > .35 else 3])
-    c.ellipse(cx, cy + 1, 12, 6, lambda x, y: shade_stone(x, cx, 12, 3))              # taban halkası
-    c.ellipse(cx, cy - 34, 10, 4, lambda x, y: STONE[5])                                   # gövde tepesi
-    # üst kase
-    by = cy - 38
-    for off in range(6, -1, -1):
-        c.ellipse(cx, by + off, 26, 11, lambda x, y, off=off: shade_stone(x, cx, 26, 1 if off > 2 else 2) if off else STONE[5])
-    c.ellipse(cx, by, 21, 8, lambda x, y: WATER[3] if y > by - 3 else WATER[1])
-    c.ellipse(cx - 6, by - 1, 6, 2, lambda x, y: WATER[5])
-    # merkez sütun ve fışkıran su
-    for y in range(by - 20, by):
-        for x in range(cx - 3, cx + 4):
-            t = (x - cx) / 3; c.put(x, y, STONE[4 if t < 0 else 2])
-    c.ellipse(cx, by - 20, 5, 2, lambda x, y: STONE[5])
-    c.put(cx, by - 23, WATER[6]); c.put(cx, by - 22, WATER[5])
-    for side in (-1, 1):                         # yay şeklinde su akışları üst kaseye ve havuza
-        for k in range(0, 22):
-            t = k / 21
-            x = cx + side * (3 + 22 * t); y = by - 21 + 40 * (t - .45) ** 2 * 1.6 + 14 * t - 4
-            c.put(int(x), int(y), WATER[6] if k % 3 else WATER[5]); c.put(int(x), int(y) + 1, WATER[4])
-    for side in (-1, 1):                         # kaseden havuza dökülen perde
-        for k in range(1, 13):
-            x = cx + side * 20; yy = by + 6 + k
-            c.put(x, yy, WATER[5] if k % 2 else WATER[4]); c.put(x + side, yy, WATER[3])
-    c.outline()
+            if c.px[x, y] == OUTLINE: c.px[x, y] = OUT_C
     return c.im
 
 def pier_plank_rows(c, y0, y1, seed):
@@ -163,7 +155,7 @@ if __name__ == '__main__':
             elif tx < 9: t = g.GRASS[r.randrange(8)]
             else: t = g.WATER_T[r.randrange(8)]
             sc.paste(t, (tx * T, ty * T))
-    sc.alpha_composite(f, (3 * T - 32, 1 * T - 20))
+    sc.alpha_composite(f, (3 * T - 4, 1 * T - 8))
     for i in range(7): sc.alpha_composite(pm, ((8 + i) * T, 3 * T))
     sc.alpha_composite(pe, (15 * T, 3 * T))
     sc.resize((sc.width * 3, sc.height * 3), Image.NEAREST).save(os.path.join(OUT, 'onizleme.png'))
