@@ -15,6 +15,9 @@ def hx(s): s = s.lstrip('#'); return tuple(int(s[i:i+2], 16) for i in (0, 2, 4))
 G = [hx(c) for c in ('#2a4d24', '#36652d', '#427a34', '#4b8a37', '#56973d', '#62a244', '#70ad4b')]   # v2: düşük kontrast, nesneler öne çıksın
 D = [hx(c) for c in ('#5a3a22', '#74502f', '#8a6039', '#9a6c42', '#a6784b', '#b48654', '#c1935e')]
 SN = [hx(c) for c in ('#7f97b0', '#a3b9cd', '#c4d6e4', '#dfeaf2', '#f4f9fc', '#ffffff')]   # kar: mavimsi gölgeler, beyaz tepe
+SAND = [hx(c) for c in ('#b08a58', '#c9a46c', '#dcbd84', '#e8cc96', '#f1dba8', '#f9ecc6')]
+WATER = [hx(c) for c in ('#1c566f', '#276f89', '#3186a0', '#4099ae', '#5db3bf', '#93d3d6')]
+PAVE = [hx(c) for c in ('#5c5d66', '#7d7e86', '#9c9da3', '#b8b9bc', '#d0d0cf', '#e9e8e2')]
 STONE = [hx(c) for c in ('#4d4a48', '#7a746c', '#a59d90', '#cbc3b3')]
 FLOWERS = [(hx('#f4eed2'), hx('#f2c94c')), (hx('#f2c94c'), hx('#c9772c')), (hx('#e58aa6'), hx('#f6e7a8')), (hx('#a99be8'), hx('#f6e7a8'))]
 
@@ -213,10 +216,78 @@ def snow_tile(variant):
             f = r.random(); (drift if f < 0.5 else snow_dip if f < 0.85 else sparkle)(t, x, y, r)
     return t
 
+
+# ---------------- kum ----------------
+def sand_tile(variant):
+    t = Tex()
+    for y in range(T):
+        for x in range(T):
+            n = pnoise(x, y, 41, ((2, 1.0), (3, 0.7)))
+            h = random.Random(x * 211 + y * 1789 + 41).random()
+            i = 3
+            if h < 0.10 + 0.06 * n: i = 2
+            elif h > 0.95 - 0.03 * n: i = 4
+            t.put(x, y, SAND[i])
+    r0 = random.Random(700)                      # kenar bandı ortak
+    for x, y in scatter(r0, 4, 0, 0, True):
+        for k in range(3): t.put(x + k, y, SAND[2]); t.put(x + k, y + 1, SAND[1] if k == 1 else SAND[3])
+    r = random.Random(800 + variant)
+    for i, (x, y) in enumerate(scatter(r, 4 + variant % 3, 7, 25, False)):
+        if variant in (2, 5) and i == 0:           # küçük çakıl
+            t.put(x, y, STONE[2]); t.put(x + 1, y, STONE[1]); t.put(x, y - 1, STONE[3]); t.put(x, y + 1, SAND[1])
+        elif variant == 6 and i == 0:              # deniz kabuğu
+            t.put(x, y, hx('#f4eed2')); t.put(x + 1, y, hx('#e58aa6')); t.put(x, y + 1, SAND[1])
+        else:                                      # rüzgar çizgisi
+            for k in range(r.choice((3, 4, 5))): t.put(x + k, y, SAND[2]); t.put(x + k, y + 1, SAND[5] if k == 0 else SAND[3])
+    return t
+
+# ---------------- su ----------------
+def water_tile(variant):
+    t = Tex()
+    for y in range(T):
+        for x in range(T):
+            n = pnoise(x, y, 51, ((2, 1.0), (3, 0.8)))
+            i = 2 if n < -0.35 else 4 if n > 0.5 else 3
+            t.put(x, y, WATER[i])
+    r0 = random.Random(900)
+    for x, y in scatter(r0, 4, 0, 0, True):
+        for k in range(4): t.put(x + k, y, WATER[4])
+    r = random.Random(1000 + variant)
+    for i, (x, y) in enumerate(scatter(r, 3 + variant % 3, 7, 25, False)):
+        for k in range(r.choice((3, 4, 5))): t.put(x + k, y, WATER[5] if k in (1, 2) else WATER[4])
+        t.put(x + 1, y + 1, WATER[1])
+    return t
+
+# ---------------- taş döşeme ----------------
+def pave_tile(variant):
+    t = Tex(); r = random.Random(1100 + variant)
+    BH, BW = 8, 16
+    for row in range(T // BH):
+        off = (row % 2) * (BW // 2)
+        for col in range(T // BW + 1):
+            x0 = col * BW + off; y0 = row * BH
+            shade = r.choice((2, 2, 3, 3, 4))
+            for y in range(BH):
+                for x in range(BW):
+                    c = PAVE[shade]
+                    if y == 0 or x == 0: c = PAVE[0]          # harç
+                    elif y == 1 or x == 1: c = PAVE[min(shade + 1, 5)]   # açık kenar (ışık sol üstten)
+                    elif y == BH - 1: c = PAVE[max(shade - 1, 0)]
+                    t.put(x0 + x, y0 + y, c)
+            if r.random() < 0.25:
+                t.put(x0 + r.randrange(3, BW - 3), y0 + r.randrange(2, BH - 2), PAVE[1])
+            if variant % 2 and r.random() < 0.2:
+                px, py = x0 + r.randrange(3, BW - 4), y0 + r.randrange(2, BH - 2)
+                t.put(px, py, PAVE[5]); t.put(px + 1, py, PAVE[4])
+    return t
+
 NV = 8
 GRASS = [to_img(grass_tile(v)) for v in range(NV)]
 DIRT = [to_img(dirt_tile(v)) for v in range(NV)]
 SNOW = [to_img(snow_tile(v)) for v in range(NV)]
+SAND_T = [to_img(sand_tile(v)) for v in range(NV)]
+WATER_T = [to_img(water_tile(v)) for v in range(NV)]
+PAVE_T = [to_img(pave_tile(v)) for v in range(NV)]
 
 # ---------------- geçiş (Wang, köşe tabanlı) ----------------
 # Her çift: lower = altta kalan malzeme (maske 1), upper = üstüne taşan malzeme (maske 0).
@@ -225,11 +296,18 @@ MAT = {
     'grass': dict(tiles=GRASS, pal=G, seed=77),
     'dirt':  dict(tiles=DIRT,  pal=D, seed=78),
     'snow':  dict(tiles=SNOW,  pal=SN, seed=79),
+    'sand':  dict(tiles=SAND_T, pal=SAND, seed=80),
+    'water': dict(tiles=WATER_T, pal=WATER, seed=81),
+    'pave':  dict(tiles=PAVE_T, pal=PAVE, seed=82),
 }
 PAIRS = {            # dosya adı: (lower, upper)
     'cimen-toprak': ('dirt', 'grass'),
     'kar-cimen':    ('grass', 'snow'),
     'kar-toprak':   ('dirt', 'snow'),
+    'kum-cimen':    ('grass', 'sand'),
+    'kum-su':       ('water', 'sand'),
+    'tas-cimen':    ('grass', 'pave'),
+    'tas-kum':      ('sand', 'pave'),
 }
 
 def win(u, v):
@@ -242,7 +320,7 @@ def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
     """Köşe bitleri: 1 = lower. Upper dokusu lower'ın üstüne taşar; kenarda gölge ve açık uç."""
     gi = di = (vi * 3) % NV
     lo, up = MAT[lower], MAT[upper]
-    amp = 0.6 if upper == 'snow' else 0.42      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
+    amp = {'snow': 0.6, 'pave': 0.07, 'sand': 0.5}.get(upper, 0.42)      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
     d, g = lo['tiles'][di].load(), up['tiles'][gi].load()
     LP, UP = lo['pal'], up['pal']
     im = Image.new('RGBA', (T, T)); px = im.load()
@@ -279,9 +357,9 @@ for name, (lo, up) in PAIRS.items():
             WANG[name][(i, vi)] = wang_tile(lo, up, *bits, vi)
 
 def save_sheets():
-    s = Image.new('RGBA', (T * NV, T * 3))
+    s = Image.new('RGBA', (T * NV, T * 6))
     for i in range(NV):
-        s.paste(GRASS[i], (i * T, 0)); s.paste(DIRT[i], (i * T, T)); s.paste(SNOW[i], (i * T, 2 * T))
+        for row, L in enumerate((GRASS, DIRT, SNOW, SAND_T, WATER_T, PAVE_T)): s.paste(L[i], (i * T, row * T))
     s.save(os.path.join(OUT, 'zemin-cesitler.png'))
     for name in PAIRS:
         w = Image.new('RGBA', (T * 4 * NVAR, T * 4))
