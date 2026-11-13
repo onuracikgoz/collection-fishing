@@ -140,23 +140,38 @@ def round_tree(seed=1, fruit=None, pal='green'):
                 for dx, dy, col in ((0, -1, fruit), (-1, 0, fruit), (0, 0, CREAM), (1, 0, fruit), (0, 1, BARK[1])): c.put(x + dx, y + dy, col)
     return finish(c, outline=False)
 
-def pine():
-    W, H = 48, 84; c = Canvas(W, H); cx = 24
-    shadow(c, cx + 2, 78, 14, 4)
-    trunk(c, cx, 62, 80, 3)
-    for i, (y, w) in enumerate(((52, 20), (40, 16), (28, 12), (16, 8))):         # katlar, alttan üste
-        for yy in range(y - 12, y + 6):
-            t = (yy - (y - 12)) / 18
-            half = int(w * t + 1)
-            for x in range(cx - half, cx + half + 1):
-                s = (x - cx) / max(1, half)
-                col = PINE[3] if s < -.25 else PINE[1] if s > .35 else PINE[2]
-                if yy >= y + 4: col = PINE[0] if s > 0 else PINE[1]
-                c.put(x, yy, col)
-        for x in range(cx - w, cx + w + 1): c.put(x, y + 6, PINE[0])              # kat alt çizgisi
-        for k in range(-w + 3, w - 2, 4): c.put(cx + k, y + 5, PINE[0])           # dişli kenar
-    c.put(cx, 3, PINE[4]); c.put(cx, 4, PINE[3])
-    return finish(c)
+def pine(seed=11):
+    """Çam: alttan üste daralan, kenarları iğne iğne sarkan katlar; koyu yeşil kontur, kökler. Yeni ağaç tarzında."""
+    W, H = 56, 88; c = Canvas(W, H); cx = 28
+    pal = [hx(x) for x in ('#16302a', '#1f4637', '#2a5c42', '#387350', '#4f8c5c', '#6fa66c')]
+    shadow(c, cx + 2, 80, 16, 5)
+    roots_trunk(c, cx, 66, 78, 3)
+    inside = {}
+    tiers = ((68, 23), (54, 19), (41, 15), (29, 11), (18, 7))                 # (alt kenar y, yarı genişlik)
+    for i, (yb, hw) in enumerate(tiers):
+        top = yb - 22 if i < len(tiers) - 1 else 4
+        for y in range(top, yb + 1):
+            t = (y - top) / max(1, yb - top)
+            half = hw * t ** .85
+            for x in range(int(cx - half) - 1, int(cx + half) + 2):
+                d = abs(x + .5 - cx)
+                edge = yb - int(_h(x // 3, i, seed) * 4) - int(3 * (d / max(1, hw)) ** 2)   # sarkan iğne uçları (düzensiz)
+                if d <= half and y <= edge: inside[(x, y)] = (i, t, (x + .5 - cx) / max(1, hw))
+    for (x, y), (i, t, sx) in inside.items():
+        l = -.9 * sx + .6 * (1 - t) - .25 + (_h(x // 2, y, seed) - .5) * .35
+        tone = 1 if l < -.6 else 2 if l < -.1 else 3 if l < .35 else 4
+        if (x, y + 1) not in inside or (x, y + 2) not in inside: tone = min(tone, 2)
+        c.put(x, y, pal[tone])
+    rng = random.Random(seed)
+    for (x, y) in rng.sample(list(inside), len(inside) // 14):                # iğne çizgileri (aşağı eğik)
+        i, t, sx = inside[(x, y)]
+        col = pal[4] if sx < .1 else pal[1]
+        for k in range(3):
+            p = (x + (k if sx > 0 else -k) // 2, y + k)
+            if p in inside: c.put(p[0], p[1], col)
+    for (x, y) in inside:
+        if any((x + dx, y + dy) not in inside for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))): c.put(x, y, pal[0])
+    return finish(c, outline=False)
 
 def bush(seed=3, flowers=None):
     W, H = 40, 32; c = Canvas(W, H); cx = 20
