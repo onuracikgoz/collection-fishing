@@ -220,6 +220,7 @@ SNOW = [to_img(snow_tile(v)) for v in range(NV)]
 
 # ---------------- geçiş (Wang, köşe tabanlı) ----------------
 # Her çift: lower = altta kalan malzeme (maske 1), upper = üstüne taşan malzeme (maske 0).
+NVAR = 3   # her geçiş parçasından 3 çeşit
 MAT = {
     'grass': dict(tiles=GRASS, pal=G, seed=77),
     'dirt':  dict(tiles=DIRT,  pal=D, seed=78),
@@ -231,19 +232,24 @@ PAIRS = {            # dosya adı: (lower, upper)
     'kar-toprak':   ('dirt', 'snow'),
 }
 
+def win(u, v):
+    """Tile kenarında 0: çeşitler yan yana gelse de kenarlar tutar, dalga sadece tile içinde değişir."""
+    return math.sin(math.pi * u) ** 0.5 * math.sin(math.pi * v) ** 0.5
+
 def smooth(u): return u * u * (3 - 2 * u)
 
-def wang_tile(lower, upper, nw, ne, sw, se, gi=0, di=0):
+def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
     """Köşe bitleri: 1 = lower. Upper dokusu lower'ın üstüne taşar; kenarda gölge ve açık uç."""
+    gi = di = (vi * 3) % NV
     lo, up = MAT[lower], MAT[upper]
-    amp = 0.28 if upper == 'snow' else 0.2      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
+    amp = 0.6 if upper == 'snow' else 0.42      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
     d, g = lo['tiles'][di].load(), up['tiles'][gi].load()
     LP, UP = lo['pal'], up['pal']
     im = Image.new('RGBA', (T, T)); px = im.load()
     def is_lower(x, y):
         u, v = (x + 0.5) / T, (y + 0.5) / T          # doğrusal: gürültü kenarı kıvırsın, sivri kanca çıkmasın
         m = (nw * (1 - u) * (1 - v) + ne * u * (1 - v) + sw * (1 - u) * v + se * u * v)
-        return m + amp * pnoise(x, y, 77, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) > 0.5
+        return m + amp * win(u, v) * pnoise(x, y, 77 + vi * 13, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) > 0.5
     mask = [[is_lower(x, y) for x in range(T)] for y in range(T)]
     def M(x, y):
         return mask[min(T - 1, max(0, y))][min(T - 1, max(0, x))]
@@ -267,9 +273,10 @@ def wang_index(nw, ne, sw, se): return nw * 8 + ne * 4 + sw * 2 + se
 WANG = {}
 for name, (lo, up) in PAIRS.items():
     WANG[name] = {}
-    for i in range(16):
-        bits = ((i >> 3) & 1, (i >> 2) & 1, (i >> 1) & 1, i & 1)
-        WANG[name][i] = wang_tile(lo, up, *bits)
+    for vi in range(NVAR):
+        for i in range(16):
+            bits = ((i >> 3) & 1, (i >> 2) & 1, (i >> 1) & 1, i & 1)
+            WANG[name][(i, vi)] = wang_tile(lo, up, *bits, vi)
 
 def save_sheets():
     s = Image.new('RGBA', (T * NV, T * 3))
@@ -277,8 +284,9 @@ def save_sheets():
         s.paste(GRASS[i], (i * T, 0)); s.paste(DIRT[i], (i * T, T)); s.paste(SNOW[i], (i * T, 2 * T))
     s.save(os.path.join(OUT, 'zemin-cesitler.png'))
     for name in PAIRS:
-        w = Image.new('RGBA', (T * 4, T * 4))
-        for i in range(16): w.paste(WANG[name][i], ((i % 4) * T, (i // 4) * T))
+        w = Image.new('RGBA', (T * 4 * NVAR, T * 4))
+        for vi in range(NVAR):
+            for i in range(16): w.paste(WANG[name][(i, vi)], ((vi * 4 + i % 4) * T, (i // 4) * T))
         w.save(os.path.join(OUT, name + '-gecis-16.png'))
 
 def render_map(pair, vertices, wt, ht, seed=5):
@@ -292,7 +300,7 @@ def render_map(pair, vertices, wt, ht, seed=5):
             idx = wang_index(*b)
             if idx == 0: tile = MAT[up]['tiles'][r.choice((0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7))]
             elif idx == 15: tile = MAT[lo]['tiles'][r.choice((0, 1, 2, 3, 4, 5, 6, 7, 0, 2, 4, 6))]
-            else: tile = WANG[pair][idx]
+            else: tile = WANG[pair][(idx, r.randrange(NVAR))]
             im.paste(tile, (tx * T, ty * T))
     return im
 
