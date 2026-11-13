@@ -14,7 +14,12 @@ GLOW = [hx(c) for c in ('#c9772c', '#f2b04c', '#f6cf6e', '#fff1b8')]
 LILAC = hx('#a99be8')
 
 def finish(c):
-    c.outline(); return soften(c.im)
+    """Kalın koyu kahve dış kontur (mobilya kuralı), yumuşatma yok."""
+    c.outline()
+    for y in range(c.h):
+        for x in range(c.w):
+            if c.px[x, y] == (46, 30, 24, 255): c.px[x, y] = hx('#3a2418')
+    return c.im
 
 def fountain_bed():
     """Çeşmenin altına serilen yuvarlak çimen yatağı: taş bordür, çiçekler. Zemin süsü, çarpışmasız."""

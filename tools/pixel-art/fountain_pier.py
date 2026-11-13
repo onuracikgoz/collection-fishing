@@ -161,6 +161,14 @@ MOSS = [hx(c) for c in ('#36652d', '#4b8a37', '#62a244', '#7cb956')]
 RWATER = [hx(c) for c in ('#225f78', '#2f7790', '#3e8ea3', '#62adb9', '#a4dcdc')]
 PINK, YEL, CREAM = hx('#e58aa6'), hx('#f2c94c'), hx('#f4eed2')
 
+def ring_line(c, cx, cy, rx, ry, col=hx('#3a2418'), lower_only=False):
+    """Elips kenarına içten 1 px koyu çizgi (yüzler arasındaki sınır)."""
+    for y in range(int(cy - ry) - 1, int(cy + ry) + 2):
+        for x in range(int(cx - rx) - 1, int(cx + rx) + 2):
+            if ((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 <= 1:
+                if any(((x + dx + .5 - cx) / rx) ** 2 + ((y + dy + .5 - cy) / ry) ** 2 > 1 for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                    if not lower_only or y >= cy: c.put(x, y, col)
+
 def fountain_cozy():
     """Köy çeşmesi: düzensiz taşlardan yuvarlak havuz, yosun, tek taş kase, çiçek öbekleri. Sonda yumuşatma."""
     W, H = 80, 84; c = Canvas(W, H); cx = 40
@@ -228,6 +236,11 @@ def fountain_cozy():
     # tepede küçük oluk (taş topuz)
     c.ellipse(cx, by - 4, 3, 3, lambda x, y: RSTONE[4] if x < cx else RSTONE[3])
     c.put(cx, by - 8, RWATER[4]); c.put(cx - 1, by - 7, RWATER[3]); c.put(cx + 1, by - 7, RWATER[3])
+    # yüz sınırları: havuz üst kenarı / duvar, iç su kenarı, kase kenarı, sütun kenarları
+    ring_line(c, cx, cy, rx, ry, lower_only=True)
+    ring_line(c, cx, cy + 2, rx - 6, ry - 5)
+    ring_line(c, cx, by, 15, 6, lower_only=True)
+    for y in range(by + 4, cy + 1): c.put(cx - 7, y, hx('#3a2418')); c.put(cx + 7, y, hx('#3a2418'))
     # yosun: kenarın üstünde ve duvar dibinde öbekler
     for a in (190, 215, 240, 290, 315, 20, 110, 135, 160):
         x = int(cx + rx * .93 * math.cos(math.radians(a))); y = int(cy + ry * .93 * math.sin(math.radians(a)))
@@ -244,7 +257,9 @@ def fountain_cozy():
         for (dx, dy, col) in ((-3, -2, PINK), (0, -3, YEL), (3, -1, PINK), (-1, 0, CREAM), (4, -3, YEL), (-5, 0, YEL)):
             c.put(fx + dx, fy + dy, col); c.put(fx + dx, fy + dy + 1, MOSS[0])
     c.outline()
-    c.im = soften(c.im); c.px = c.im.load()
+    for y in range(H):                                            # dış kontur: kalın koyu kahve (mobilya kuralı)
+        for x in range(W):
+            if c.px[x, y] == OUTLINE: c.px[x, y] = hx('#3a2418')
     return c.im
 
 def pier_plank_rows(c, y0, y1, seed):
