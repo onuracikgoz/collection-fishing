@@ -17,7 +17,7 @@ D = [hx(c) for c in ('#5a3a22', '#74502f', '#8a6039', '#9a6c42', '#a6784b', '#b4
 SN = [hx(c) for c in ('#7f97b0', '#a3b9cd', '#c4d6e4', '#dfeaf2', '#f4f9fc', '#ffffff')]   # kar: mavimsi gölgeler, beyaz tepe
 SAND = [hx(c) for c in ('#b08a58', '#c9a46c', '#dcbd84', '#e8cc96', '#f1dba8', '#f9ecc6')]
 WATER = [hx(c) for c in ('#1c566f', '#276f89', '#3186a0', '#4099ae', '#5db3bf', '#93d3d6')]
-PAVE = [hx(c) for c in ('#5c5d66', '#7d7e86', '#9c9da3', '#b8b9bc', '#d0d0cf', '#e9e8e2')]
+PAVE = [hx(c) for c in ('#5e4d45', '#7e6a5c', '#9b8672', '#b39c84', '#c8b39a', '#dccbb2')]
 STONE = [hx(c) for c in ('#4d4a48', '#7a746c', '#a59d90', '#cbc3b3')]
 FLOWERS = [(hx('#f4eed2'), hx('#f2c94c')), (hx('#f2c94c'), hx('#c9772c')), (hx('#e58aa6'), hx('#f6e7a8')), (hx('#a99be8'), hx('#f6e7a8'))]
 
@@ -266,7 +266,7 @@ def pave_tile(variant):
         off = (row % 2) * (BW // 2)
         for col in range(T // BW + 1):
             x0 = col * BW + off; y0 = row * BH
-            shade = r.choice((2, 3, 3, 3, 4))
+            shade = r.choice((2, 3, 3, 4, 4))
             for y in range(BH):
                 for x in range(BW):
                     c = PAVE[shade]
