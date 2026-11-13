@@ -71,21 +71,51 @@ def lamp():
     halo.alpha_composite(im); return halo
 
 def bench():
-    """Ahşap bank, arkalıklı, 3/4 açı. 48x34."""
-    W, H = 48, 34; c = Canvas(W, H)
-    for (x0, x1, y0, y1, base) in ((2, 46, 2, 6, 4), (2, 46, 8, 12, 3)):     # arkalık iki tahta
-        for y in range(y0, y1):
-            for x in range(x0, x1): c.put(x, y, WOOD[base + 1] if y == y0 else WOOD[base - 1] if y == y1 - 1 else WOOD[base])
-    for x in (6, 41):                                                          # arkalık dikmeleri
-        for y in range(2, 20): c.put(x, y, WOOD[1]); c.put(x + 1, y, WOOD[2])
-    for (y0, base) in ((16, 4), (20, 3), (24, 3)):                             # oturak tahtaları
-        for y in range(y0, y0 + 4):
-            for x in range(1, 47): c.put(x, y, WOOD[base + 1] if y == y0 else WOOD[base - 1] if y == y0 + 3 else WOOD[base])
-        for x in (4, 24, 43): c.put(x, y0 + 1, WOOD[0])                        # çivi
-    for x in (4, 40):                                                          # ayaklar
-        for y in range(28, 33):
-            for k in range(4): c.put(x + k, y, WOOD[1] if k < 3 else WOOD[0])
-    return finish(c)
+    """Ahşap bank, 3/4 açı: arkalık geride ve hafif yatık, oturağın üst yüzü görünür, ön kalınlık,
+    yan kol tahtaları, ön ve arka ayaklar, yerde gölge. 50x42."""
+    W, H = 50, 42; c = Canvas(W, H)
+    def plank(x0, x1, y0, rows, base, top_light=True):
+        for i, y in enumerate(range(y0, y0 + rows)):
+            for x in range(x0, x1):
+                col = WOOD[base]
+                if i == 0 and top_light: col = WOOD[min(5, base + 1)]
+                if i == rows - 1: col = WOOD[base - 1]
+                if (x * 7 + y * 3) % 19 == 0: col = WOOD[base - 1]
+                c.put(x, y, col)
+    # yerdeki gölge (oturağın altı ve arkası)
+    sh = Image.new('RGBA', (W, H), (0, 0, 0, 0)); sp = sh.load()
+    for y in range(26, 42):
+        for x in range(0, W):
+            d = ((x + .5 - 27) / 23) ** 2 + ((y + .5 - 34) / 5.5) ** 2
+            if d <= 1: sp[x, y] = (30, 22, 18, 85 if d < .6 else 45)
+    # arka ayaklar (oturağın arkasında, daha yukarıda)
+    for x0 in (9, 41):
+        for y in range(20, 30): c.put(x0, y, WOOD[1]); c.put(x0 + 1, y, WOOD[0])
+    # arkalık dikmeleri ve iki tahta (biraz geriye yatık: üst tahta 1 px sağa kayık değil, daha koyu)
+    for x0 in (9, 41):
+        for y in range(2, 20): c.put(x0, y, WOOD[2]); c.put(x0 + 1, y, WOOD[1])
+    plank(6, 46, 3, 5, 3)
+    plank(6, 46, 10, 5, 3)
+    for x in range(6, 46): c.put(x, 8, WOOD[0]); c.put(x, 9, WOOD[1])          # tahta arası gölge
+    # oturak üst yüzü: 3 tahta, yukarıdan görünür (açık)
+    for k, y0 in enumerate((17, 20, 23)):
+        plank(4, 46, y0, 3, 4 if k < 2 else 3)
+        for x in range(4, 46): c.put(x, y0 + 2, WOOD[2])                          # tahtalar arası derz
+    # oturak ön kalınlığı
+    for x in range(4, 46): c.put(x, 26, WOOD[2]); c.put(x, 27, WOOD[1])
+    for x in (8, 25, 42): c.put(x, 18, WOOD[1]); c.put(x, 21, WOOD[1]); c.put(x, 24, WOOD[1])   # çiviler
+    # yan kol tahtaları (uçlarda, derinlik verir)
+    for x0, light in ((2, True), (46, False)):
+        for y in range(13, 28):
+            c.put(x0, y, WOOD[3] if light else WOOD[1]); c.put(x0 + 1, y, WOOD[2] if light else WOOD[0])
+        for x in range(x0 - 1, x0 + 3): c.put(x, 12, WOOD[4])                     # kol üstü
+    # ön ayaklar (öne çıkık, yan yüzü görünür)
+    for x0 in (4, 42):
+        for y in range(28, 37):
+            c.put(x0, y, WOOD[3]); c.put(x0 + 1, y, WOOD[2]); c.put(x0 + 2, y, WOOD[1])
+        for x in range(x0, x0 + 3): c.put(x, 37, WOOD[0])
+    im = finish(c)
+    sh.alpha_composite(im); return sh
 
 def table_set():
     """Yuvarlak ahşap masa + iki tabure. 64x40."""
@@ -124,8 +154,8 @@ if __name__ == '__main__':
     sc.alpha_composite(f, (7 * T - 40, by + 30 - 58 - 6))
     for (lx, ly) in ((2 * T, 1 * T), (11 * T + 12, 1 * T), (2 * T, 5 * T + 8), (11 * T + 12, 5 * T + 8)):
         sc.alpha_composite(items['lamp'], (lx, ly))
-    sc.alpha_composite(items['bench'], (4 * T, 6 * T + 10))
-    sc.alpha_composite(items['bench'], (8 * T + 8, 6 * T + 10))
+    sc.alpha_composite(items['bench'], (4 * T, 6 * T + 4))
+    sc.alpha_composite(items['bench'], (8 * T + 8, 6 * T + 4))
     sc.alpha_composite(items['table_set'], (10 * T, 2 * T))
     sc.resize((sc.width * 3, sc.height * 3), Image.NEAREST).save(os.path.join(OUT, 'meydan-onizleme.png'))
     print('ok')
