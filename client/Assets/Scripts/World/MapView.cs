@@ -183,7 +183,7 @@ namespace CollectionGame.World
             (61f, new[] { "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
         };
         // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
-        static readonly RectInt[] ArtPreviewArea = { new RectInt(12, 39, 46, 10), new RectInt(20, 51, 38, 11) };
+        static readonly RectInt[] ArtPreviewArea = { new RectInt(0, 24, 58, 25), new RectInt(20, 51, 38, 11) };
 
         void BuildArtPreview() // TEMP art preview
         {
@@ -223,13 +223,13 @@ namespace CollectionGame.World
         static readonly (float x, float y, float rx, float ry, byte m, int seed)[] PreviewPatches =
         {
             (44f, 69f, 4.5f, 3.2f, VSnow, 1), // just south of the second building row
-            (46f, 32f, 4.5f, 3.2f, VDirt, 2), // just north of the first building row
+            (40f, 15f, 4.5f, 3.2f, VDirt, 2), // north of the first building row
             (22f, 20f, 5f, 4f, VSnow, 3),
             (100f, 82f, 5f, 4f, VSnow, 4),
             (25f, 78f, 4f, 3.5f, VSnow, 5),
             (42f, 86f, 5f, 3.5f, VDirt, 6),
             (100f, 14f, 4.5f, 3.5f, VDirt, 7),
-            (14f, 36f, 3.5f, 3f, VDirt, 8),
+            (8f, 14f, 3.5f, 3f, VDirt, 8),
             (70.5f, 62f, 2.6f, 3.6f, VSnow, 9), // between the south road and the lake, a few steps from spawn
         };
         byte[,] previewVerts;
