@@ -33,6 +33,13 @@ def main(src, out, cut_y, scale, pal_path):
         ImageDraw.floodfill(bg, c, (255, 0, 255), thresh=40)
     rgb = np.asarray(im.convert('RGB'), float)
     alpha = ~np.all(np.asarray(bg) == (255, 0, 255), axis=-1)
+    # beyaz arka plandan kalan açık kenar saçağını sil: arka plana değen açık pikseller de arka plan
+    light = rgb.min(-1) > 165
+    for _ in range(4):
+        bgm = ~alpha
+        near = np.zeros_like(bgm)
+        near[1:] |= bgm[:-1]; near[:-1] |= bgm[1:]; near[:, 1:] |= bgm[:, :-1]; near[:, :-1] |= bgm[:, 1:]
+        alpha &= ~(near & light)
     alpha[cut_y + 1:, :] = False
     ys, xs = np.where(alpha); y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
     rgb, alpha = rgb[y0:y1, x0:x1], alpha[y0:y1, x0:x1]
