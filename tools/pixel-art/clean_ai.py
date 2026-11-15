@@ -1,6 +1,6 @@
-"""AI çıktısını oyun tarzına oturt: beyaz arka planı sil, zemini kes, ızgaraya indir, palet azalt, renkli kontur."""
+"""AI çıktısını oyun tarzına oturt: beyaz arka planı sil, zemini kes, ızgaraya indir, palet azalt, renkli kontur.
 Kullanım: python3 clean_ai.py girdi.png cikti.png <zemin_kesme_y> <küçültme> <renk_sayısı>
-  örn: python3 clean_ai.py balikci.png balikci_temiz.png 600 4.4 28
+  örn: python3 clean_ai.py balikci.png balikci_temiz.png 600 4.4 28"""
 import sys
 import os; sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PIL import Image, ImageDraw
