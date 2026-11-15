@@ -183,7 +183,7 @@ namespace CollectionGame.World
             (61f, new[] { "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
         };
         // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
-        static readonly RectInt[] ArtPreviewArea = { new RectInt(0, 24, 58, 25), new RectInt(20, 51, 38, 11) };
+        static readonly RectInt[] ArtPreviewArea = { new RectInt(10, 35, 48, 14), new RectInt(20, 51, 38, 11) };
 
         void BuildArtPreview() // TEMP art preview
         {
