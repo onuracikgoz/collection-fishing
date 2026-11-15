@@ -14,6 +14,7 @@ from soften import soften
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, '..', '..', 'client', 'Assets', 'Art', 'Custom', 'Buildings')
+SC = float(os.environ.get('SC', '1.4'))   # 1 dünya birimi = SC piksel (1.4: kapı karakterden bir kafa yüksek)
 PITCH = math.radians(26); CP, SP = math.cos(PITCH), math.sin(PITCH)
 L = np.array([-0.6, 0.6, 0.53]); L /= np.linalg.norm(L)
 
@@ -150,10 +151,10 @@ def render(S):
     for ex in S.get('extras', []): ex(ctx)
 
     # ---- ışın ----
-    W, H = 2 * WX + 120, int(WH * CP + RH * CP + (RZ + 70) * SP + 90)
-    OX, OY = W / 2, H - 40
+    W, H = int((2 * WX + 120) * SC), int((WH * CP + RH * CP + (RZ + 70) * SP + 90) * SC)
+    OX, OY = W / 2, H - 40 * SC
     sx, sy = np.meshgrid(np.arange(W) + 0.5, np.arange(H) + 0.5)
-    Xw = sx - OX; q = OY - sy
+    Xw = (sx - OX) / SC; q = (OY - sy) / SC
     hit = np.full((H, W), -1); HX = np.zeros((H, W)); HY = np.zeros((H, W)); HZ = np.zeros((H, W))
     DEP = np.full((H, W), -1e9)
     d = 160.0
@@ -305,9 +306,8 @@ def render(S):
     bb = base.getbbox(); base = base.crop(bb)
     # kapı önü (dünya -> ekran): y=0, z=WZ+6
     cx, cz = (dx0 + dx1) / 2, WZ + 6
-    door_px = (round(OX + cx - bb[0]), round(OY - (-cz * SP) / 1 - bb[1]))
     # oy: ekran q = (Y*CP - Z*SP) için Y=0 -> q = -Z*SP ; satır = OY - q
-    door_px = (round(OX + cx - bb[0]), round(OY + cz * SP - bb[1]))
+    door_px = (round(OX + cx * SC - bb[0]), round(OY + cz * SP * SC - bb[1]))
     return base, door_px
 
 def cozy(im, sat=0.8, val=0.96):

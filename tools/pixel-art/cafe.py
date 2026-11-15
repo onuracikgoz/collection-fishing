@@ -73,10 +73,11 @@ cyl('barrel', -WX - 14, 20, 10, 0, 26)
 NAMES = [p[0] for p in PRIMS]
 
 # ---------------- ışın ----------------
-W, H = 340, 340
-OX, OY = W / 2, 240
+SC = float(os.environ.get('SC', '1.4'))
+W, H = int(340 * SC), int(340 * SC)
+OX, OY = W / 2, 240 * SC
 sx, sy = np.meshgrid(np.arange(W) + 0.5, np.arange(H) + 0.5)
-Xw = sx - OX; q = OY - sy
+Xw = (sx - OX) / SC; q = (OY - sy) / SC
 hit = np.full((H, W), -1)
 HX = np.zeros((H, W)); HY = np.zeros((H, W)); HZ = np.zeros((H, W)); DEP = np.full((H, W), -1e9)
 d = 200.0
@@ -328,4 +329,4 @@ base.save(os.path.join(OUT, 'cafe.png'))
 # kapı ortası ve kapı önü (dünya -> ekran)
 dx, dz = 36, WZ + 4
 Xw_ = dx * CY - dz * SY; Zw_ = dx * SY + dz * CY
-print('cafe', base.size, 'kapi_x', round(OX + Xw_ - bbox[0]), 'kapi_y', round(OY + Zw_ * SP - bbox[1]))
+print('cafe', base.size, 'kapi_x', round(OX + Xw_ * SC - bbox[0]), 'kapi_y', round(OY + Zw_ * SP * SC - bbox[1]))
