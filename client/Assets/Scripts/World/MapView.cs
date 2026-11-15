@@ -179,11 +179,11 @@ namespace CollectionGame.World
         // buildings get real places.
         static readonly (float feetY, string[] paths)[] ArtPreviewRows =
         {
-            (47.5f, new[] { "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png", "custom/Buildings/balikci_ai.png" }),
+            (47.5f, new[] { "custom/Buildings/balikci_ai_2.png", "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png", "custom/Buildings/balikci_ai.png" }),
             (61f, new[] { "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
         };
         // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
-        static readonly RectInt[] ArtPreviewArea = { new RectInt(20, 39, 38, 10), new RectInt(20, 51, 38, 11) };
+        static readonly RectInt[] ArtPreviewArea = { new RectInt(12, 39, 46, 10), new RectInt(20, 51, 38, 11) };
 
         void BuildArtPreview() // TEMP art preview
         {
@@ -194,8 +194,12 @@ namespace CollectionGame.World
                 {
                     var tex = ArtCatalog.Texture(path);
                     if (tex == null) continue;
-                    // Pivot on the ground line: about 6 px above the image bottom (where the doors sit).
-                    var sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, 6f / tex.height);
+                    // balikci_ai_2 stands on its own diamond of ground: bottom tip on the ground line,
+                    // with extra room around it. The others: about 6 px above the image bottom (doors).
+                    var withGround = path.EndsWith("balikci_ai_2.png");
+                    if (withGround) right -= 1f;
+                    var pivotY = withGround ? 0f : 6f / tex.height;
+                    var sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, pivotY);
                     var w = tex.width / ArtCatalog.PixelsPerUnit;
                     var go = new GameObject("ArtPreview " + path);
                     go.transform.SetParent(transform, false);
@@ -203,7 +207,7 @@ namespace CollectionGame.World
                     var sr = go.AddComponent<SpriteRenderer>();
                     sr.sprite = sprite;
                     sr.sortingOrder = CharacterView.SortingOrderFor(feetY);
-                    right -= w + 1f;
+                    right -= w + (withGround ? 2f : 1f);
                 }
             }
         }
