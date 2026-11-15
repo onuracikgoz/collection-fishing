@@ -10,6 +10,7 @@
 Kullanım: python3 clean_ai.py girdi.png cikti.png <zemin_kesme_y> <küçültme> [palet.json]
   örn: python3 clean_ai.py ai-src/balikci_2.png ../../client/Assets/Art/Custom/Buildings/balikci_ai_2.png 9999 2.0
   küçültme: 768 px'lik görseli kaç kat küçülteceğin (2.0 -> ~384 px).
+  Görselin gerçek bir ızgarası varsa (Gemini ~4.26 px) küçültme = ızgara, UP=2 ile 2 kat keskin büyüt.
 """
 import json, os, sys
 import numpy as np
@@ -63,6 +64,8 @@ def main(src, out, cut_y, scale, pal_path):
             k = np.bincount(v).argmax()
             outp[j, i, :3] = pal[k]; outp[j, i, 3] = 255
     small = Image.fromarray(outp, 'RGBA')
+    up = int(os.environ.get('UP', '1'))              # AI'ın kendi ızgarasına indirip tam sayı kat büyütmek için (örn. 2)
+    if up > 1: small = small.resize((small.width * up, small.height * up), Image.NEAREST)
 
     # yer gölgesi (sağ alt), sonra görsel
     sh = Image.new('RGBA', (small.width + 10, small.height + 4), (0, 0, 0, 0)); sp = sh.load(); sa = small.load()
