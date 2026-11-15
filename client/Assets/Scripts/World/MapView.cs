@@ -179,11 +179,11 @@ namespace CollectionGame.World
         // buildings get real places.
         static readonly (float feetY, string[] paths)[] ArtPreviewRows =
         {
-            (47.5f, new[] { "custom/Buildings/balikci_ai_2.png", "custom/Buildings/balikci.png", "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png", "custom/Buildings/balikci_ai.png" }),
-            (61f, new[] { "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
+            (47.5f, new[] { "custom/Buildings/balikci_ai_2.png", "custom/Buildings/balikci.png", "custom/Buildings/balikci_gemini.png", "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png" }),
+            (61f, new[] { "custom/Buildings/balikci_ai.png", "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
         };
         // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
-        static readonly RectInt[] ArtPreviewArea = { new RectInt(3, 35, 55, 14), new RectInt(20, 51, 38, 11) };
+        static readonly RectInt[] ArtPreviewArea = { new RectInt(3, 35, 55, 14), new RectInt(15, 51, 43, 11) };
 
         void BuildArtPreview() // TEMP art preview
         {
