@@ -10,6 +10,7 @@
 Kullanım: python3 clean_ai.py girdi.png cikti.png <zemin_kesme_y> <küçültme> [palet.json]
   örn: python3 clean_ai.py ai-src/balikci_2.png ../../client/Assets/Art/Custom/Buildings/balikci_ai_2.png 9999 2.0
   küçültme: 768 px'lik görseli kaç kat küçülteceğin (2.0 -> ~384 px).
+  PALETTE=own: ortak palet yerine görselin kendi renkleri (NCOL kadar, gürültü toplanır).
   Görselin gerçek bir ızgarası varsa (Gemini ~4.26 px) küçültme = ızgara, UP=2 ile 2 kat keskin büyüt.
 """
 import json, os, sys
@@ -45,8 +46,16 @@ def main(src, out, cut_y, scale, pal_path):
     ys, xs = np.where(alpha); y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
     rgb, alpha = rgb[y0:y1, x0:x1], alpha[y0:y1, x0:x1]
 
-    # palete eşle (Lab, en yakın)
     lab = srgb_to_lab(rgb.reshape(-1, 3))
+    if os.environ.get('PALETTE') == 'own':
+        # görselin KENDİ renkleri: sadece sıkıştırma gürültüsünü topla (k-means), renk tonu değişmez
+        from cozy_palette import kmeans
+        a_lab = lab[alpha.reshape(-1)]
+        c, lbl = kmeans(a_lab[::5].copy(), int(os.environ.get('NCOL', '40')))
+        sub = rgb.reshape(-1, 3)[alpha.reshape(-1)][::5]
+        pal = np.array([sub[lbl == j].mean(0) if (lbl == j).any() else (0, 0, 0) for j in range(len(c))]).round()
+        pal_lab = srgb_to_lab(pal)
+    # palete eşle (Lab, en yakın)
     idx = np.empty(len(lab), int)
     for s in range(0, len(lab), 65536):
         d = ((lab[s:s + 65536, None, :] - pal_lab[None]) ** 2).sum(-1); idx[s:s + 65536] = d.argmin(1)
