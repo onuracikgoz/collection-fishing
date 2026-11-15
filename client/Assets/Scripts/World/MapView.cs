@@ -143,6 +143,7 @@ namespace CollectionGame.World
 
             BuildFountain();
             BuildWindmill();
+            BuildArtPreview(); // TEMP art preview
         }
 
         void BuildWindmill()
@@ -170,6 +171,37 @@ namespace CollectionGame.World
             for (var i = 0; i < WindmillFrames; i++)
                 frames[i] = ArtCatalog.Sprite(WindmillSails, new RectInt(i * fw, 0, fw, sheet.height), 0.5f, WindmillPivotY);
             sails.AddComponent<SpriteLoop>().Play(frames, 8f);
+        }
+
+        // TEMP art preview: the new building sprites in a row on the grass west of the plaza,
+        // just north of the west road, so they can be judged next to the character. No collision.
+        // Remove this method and its call in BuildFromCode when the buildings get real places.
+        static readonly string[] ArtPreview =
+        {
+            "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png",
+            "custom/Buildings/balikci_ai.png", "custom/Buildings/atolye.png", "custom/Buildings/banka.png",
+            "custom/Cafe/cafe.png",
+        };
+
+        void BuildArtPreview() // TEMP art preview
+        {
+            const float feetY = 47.5f; // server tiles; the west road starts at row 49
+            var right = Plaza.xMin - 1f; // right edge of the next building, moving west
+            foreach (var path in ArtPreview)
+            {
+                var tex = ArtCatalog.Texture(path);
+                if (tex == null) continue;
+                // Pivot on the ground line: about 4 px above the image bottom (buildings.json doors sit there).
+                var sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, 4f / tex.height);
+                var w = tex.width / ArtCatalog.PixelsPerUnit;
+                var go = new GameObject("ArtPreview " + path);
+                go.transform.SetParent(transform, false);
+                go.transform.position = Coords.ToUnity(new Vector2(right - w / 2f, feetY));
+                var sr = go.AddComponent<SpriteRenderer>();
+                sr.sprite = sprite;
+                sr.sortingOrder = CharacterView.SortingOrderFor(feetY);
+                right -= w + 1f;
+            }
         }
 
         void BuildFountain()
