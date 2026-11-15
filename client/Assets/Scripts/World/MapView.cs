@@ -144,6 +144,7 @@ namespace CollectionGame.World
             BuildFountain();
             BuildWindmill();
             BuildArtPreview(); // TEMP art preview
+            BuildCafePreview(); // TEMP art preview
         }
 
         void BuildWindmill()
@@ -180,16 +181,17 @@ namespace CollectionGame.World
         static readonly (float feetY, string[] paths)[] ArtPreviewRows =
         {
             (47.5f, new[] { "custom/Buildings/balikci_ai_2.png", "custom/Buildings/balikci.png", "custom/Buildings/balikci_gemini.png", "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png" }),
-            (61f, new[] { "custom/Buildings/balikci_ai.png", "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
+            (61f, new[] { "custom/Buildings/balikci_ai.png", "custom/Buildings/atolye.png", "custom/Buildings/banka.png" }),
         };
         // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
-        static readonly RectInt[] ArtPreviewArea = { new RectInt(3, 35, 55, 14), new RectInt(15, 51, 43, 11) };
+        static readonly RectInt[] ArtPreviewArea = { new RectInt(3, 35, 55, 14), new RectInt(15, 51, 31, 11), CafeArea };
 
         void BuildArtPreview() // TEMP art preview
         {
             foreach (var (feetY, paths) in ArtPreviewRows)
             {
-                var right = Plaza.xMin - 1f; // right edge of the next building, moving west
+                // Right edge of the next building, moving west. The south row stops short of the café.
+                var right = feetY > 50f ? CafeBase.x - 10.5f : Plaza.xMin - 1f;
                 foreach (var path in paths)
                 {
                     var tex = ArtCatalog.Texture(path);
@@ -212,6 +214,25 @@ namespace CollectionGame.World
             }
         }
 
+        // TEMP art preview: Gemini café south of the plaza (docs/tasarim/16-ilk-harita.md). The terrace
+        // props stay separate assets for now (Cafe/Teras, layout later).
+        static readonly Vector2 CafeBase = new Vector2(54.5f, 63f);
+        static readonly RectInt CafeArea = new RectInt(44, 56, 21, 15);
+
+        void PlaceCafeSprite(string path, Vector2 feet)
+        {
+            var tex = ArtCatalog.Texture(path);
+            if (tex == null) return;
+            var go = new GameObject("ArtPreview " + path);
+            go.transform.SetParent(transform, false);
+            go.transform.position = Coords.ToUnity(feet);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, 0f);
+            sr.sortingOrder = CharacterView.SortingOrderFor(feet.y);
+        }
+
+        void BuildCafePreview() => PlaceCafeSprite("custom/Cafe/kafe_gemini.png", CafeBase); // TEMP art preview
+
         // TEMP ground preview: our own tiles (tools/pixel-art/ground.py) instead of the LPC grass,
         // with a few snow and dirt patches on the grass. Roads, plaza, lake and pier stay LPC.
         // Remove with BuildArtPreview when the map prefab gets painted.
@@ -222,7 +243,7 @@ namespace CollectionGame.World
         // (centre x, centre y, radius x, radius y, material, seed) in server tiles.
         static readonly (float x, float y, float rx, float ry, byte m, int seed)[] PreviewPatches =
         {
-            (44f, 69f, 4.5f, 3.2f, VSnow, 1), // just south of the second building row
+            (34f, 70f, 4.5f, 3.2f, VSnow, 1), // south of the second building row
             (40f, 15f, 4.5f, 3.2f, VDirt, 2), // north of the first building row
             (22f, 20f, 5f, 4f, VSnow, 3),
             (100f, 82f, 5f, 4f, VSnow, 4),
