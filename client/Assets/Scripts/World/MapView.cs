@@ -126,7 +126,7 @@ namespace CollectionGame.World
                 }
                 else
                 {
-                    tiles[i] = grass[h % grass.Length];
+                    tiles[i] = PreviewGroundTile(col, row, h); // TEMP ground preview (was grass[h % grass.Length])
                 }
             }
             ground.SetTiles(positions, tiles);
@@ -202,6 +202,91 @@ namespace CollectionGame.World
                 sr.sortingOrder = CharacterView.SortingOrderFor(feetY);
                 right -= w + 1f;
             }
+        }
+
+        // TEMP ground preview: our own tiles (tools/pixel-art/ground.py) instead of the LPC grass,
+        // with a few snow and dirt patches on the grass. Roads, plaza, lake and pier stay LPC.
+        // Remove with BuildArtPreview when the map prefab gets painted.
+        const string GroundBase = "custom/Ground/zemin-cesitler.png"; // 8 variants per row: grass, dirt, snow, sand, water, pave
+        const string SnowEdge = "custom/Ground/kar-cimen-gecis-16.png";    // corner bit 1 = grass, 0 = snow
+        const string DirtEdge = "custom/Ground/cimen-toprak-gecis-16.png"; // corner bit 1 = dirt, 0 = grass
+        const byte VGrass = 0, VSnow = 1, VDirt = 2;
+        // (centre x, centre y, radius x, radius y, material, seed) in server tiles.
+        static readonly (float x, float y, float rx, float ry, byte m, int seed)[] PreviewPatches =
+        {
+            (45f, 57f, 4.5f, 3.2f, VSnow, 1), // south of the west road, next to the building row
+            (50f, 33f, 4.5f, 3.2f, VDirt, 2), // north of the building row
+            (22f, 20f, 5f, 4f, VSnow, 3),
+            (100f, 82f, 5f, 4f, VSnow, 4),
+            (25f, 78f, 4f, 3.5f, VSnow, 5),
+            (42f, 86f, 5f, 3.5f, VDirt, 6),
+            (100f, 14f, 4.5f, 3.5f, VDirt, 7),
+            (14f, 36f, 3.5f, 3f, VDirt, 8),
+        };
+        byte[,] previewVerts;
+        readonly System.Collections.Generic.Dictionary<(string, int, int), Tile> previewTiles = new();
+
+        Tile PreviewTile(string path, int x, int y)
+        {
+            if (!previewTiles.TryGetValue((path, x, y), out var tile))
+                previewTiles[(path, x, y)] = tile = NewTile(ArtCatalog.Sprite(path, new RectInt(x * T, y * T, T, T)));
+            return tile;
+        }
+
+        static bool PreviewKeepOut(int col, int row)
+        {
+            if (col < 1 || row < 1 || col >= LakeMap.Width - 1 || row >= LakeMap.Height - 1) return true;
+            var p = new Vector2Int(col, row);
+            if (InRoad(col, row)) return true;
+            var lake = LakeMap.Lake;
+            if (new RectInt(lake.x - 2, lake.y - 2, lake.width + 4, lake.height + 4).Contains(p)) return true;
+            var w = LakeMap.Windmill;
+            if (new RectInt(w.x - 2, w.y - 4, w.width + 4, w.height + 6).Contains(p)) return true;
+            var f = LakeMap.Fountain;
+            if (new RectInt(f.x - 2, f.y - 3, f.width + 4, f.height + 5).Contains(p)) return true;
+            return new RectInt(5, 40, 53, 9).Contains(p); // TEMP building row
+        }
+
+        void BuildPreviewVerts()
+        {
+            int w = LakeMap.Width, h = LakeMap.Height;
+            previewVerts = new byte[w + 1, h + 1];
+            for (var vy = 0; vy <= h; vy++)
+            for (var vx = 0; vx <= w; vx++)
+            {
+                // A corner may change only if every tile within 2 of it is free grass.
+                var free = true;
+                for (var ty = vy - 2; ty <= vy + 1 && free; ty++)
+                for (var tx = vx - 2; tx <= vx + 1 && free; tx++)
+                    if (PreviewKeepOut(tx, ty)) free = false;
+                if (!free) continue;
+                foreach (var b in PreviewPatches)
+                {
+                    var r = new System.Random(b.seed);
+                    float p0 = (float)r.NextDouble() * 6.283f, p1 = (float)r.NextDouble() * 6.283f, p2 = (float)r.NextDouble() * 6.283f;
+                    float dx = (vx - b.x) / b.rx, dy = (vy - b.y) / b.ry;
+                    var a = Mathf.Atan2(dy, dx);
+                    var edge = 1f + 0.28f * Mathf.Sin(3 * a + p0) + 0.18f * Mathf.Sin(5 * a + p1) + 0.1f * Mathf.Sin(2 * a + p2)
+                               + 0.12f * ((Hash(vx + 500, vy) % 100) / 100f - 0.5f);
+                    if (Mathf.Sqrt(dx * dx + dy * dy) < edge) previewVerts[vx, vy] = b.m;
+                }
+            }
+        }
+
+        Tile PreviewGroundTile(int col, int row, int h)
+        {
+            if (previewVerts == null) BuildPreviewVerts();
+            byte nw = previewVerts[col, row], ne = previewVerts[col + 1, row];
+            byte sw = previewVerts[col, row + 1], se = previewVerts[col + 1, row + 1];
+            var variant = (h >> 4) % 3;
+            if (nw == VGrass && ne == VGrass && sw == VGrass && se == VGrass) return PreviewTile(GroundBase, h % 8, 0);
+            if (nw == VSnow && ne == VSnow && sw == VSnow && se == VSnow) return PreviewTile(GroundBase, h % 8, 2);
+            if (nw == VDirt && ne == VDirt && sw == VDirt && se == VDirt) return PreviewTile(GroundBase, h % 8, 1);
+            // Mixed: grass and one other material (patches are kept apart, so never three).
+            var snow = nw == VSnow || ne == VSnow || sw == VSnow || se == VSnow;
+            int Bit(byte m) => snow ? (m == VGrass ? 1 : 0) : (m == VDirt ? 1 : 0);
+            var i = Bit(nw) * 8 + Bit(ne) * 4 + Bit(sw) * 2 + Bit(se);
+            return PreviewTile(snow ? SnowEdge : DirtEdge, variant * 4 + i % 4, i / 4);
         }
 
         void BuildFountain()
