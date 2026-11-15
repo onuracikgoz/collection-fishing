@@ -25,7 +25,12 @@ ASHLAR = R('#5b5450', '#746c66', '#8d847c', '#a69c92', '#bdb3a7', '#d2c9bc', '#e
 PLAST = R('#7f6d56', '#9c876b', '#b7a07f', '#ccb692', '#dcc8a3', '#e9d8b6', '#f3e6c9')
 WOOD = R('#2a180f', '#3e2416', '#55321f', '#6d4229', '#875334', '#9f6540', '#b77a4f')
 LOG = R('#3a2414', '#523420', '#6c452a', '#875a36', '#a07044', '#b88656', '#cc9c6a')
+WOOD0 = WOOD
+FWOOD = R('#24152a', '#3a2132', '#55303a', '#6e3d42', '#86504c', '#9d6458', '#b97c66')
+TEAL = R('#16303a', '#1f4a52', '#2b6366', '#3a7c7a', '#4f9690', '#6aaea4', '#8cc6b8')
+FISH = R('#6a2c26', '#a8492f', '#d8743c', '#f0a050', '#f8c878')
 ROOFS = {
+    'fishred': R('#3e1630', '#612538', '#8f3b45', '#b44d50', '#cf5d58', '#e06b62', '#f07a68', '#f6977f'),
     'red':   R('#36130f', '#521d16', '#70291d', '#8d3525', '#a8432d', '#c05437', '#d66a44', '#e5875a'),
     'slate': R('#1c2230', '#283143', '#354157', '#43526b', '#53647e', '#677a92', '#7d90a6', '#97a9bc'),
     'moss':  R('#1e2a1a', '#2b3a24', '#3a4d2f', '#4a613a', '#5c7547', '#708a56', '#86a066', '#9db57a'),
@@ -113,10 +118,25 @@ def roof_slate(u, s, ramp):
     if xx < 0.8: t -= 1
     return ramp, t
 
-ROOF_TEX = {'tile': roof_tile, 'thatch': roof_thatch, 'slate': roof_slate}
+def roof_chunky(u, s, ramp):
+    """İri, tombul kiremit: her biri koyu konturlu, üstü açık, alt köşeleri yuvarlak (AI balıkçı referansı)."""
+    rowh, tw = 9.0, 13.0
+    row = int(math.floor(s / rowh)); ss = s - row * rowh
+    uu = u + (tw / 2 if row % 2 else 0); col = int(math.floor(uu / tw)); xx = uu - col * tw
+    t = 4 + (1 if h(row, col, 36) > 0.6 else 0) - (1 if h(row, col, 37) < 0.15 else 0)
+    if ss > rowh - 1.4: return ramp, 0                                  # alttaki kiremide düşen koyu çizgi
+    if ss > rowh - 3 and (xx < 2 or xx > tw - 2): return ramp, 1         # yuvarlak alt köşe
+    if xx < 1.1: return ramp, 1                                          # yan derz
+    if ss > rowh - 3.2: t -= 1
+    elif ss < 2.2: t += 1                                               # üst kenar ışık
+    if xx > tw - 3 and ss > 3: t -= 1
+    return ramp, t
+
+ROOF_TEX = {'chunky': roof_chunky, 'tile': roof_tile, 'thatch': roof_thatch, 'slate': roof_slate}
 
 # ---------------- bina ----------------
 def render(S):
+    globals()['WOOD'] = S.get('wood_pal', WOOD0)
     WX, WZ, WH, RH = S['wx'], S['wz'], S['wh'], S['rh']
     RO = S.get('ro', 8); RZ = WZ + S.get('rz_over', 10); RB = WH - 2
     ROOF = ROOFS[S['roof']]; rtex = ROOF_TEX[S.get('roof_tex', 'tile')]
@@ -212,6 +232,17 @@ def render(S):
             return stone_blocks(u, y - 8, 3, rowh=9, ramp=ASHLAR, bw0=15)
         if m == 'stone': return stone_blocks(u, y - 8, 4, rowh=8, bw0=10)
         if y < sh: return stone_blocks(u, y - 8, 1)
+        if m == 'plank':                                                   # dikey koyu tahta + direkler
+            lim = WX if face == 'front' else WZ
+            if sh <= y < sh + 3 or y >= WH - 4 or abs(u) >= lim - 5: return WOOD, 2 if int(u) % 7 else 1
+            for p in S.get('posts', []) if face == 'front' else ():
+                if p <= u < p + 4: return WOOD, 3 if u < p + 1 else 2
+            col = int(math.floor(u / 6)); uu = u - col * 6
+            if uu < 1: return WOOD, 0
+            t = 3 + (1 if h(col, 3) > 0.6 else 0)
+            if uu < 2: t += 1
+            if h(col, int(y // 9), 24) < 0.18 and int(y) % 9 == 0: t -= 1   # tahta ek yeri
+            return WOOD, t
         if m == 'log':
             if abs(u) > (WX if face == 'front' else WZ) - 5: return LOG, 2 if int(y) % 6 < 2 else 4  # köşe kütük uçları
             return planks(u, y)
@@ -294,7 +325,7 @@ def render(S):
                 k2 = hit[j + dj, i + di]
                 if k2 >= 0 and k2 != hit[j, i] and DEP[j + dj, i + di] > DEP[j, i] + 4:
                     r, g, b, a = P[i, j]; P[i, j] = (int(r * .45), int(g * .4), int(b * .4), 255); break
-    img = cozy(img)
+    img = cozy(img, S.get('sat', 0.8), S.get('val', 0.96), S.get('outline', (40, 28, 22)))
     sh = Image.new('RGBA', (W, H), (0, 0, 0, 0)); SH = sh.load()
     for j in range(H):
         for i in range(W):
@@ -310,8 +341,8 @@ def render(S):
     door_px = (round(OX + cx * SC - bb[0]), round(OY + cz * SP * SC - bb[1]))
     return base, door_px
 
-def cozy(im, sat=0.8, val=0.96):
-    im = soften(im, outline_dark=(40, 28, 22), inner=False); px = im.load()
+def cozy(im, sat=0.8, val=0.96, outline=(40, 28, 22)):
+    im = soften(im, outline_dark=outline, inner=False); px = im.load()
     for y in range(im.height):
         for x in range(im.width):
             r, g, b, a = px[x, y]
@@ -367,7 +398,7 @@ def barrel(cx, cz):
 def crate(x0, z0, s=14):
     return lambda c: c['box']('crate', x0, x0 + s, 0, s, z0, z0 + s, p_crate)
 
-def sign(x0, x1, y0, y1, icon):
+def sign(x0, x1, y0, y1, icon, dz=0):
     def paint(x, y, z, b):
         bx0, bx1, by0, by1, bz0, bz1 = b
         u, v = x - bx0, y - by0; w_, h_ = bx1 - bx0, by1 - by0
@@ -377,11 +408,30 @@ def sign(x0, x1, y0, y1, icon):
             dd = (u - cu) ** 2 + (v - cv) ** 2
             if dd < (h_ / 2 - 3) ** 2:
                 return GOLD, (4 if dd < (h_ / 2 - 6) ** 2 and not abs(u - cu) < 1 else 2), N_FRONT, True
+        if icon == 'fish':
+            fx, fy = (u - cu) / (w_ / 2 - 3), (v - cv) / (h_ / 2 - 2.5)
+            if fx < 0.55 and fx * fx / 0.75 + fy * fy < 1:                     # gövde
+                if abs(fx + 0.55) < 0.12 and abs(fy - 0.15) < 0.25: return [hx('#24152a')], 0, N_FRONT, True   # göz
+                return FISH, 3 if fy > 0.1 else 2, N_FRONT, True
+            if 0.5 <= fx < 1.0 and abs(fy) < (fx - 0.45) * 1.6: return FISH, 1, N_FRONT, True               # kuyruk
         if icon == 'hammer':
             if abs(v - cv - 3) < 2.2 and abs(u - cu) < 7: return IRON, 4, N_FRONT, True
             if abs(u - cu - 1) < 1.3 and v < cv + 2 and v > 3: return LOG, 5, N_FRONT, True
         return WOOD, 4, N_FRONT, False
-    return lambda c: c['box']('sign', x0, x1, y0, y1, c['WZ'], c['WZ'] + 3, paint)
+    return lambda c: c['box']('sign', x0, x1, y0, y1, c['WZ'] + dz, c['WZ'] + dz + 3, paint)
+
+def rocks(cx, cz):
+    def ex(c):
+        for k, (dx, dz, r) in enumerate(((0, 0, 5), (7, 3, 4), (-6, 4, 3.5))):
+            c['sph']('rock', cx + dx, r * 0.6, cz + dz, r, (lambda ccx, ccz, rr: lambda x, y, z, b: (STONE, 3 if y > rr * 0.9 else 2, np.array([x - ccx, y, z - ccz]), False))(cx + dx, cz + dz, r))
+    return ex
+
+def bracket(x0, x1, y, dz):
+    """Duvardan çıkan demir kol: asılı tabela bunun altında durur."""
+    def ex(c):
+        c['box']('bracket', x0, x1, y, y + 2, c['WZ'], c['WZ'] + dz + 2, p_box(IRON, 4, 2))
+        for xx in (x0 + 3, x1 - 4): c['box']('chain', xx, xx + 1, y - 5, y, c['WZ'] + dz, c['WZ'] + dz + 1, p_box(IRON, 3, 3))
+    return ex
 
 def columns(xs, r=5):
     def ex(c):
@@ -435,6 +485,12 @@ SPECS = {
                   door=(-15, 15, 8, 66), door_double=True, door_col=R('#2a1610', '#3a1f14', '#4d2a1b', '#613524', '#76412d', '#8b4e36', '#a05d40'),
                   windows=[(-70, -48, 34, 66, None), (48, 70, 34, 66, None)],
                   extras=[columns([-34, 34]), sign(-20, 20, 70, 84, 'coin')]),
+    'balikci': dict(wx=60, wz=40, wh=78, rh=34, roof='fishred', roof_tex='chunky', ro=9, rz_over=11, wall='plank',
+                    stone_h=18, chimney=-40, wood_pal=FWOOD, sat=0.95, val=1.0,
+                    outline=(36, 21, 42), door=(-8, 14, 8, 58), door_col=TEAL, posts=[-14, 20],
+                    windows=[(-46, -22, 28, 52, None), (30, 50, 28, 40, None)],
+                    extras=[sign(-12, 18, 61, 69, 'plain'), bracket(30, 58, 66, 8), sign(30, 58, 42, 60, 'fish', 8),
+                            barrel(70, 20), barrel(-30, 52), crate(-74, 30, 15), crate(-60, 42, 12), rocks(22, 50)]),
     'atolye': dict(wx=70, wz=44, wh=64, rh=30, roof='moss', wall='plaster', stone_h=34, chimney=36,
                    door=(-48, -12, 8, 54), door_double=True,
                    windows=[(28, 54, 30, 50, None)], posts=[],
