@@ -122,7 +122,7 @@ namespace CollectionGame.World
                 }
                 else if (InRoad(col, row))
                 {
-                    tiles[i] = dirt[h % dirt.Length];
+                    tiles[i] = PreviewGroundTile(col, row, h); // TEMP ground preview (was dirt[h % dirt.Length])
                 }
                 else
                 {
@@ -226,6 +226,7 @@ namespace CollectionGame.World
             (42f, 86f, 5f, 3.5f, VDirt, 6),
             (100f, 14f, 4.5f, 3.5f, VDirt, 7),
             (14f, 36f, 3.5f, 3f, VDirt, 8),
+            (70.5f, 62f, 2.6f, 3.6f, VSnow, 9), // between the south road and the lake, a few steps from spawn
         };
         byte[,] previewVerts;
         readonly System.Collections.Generic.Dictionary<(string, int, int), Tile> previewTiles = new();
@@ -260,6 +261,13 @@ namespace CollectionGame.World
             for (var vy = 0; vy <= h; vy++)
             for (var vx = 0; vx <= w; vx++)
             {
+                // Roads and plaza in our dirt: a corner of any road tile is dirt, so the edge
+                // goes through the grass tiles beside the road with the cimen-toprak transition.
+                if (InRoad(vx - 1, vy - 1) || InRoad(vx, vy - 1) || InRoad(vx - 1, vy) || InRoad(vx, vy))
+                {
+                    previewVerts[vx, vy] = VDirt;
+                    continue;
+                }
                 // A corner may change only if every tile within 2 of it is free grass.
                 var free = true;
                 for (var ty = vy - 2; ty <= vy + 1 && free; ty++)
