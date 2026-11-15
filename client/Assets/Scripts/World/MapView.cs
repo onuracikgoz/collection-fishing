@@ -173,34 +173,38 @@ namespace CollectionGame.World
             sails.AddComponent<SpriteLoop>().Play(frames, 8f);
         }
 
-        // TEMP art preview: the new building sprites in a row on the grass west of the plaza,
-        // just north of the west road, so they can be judged next to the character. No collision.
-        // Remove this method and its call in BuildFromCode when the buildings get real places.
-        static readonly string[] ArtPreview =
+        // TEMP art preview: the new building sprites in two rows on the grass west of the plaza,
+        // one on each side of the west road (rows 49-50), so they can be judged next to the character.
+        // No collision. Remove this, its call in BuildFromCode and the ground preview below when the
+        // buildings get real places.
+        static readonly (float feetY, string[] paths)[] ArtPreviewRows =
         {
-            "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png",
-            "custom/Buildings/balikci_ai.png", "custom/Buildings/atolye.png", "custom/Buildings/banka.png",
-            "custom/Cafe/cafe.png",
+            (47.5f, new[] { "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png", "custom/Buildings/balikci_ai.png" }),
+            (61f, new[] { "custom/Buildings/atolye.png", "custom/Buildings/banka.png", "custom/Cafe/cafe.png" }),
         };
+        // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
+        static readonly RectInt[] ArtPreviewArea = { new RectInt(20, 39, 38, 10), new RectInt(20, 51, 38, 11) };
 
         void BuildArtPreview() // TEMP art preview
         {
-            const float feetY = 47.5f; // server tiles; the west road starts at row 49
-            var right = Plaza.xMin - 1f; // right edge of the next building, moving west
-            foreach (var path in ArtPreview)
+            foreach (var (feetY, paths) in ArtPreviewRows)
             {
-                var tex = ArtCatalog.Texture(path);
-                if (tex == null) continue;
-                // Pivot on the ground line: about 4 px above the image bottom (buildings.json doors sit there).
-                var sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, 4f / tex.height);
-                var w = tex.width / ArtCatalog.PixelsPerUnit;
-                var go = new GameObject("ArtPreview " + path);
-                go.transform.SetParent(transform, false);
-                go.transform.position = Coords.ToUnity(new Vector2(right - w / 2f, feetY));
-                var sr = go.AddComponent<SpriteRenderer>();
-                sr.sprite = sprite;
-                sr.sortingOrder = CharacterView.SortingOrderFor(feetY);
-                right -= w + 1f;
+                var right = Plaza.xMin - 1f; // right edge of the next building, moving west
+                foreach (var path in paths)
+                {
+                    var tex = ArtCatalog.Texture(path);
+                    if (tex == null) continue;
+                    // Pivot on the ground line: about 6 px above the image bottom (where the doors sit).
+                    var sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, 6f / tex.height);
+                    var w = tex.width / ArtCatalog.PixelsPerUnit;
+                    var go = new GameObject("ArtPreview " + path);
+                    go.transform.SetParent(transform, false);
+                    go.transform.position = Coords.ToUnity(new Vector2(right - w / 2f, feetY));
+                    var sr = go.AddComponent<SpriteRenderer>();
+                    sr.sprite = sprite;
+                    sr.sortingOrder = CharacterView.SortingOrderFor(feetY);
+                    right -= w + 1f;
+                }
             }
         }
 
@@ -214,8 +218,8 @@ namespace CollectionGame.World
         // (centre x, centre y, radius x, radius y, material, seed) in server tiles.
         static readonly (float x, float y, float rx, float ry, byte m, int seed)[] PreviewPatches =
         {
-            (45f, 57f, 4.5f, 3.2f, VSnow, 1), // south of the west road, next to the building row
-            (50f, 33f, 4.5f, 3.2f, VDirt, 2), // north of the building row
+            (44f, 69f, 4.5f, 3.2f, VSnow, 1), // just south of the second building row
+            (46f, 32f, 4.5f, 3.2f, VDirt, 2), // just north of the first building row
             (22f, 20f, 5f, 4f, VSnow, 3),
             (100f, 82f, 5f, 4f, VSnow, 4),
             (25f, 78f, 4f, 3.5f, VSnow, 5),
@@ -244,7 +248,9 @@ namespace CollectionGame.World
             if (new RectInt(w.x - 2, w.y - 4, w.width + 4, w.height + 6).Contains(p)) return true;
             var f = LakeMap.Fountain;
             if (new RectInt(f.x - 2, f.y - 3, f.width + 4, f.height + 5).Contains(p)) return true;
-            return new RectInt(5, 40, 53, 9).Contains(p); // TEMP building row
+            foreach (var r in ArtPreviewArea) // TEMP building rows
+                if (r.Contains(p)) return true;
+            return false;
         }
 
         void BuildPreviewVerts()
