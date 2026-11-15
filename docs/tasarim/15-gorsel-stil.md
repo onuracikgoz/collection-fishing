@@ -66,3 +66,21 @@ Mockup'lar: sağ üstte yığın ve ekran ortasında bannerlar. Hepsi `box_dark`
 - **Defter kaydı:** ilk kez tutulan item için, sadece oyuncuya.
 - **Bağlantı koptu:** kırmızı şerit, yeniden bağlanma sayacı; bu sürede istek gönderilmez.
 - Bildirim metinleri sunucu mesajıdır, client kod tabanlı çevirir. Bildirimler ham Float değerini veya fiyat bilgisini sızdırmaz (nadir av duyurusu sadece kondisyon adını taşır).
+
+## Binalar: Gemini ile üretim (16.11.2026, Onur onayı)
+
+Binalar ve büyük eşyalar Gemini'de üretilir, `tools/pixel-art/clean_ai.py` ile oyuna oturtulur. Örnek ve stil referansı: `client/Assets/Art/Custom/Buildings/balikci_gemini.png` (kaynak `tools/pixel-art/ai-src/balikci_gemini.png`).
+
+- **Açı:** düz önden, tepeden-önden RPG bakışı. Ön cephe kameraya dümdüz bakar, çatı hafif üstten görünür. İzometrik yok, yan duvar görünmez. Zemin karoları ve LPC karakterler bu açıda.
+- **Stil:** tombul kırmızı kiremit, koyu mor-kahve ahşap, sıcak turuncu pencere ışığı, 1 px koyu mor-kahve kontur, ışık sol üstten. Gerçek piksel ızgarası (128×128 ızgara, 8x nearest büyütme), yumuşatma ve gradyan yok.
+- **Prompt kalıbı:** iki referans görsel eklenir: açı için bizim bir bina, stil için `balikci_gemini`. Sadece içerik cümlesi değişir:
+  ```
+  Redraw the building from the first image as <İÇERİK>, keeping EXACTLY its camera angle: straight front view of a top-down RPG, the front facade faces the camera flat, the roof is seen from slightly above, NOT isometric, NOT rotated, no side wall visible.
+  Use the colors, chunky rounded roof tiles, dark purple-brown wood and warm mood of the second image.
+  Details: <DETAYLAR>.
+  TRUE pixel art: draw it on a 128x128 pixel grid, every pixel is a hard square of one flat color, then upscale 8x with nearest neighbor. No anti-aliasing, no gradients, no blur, no noise, no soft shadows. Limited palette of about 32 colors. 1-pixel dark purple-brown outline around shapes. Light comes from the top-left.
+  Pure white background, building only, no ground tile, no grass patch, no text.
+  ```
+- **Temizleme:** `UP=2 python3 clean_ai.py ai-src/<ad>.png ../../client/Assets/Art/Custom/Buildings/<ad>.png 9999 <ızgara>`. Gemini'de ızgara ~4.26 px'tir (her görselde ölçülür). Renkler ortak cozy palete (`cozy_palette.json`) eşlenir, bu varsayılan ve Onur'un tercihi. `PALETTE=own` görselin kendi renklerini korur.
+- **Ölçek:** kapı karakterin yaklaşık 1,5 katı.
+- Kodla çizilen binalar (`buildings.py`) ve Perchance çıktıları deneme olarak kaldı. Zemin ve geçişler kodla üretilmeye devam eder (`ground.py`, cozy palet).
