@@ -19,7 +19,8 @@ SAND = [hx(c) for c in ('#b08a58', '#c9a46c', '#dcbd84', '#e8cc96', '#f1dba8', '
 WATER = [hx(c) for c in ('#1f4f63', '#285f72', '#2f6f80', '#3a7d8b', '#5a9ba2', '#9fcfc8')]   # cozy: daha koyu, az doygun
 PAVE = [hx(c) for c in ('#5a4a40', '#7c6656', '#98806a', '#ae967c', '#c3ab8f', '#d6c1a4')]
 STONE = [hx(c) for c in ('#4d4a48', '#7a746c', '#a59d90', '#cbc3b3')]
-if os.environ.get('STYLE', 'cozy') == 'cozy':
+COZY = os.environ.get('STYLE', 'cozy') == 'cozy'
+if COZY:
     # cozy (Perchance balıkçı referansı): zeytin-sarı çimen, sıcak toprak, gölgeler mor-kahveye kayar, ışıklar sarıya
     G = [hx(c) for c in ('#4a3f40', '#665f47', '#7d7f4d', '#8f9554', '#9fa45c', '#b0b46a', '#c5c27f')]
     D = [hx(c) for c in ('#4f363b', '#6c4a45', '#86604e', '#9b7157', '#ad8161', '#bf936d', '#d1a87e')]
@@ -53,7 +54,9 @@ def grass_base(t):
             n = pnoise(x, y, 11, ((2, 1.0), (3, 0.7)))
             h = random.Random(x * 131 + y * 7919 + 11).random()
             i = 3
-            if h < 0.07 + 0.05 * n: i = 2
+            if COZY:                                   # benek yok: büyük yumuşak öbekler
+                i = 4 if n > 1.0 else 2 if n < -1.1 else 3
+            elif h < 0.07 + 0.05 * n: i = 2
             elif h > 0.96 - 0.03 * n: i = 4
             t.put(x, y, G[i])
 
@@ -110,15 +113,15 @@ def scatter(r, n, lo, hi, band):
 def grass_tile(variant):
     t = Tex(); grass_base(t)
     r0 = random.Random(100)                      # kenar bandı: bütün çeşitlerde aynı
-    for x, y in scatter(r0, 5, 0, 0, True):
-        f = r0.random(); (clump if f < 0.25 else tuft if f < 0.85 else dark_patch)(t, x, y, r0)
+    for x, y in scatter(r0, 2 if COZY else 5, 0, 0, True):
+        f = r0.random(); (clump if f < (0.6 if COZY else 0.25) else tuft if f < 0.85 else dark_patch)(t, x, y, r0)
     r = random.Random(200 + variant)             # iç kısım: çeşide göre
-    pts = scatter(r, 4 + variant % 3, 7, 25, False)
+    pts = scatter(r, (1 + variant % 3) if COZY else (4 + variant % 3), 7, 25, False)
     for i, (x, y) in enumerate(pts):
         if variant == 6 and i < 2: flower(t, x, y, r)
         elif variant == 7 and i == 0: flower(t, x, y, r)
         else:
-            f = r.random(); (clump if f < 0.3 else tuft if f < 0.85 else dark_patch)(t, x, y, r)
+            f = r.random(); (clump if f < (0.6 if COZY else 0.3) else tuft if f < 0.85 else dark_patch)(t, x, y, r)
     return t
 
 # ---------------- toprak ----------------
@@ -128,7 +131,8 @@ def dirt_base(t):
             n = pnoise(x, y, 23, ((2, 1.0), (3, 0.7)))
             h = random.Random(x * 733 + y * 1543 + 23).random()
             i = 3
-            if h < 0.08 + 0.05 * n: i = 2
+            if COZY: i = 4 if n > 0.6 else 2 if n < -0.6 else 3
+            elif h < 0.08 + 0.05 * n: i = 2
             elif h > 0.95 - 0.03 * n: i = 4
             t.put(x, y, D[i])
 
@@ -340,7 +344,7 @@ PAIRS = {            # dosya adı: (lower, upper)
     'kar-toprak':   ('dirt', 'snow'),
     'kum-cimen':    ('grass', 'sand'),
     'kum-su':       ('water', 'sand'),
-    'tas-cimen':    ('grass', 'pave'),
+    'tas-cimen':    ('pave', 'grass') if COZY else ('grass', 'pave'),
     'tas-kum':      ('sand', 'pave'),
 }
 
@@ -354,15 +358,26 @@ def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
     """Köşe bitleri: 1 = lower. Upper dokusu lower'ın üstüne taşar; kenarda gölge ve açık uç."""
     gi = di = (vi * 3) % NV
     lo, up = MAT[lower], MAT[upper]
-    amp = {'snow': 0.6, 'pave': 0.3, 'sand': 0.5}.get(upper, 0.42)      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
+    amp = {'snow': 0.6, 'pave': 0.3, 'sand': 0.5}.get(upper, 0.4 if COZY else 0.42)      # kar kenarı daha dalgalı, düz çizgi gibi kesilmesin
     d, g = lo['tiles'][di].load(), up['tiles'][gi].load()
     LP, UP = lo['pal'], up['pal']
     im = Image.new('RGBA', (T, T)); px = im.load()
     def is_lower(x, y):
         u, v = (x + 0.5) / T, (y + 0.5) / T          # doğrusal: gürültü kenarı kıvırsın, sivri kanca çıkmasın
         m = (nw * (1 - u) * (1 - v) + ne * u * (1 - v) + sw * (1 - u) * v + se * u * v)
+        if COZY:                                     # yuvarlak, yumuşak kenar: sadece düşük frekans
+            oc = ((1, 1.0), (2, 0.45))
+            return m + 0.12 * amp * pnoise(x, y, 77, oc) + 0.75 * amp * win(u, v) * pnoise(x, y, 77 + vi * 13, oc) > 0.5
         return m + 0.4 * amp * pnoise(x, y, 77, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) + amp * win(u, v) * pnoise(x, y, 77 + vi * 13, ((1, 0.8), (2, 1.0), (3, 0.9), (4, 0.7))) > 0.5
     mask = [[is_lower(x, y) for x in range(T)] for y in range(T)]
+    if COZY:                                          # küçük adacık ve dişleri temizle (kenar pikselleri sabit: komşu tile tutar)
+        for _ in range(3):
+            m2 = [row[:] for row in mask]
+            for y in range(1, T - 1):
+                for x in range(1, T - 1):
+                    k = sum(mask[y + dy][x + dx] for dy in (-1, 0, 1) for dx in (-1, 0, 1))
+                    m2[y][x] = k >= 5
+            mask = m2
     def M(x, y):
         return mask[min(T - 1, max(0, y))][min(T - 1, max(0, x))]
     for y in range(T):
@@ -370,12 +385,19 @@ def wang_tile(lower, upper, nw, ne, sw, se, vi=0):
             if mask[y][x]:
                 c = d[x, y]
                 if upper == 'pave': pass                  # taş zeminle aynı seviyede: alt malzemeye gölge düşmez
+                elif COZY and upper == 'grass' and (not M(x, y - 1)): c = LP[0]          # çimenin altına düşen koyu gölge
+                elif COZY and upper == 'grass' and (not M(x, y - 2) and y > 1 or not M(x, y - 3) and y > 2): c = LP[1]
                 elif not M(x, y - 1) or not M(x, y - 2) and y > 1: c = LP[1]
                 elif not M(x - 1, y) or not M(x + 1, y): c = LP[2]
                 px[x, y] = c
             else:
                 c = g[x, y]
-                if upper == 'pave':
+                if COZY and upper == 'grass':                  # çimen dudağı: koyu mor-yeşil kontur, hemen içinde açık kenar
+                    if M(x, y + 1) and y < T - 1: c = UP[0]
+                    elif M(x, y - 1) or M(x - 1, y) or M(x + 1, y): c = UP[1]
+                    elif M(x, y + 2) and y < T - 2: c = UP[5]
+                    elif M(x, y - 2) or M(x - 2, y) or M(x + 2, y): c = UP[2]
+                elif upper == 'pave':
                     if M(x, y + 1) or M(x, y - 1) or M(x - 1, y) or M(x + 1, y): c = UP[1]   # ince koyu kenar çizgisi, yükselti yok
                 elif M(x, y + 1) and y < T - 1: c = UP[1] if (x * 7 + y) % 5 else UP[2]
                 elif M(x, y - 1) and y > 0: c = UP[-2] if (x * 3) % 4 else UP[-1]
