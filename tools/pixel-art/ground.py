@@ -8,7 +8,7 @@ import math, os, random
 from PIL import Image
 
 T = 32
-OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'client', 'Assets', 'Art', 'Custom', 'Ground')
+OUT = os.environ.get('OUT_DIR') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'client', 'Assets', 'Art', 'Custom', 'Ground')
 os.makedirs(OUT, exist_ok=True)
 def hx(s): s = s.lstrip('#'); return tuple(int(s[i:i+2], 16) for i in (0, 2, 4)) + (255,)
 
@@ -19,6 +19,15 @@ SAND = [hx(c) for c in ('#b08a58', '#c9a46c', '#dcbd84', '#e8cc96', '#f1dba8', '
 WATER = [hx(c) for c in ('#1f4f63', '#285f72', '#2f6f80', '#3a7d8b', '#5a9ba2', '#9fcfc8')]   # cozy: daha koyu, az doygun
 PAVE = [hx(c) for c in ('#5a4a40', '#7c6656', '#98806a', '#ae967c', '#c3ab8f', '#d6c1a4')]
 STONE = [hx(c) for c in ('#4d4a48', '#7a746c', '#a59d90', '#cbc3b3')]
+if os.environ.get('STYLE', 'cozy') == 'cozy':
+    # cozy (Perchance balıkçı referansı): zeytin-sarı çimen, sıcak toprak, gölgeler mor-kahveye kayar, ışıklar sarıya
+    G = [hx(c) for c in ('#4a3f40', '#665f47', '#7d7f4d', '#8f9554', '#9fa45c', '#b0b46a', '#c5c27f')]
+    D = [hx(c) for c in ('#4f363b', '#6c4a45', '#86604e', '#9b7157', '#ad8161', '#bf936d', '#d1a87e')]
+    SN = [hx(c) for c in ('#8a83a6', '#aaa7c6', '#c8c7dd', '#e0e0ec', '#f3f2f5', '#fffdf6')]
+    SAND = [hx(c) for c in ('#a67e5c', '#c29a70', '#d6b185', '#e3c294', '#eed3a7', '#f7e6c4')]
+    WATER = [hx(c) for c in ('#2a4560', '#33566e', '#3c667b', '#4a7787', '#6b98a0', '#a8d0c8')]
+    PAVE = [hx(c) for c in ('#4f3a40', '#7d5a56', '#b48c70', '#cca380', '#ddb58e', '#ecc9a2')]
+    STONE = [hx(c) for c in ('#57474a', '#857470', '#ab9c92', '#cfc2b4')]
 FLOWERS = [(hx('#f4eed2'), hx('#f2c94c')), (hx('#f2c94c'), hx('#c9772c')), (hx('#e58aa6'), hx('#f6e7a8')), (hx('#a99be8'), hx('#f6e7a8'))]
 
 def pnoise(x, y, seed, octaves=((1, 1.0), (2, 0.55), (4, 0.3))):
@@ -258,12 +267,14 @@ def water_tile(variant):
 
 # ---------------- taş döşeme ----------------
 COBBLES = None
+NCOB, COB_D2 = (4, 150) if os.environ.get('STYLE', 'cozy') == 'cozy' else (7, 75)
 def _cobble_layout():
     """32 px'te kendini tekrar eden düzensiz parke taşı yerleşimi (periyodik Voronoi). Bütün çeşitlerde aynı: kenarlar tutar."""
     r = random.Random(1234); pts = []
-    while len(pts) < 7:
+    while len(pts) < NCOB:
         p = (r.uniform(0, T), r.uniform(0, T))
-        if all(min(abs(p[0] - q[0]), T - abs(p[0] - q[0])) ** 2 + min(abs(p[1] - q[1]), T - abs(p[1] - q[1])) ** 2 > 75 for q in pts): pts.append(p)
+        if all(min(abs(p[0] - q[0]), T - abs(p[0] - q[0])) ** 2 + min(abs(p[1] - q[1]), T - abs(p[1] - q[1])) ** 2 > COB_D2 for q in pts): pts.append(p)
+        if len(pts) == 0 and False: pass
     cell = {}
     for y in range(T):
         for x in range(T):
@@ -282,9 +293,18 @@ def pave_tile(variant):
     global COBBLES
     if COBBLES is None: COBBLES = _cobble_layout()
     t = Tex(); r = random.Random(1100 + variant)
-    shade = [r.choice((2, 3, 3, 4)) for _ in range(7)]
-    moss = {r.randrange(7) for _ in range(variant % 3)}
+    shade = [r.choice((3, 3, 4)) for _ in range(NCOB)]
+    moss = {r.randrange(NCOB) for _ in range(variant % 3)}
+    cozy = NCOB == 4
     for (x, y), (i, gap, sx, sy) in COBBLES.items():
+        if cozy:
+            if gap < 1.2: c = PAVE[0] if (x + y) % 3 else PAVE[1]                 # koyu, konturlu derz
+            elif gap < 2.4 and sy > 0: c = PAVE[2]                                 # alt kenar gölge
+            elif gap < 2.6 and sy < 0: c = PAVE[5]                                 # üst kenar ışık
+            elif gap < 2.4 and sx > 0: c = PAVE[2]
+            else: c = PAVE[shade[i]]
+            if i in moss and gap < 2.4 and (x * 3 + y) % 4 == 0: c = G[3]
+            t.put(x, y, c); continue
         if gap < 1.3:
             c = G[2] if i in moss and (x + y) % 2 else PAVE[1]            # derz: toprak, bazen yosun
         else:
