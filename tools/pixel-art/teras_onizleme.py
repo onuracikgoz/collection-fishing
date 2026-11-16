@@ -24,18 +24,21 @@ for edge in (oy, oy+rows*P):
     put(dir_,ox+cols*P,edge+dir_.height)
 for j in range(1,rows+1):
     for x in (ox,ox+cols*P): put(dik,x,oy+j*P-P+dik.height)
+# Oturan karakter: sandalyenin sol üstüne göre LPC karesinin (64x64) sol üstü. on/yan: karakter önde, arka: sandalye önde.
+SEAT={'sandalye_on':(2,-20,-25,False),'sandalye_arka':(0,-20,-30,True),'sandalye_yan_sag':(3,-21,-20,False),'sandalye_yan_sol':(1,-15,-20,False)}
+def seat(n,x,foot,sit=True):
+    c=I(n); put(c,x,foot); r,dx,dy,front=SEAT[n]
+    if sit: items.append((foot+(-0.5 if front else 0.5),fr(r),x+dx,foot-c.height+dy))
 # şemsiyeli kare masa + 4 sandalye (oturan)
 cx,cy=120,130     # masanın ayak hizası
 t=I('masa_kare'); put(t,cx-t.width//2,cy)
 u=I('semsiye'); items.append((cy+1,u,cx-u.width//2+4,cy+1-u.height))
-put('sandalye_on',cx-16,cy-30); items.append((cy-29,fr(2),cx-32,cy-30-60))
-put('sandalye_yan_sag',cx-58,cy+4); items.append((cy+5,fr(3),cx-76,cy-55))
-put('sandalye_yan_sol',cx+25,cy+4); items.append((cy+5,fr(1),cx+10,cy-55))
-items.append((cy+30,fr(0),cx-32,cy-14)); put('sandalye_arka',cx-16,cy+32)
+seat('sandalye_on',cx-16,cy-26); seat('sandalye_yan_sag',cx-56,cy+4); seat('sandalye_yan_sol',cx+24,cy+4)
+seat('sandalye_arka',cx-16,cy+34)
 # yuvarlak masa + iki yan sandalye
 mx,my=270,110
 m=I('masa_yuvarlak'); put(m,mx-m.width//2,my)
-put('sandalye_yan_sag',mx-52,my+4); put('sandalye_yan_sol',mx+18,my+4)
+seat('sandalye_yan_sag',mx-52,my+4,False); seat('sandalye_yan_sol',mx+18,my+4)
 put('bank_on',318,72); put('bank_arka',300,150)
 put('saksi_cicek',60,200); put('menu_tahta',240,195)
 put('saksi_agac',370,200); put('fener_direk',180,205)
