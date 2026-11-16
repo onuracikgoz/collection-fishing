@@ -68,6 +68,8 @@ export const OpCode = {
   GOTO_SPAWN: 64,
   ITEM_DISCARD: 65,
   ITEM_DISCARD_RESULT: 66,
+  LOOK_SET: 69,
+  LOOK_SHOW: 70,
 } as const;
 
 export const ErrorCode = {
@@ -127,6 +129,8 @@ export interface PlayerEnterMsg extends PlayerView {
   bobber?: { x: number; y: number; band: Band };
   /** Persistent status emote, if one is worn. */
   status?: string;
+  /** Worn wardrobe look (Gardırop). */
+  look: Look;
 }
 
 export interface PlayerLeaveMsg {
@@ -158,6 +162,8 @@ export interface WelcomeMsg {
   level: number;
   xp: number;
   xpNext: number;
+  /** The player's own wardrobe look. */
+  look: Look;
 }
 
 /** The player's rod (Faz 4). */
@@ -672,4 +678,29 @@ export interface BoardResultMsg {
   reason?: string;
   /** Diamonds after the charge. */
   diamond?: number;
+}
+
+// --- Gardırop (docs/tasarim/20-gardirop.md) ---
+
+/** A worn look as other players see it. */
+export interface Look {
+  body: 'male' | 'female';
+  skin: string;
+  eyes: string;
+  parts: { part: string; color: string; color2?: string; rented?: boolean }[];
+}
+
+/** C → S, op 69: the whole outfit. Owned parts carry instanceId; free parts carry free colours. */
+export interface LookSetMsg {
+  body: string;
+  skin: string;
+  eyes: string;
+  parts: { part: string; color?: string; color2?: string; instanceId?: string }[];
+}
+
+/** S → C, op 70: to the player and everyone who sees them. reason only to the player: NOT_OWNED, BAD_LOOK, RATE_LIMITED. */
+export interface LookShowMsg {
+  id: string;
+  look: Look;
+  reason?: string;
 }

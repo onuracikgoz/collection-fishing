@@ -13,6 +13,11 @@ export interface ContentResponse {
   sets: { id: string; name: string; active: boolean }[];
   /** Ids of the sets that are book pages right now (active sets with active book items). */
   pages: string[];
+  /** Wearable cosmetics (docs/protokol.md Gardırop); tier '' = free, color2 [] = no second area. */
+  wardrobe: {
+    parts: { id: string; name: string; slot: string; family: string; tier: string; colors: string[]; color2: string[]; effects: string[]; bodies: string[]; free: boolean; active: boolean }[];
+    colors: { id: string; kind: string; tier: string; free: boolean }[];
+  };
 }
 
 export function contentResponse(rt: ContentRuntime): ContentResponse {
@@ -21,7 +26,12 @@ export function contentResponse(rt: ContentRuntime): ContentResponse {
     const k = rt.known[id];
     items.push({ id, name: k.name, type: k.type, tier: k.tier || '', setId: k.setId || '', active: k.active, art: k.art ? k.art.hash : '' });
   }
-  return { updatedAt: rt.updatedAt, items, sets: rt.sets.map((s) => ({ ...s })), pages: rt.pages.map((p) => p.id) };
+  const cat = rt.wardrobe.catalog;
+  const wardrobe: ContentResponse['wardrobe'] = {
+    parts: cat.parts.map((p) => ({ id: p.id, name: p.name, slot: p.slot, family: p.family, tier: p.tier || '', colors: p.colors.slice(), color2: p.color2 ? p.color2.slice() : [], effects: p.effects.slice(), bodies: p.bodies.slice(), free: p.free, active: p.active })),
+    colors: cat.colors.map((c) => ({ id: c.id, kind: c.kind, tier: c.tier || '', free: c.free })),
+  };
+  return { updatedAt: rt.updatedAt, items, sets: rt.sets.map((s) => ({ ...s })), pages: rt.pages.map((p) => p.id), wardrobe };
 }
 
 let cached: { rt: ContentRuntime; json: string } | null = null;

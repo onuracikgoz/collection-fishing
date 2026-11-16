@@ -300,6 +300,7 @@ export const RPC_LIMITS: { default: RateLimit; rpcs: { [rpc: string]: RateLimit 
     get_content: { perWindow: 5, windowMs: 10 * 1000 },
     get_item_art: { perWindow: 30, windowMs: 10 * 1000 },
     get_locale: { perWindow: 5, windowMs: 10 * 1000 },
+    get_wardrobe: { perWindow: 10, windowMs: 10 * 1000 },
     whisper_send: { perWindow: WHISPER.perWindow, windowMs: WHISPER.windowMs },
     whisper_settings: { perWindow: 5, windowMs: 10 * 1000 },
     account_delete_request: { perWindow: 5, windowMs: 60 * 1000 },
@@ -448,4 +449,14 @@ export const WATCH: WatchConfig = {
   // Mobile CGNAT puts many people behind one IP: loose limits, low weight.
   ip: { maxAccountsPerDay: 10, maxOnline: 10 },
   weights: { hook_regular: 3, hook_fast: 2, reel_perfect: 3, nonstop: 3, silent: 1, same_spot: 1, one_way_flow: 3, ip_accounts: 1, ip_online: 1 },
+};
+
+// Wardrobe (docs/tasarim/20-gardirop.md; Öneri).
+export const WARDROBE = {
+  /** LOOK_SET at most this often. */
+  lookCooldownMs: 1000,
+  /** Longest rental the admin panel can give, in days. */
+  maxGiveDays: 365,
+  /** Most wardrobe items one player can hold (storage size guard). */
+  maxItems: 2000,
 };
