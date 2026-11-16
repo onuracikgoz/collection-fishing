@@ -122,11 +122,11 @@ namespace CollectionGame.World
                 }
                 else if (InRoad(col, row))
                 {
-                    tiles[i] = dirt[h % dirt.Length];
+                    tiles[i] = PreviewGroundTile(col, row, h); // TEMP ground preview (was dirt[h % dirt.Length])
                 }
                 else
                 {
-                    tiles[i] = grass[h % grass.Length];
+                    tiles[i] = PreviewGroundTile(col, row, h); // TEMP ground preview (was grass[h % grass.Length])
                 }
             }
             ground.SetTiles(positions, tiles);
@@ -143,6 +143,7 @@ namespace CollectionGame.World
 
             BuildFountain();
             BuildWindmill();
+            BuildDecor();
         }
 
         void BuildWindmill()
@@ -170,6 +171,177 @@ namespace CollectionGame.World
             for (var i = 0; i < WindmillFrames; i++)
                 frames[i] = ArtCatalog.Sprite(WindmillSails, new RectInt(i * fw, 0, fw, sheet.height), 0.5f, WindmillPivotY);
             sails.AddComponent<SpriteLoop>().Play(frames, 8f);
+        }
+
+        // ---------- Map decor: Gemini buildings and the café terrace (docs/tasarim/15-gorsel-stil.md) ----------
+        // Placed on the code-drawn map until the map prefab exists. Their bottom rows are blocked in
+        // LakeMapData.cs and content/maps/lake.json (door column left open); chairs are the map seats.
+        static readonly Vector2 CafeBase = new Vector2(54.5f, 63f);         // café bottom-centre, south of the plaza
+        static readonly Vector2 FishShopBase = new Vector2(70.25f, 42f);   // fishing shop, north-east of the plaza by the lake
+        // Tiles kept free of the ground preview's patches.
+        static readonly RectInt[] DecorArea = { new RectInt(44, 56, 21, 17), new RectInt(64, 33, 12, 10) };
+        const string Teras = "custom/Cafe/Teras/";
+
+        /// <summary>A chair of content/maps/lake.json `seats` (kafe_1..), drawn here.</summary>
+        public sealed class MapSeat
+        {
+            public string Id;
+            public Vector2 Feet;      // chair bottom-centre, server tiles
+            public int Row;           // LPC Sitting row (col 2 = chair pose)
+            public Vector2 FramePx;   // bottom-centre of the 64 px frame from the chair's bottom-centre, px, +y down
+            public int ChairOrder;
+            public bool ChairInFront; // sandalye_arka: the backrest hides the sitter
+        }
+        public static readonly System.Collections.Generic.List<MapSeat> Seats = new();
+
+        public static MapSeat FindSeat(string id) =>
+            string.IsNullOrEmpty(id) ? null : Seats.Find(s => s.Id == id);
+
+        /// <summary>A sprite standing on the ground: bottom-centre at <paramref name="feet"/> (pivotY up from the image bottom), sorted by its feet.</summary>
+        int PlaceDecor(string path, Vector2 feet, float pivotPx = 0f)
+        {
+            var tex = ArtCatalog.Texture(path);
+            if (tex == null) return 0;
+            var go = new GameObject("Decor " + path);
+            go.transform.SetParent(transform, false);
+            go.transform.position = Coords.ToUnity(feet);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, pivotPx / tex.height);
+            sr.sortingOrder = CharacterView.SortingOrderFor(feet.y);
+            return sr.sortingOrder;
+        }
+
+        void PlaceChair(string name, Vector2 feet)
+        {
+            var order = PlaceDecor(Teras + name + ".png", feet);
+            var (row, px, front) = name switch
+            {
+                "sandalye_on" => (2, new Vector2(-4, -3), false),
+                "sandalye_arka" => (0, new Vector2(-4, -4), true),
+                "sandalye_yan_sag" => (3, new Vector2(-6, 0), false),
+                _ => (1, Vector2.zero, false), // sandalye_yan_sol
+            };
+            Seats.Add(new MapSeat { Id = "kafe_" + (Seats.Count + 1), Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
+        }
+
+        void BuildDecor()
+        {
+            // Fishing shop; the crates reach the image bottom, the ground line is ~6 px above it.
+            PlaceDecor("custom/Buildings/balikci_gemini.png", FishShopBase, 6f);
+
+            PlaceDecor("custom/Cafe/kafe_gemini.png", CafeBase);
+            Seats.Clear();
+            // Square table with the parasol and four chairs (kafe_1..4).
+            var t = CafeBase + new Vector2(-3.5f, 3.5f);
+            PlaceDecor(Teras + "masa_kare.png", t);
+            PlaceDecor(Teras + "semsiye.png", t + new Vector2(4f / 32f, 1f / 32f));
+            PlaceChair("sandalye_on", t + new Vector2(0f, -1f));
+            PlaceChair("sandalye_arka", t + new Vector2(0f, 1f));
+            PlaceChair("sandalye_yan_sag", t + new Vector2(-1.25f, 0f));
+            PlaceChair("sandalye_yan_sol", t + new Vector2(1.25f, 0f));
+            // Round table with two side chairs (kafe_5, kafe_6).
+            var r = CafeBase + new Vector2(3.5f, 3.5f);
+            PlaceDecor(Teras + "masa_yuvarlak.png", r);
+            PlaceChair("sandalye_yan_sag", r + new Vector2(-1.25f, 0f));
+            PlaceChair("sandalye_yan_sol", r + new Vector2(1.25f, 0f));
+            // Benches.
+            PlaceDecor(Teras + "bank_on.png", CafeBase + new Vector2(-1.5f, 6.5f));
+            PlaceDecor(Teras + "bank_arka.png", CafeBase + new Vector2(1.5f, 6.5f));
+        }
+
+        // TEMP ground preview: our own tiles (tools/pixel-art/ground.py) instead of the LPC grass,
+        // with a few snow and dirt patches on the grass. Roads, plaza, lake and pier stay LPC.
+        // Remove when the map prefab gets painted.
+        const string GroundBase = "custom/Ground/zemin-cesitler.png"; // 8 variants per row: grass, dirt, snow, sand, water, pave
+        const string SnowEdge = "custom/Ground/kar-cimen-gecis-16.png";    // corner bit 1 = grass, 0 = snow
+        const string DirtEdge = "custom/Ground/cimen-toprak-gecis-16.png"; // corner bit 1 = dirt, 0 = grass
+        const byte VGrass = 0, VSnow = 1, VDirt = 2;
+        // (centre x, centre y, radius x, radius y, material, seed) in server tiles.
+        static readonly (float x, float y, float rx, float ry, byte m, int seed)[] PreviewPatches =
+        {
+            (34f, 70f, 4.5f, 3.2f, VSnow, 1), // south of the second building row
+            (40f, 15f, 4.5f, 3.2f, VDirt, 2), // north of the first building row
+            (22f, 20f, 5f, 4f, VSnow, 3),
+            (100f, 82f, 5f, 4f, VSnow, 4),
+            (25f, 78f, 4f, 3.5f, VSnow, 5),
+            (42f, 86f, 5f, 3.5f, VDirt, 6),
+            (100f, 14f, 4.5f, 3.5f, VDirt, 7),
+            (8f, 14f, 3.5f, 3f, VDirt, 8),
+            (70.5f, 62f, 2.6f, 3.6f, VSnow, 9), // between the south road and the lake, a few steps from spawn
+        };
+        byte[,] previewVerts;
+        readonly System.Collections.Generic.Dictionary<(string, int, int), Tile> previewTiles = new();
+
+        Tile PreviewTile(string path, int x, int y)
+        {
+            if (!previewTiles.TryGetValue((path, x, y), out var tile))
+                previewTiles[(path, x, y)] = tile = NewTile(ArtCatalog.Sprite(path, new RectInt(x * T, y * T, T, T)));
+            return tile;
+        }
+
+        static bool PreviewKeepOut(int col, int row)
+        {
+            if (col < 1 || row < 1 || col >= LakeMap.Width - 1 || row >= LakeMap.Height - 1) return true;
+            var p = new Vector2Int(col, row);
+            if (InRoad(col, row)) return true;
+            var lake = LakeMap.Lake;
+            if (new RectInt(lake.x - 2, lake.y - 2, lake.width + 4, lake.height + 4).Contains(p)) return true;
+            var w = LakeMap.Windmill;
+            if (new RectInt(w.x - 2, w.y - 4, w.width + 4, w.height + 6).Contains(p)) return true;
+            var f = LakeMap.Fountain;
+            if (new RectInt(f.x - 2, f.y - 3, f.width + 4, f.height + 5).Contains(p)) return true;
+            foreach (var r in DecorArea)
+                if (r.Contains(p)) return true;
+            return false;
+        }
+
+        void BuildPreviewVerts()
+        {
+            int w = LakeMap.Width, h = LakeMap.Height;
+            previewVerts = new byte[w + 1, h + 1];
+            for (var vy = 0; vy <= h; vy++)
+            for (var vx = 0; vx <= w; vx++)
+            {
+                // Roads and plaza in our dirt: a corner of any road tile is dirt, so the edge
+                // goes through the grass tiles beside the road with the cimen-toprak transition.
+                if (InRoad(vx - 1, vy - 1) || InRoad(vx, vy - 1) || InRoad(vx - 1, vy) || InRoad(vx, vy))
+                {
+                    previewVerts[vx, vy] = VDirt;
+                    continue;
+                }
+                // A corner may change only if every tile within 2 of it is free grass.
+                var free = true;
+                for (var ty = vy - 2; ty <= vy + 1 && free; ty++)
+                for (var tx = vx - 2; tx <= vx + 1 && free; tx++)
+                    if (PreviewKeepOut(tx, ty)) free = false;
+                if (!free) continue;
+                foreach (var b in PreviewPatches)
+                {
+                    var r = new System.Random(b.seed);
+                    float p0 = (float)r.NextDouble() * 6.283f, p1 = (float)r.NextDouble() * 6.283f, p2 = (float)r.NextDouble() * 6.283f;
+                    float dx = (vx - b.x) / b.rx, dy = (vy - b.y) / b.ry;
+                    var a = Mathf.Atan2(dy, dx);
+                    var edge = 1f + 0.28f * Mathf.Sin(3 * a + p0) + 0.18f * Mathf.Sin(5 * a + p1) + 0.1f * Mathf.Sin(2 * a + p2)
+                               + 0.12f * ((Hash(vx + 500, vy) % 100) / 100f - 0.5f);
+                    if (Mathf.Sqrt(dx * dx + dy * dy) < edge) previewVerts[vx, vy] = b.m;
+                }
+            }
+        }
+
+        Tile PreviewGroundTile(int col, int row, int h)
+        {
+            if (previewVerts == null) BuildPreviewVerts();
+            byte nw = previewVerts[col, row], ne = previewVerts[col + 1, row];
+            byte sw = previewVerts[col, row + 1], se = previewVerts[col + 1, row + 1];
+            var variant = (h >> 4) % 3;
+            if (nw == VGrass && ne == VGrass && sw == VGrass && se == VGrass) return PreviewTile(GroundBase, h % 8, 0);
+            if (nw == VSnow && ne == VSnow && sw == VSnow && se == VSnow) return PreviewTile(GroundBase, h % 8, 2);
+            if (nw == VDirt && ne == VDirt && sw == VDirt && se == VDirt) return PreviewTile(GroundBase, h % 8, 1);
+            // Mixed: grass and one other material (patches are kept apart, so never three).
+            var snow = nw == VSnow || ne == VSnow || sw == VSnow || se == VSnow;
+            int Bit(byte m) => snow ? (m == VGrass ? 1 : 0) : (m == VDirt ? 1 : 0);
+            var i = Bit(nw) * 8 + Bit(ne) * 4 + Bit(sw) * 2 + Bit(se);
+            return PreviewTile(snow ? SnowEdge : DirtEdge, variant * 4 + i % 4, i / 4);
         }
 
         void BuildFountain()

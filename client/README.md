@@ -59,6 +59,7 @@ Sonucu her zaman sunucu verir; client mini oyunu sadece çizer ve tuş zamanlar�
 - Menü: **CollectionGame → Build Web** (`Builds/Web`, git'e girmez). Komut satırı: `-executeMethod CollectionGame.EditorTools.BuildTools.BuildWeb`. WebGL modülü gerekir (Unity Hub → Installs → Add modules → Web Build Support).
 - Yerelde açmak: `cd client/Builds/Web && python3 -m http.server 8080` → tarayıcıda `http://localhost:8080`. Sunucu adresi sayfanın adresinden gelir; aynı Wi-Fi'daki arkadaş `http://<Mac'in IP'si>:8080` açar (Nakama 7350 portu da erişilebilir olmalı).
 - Test argümanları adres satırından: `http://localhost:8080/?cgUser=webbot&cgServer=Mercan&cgBot=fish`.
+- Aynı tarayıcıda ikinci hesap: `http://localhost:8080/?cgName=ayse`. O sekme bu adla oynar, kayıtlı adı değiştirmez (cihaz kimliği kurulum + ad olduğu için farklı ad = farklı hesap). `cgUser`'dan farkı: otomatik bot çalışmaz, giriş elle yapılır.
 - İnternetten açılması için sunucunun bir yerde barınması gerekiyor (`docs/acik-sorular.md` 12). Sayfa https ise Nakama'ya da https/wss gerekir.
 - Web fontunda bazı karakterler yok (… – ×); arayüz yazılarında düz ASCII karşılıkları kullanılıyor.
 

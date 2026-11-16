@@ -1,7 +1,8 @@
 // One server = one authoritative match on the shared map (docs/mimari.md).
 // Thin layer: every decision is made by the pure functions in rules/.
-import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SERVERS, SPAWN_TELEPORT, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
-import { LAKE_MAP, MARKET_POINT } from '../data/lake-map';
+import { ACCOUNT_DELETE, EMOTES, ENERGY, FRIENDS, MARKET, MODERATION, ROD, SEATS, SERVERS, SPAWN_TELEPORT, WATCH, WATER, WHISPER, WORLD, XP } from '../config';
+import { LAKE_MAP, LAKE_SEATS, MARKET_POINT } from '../data/lake-map';
+import { parseSit, seatById, sitRefusal } from '../rules/seat';
 import { getContent, invalidateContent } from './content';
 import {
   BubbleMsg,
@@ -13,6 +14,7 @@ import {
   PlayerEnterMsg,
   PlayerLeaveMsg,
   PlayerView,
+  SeatShowMsg,
   SnapshotMsg,
   TeleportMsg,
   WelcomeMsg,
@@ -85,6 +87,9 @@ interface Player {
   /** Last thing caught, for the show_fish emote. */
   lastCatch?: string;
   lastEmoteAt?: number;
+  /** Seat (map `seats` id) the player sits on; cleared when they walk or teleport. */
+  seat?: string;
+  lastSitAt?: number;
   /** Status emote worn above the head; kept in storage. */
   status?: string;
   /** Non-free status emotes this player owns. */
@@ -455,6 +460,7 @@ function handleGotoFriend(
   const spot = spotNear(state.map, friend.move.x, friend.move.y, FRIENDS.landRadius, FRIENDS.landMinDistance);
   if (!spot) return refuse('NO_SPOT');
   cancelFishing(fishing, p);
+  standUp(dispatcher, state, p);
   p.move = newMoveState(spot.x, spot.y, now, moveCfg);
   p.moving = false;
   p.dirty = true;
@@ -477,6 +483,7 @@ function handleBoardGoto(dispatcher: nkruntime.MatchDispatcher, fishing: Fishing
   const spot = spotNear(state.map, stall.doc.x, stall.doc.y, FRIENDS.landRadius, FRIENDS.landMinDistance);
   if (!spot) return refuse('NO_SPOT');
   cancelFishing(fishing, p);
+  standUp(dispatcher, state, p);
   p.move = newMoveState(spot.x, spot.y, now, moveCfg);
   p.moving = false;
   p.dirty = true;
@@ -498,11 +505,55 @@ function handleGotoSpawn(dispatcher: nkruntime.MatchDispatcher, fishing: Fishing
   p.lastTeleportAt = now;
   p.lastSpawnTeleportAt = now;
   cancelFishing(fishing, p);
+  standUp(dispatcher, state, p);
   p.move = newMoveState(spot.x, spot.y, now, moveCfg);
   p.moving = false;
   p.dirty = true;
   const msg: TeleportMsg = { x: spot.x, y: spot.y };
   send(dispatcher, OpCode.TELEPORT, msg, [p.presence]);
+}
+
+/** The player and everyone who sees them. */
+function audienceOf(state: WorldState, p: Player): nkruntime.Presence[] {
+  const to = [p.presence];
+  for (const id in state.players) if (state.players[id].visible[p.presence.userId]) to.push(state.players[id].presence);
+  return to;
+}
+
+/** Leaves the seat, if any, and tells the player and those who see them. */
+function standUp(dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player): void {
+  if (!p.seat) return;
+  p.seat = undefined;
+  const msg: SeatShowMsg = { id: p.presence.userId, seatId: '' };
+  send(dispatcher, OpCode.SEAT_SHOW, msg, audienceOf(state, p));
+}
+
+/** SIT: sit on a map seat next to the player, or stand up with seatId ''. */
+function handleSit(dispatcher: nkruntime.MatchDispatcher, fishing: FishingContext, state: WorldState, p: Player, body: unknown, now: number): void {
+  const seatId = parseSit(body);
+  if (seatId === undefined) return;
+  if (seatId === '') return standUp(dispatcher, state, p);
+  const seat = seatById(LAKE_SEATS, seatId);
+  let takenBy: string | undefined;
+  for (const id in state.players) if (state.players[id].seat === seatId) takenBy = id;
+  const reason = sitRefusal(
+    { seat, x: p.move.x, y: p.move.y, takenBy, userId: p.presence.userId, busy: !!p.tradeId, lastAt: p.lastSitAt, now },
+    SEATS,
+  );
+  if (reason !== 'RATE_LIMITED') p.lastSitAt = now;
+  if (reason || !seat) {
+    const no: SeatShowMsg = { id: p.presence.userId, seatId: p.seat || '', reason: reason || 'NOT_FOUND' };
+    send(dispatcher, OpCode.SEAT_SHOW, no, [p.presence]);
+    return;
+  }
+  cancelFishing(fishing, p);
+  p.seat = seat.id;
+  p.move = newMoveState(seat.x, seat.y, now, moveCfg);
+  p.dir = seat.dir;
+  p.moving = false;
+  p.dirty = true;
+  const msg: SeatShowMsg = { id: p.presence.userId, seatId: seat.id };
+  send(dispatcher, OpCode.SEAT_SHOW, msg, audienceOf(state, p));
 }
 
 function handleEmote(nk: nkruntime.Nakama, logger: nkruntime.Logger, dispatcher: nkruntime.MatchDispatcher, state: WorldState, p: Player, body: unknown, now: number): void {
@@ -615,6 +666,7 @@ export function worldLoop(
       moves[m.sender.userId] = (moves[m.sender.userId] || 0) + 1;
       if (moves[m.sender.userId] <= WORLD.maxMovesPerTick && handleMove(dispatcher, state.map, p, body, now)) {
         cancelFishing(fishing, p);
+        standUp(dispatcher, state, p);
       }
     } else if (m.opCode === OpCode.SAY) {
       says.push({ p, body });
@@ -649,6 +701,8 @@ export function worldLoop(
       handleBoardGoto(dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.GOTO_SPAWN) {
       handleGotoSpawn(dispatcher, fishing, state, p, now);
+    } else if (m.opCode === OpCode.SIT) {
+      handleSit(dispatcher, fishing, state, p, body, now);
     } else if (m.opCode === OpCode.EMOTE) {
       handleEmote(nk, logger, dispatcher, state, p, body, now);
     } else if (m.opCode === OpCode.ITEM_DISCARD && !storageActions[m.sender.userId]) {
@@ -703,6 +757,7 @@ export function worldLoop(
       const enter: PlayerEnterMsg = { ...view(otherId, o), name: o.name, characterId: o.characterId };
       if (o.fish) enter.bobber = { x: o.fish.x, y: o.fish.y, band: o.fish.band };
       if (o.status) enter.status = o.status;
+      if (o.seat) enter.seat = o.seat;
       send(dispatcher, OpCode.PLAYER_ENTER, enter, [p.presence]);
     }
     for (const otherId of change.left) {

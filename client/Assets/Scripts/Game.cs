@@ -39,9 +39,19 @@ namespace CollectionGame
             go.AddComponent<Game>();
         }
 
+        bool nameFromArg;
+
         void Awake()
         {
             username = PlayerPrefs.GetString(UsernameKey, "");
+            // "?cgName=ayse" in the web address (or -cgName on the command line): this tab / window plays
+            // as that name and does not overwrite the saved one, so a second browser tab can be another account.
+            var tabName = Autopilot.Arg("-cgName");
+            if (!string.IsNullOrWhiteSpace(tabName))
+            {
+                username = tabName.Trim();
+                nameFromArg = true;
+            }
             host = Application.platform == RuntimePlatform.WebGLPlayer ? Connection.DefaultHost() : PlayerPrefs.GetString(HostKey, Connection.DefaultHost());
             Application.runInBackground = true; // two windows on one Mac both keep running
         }
@@ -59,7 +69,7 @@ namespace CollectionGame
         {
             username = username.Trim();
             host = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
-            if (!Autopilot.Enabled)
+            if (!Autopilot.Enabled && !nameFromArg)
             {
                 PlayerPrefs.SetString(UsernameKey, username);
                 PlayerPrefs.SetString(HostKey, host);
@@ -233,7 +243,7 @@ namespace CollectionGame
             {
                 error = null;
                 username = "";
-                PlayerPrefs.SetString(UsernameKey, "");
+                if (!nameFromArg) PlayerPrefs.SetString(UsernameKey, "");
                 screen = Page.Login;
             });
             for (var i = 0; i < view.rows.Length; i++)

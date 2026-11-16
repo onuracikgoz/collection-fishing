@@ -188,6 +188,12 @@ export const PROFILE = {
 // Emotes (docs/tasarim/10-sosyal.md 13.2.2). Gestures are short; show_fish holds up the last catch.
 // Status emotes stay above the head until removed. Tier: free for all, supporter /
 // diamond / book need ownership (granted by other systems, never by the client).
+/** Sitting on chairs (docs/protokol.md "Oturma"). */
+export const SEATS = {
+  maxDistance: 1.5, // Öneri
+  cooldownMs: 500, // Öneri
+};
+
 export const EMOTES = {
   list: ['wave', 'clap', 'dance', 'cheer', 'sit', 'laugh', 'show_fish'],
   cooldownMs: 2000, // (Öneri)

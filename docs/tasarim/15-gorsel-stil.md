@@ -13,8 +13,11 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 
 - Harita ve karakterler: LPC. Harita tile'ları **LPC Revised** (github.com/ElizaWy/LPC) paketinden, lisansı **OGA-BY 3.0**: isim verilir, share-alike yok. Eski LPC parçaları (CC-BY-SA / GPL) kullanılırsa değiştirilen çizimler aynı lisansla paylaşılır. Kredi listesi: `content/CREDITS.md`.
 - LPC'de olta animasyonu yok. Geçici çözüm (**Öneri**): atış için LPC `Legacy - Swing` kareleri, bekleme için `Idle`; olta ve misina kodla çizilir (şamandıra gibi). Kalıcısı Faz 7 öncesi çizdirilir: 4 yön × atış / bekleme / çekme.
-- AI yalnız eşya ikonlarında kullanılır. Tile, bina ve harita parçalarında kullanılmaz: tile kenarları birbirine oturmalı ve LPC'nin ışık / perspektifiyle uyuşmalı.
+- AI eşya ikonlarında ve **binalarda** kullanılır (binalar 16.11.2026'dan beri, aşağıda "Binalar: Gemini ile üretim"). Tile ve zemin geçişlerinde kullanılmaz: tile kenarları birbirine oturmalı.
 - **Deneme (01.11.2026, Onur):** kodla çizilen bina. Yel değirmeni bir script ile (basit 3D şekiller, 3/4 açı, palet tonları) piksel piksel üretilir: `tools/pixel-art/windmill.py` → `client/Assets/Art/Custom/Windmill/`. Oyunda nasıl durduğuna bakılıp kalıp kalmayacağına karar verilecek. Renkler henüz Resurrect 64'e çekilmedi.
+- **Zemin (13.11.2026, Onur):** çimen, toprak ve kar tile'ları kodla çizilir: `tools/pixel-art/ground.py` → `client/Assets/Art/Custom/Ground/` (32 px dikişsiz dokular ×8 çeşit, çimen-toprak / kar-çimen / kar-toprak için 16'şar parçalık köşe tabanlı geçiş). Çimen onaylandı. Kar, kum, su ve taş döşeme de aynı dosyada; her geçişten 3 çeşit, kenarlar çeşitler arasında ortak. Geçişler: çimen-toprak, kar-çimen, kar-toprak, kum-çimen, kum-su, taş-çimen, taş-kum. Henüz haritaya bağlı değil.
+- **Yumuşatma (13.11.2026, Onur):** kodla çizilen parçalar sert, "cetvelle çizilmiş" durmasın diye son adımda `tools/pixel-art/soften.py` uygulanır: seçici kontur (dış hat yüzeyin kendi renginin koyusu), merdiven köşelerinde ara ton, zıt iç sınırlarda ince geçiş. (16.11.2026: kodla çizilen bina ve eşyalar kaldırıldı, yerine Gemini görselleri kullanılıyor.)
+- **Mobilya bakışı (13.11.2026, Onur):** eşyalar "önden-üst" bakışla çizilir: üst yüz açık, ön yüz koyu, aralarında koyu çizgi, etrafında kalın koyu kahve kontur (`#3a2418`), perspektif daralması yok, yüzey başına 2-3 ton. 3/4 perspektifli çizim (daralan arkalık, yan yüzler) 2D/düz durduğu için bırakıldı.
 - Eşyalar: AI (Perchance), her eşya ayrı görsel → Item Art Studio (arka plan silme, 128×128, palete çekme) → ortak palet.
 
 ## Tutarlılık kuralları
@@ -63,3 +66,21 @@ Mockup'lar: sağ üstte yığın ve ekran ortasında bannerlar. Hepsi `box_dark`
 - **Defter kaydı:** ilk kez tutulan item için, sadece oyuncuya.
 - **Bağlantı koptu:** kırmızı şerit, yeniden bağlanma sayacı; bu sürede istek gönderilmez.
 - Bildirim metinleri sunucu mesajıdır, client kod tabanlı çevirir. Bildirimler ham Float değerini veya fiyat bilgisini sızdırmaz (nadir av duyurusu sadece kondisyon adını taşır).
+
+## Binalar: Gemini ile üretim (16.11.2026, Onur onayı)
+
+Binalar ve büyük eşyalar Gemini'de üretilir, `tools/pixel-art/clean_ai.py` ile oyuna oturtulur. Örnek ve stil referansı: `client/Assets/Art/Custom/Buildings/balikci_gemini.png` (kaynak `tools/pixel-art/ai-src/balikci_gemini.png`).
+
+- **Açı:** düz önden, tepeden-önden RPG bakışı. Ön cephe kameraya dümdüz bakar, çatı hafif üstten görünür. İzometrik yok, yan duvar görünmez. Zemin karoları ve LPC karakterler bu açıda.
+- **Stil:** tombul kırmızı kiremit, koyu mor-kahve ahşap, sıcak turuncu pencere ışığı, 1 px koyu mor-kahve kontur, ışık sol üstten. Gerçek piksel ızgarası (128×128 ızgara, 8x nearest büyütme), yumuşatma ve gradyan yok.
+- **Prompt kalıbı:** iki referans görsel eklenir: açı için bizim bir bina, stil için `balikci_gemini`. Sadece içerik cümlesi değişir:
+  ```
+  Redraw the building from the first image as <İÇERİK>, keeping EXACTLY its camera angle: straight front view of a top-down RPG, the front facade faces the camera flat, the roof is seen from slightly above, NOT isometric, NOT rotated, no side wall visible.
+  Use the colors, chunky rounded roof tiles, dark purple-brown wood and warm mood of the second image.
+  Details: <DETAYLAR>.
+  TRUE pixel art: draw it on a 128x128 pixel grid, every pixel is a hard square of one flat color, then upscale 8x with nearest neighbor. No anti-aliasing, no gradients, no blur, no noise, no soft shadows. Limited palette of about 32 colors. 1-pixel dark purple-brown outline around shapes. Light comes from the top-left.
+  Pure white background, building only, no ground tile, no grass patch, no text.
+  ```
+- **Temizleme:** `UP=2 python3 clean_ai.py ai-src/<ad>.png ../../client/Assets/Art/Custom/Buildings/<ad>.png 9999 <ızgara>`. Gemini'de ızgara ~4.26 px'tir (her görselde ölçülür). Renkler ortak cozy palete (`cozy_palette.json`) eşlenir, bu varsayılan ve Onur'un tercihi. `PALETTE=own` görselin kendi renklerini korur.
+- **Ölçek:** kapı karakterin yaklaşık 1,5 katı.
+- Kodla çizilen binalar, doğa ve meydan eşyaları ile Perchance çıktıları 16.11.2026'da kaldırıldı (Onur); oyunda sadece Gemini'den gelenler kalır (balıkçı, kafe, teras mobilyası). Zemin ve geçişler kodla üretilmeye devam eder (`ground.py`, cozy palet).

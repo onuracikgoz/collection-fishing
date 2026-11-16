@@ -76,6 +76,40 @@ namespace CollectionGame.World
             Moving = moving;
             transform.position = Coords.ToUnity(serverPos);
             group.sortingOrder = SortingOrderFor(serverPos.y);
+            if (Seat != null)
+            {
+                // Our own walk stands up at once (the server confirms with SEAT_SHOW ""). Others stay
+                // seated until the server says they stood up.
+                if (moving && IsLocal) StandUp();
+                else ApplySeat();
+            }
+        }
+
+        // Chair seats (protokol.md, Oturma); the chairs themselves are still the TEMP MapView preview.
+        public MapView.MapSeat Seat { get; private set; }
+        public bool IsLocal;
+
+        public void SitOn(MapView.MapSeat seat)
+        {
+            Seat = seat;
+            Emote = Emotes.Sit;
+            animTime = 0f;
+            ApplySeat();
+        }
+
+        public void StandUp()
+        {
+            if (Seat == null) return;
+            Seat = null;
+            if (Emote == Emotes.Sit) Emote = null;
+        }
+
+        void ApplySeat()
+        {
+            // FramePx puts the frame's bottom-centre; the sprite pivot is FeetPivot above it.
+            var px = Seat.FramePx - new Vector2(0f, FeetPivot * Frame);
+            transform.position = Coords.ToUnity(Seat.Feet + px / 32f);
+            group.sortingOrder = Seat.ChairOrder + (Seat.ChairInFront ? -1 : 1);
         }
 
         public void Say(string text, float seconds)
@@ -110,12 +144,13 @@ namespace CollectionGame.World
             if (Emote != null && (Moving || (Emote != Emotes.Sit && Time.time > emoteUntil))) Emote = null;
 
             // Sitting.png has three poses per direction; the first is sitting on the ground.
-            var sitting = Emote == Emotes.Sit;
+            var sitting = Emote == Emotes.Sit || Seat != null;
             var walking = Moving || Emote == Emotes.Dance;
             var anim = sitting ? "Sitting" : walking ? "Walk" : "Idle";
             var frames = sitting ? 1 : walking ? 8 : 3;
             var frame = (int)(animTime * (walking ? WalkFps : IdleFps)) % frames;
             var row = Row(Facing);
+            if (Seat != null) { row = Seat.Row; frame = 2; } // LPC chair pose
             var rect = new RectInt(frame * Frame, row * Frame, Frame, Frame);
             var paths = look.LayerPaths;
             for (var i = 0; i < layers.Length; i++)
