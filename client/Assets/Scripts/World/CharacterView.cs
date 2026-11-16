@@ -78,13 +78,16 @@ namespace CollectionGame.World
             group.sortingOrder = SortingOrderFor(serverPos.y);
             if (Seat != null)
             {
-                if (moving) StandUp();
+                // Our own walk stands up at once (the server confirms with SEAT_SHOW ""). Others stay
+                // seated until the server says they stood up.
+                if (moving && IsLocal) StandUp();
                 else ApplySeat();
             }
         }
 
-        // TEMP seat demo (MapView.PreviewSeats): local view only; others see the plain sit emote.
+        // Chair seats (protokol.md, Oturma); the chairs themselves are still the TEMP MapView preview.
         public MapView.PreviewSeat Seat { get; private set; }
+        public bool IsLocal;
 
         public void SitOn(MapView.PreviewSeat seat)
         {
@@ -96,6 +99,7 @@ namespace CollectionGame.World
 
         public void StandUp()
         {
+            if (Seat == null) return;
             Seat = null;
             if (Emote == Emotes.Sit) Emote = null;
         }

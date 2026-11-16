@@ -86,6 +86,11 @@ namespace CollectionGame.Dev
                 yield return EconomyTour();
                 yield break;
             }
+            if (mode == "sit")
+            {
+                yield return SitTour(Arg("-cgSeat") ?? "kafe_1");
+                yield break;
+            }
 
             foreach (var p in mode == "fish" ? FisherPath : WalkerPath)
             {
@@ -123,6 +128,30 @@ namespace CollectionGame.Dev
             }
             yield return new WaitForSeconds(0.5f);
             Log($"summary others {world.OthersInView}, bubbles {world.BubblesHeard}, corrections {world.Corrections}, energy {world.Fishing.Energy}/{world.Fishing.EnergyMax}");
+        }
+
+        /// <summary>-cgBot sit [-cgSeat kafe_N]: walk to the café chair, SIT, report who sits where.</summary>
+        IEnumerator SitTour(string seatId)
+        {
+            var seat = MapView.FindSeat(seatId);
+            if (seat == null)
+            {
+                Log($"no seat {seatId}");
+                yield break;
+            }
+            foreach (var p in new[] { new Vector2(64.5f, 58.5f), new Vector2(64.5f, 71.5f), new Vector2(seat.Feet.x, 71.5f), seat.Feet + (seat.Row == 3 ? new Vector2(-0.9f, 0f) : seat.Row == 1 ? new Vector2(0.9f, 0f) : seat.Row == 0 ? new Vector2(0f, 0.9f) : new Vector2(0f, -0.9f)) })
+            {
+                world.WalkTo(p);
+                yield return new WaitForSeconds(0.2f);
+                var until = Time.time + 15f;
+                while (world.Walking && Time.time < until) yield return null;
+            }
+            world.Sit(seatId);
+            for (var i = 0; i < 20; i++)
+            {
+                yield return new WaitForSeconds(1.5f);
+                Log($"seat {world.MySeat} at {world.MyPosition}; others seated: {world.OthersSeats}");
+            }
         }
 
         IEnumerator Fish()

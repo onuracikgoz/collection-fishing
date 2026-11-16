@@ -234,6 +234,7 @@ namespace CollectionGame.World
         // TEMP seat demo: terrace furniture in front of the café; E near a chair sits on it (WorldController).
         public sealed class PreviewSeat
         {
+            public string Id;        // seat id in content/maps/lake.json (kafe_1..)
             public Vector2 Feet;     // chair bottom-centre, server tiles
             public int Row;          // LPC Sitting row (col 2 = chair pose)
             public Vector2 FramePx;  // bottom-centre of the 64 px frame from the chair's bottom-centre, px, +y down
@@ -242,6 +243,9 @@ namespace CollectionGame.World
         }
         public static readonly System.Collections.Generic.List<PreviewSeat> PreviewSeats = new();
         const string Teras = "custom/Cafe/Teras/";
+
+        public static PreviewSeat FindSeat(string id) =>
+            string.IsNullOrEmpty(id) ? null : PreviewSeats.Find(s => s.Id == id);
 
         int PlaceCafeSpriteOrder(string path, Vector2 feet)
         {
@@ -259,7 +263,7 @@ namespace CollectionGame.World
                 "sandalye_yan_sag" => (3, new Vector2(-6, 0), false),
                 _ => (1, Vector2.zero, false), // sandalye_yan_sol
             };
-            PreviewSeats.Add(new PreviewSeat { Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
+            PreviewSeats.Add(new PreviewSeat { Id = "kafe_" + (PreviewSeats.Count + 1), Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
         }
 
         void BuildCafePreview() // TEMP art preview
