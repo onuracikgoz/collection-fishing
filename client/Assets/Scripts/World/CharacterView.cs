@@ -180,6 +180,15 @@ namespace CollectionGame.World
                     : LpcLook.Sprite(lookLayers[i], anim, frame, row, FeetPivot);
         }
 
+        /// <summary>Dev/test: every layer's part and current sprite, for the autopilot log.</summary>
+        public string LayerDump()
+        {
+            var parts = new List<string>();
+            for (var i = 0; i < layers.Length; i++)
+                parts.Add($"{layers[i]?.name}={(layers[i] != null && layers[i].sprite != null ? layers[i].sprite.name : "null")}{(layers[i] != null && layers[i].transform.parent != transform ? "(not child!)" : "")}");
+            return string.Join(" ", parts);
+        }
+
         static int Row(string dir)
         {
             switch (dir)

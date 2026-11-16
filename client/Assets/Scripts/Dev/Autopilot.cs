@@ -92,6 +92,7 @@ namespace CollectionGame.Dev
                 yield break;
             }
 
+            if (Arg("-cgLayers") != null) StartCoroutine(DumpLayers());
             foreach (var p in mode == "fish" ? FisherPath : WalkerPath)
             {
                 world.WalkTo(p);
@@ -128,6 +129,19 @@ namespace CollectionGame.Dev
             }
             yield return new WaitForSeconds(0.5f);
             Log($"summary others {world.OthersInView}, bubbles {world.BubblesHeard}, corrections {world.Corrections}, energy {world.Fishing.Energy}/{world.Fishing.EnergyMax}");
+        }
+
+        /// <summary>-cgLayers [FILE.png]: logs our character's layer sprites every 0.3 s (walking and standing); with a file, two screenshots while walking.</summary>
+        IEnumerator DumpLayers()
+        {
+            for (var i = 0; i < 60; i++)
+            {
+                var me = world.Me;
+                if (me != null) Log($"layers moving={me.Moving} {me.LayerDump()}");
+                var shot = Arg("-cgLayers");
+                if ((i == 4 || i == 6) && shot.EndsWith(".png")) ScreenCapture.CaptureScreenshot(shot.Replace(".png", $"-{i}.png"));
+                yield return new WaitForSeconds(0.3f);
+            }
         }
 
         /// <summary>-cgBot sit [-cgSeat kafe_N]: walk to the café chair, SIT, report who sits where.</summary>
