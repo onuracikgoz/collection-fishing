@@ -256,6 +256,7 @@ namespace CollectionGame.World
                 fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
                 social.Update(Typing);
+                if (!Typing && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) ToggleSeat(); // TEMP seat demo
                 economy.Update(Typing);
                 market.Update(Typing);
                 npcs.Update(mover.Position, Typing);
@@ -310,6 +311,26 @@ namespace CollectionGame.World
             var up = line + 4f * Gui.Scale;
             if (social.StatusOf.TryGetValue(view.Id, out var status) && !string.IsNullOrEmpty(status)) up += line + 2f * Gui.Scale;
             return head + new Vector2(0f, up);
+        }
+
+        // TEMP seat demo: E sits on the nearest MapView preview chair (within 1.2 tiles), E again stands up.
+        void ToggleSeat()
+        {
+            if (me.Seat != null)
+            {
+                me.StandUp();
+                return;
+            }
+            MapView.PreviewSeat best = null;
+            var bestD = 1.2f;
+            foreach (var s in MapView.PreviewSeats)
+            {
+                var d = Vector2.Distance(s.Feet, mover.Position);
+                if (d <= bestD) { bestD = d; best = s; }
+            }
+            if (best == null) return;
+            me.SitOn(best);
+            social.SendEmote(Emotes.Sit);
         }
 
         void PlaceCamera()

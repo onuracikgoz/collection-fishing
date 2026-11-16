@@ -217,7 +217,7 @@ namespace CollectionGame.World
         // TEMP art preview: Gemini café south of the plaza (docs/tasarim/16-ilk-harita.md). The terrace
         // props stay separate assets for now (Cafe/Teras, layout later).
         static readonly Vector2 CafeBase = new Vector2(54.5f, 63f);
-        static readonly RectInt CafeArea = new RectInt(44, 56, 21, 15);
+        static readonly RectInt CafeArea = new RectInt(44, 56, 21, 17);
 
         void PlaceCafeSprite(string path, Vector2 feet)
         {
@@ -231,7 +231,58 @@ namespace CollectionGame.World
             sr.sortingOrder = CharacterView.SortingOrderFor(feet.y);
         }
 
-        void BuildCafePreview() => PlaceCafeSprite("custom/Cafe/kafe_gemini.png", CafeBase); // TEMP art preview
+        // TEMP seat demo: terrace furniture in front of the café; E near a chair sits on it (WorldController).
+        public sealed class PreviewSeat
+        {
+            public Vector2 Feet;     // chair bottom-centre, server tiles
+            public int Row;          // LPC Sitting row (col 2 = chair pose)
+            public Vector2 FramePx;  // bottom-centre of the 64 px frame from the chair's bottom-centre, px, +y down
+            public int ChairOrder;
+            public bool ChairInFront; // sandalye_arka: the backrest hides the sitter
+        }
+        public static readonly System.Collections.Generic.List<PreviewSeat> PreviewSeats = new();
+        const string Teras = "custom/Cafe/Teras/";
+
+        int PlaceCafeSpriteOrder(string path, Vector2 feet)
+        {
+            PlaceCafeSprite(path, feet);
+            return CharacterView.SortingOrderFor(feet.y);
+        }
+
+        void PlaceChair(string name, Vector2 feet)
+        {
+            var order = PlaceCafeSpriteOrder(Teras + name + ".png", feet);
+            var (row, px, front) = name switch
+            {
+                "sandalye_on" => (2, new Vector2(-4, -3), false),
+                "sandalye_arka" => (0, new Vector2(-4, -4), true),
+                "sandalye_yan_sag" => (3, new Vector2(-6, 0), false),
+                _ => (1, Vector2.zero, false), // sandalye_yan_sol
+            };
+            PreviewSeats.Add(new PreviewSeat { Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
+        }
+
+        void BuildCafePreview() // TEMP art preview
+        {
+            PlaceCafeSprite("custom/Cafe/kafe_gemini.png", CafeBase);
+            PreviewSeats.Clear();
+            // Square table with the parasol and four chairs.
+            var t = CafeBase + new Vector2(-3.5f, 3.5f);
+            PlaceCafeSprite(Teras + "masa_kare.png", t);
+            PlaceCafeSprite(Teras + "semsiye.png", t + new Vector2(4f / 32f, 1f / 32f));
+            PlaceChair("sandalye_on", t + new Vector2(0f, -1f));
+            PlaceChair("sandalye_arka", t + new Vector2(0f, 1f));
+            PlaceChair("sandalye_yan_sag", t + new Vector2(-1.25f, 0f));
+            PlaceChair("sandalye_yan_sol", t + new Vector2(1.25f, 0f));
+            // Round table with two side chairs.
+            var r = CafeBase + new Vector2(3.5f, 3.5f);
+            PlaceCafeSprite(Teras + "masa_yuvarlak.png", r);
+            PlaceChair("sandalye_yan_sag", r + new Vector2(-1.25f, 0f));
+            PlaceChair("sandalye_yan_sol", r + new Vector2(1.25f, 0f));
+            // Benches.
+            PlaceCafeSprite(Teras + "bank_on.png", CafeBase + new Vector2(-1.5f, 6.5f));
+            PlaceCafeSprite(Teras + "bank_arka.png", CafeBase + new Vector2(1.5f, 6.5f));
+        }
 
         // TEMP ground preview: our own tiles (tools/pixel-art/ground.py) instead of the LPC grass,
         // with a few snow and dirt patches on the grass. Roads, plaza, lake and pier stay LPC.
