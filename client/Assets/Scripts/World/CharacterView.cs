@@ -171,8 +171,13 @@ namespace CollectionGame.World
                 row = Seat.Row;
                 frame = LpcLook.ChairPose;
             }
+            // Many clothes have no idle sheet: then nobody breathes, or the shirt would stay still
+            // while the body under it bobs. The whole character shows walk's standing frame.
+            var standing = anim == LpcLook.Anim.Idle && !LpcLook.AllHave(lookLayers, anim);
             for (var i = 0; i < layers.Length; i++)
-                layers[i].sprite = LpcLook.Sprite(lookLayers[i], anim, frame, row, FeetPivot);
+                layers[i].sprite = standing
+                    ? LpcLook.Standing(lookLayers[i], row, FeetPivot)
+                    : LpcLook.Sprite(lookLayers[i], anim, frame, row, FeetPivot);
         }
 
         static int Row(string dir)

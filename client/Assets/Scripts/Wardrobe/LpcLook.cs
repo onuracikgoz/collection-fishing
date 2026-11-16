@@ -73,6 +73,15 @@ namespace CollectionGame.Wardrobe
             return layers;
         }
 
+        /// <summary>Every layer has a sheet for this animation (walk always does).</summary>
+        public static bool AllHave(List<Layer> layers, Anim anim)
+        {
+            if (anim == Anim.Walk || layers == null) return true;
+            foreach (var l in layers)
+                if (string.IsNullOrEmpty(anim == Anim.Idle ? l.Sheets.idle : l.Sheets.sit)) return false;
+            return true;
+        }
+
         /// <summary>Walk's standing frame (sheet frame 0): the wardrobe preview.</summary>
         public static Sprite Standing(Layer layer, int row, float pivotY)
         {
