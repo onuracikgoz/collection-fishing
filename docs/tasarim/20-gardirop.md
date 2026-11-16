@@ -5,7 +5,7 @@
 ## 1. Gardırop collection'dan ayrıdır
 
 - Giyilebilir parçalar (kıyafet, saç, şapka, gözlük, takı, kanat...) **collection eşyası değildir**: Float yoktur, defterde yer almaz, Collection Score'a sayılmaz, çantada durmaz. Kendi **Gardırop** ekranları vardır.
-- Her parçanın **sabit bir Tier'ı** vardır (kalıbından gelir, craft tablosu kural 1). Rengin Tier'ı parçanın Tier'ını değiştirmez. Efekt rengiyle (Gökkuşağı, Alev...) yapılan parça Mythic'tir.
+- Her parçanın **sabit bir Tier'ı** vardır (kalıbından gelir, craft tablosu kural 1). Rengin Tier'ı parçanın Tier'ını değiştirmez. Efekt rengiyle (Gökkuşağı, Alev...) yapılan parça Mythic'tir. Bir karakter istediği kadar Mythic parça giyebilir (karar 16.11.2026).
 - Parçalar **Universal LPC** karakter setinden gelir (karar 16.11.2026; Universal-LPC-Spritesheet-Character-Generator'daki her şey). Oyundaki karakter de Universal gövdeyle çizilir, Revised bırakılır. Bir parça **gri / temel paletle bir kez** saklanır, rengi oyunda kodla boyanır (ton dizisi eşlemesi, denendi: LPC'nin kendi renkli dosyasıyla piksel piksel aynı). Renk listesi ve Tier'ları craft tablosundaki Renkler sayfasıdır.
 
 ## 2. Kimlik bedavadır
