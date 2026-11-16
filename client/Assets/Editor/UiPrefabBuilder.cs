@@ -22,7 +22,7 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 42; // 42: Wardrobe window and HUD button; 41: equal window padding (Fit), info "!" button and Info window
+        public const int Version = 43; // 43: swatch frame without centre; 42: Wardrobe window and HUD button; 41: equal window padding (Fit), info "!" button and Info window
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -1522,6 +1522,7 @@ namespace CollectionGame.EditorTools
             nav.mode = Navigation.Mode.None;
             b.navigation = nav;
             var chosen = Img(Stretch(Node("Chosen", rt), -4, -4, -4, -4), "slot_selected");
+            chosen.fillCenter = false; // only the gold frame: the colour stays visible
             chosen.gameObject.SetActive(false);
             return b;
         }
