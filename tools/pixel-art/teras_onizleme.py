@@ -34,7 +34,7 @@ items.append((cy+30,fr(0),cx-32,cy-16)); put('sandalye_arka',cx-15,cy+31)
 # yuvarlak masa + iki yan sandalye
 mx,my=270,110
 m=I('masa'); put(m,mx-m.width//2,my)
-put('sandalye_sag',mx-50,my+2); put('sandalye_sol',mx+16,my+2)
+put('sandalye_yan_sag',mx-50,my+2); put('sandalye_yan_sol',mx+20,my+2)
 put('bank',330,80); put('saksi_cicek',300,190); put('menu_tahta',240,180)
 put('saksi_agac',370,200); put('fener_direk',180,205)
 for f,img,x,y in sorted(items,key=lambda i:i[0]): can.alpha_composite(img,(x,y))

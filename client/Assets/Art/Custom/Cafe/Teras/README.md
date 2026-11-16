@@ -3,9 +3,8 @@
 Kaynak: `tools/pixel-art/ai-src/kafe_teras.png` (Gemini). Kesme ve temizleme: `UP=2 clean_ai.py <kesit> <çıktı> 9999 4.26`.
 
 - `masa_sandalye.png`: orijinal grup. `split_parts.py` ile ayrıldı:
-  - `sandalye_sag.png`: yüzü sağa bakan sandalye (masanın solunda durur)
+  - `sandalye_sag.png`, `sandalye_sol.png`: eski tip sandalye, KULLANILMIYOR (16.11.2026, tek tip için 4 yönlü set kullanılır)
   - `masa.png`: yuvarlak masa
-  - `sandalye_sol.png`: yüzü sola bakan sandalye (masanın sağında durur)
 - `sandalyeler_4yon.png` (Gemini, `ai-src/sandalyeler.png`, ızgara 8.7, UP=1) ayrıldı:
   - `sandalye_on.png` oturağı kameraya bakan (masanın arkasında durur, oturan aşağı bakar)
   - `sandalye_arka.png` arkalığı kameraya bakan (masanın önünde durur, oturanın önünde çizilir)
