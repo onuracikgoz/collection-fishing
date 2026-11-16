@@ -13,7 +13,7 @@ namespace CollectionGame.Dev
     /// <summary>
     /// Test driver for builds, started from the command line (see client/README.md):
     ///   -cgUser NAME -cgServer Mercan [-cgBot fish|walk] [-cgSay TEXT] [-cgShot FILE.png] [-cgQuit SECONDS]
-    ///   [-cgOpen bag,quests,market,board,settings,friends,book,profile] (windows open in the screenshot)
+    ///   [-cgOpen bag,quests,market,board,settings,friends,book,profile,wardrobe] (windows open in the screenshot)
     /// Logs in, joins, walks to the pier, optionally fishes once, chats, takes a
     /// screenshot and quits, writing "[Autopilot]" lines to the player log. It only
     /// sends what a player could send; the server still decides everything.
@@ -151,6 +151,12 @@ namespace CollectionGame.Dev
             {
                 yield return new WaitForSeconds(1.5f);
                 Log($"seat {world.MySeat} at {world.MyPosition}; others seated: {world.OthersSeats}");
+                var shot = Arg("-cgShot");
+                if (i == 1 && !string.IsNullOrEmpty(shot))
+                {
+                    ScreenCapture.CaptureScreenshot(shot);
+                    Log($"screenshot {shot}");
+                }
             }
         }
 
@@ -457,6 +463,7 @@ namespace CollectionGame.Dev
                         break;
                     case "book": world.Collection.OpenBook(null, world.Net.Username); break;
                     case "profile": world.Collection.OpenProfile(null); break;
+                    case "wardrobe": world.Wardrobe.Toggle(); break;
                 }
             Log($"opened {open}");
         }
