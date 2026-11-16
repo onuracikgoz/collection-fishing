@@ -143,8 +143,7 @@ namespace CollectionGame.World
 
             BuildFountain();
             BuildWindmill();
-            BuildArtPreview(); // TEMP art preview
-            BuildCafePreview(); // TEMP art preview
+            BuildDecor();
         }
 
         void BuildWindmill()
@@ -174,88 +173,47 @@ namespace CollectionGame.World
             sails.AddComponent<SpriteLoop>().Play(frames, 8f);
         }
 
-        // TEMP art preview: the new building sprites in two rows on the grass west of the plaza,
-        // one on each side of the west road (rows 49-50), so they can be judged next to the character.
-        // No collision. Remove this, its call in BuildFromCode and the ground preview below when the
-        // buildings get real places.
-        static readonly (float feetY, string[] paths)[] ArtPreviewRows =
-        {
-            (47.5f, new[] { "custom/Buildings/balikci_ai_2.png", "custom/Buildings/balikci.png", "custom/Buildings/balikci_gemini.png", "custom/Buildings/ev_siva.png", "custom/Buildings/ev_kutuk.png", "custom/Buildings/ev_tas.png" }),
-            (61f, new[] { "custom/Buildings/balikci_ai.png", "custom/Buildings/atolye.png", "custom/Buildings/banka.png" }),
-        };
-        // Tiles the rows cover (with a margin), kept free of the ground preview's patches.
-        static readonly RectInt[] ArtPreviewArea = { new RectInt(3, 35, 55, 14), new RectInt(15, 51, 31, 11), CafeArea };
+        // ---------- Map decor: Gemini buildings and the café terrace (docs/tasarim/15-gorsel-stil.md) ----------
+        // Placed on the code-drawn map until the map prefab exists. Their bottom rows are blocked in
+        // LakeMapData.cs and content/maps/lake.json (door column left open); chairs are the map seats.
+        static readonly Vector2 CafeBase = new Vector2(54.5f, 63f);         // café bottom-centre, south of the plaza
+        static readonly Vector2 FishShopBase = new Vector2(70.25f, 42f);   // fishing shop, north-east of the plaza by the lake
+        // Tiles kept free of the ground preview's patches.
+        static readonly RectInt[] DecorArea = { new RectInt(44, 56, 21, 17), new RectInt(64, 33, 12, 10) };
+        const string Teras = "custom/Cafe/Teras/";
 
-        void BuildArtPreview() // TEMP art preview
+        /// <summary>A chair of content/maps/lake.json `seats` (kafe_1..), drawn here.</summary>
+        public sealed class MapSeat
         {
-            foreach (var (feetY, paths) in ArtPreviewRows)
-            {
-                // Right edge of the next building, moving west. The south row stops short of the café.
-                var right = feetY > 50f ? CafeBase.x - 10.5f : Plaza.xMin - 1f;
-                foreach (var path in paths)
-                {
-                    var tex = ArtCatalog.Texture(path);
-                    if (tex == null) continue;
-                    // balikci_ai_2 stands on its own diamond of ground: bottom tip on the ground line,
-                    // with extra room around it. The others: about 6 px above the image bottom (doors).
-                    var withGround = path.EndsWith("balikci_ai_2.png");
-                    if (withGround) right -= 1f;
-                    var pivotY = withGround ? 0f : (path.EndsWith("/balikci.png") ? 4f : 6f) / tex.height;
-                    var sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, pivotY);
-                    var w = tex.width / ArtCatalog.PixelsPerUnit;
-                    var go = new GameObject("ArtPreview " + path);
-                    go.transform.SetParent(transform, false);
-                    go.transform.position = Coords.ToUnity(new Vector2(right - w / 2f, feetY));
-                    var sr = go.AddComponent<SpriteRenderer>();
-                    sr.sprite = sprite;
-                    sr.sortingOrder = CharacterView.SortingOrderFor(feetY);
-                    right -= w + (withGround ? 2f : 1f);
-                }
-            }
-        }
-
-        // TEMP art preview: Gemini café south of the plaza (docs/tasarim/16-ilk-harita.md). The terrace
-        // props stay separate assets for now (Cafe/Teras, layout later).
-        static readonly Vector2 CafeBase = new Vector2(54.5f, 63f);
-        static readonly RectInt CafeArea = new RectInt(44, 56, 21, 17);
-
-        void PlaceCafeSprite(string path, Vector2 feet)
-        {
-            var tex = ArtCatalog.Texture(path);
-            if (tex == null) return;
-            var go = new GameObject("ArtPreview " + path);
-            go.transform.SetParent(transform, false);
-            go.transform.position = Coords.ToUnity(feet);
-            var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, 0f);
-            sr.sortingOrder = CharacterView.SortingOrderFor(feet.y);
-        }
-
-        // TEMP seat demo: terrace furniture in front of the café; E near a chair sits on it (WorldController).
-        public sealed class PreviewSeat
-        {
-            public string Id;        // seat id in content/maps/lake.json (kafe_1..)
-            public Vector2 Feet;     // chair bottom-centre, server tiles
-            public int Row;          // LPC Sitting row (col 2 = chair pose)
-            public Vector2 FramePx;  // bottom-centre of the 64 px frame from the chair's bottom-centre, px, +y down
+            public string Id;
+            public Vector2 Feet;      // chair bottom-centre, server tiles
+            public int Row;           // LPC Sitting row (col 2 = chair pose)
+            public Vector2 FramePx;   // bottom-centre of the 64 px frame from the chair's bottom-centre, px, +y down
             public int ChairOrder;
             public bool ChairInFront; // sandalye_arka: the backrest hides the sitter
         }
-        public static readonly System.Collections.Generic.List<PreviewSeat> PreviewSeats = new();
-        const string Teras = "custom/Cafe/Teras/";
+        public static readonly System.Collections.Generic.List<MapSeat> Seats = new();
 
-        public static PreviewSeat FindSeat(string id) =>
-            string.IsNullOrEmpty(id) ? null : PreviewSeats.Find(s => s.Id == id);
+        public static MapSeat FindSeat(string id) =>
+            string.IsNullOrEmpty(id) ? null : Seats.Find(s => s.Id == id);
 
-        int PlaceCafeSpriteOrder(string path, Vector2 feet)
+        /// <summary>A sprite standing on the ground: bottom-centre at <paramref name="feet"/> (pivotY up from the image bottom), sorted by its feet.</summary>
+        int PlaceDecor(string path, Vector2 feet, float pivotPx = 0f)
         {
-            PlaceCafeSprite(path, feet);
-            return CharacterView.SortingOrderFor(feet.y);
+            var tex = ArtCatalog.Texture(path);
+            if (tex == null) return 0;
+            var go = new GameObject("Decor " + path);
+            go.transform.SetParent(transform, false);
+            go.transform.position = Coords.ToUnity(feet);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = ArtCatalog.Sprite(path, new RectInt(0, 0, tex.width, tex.height), 0.5f, pivotPx / tex.height);
+            sr.sortingOrder = CharacterView.SortingOrderFor(feet.y);
+            return sr.sortingOrder;
         }
 
         void PlaceChair(string name, Vector2 feet)
         {
-            var order = PlaceCafeSpriteOrder(Teras + name + ".png", feet);
+            var order = PlaceDecor(Teras + name + ".png", feet);
             var (row, px, front) = name switch
             {
                 "sandalye_on" => (2, new Vector2(-4, -3), false),
@@ -263,34 +221,37 @@ namespace CollectionGame.World
                 "sandalye_yan_sag" => (3, new Vector2(-6, 0), false),
                 _ => (1, Vector2.zero, false), // sandalye_yan_sol
             };
-            PreviewSeats.Add(new PreviewSeat { Id = "kafe_" + (PreviewSeats.Count + 1), Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
+            Seats.Add(new MapSeat { Id = "kafe_" + (Seats.Count + 1), Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
         }
 
-        void BuildCafePreview() // TEMP art preview
+        void BuildDecor()
         {
-            PlaceCafeSprite("custom/Cafe/kafe_gemini.png", CafeBase);
-            PreviewSeats.Clear();
-            // Square table with the parasol and four chairs.
+            // Fishing shop; the crates reach the image bottom, the ground line is ~6 px above it.
+            PlaceDecor("custom/Buildings/balikci_gemini.png", FishShopBase, 6f);
+
+            PlaceDecor("custom/Cafe/kafe_gemini.png", CafeBase);
+            Seats.Clear();
+            // Square table with the parasol and four chairs (kafe_1..4).
             var t = CafeBase + new Vector2(-3.5f, 3.5f);
-            PlaceCafeSprite(Teras + "masa_kare.png", t);
-            PlaceCafeSprite(Teras + "semsiye.png", t + new Vector2(4f / 32f, 1f / 32f));
+            PlaceDecor(Teras + "masa_kare.png", t);
+            PlaceDecor(Teras + "semsiye.png", t + new Vector2(4f / 32f, 1f / 32f));
             PlaceChair("sandalye_on", t + new Vector2(0f, -1f));
             PlaceChair("sandalye_arka", t + new Vector2(0f, 1f));
             PlaceChair("sandalye_yan_sag", t + new Vector2(-1.25f, 0f));
             PlaceChair("sandalye_yan_sol", t + new Vector2(1.25f, 0f));
-            // Round table with two side chairs.
+            // Round table with two side chairs (kafe_5, kafe_6).
             var r = CafeBase + new Vector2(3.5f, 3.5f);
-            PlaceCafeSprite(Teras + "masa_yuvarlak.png", r);
+            PlaceDecor(Teras + "masa_yuvarlak.png", r);
             PlaceChair("sandalye_yan_sag", r + new Vector2(-1.25f, 0f));
             PlaceChair("sandalye_yan_sol", r + new Vector2(1.25f, 0f));
             // Benches.
-            PlaceCafeSprite(Teras + "bank_on.png", CafeBase + new Vector2(-1.5f, 6.5f));
-            PlaceCafeSprite(Teras + "bank_arka.png", CafeBase + new Vector2(1.5f, 6.5f));
+            PlaceDecor(Teras + "bank_on.png", CafeBase + new Vector2(-1.5f, 6.5f));
+            PlaceDecor(Teras + "bank_arka.png", CafeBase + new Vector2(1.5f, 6.5f));
         }
 
         // TEMP ground preview: our own tiles (tools/pixel-art/ground.py) instead of the LPC grass,
         // with a few snow and dirt patches on the grass. Roads, plaza, lake and pier stay LPC.
-        // Remove with BuildArtPreview when the map prefab gets painted.
+        // Remove when the map prefab gets painted.
         const string GroundBase = "custom/Ground/zemin-cesitler.png"; // 8 variants per row: grass, dirt, snow, sand, water, pave
         const string SnowEdge = "custom/Ground/kar-cimen-gecis-16.png";    // corner bit 1 = grass, 0 = snow
         const string DirtEdge = "custom/Ground/cimen-toprak-gecis-16.png"; // corner bit 1 = dirt, 0 = grass
@@ -329,7 +290,7 @@ namespace CollectionGame.World
             if (new RectInt(w.x - 2, w.y - 4, w.width + 4, w.height + 6).Contains(p)) return true;
             var f = LakeMap.Fountain;
             if (new RectInt(f.x - 2, f.y - 3, f.width + 4, f.height + 5).Contains(p)) return true;
-            foreach (var r in ArtPreviewArea) // TEMP building rows
+            foreach (var r in DecorArea)
                 if (r.Contains(p)) return true;
             return false;
         }

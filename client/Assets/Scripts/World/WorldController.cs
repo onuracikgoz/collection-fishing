@@ -262,7 +262,7 @@ namespace CollectionGame.World
                 fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
                 social.Update(Typing);
-                if (!Typing && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) ToggleSeat(); // TEMP seat demo
+                if (!Typing && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) ToggleSeat();
                 economy.Update(Typing);
                 market.Update(Typing);
                 npcs.Update(mover.Position, Typing);
@@ -357,11 +357,11 @@ namespace CollectionGame.World
             who.SitOn(seat);
         }
 
-        static MapView.PreviewSeat NearestSeat(Vector2 pos)
+        static MapView.MapSeat NearestSeat(Vector2 pos)
         {
-            MapView.PreviewSeat best = null;
+            MapView.MapSeat best = null;
             var bestD = 1.5f; // SEATS.maxDistance (Öneri)
-            foreach (var s in MapView.PreviewSeats)
+            foreach (var s in MapView.Seats)
             {
                 var d = Vector2.Distance(s.Feet, pos);
                 if (d <= bestD) { bestD = d; best = s; }

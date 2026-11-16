@@ -86,10 +86,10 @@ namespace CollectionGame.World
         }
 
         // Chair seats (protokol.md, Oturma); the chairs themselves are still the TEMP MapView preview.
-        public MapView.PreviewSeat Seat { get; private set; }
+        public MapView.MapSeat Seat { get; private set; }
         public bool IsLocal;
 
-        public void SitOn(MapView.PreviewSeat seat)
+        public void SitOn(MapView.MapSeat seat)
         {
             Seat = seat;
             Emote = Emotes.Sit;
@@ -150,7 +150,7 @@ namespace CollectionGame.World
             var frames = sitting ? 1 : walking ? 8 : 3;
             var frame = (int)(animTime * (walking ? WalkFps : IdleFps)) % frames;
             var row = Row(Facing);
-            if (Seat != null) { row = Seat.Row; frame = 2; } // TEMP: LPC chair pose
+            if (Seat != null) { row = Seat.Row; frame = 2; } // LPC chair pose
             var rect = new RectInt(frame * Frame, row * Frame, Frame, Frame);
             var paths = look.LayerPaths;
             for (var i = 0; i < layers.Length; i++)
