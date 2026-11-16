@@ -321,16 +321,22 @@ namespace CollectionGame.World
                 me.StandUp();
                 return;
             }
+            var best = NearestSeat(mover.Position);
+            if (best == null) return;
+            me.SitOn(best);
+            social.SendEmote(Emotes.Sit);
+        }
+
+        static MapView.PreviewSeat NearestSeat(Vector2 pos)
+        {
             MapView.PreviewSeat best = null;
             var bestD = 1.2f;
             foreach (var s in MapView.PreviewSeats)
             {
-                var d = Vector2.Distance(s.Feet, mover.Position);
+                var d = Vector2.Distance(s.Feet, pos);
                 if (d <= bestD) { bestD = d; best = s; }
             }
-            if (best == null) return;
-            me.SitOn(best);
-            social.SendEmote(Emotes.Sit);
+            return best;
         }
 
         void PlaceCamera()
@@ -467,6 +473,13 @@ namespace CollectionGame.World
                     var e = JsonUtility.FromJson<EmoteShowMsg>(m.Json);
                     var who = e.id == net.UserId ? me : others.TryGetValue(e.id ?? "", out var o) ? o.view : null;
                     social.OnEmote(e, who);
+                    // TEMP seat demo: every client has the same preview chairs, so a remote `sit`
+                    // next to a chair is shown on that chair (no protocol change).
+                    if (who != null && who != me && e.emote == Emotes.Sit)
+                    {
+                        var seat = NearestSeat(who.ServerPos);
+                        if (seat != null) who.SitOn(seat);
+                    }
                     break;
                 }
                 case OpCode.ItemDiscardResult:
