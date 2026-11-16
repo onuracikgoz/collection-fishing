@@ -83,6 +83,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Admin paneli (`tools/admin`, `docs/araclar/admin-paneli.md`): ZIP yükleme, sırayla onay, eşya / set düzenleme, otomatik recipe, düşme oranları, sandık ve görevler, JSON kısayolu, görsel kontrolü
 - [x] Item Art Studio ZIP'i sadece görsel
 - [x] Client eşya adlarını ve ikonlarını `get_content` / `get_item_art` ile alıyor, defter sayfa başlığı set adı (`client/Assets/Scripts/UI/ItemContent.cs`; bulut oturumunda yazıldı, Unity'de derlenip denenmedi)
+- [x] Gardırop sunucu tarafı (`docs/tasarim/20-gardirop.md`): craft tablosundan katalog, görünüm kaydetme ve yayma, kiralık süresi, admin panelinden parça verme / geri alma. Client (Universal LPC gövdeye geçiş, boyama, gardırop penceresi) Mac oturumunda
 - [ ] Unity'de elle deneme: panelden görselli eşya ekle, çantada adı ve görseli çıksın, yeni set defterde sayfa olsun
 - [ ] Canlı sunucuda `runtime.http_key` değiştirildi
 

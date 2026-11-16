@@ -6,6 +6,7 @@ import { JsonTab } from './components/JsonTab'
 import { Queue } from './components/Queue'
 import { Translations } from './components/Translations'
 import { Sets } from './components/Sets'
+import { Wardrobe } from './components/Wardrobe'
 import { ChestsQuests, DropTable } from './components/Settings'
 
 const STORE = 'collection-admin/connection'
@@ -71,6 +72,7 @@ const TABS = [
   ['sets', 'Setler'],
   ['drops', 'Düşme oranları'],
   ['chests', 'Sandıklar ve görevler'],
+  ['wardrobe', 'Gardırop'],
   ['texts', 'Çeviriler'],
   ['dev', 'Geliştirici'],
   ['json', 'JSON'],
@@ -119,6 +121,7 @@ function Panel({ conn, first }: { conn: Connection; first: AdminContent }) {
         {tab === 'sets' ? <Sets admin={admin} onOpenItem={openOne} /> : null}
         {tab === 'drops' ? <DropTable admin={admin} onOpenItem={openOne} /> : null}
         {tab === 'chests' ? <ChestsQuests admin={admin} /> : null}
+        {tab === 'wardrobe' ? <Wardrobe admin={admin} /> : null}
         {tab === 'texts' ? <Translations admin={admin} /> : null}
         {tab === 'dev' ? <DevDashboard /> : null}
         {tab === 'json' ? <JsonTab admin={admin} /> : null}

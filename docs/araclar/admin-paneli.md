@@ -40,6 +40,7 @@ Admin paneli → ZIP yükle → kuyrukta sırayla ayarla → Onayla → oyunda
 | Setler | Set oluşturma, adını değiştirme, pasife alma, sıralama; setin eşyaları defter sırasıyla, sıra değiştirme, pasife alma, başka setten eşya taşıma |
 | Düşme oranları | Av tablosu (kategori ağırlıkları, yüzde ve kategorideki eşya sayısı) ve her eşyanın genel oranı |
 | Sandıklar ve görevler | Seri sandıkları (Coin / toz aralığı, çekiliş sayısı, havuz ve garanti) ve günlük görev listesi |
+| Gardırop | Giyilebilir kozmetikler (`docs/tasarim/20-gardirop.md`). **Katalog:** aileye göre parçalar; Tier, bedava ve aktiflik değişir (parçaların kendisi craft tablosundan gelir, `tools/wardrobe/build_catalog.py`). **Oyuncunun gardırobu:** kullanıcı adı ya da id ile bul, eşyalarını (renk, kaynak, bitiş, kilit, giyili mi) gör, **Geri al**; **Parça ver:** parça, renk (efekt rengi = Mythic), ikinci renk, süre (0 = kalıcı), kilit. Oyuncu oyundaysa değişiklik hemen görünür |
 | Çeviriler | Oyun yazılarını dile göre düzenleme (aşağıda) |
 | Geliştirici | Dev dashboard (`docs/araclar/dev-dashboard.md`) bu panelin içinde, `/dev/` altında |
 | JSON | Toplu taslak ekleme (JSON kısayolu) ve bütün içeriğin yedeği |
@@ -105,6 +106,10 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `admin_import` | `{ version, items, sets? }` JSON kısayolu |
 | `admin_locale_get` | Bütün dillerin sunucudaki metinleri `{ langs: { tr: { version, hash, updatedAt, strings } } }` |
 | `admin_locale_save` | `{ lang, version, strings }` o dilin metinlerini değiştirir (`version` o dilin okunan sürümü) |
+| `admin_wardrobe_part_save` | `{ version, part: { id, name?, tier?, free?, active? } }` gardırop katalogunda bir parça (bedava parçanın Tier'ı yok; gövdesi olmayan parça aktif olamaz) |
+| `admin_wardrobe_get` | `{ player }` (kullanıcı adı ya da id) → `{ userId, username, items, look, worn }`; `version` almaz |
+| `admin_wardrobe_give` | `{ player, part, color, color2?, days?, locked? }` gardıroba eşya ekler (`days` varsa kiralık: kilitli, süresi bitince silinir, en fazla 365 gün). Oyuncuya bildirim (120) ve sunucusuna `wardrobe_refresh` gider |
+| `admin_wardrobe_take` | `{ player, instanceId }` eşyayı siler; giyiliyse oyunda hemen çıkar |
 
 ## Kod yapısı
 
