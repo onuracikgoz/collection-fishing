@@ -68,6 +68,8 @@ export const OpCode = {
   GOTO_SPAWN: 64,
   ITEM_DISCARD: 65,
   ITEM_DISCARD_RESULT: 66,
+  SIT: 67,
+  SEAT_SHOW: 68,
 } as const;
 
 export const ErrorCode = {
@@ -127,6 +129,15 @@ export interface PlayerEnterMsg extends PlayerView {
   bobber?: { x: number; y: number; band: Band };
   /** Persistent status emote, if one is worn. */
   status?: string;
+  /** Seat id, if the player sits on a chair. */
+  seat?: string;
+}
+
+/** SEAT_SHOW: seatId '' = stood up. reason only to the player whose SIT was refused. */
+export interface SeatShowMsg {
+  id: string;
+  seatId: string;
+  reason?: string;
 }
 
 export interface PlayerLeaveMsg {

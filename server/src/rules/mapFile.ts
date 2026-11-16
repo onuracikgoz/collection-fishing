@@ -14,6 +14,16 @@ export interface MapPoint {
   y: number;
 }
 
+export const SEAT_DIRS = ['up', 'down', 'left', 'right'] as const;
+
+/** A place to sit (a chair): x, y is the chair's foot point and where the sitter stands; dir is where they face. */
+export interface MapSeat {
+  id: string;
+  x: number;
+  y: number;
+  dir: (typeof SEAT_DIRS)[number];
+}
+
 export interface MapFile {
   format: number;
   id: string;
@@ -28,12 +38,15 @@ export interface MapFile {
    * (items' `waters` field). When given, every water tile must be in exactly one.
    */
   waters?: WaterArea[];
+  /** Chairs and benches, optional (docs/protokol.md "Oturma"). */
+  seats?: MapSeat[];
 }
 
 export interface LoadedMap {
   id: string;
   data: MapData;
   points: MapPoint[];
+  seats: MapSeat[];
 }
 
 const WALK = '.';
@@ -90,6 +103,24 @@ export function checkMapFile(file: MapFile, required: string[] = []): string[] {
   }
   for (const id of required) if (!seen[id]) errors.push(`point ${id} is required`);
   errors.push(...checkWaters(file));
+  errors.push(...checkSeats(file, walkable));
+  return errors;
+}
+
+function checkSeats(file: MapFile, walkable: (p: { x: number; y: number }) => boolean): string[] {
+  if (file.seats === undefined) return [];
+  if (!Array.isArray(file.seats)) return ['seats must be a list'];
+  const errors: string[] = [];
+  const seen: Record<string, true> = {};
+  for (const s of file.seats) {
+    const name = s && typeof s.id === 'string' ? s.id : '?';
+    if (!s || typeof s.id !== 'string' || !s.id) errors.push('seat without id');
+    else if (seen[s.id]) errors.push(`seat ${s.id}: id repeats`);
+    else seen[s.id] = true;
+    if (!s || (SEAT_DIRS as readonly string[]).indexOf(s.dir) < 0) errors.push(`seat ${name}: dir must be up, down, left or right`);
+    if (!isPos(s)) errors.push(`seat ${name}: x / y missing`);
+    else if (!walkable(s)) errors.push(`seat ${name}: not on a walkable tile`);
+  }
   return errors;
 }
 
@@ -176,6 +207,7 @@ export function loadMapFile(file: MapFile, required: string[] = []): LoadedMap {
       waterAreas: (file.waters || []).map((a) => ({ id: a.id, x: a.x, y: a.y, w: a.w, h: a.h })),
     },
     points: file.points.map((p) => ({ id: p.id, kind: p.kind, x: p.x, y: p.y })),
+    seats: (file.seats || []).map((s) => ({ id: s.id, x: s.x, y: s.y, dir: s.dir })),
   };
 }
 
