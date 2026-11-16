@@ -22,7 +22,8 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 41; // 41: equal window padding (Fit), info "!" button and Info window
+        public const int Version = 42; // 42: grained window frame, title_plate, round info button, slider_knob (Gemini reference)
+        // 41: equal window padding (Fit), info "!" button and Info window
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -376,7 +377,7 @@ namespace CollectionGame.EditorTools
 
             // Title at two font grids (16); the plate grows with the title (titles change at runtime: "Takas · Mert").
             var plate = At(Node("Plate", rt), Top, new Vector2(0, 10), new Vector2(120, 28), Top);
-            Img(plate, "button_wood_normal", Image.Type.Sliced, true);
+            Img(plate, "title_plate", Image.Type.Tiled, true);
             Layout<HorizontalLayoutGroup>(plate, 0, new RectOffset(18, 18, 2, 2), TextAnchor.MiddleCenter).childControlHeight = false;
             plate.gameObject.AddComponent<ContentSizeFitter>().horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             view.title = Txt(Node("Title", plate), title, 18, Paper, TextAnchor.MiddleCenter, true);
@@ -498,7 +499,7 @@ namespace CollectionGame.EditorTools
         /// </summary>
         static void Info(WindowView view, string key)
         {
-            var b = Btn(view.plate, "Info", "square_wood", "!", 16);
+            var b = Btn(view.plate, "Info", "info", "!", 16);
             b.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
             At((RectTransform)b.transform, new Vector2(1, 0.5f), new Vector2(6, 0), new Vector2(24, 24), new Vector2(0, 0.5f));
             Tip(b.transform, L("info.title"), L("info.tip"));
@@ -952,8 +953,8 @@ namespace CollectionGame.EditorTools
             Img(fill, "bar_fill_green");
             var handleArea = Stretch(Node("Handle Area", rt), 6, 0, 6, 0);
             var handle = Node("Handle", handleArea);
-            handle.sizeDelta = new Vector2(12, 6);
-            var hImg = Img(handle, "button_wood_hover", Image.Type.Sliced, true);
+            handle.sizeDelta = new Vector2(12, 0);   // slider_knob is 6x9 kit px: 12 wide, the 18-unit height comes from the handle area
+            var hImg = Img(handle, "slider_knob", Image.Type.Simple, true);
             var sl = rt.gameObject.AddComponent<Slider>();
             sl.fillRect = fill;
             sl.handleRect = handle;

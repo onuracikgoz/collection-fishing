@@ -121,27 +121,73 @@ for state, (deep, face, light) in CLOSE.items():
     round_corners(im)
     put(f"button_close_{state}", im)
 
-# ---------- window: plank frame, sage linen, drop shadow ----------
+# ---------- wood grain (16.11.2026, Onur: Gemini reference, grained planks with brass nails) ----------
+def grain(im, x0, y0, x1, y1, horizontal=True, seed=7):
+    """Short dark streaks along a plank, a light fleck on some. Deterministic (same seed, same plank)."""
+    rnd = random.Random(seed)
+    length = (x1 - x0 + 1) if horizontal else (y1 - y0 + 1)
+    rows = list(range(y0, y1 + 1)) if horizontal else list(range(x0, x1 + 1))
+    for lane in rows[::2]:
+        pos = rnd.randint(0, 5)
+        while pos < length:
+            run = rnd.randint(3, 7)
+            for k in range(pos, min(pos + run, length)):
+                x, y = (x0 + k, lane) if horizontal else (lane, y0 + k)
+                im.putpixel((x, y), WM)
+            if rnd.random() < 0.35 and pos + run < length:          # light fleck right after a streak
+                x, y = (x0 + pos + run, lane) if horizontal else (lane, y0 + pos + run)
+                im.putpixel((x, y), WL)
+            pos += run + rnd.randint(3, 8)
+
+def nail(im, x, y):
+    """3x3 brass nail head: shine top-left, dark rim bottom-right."""
+    r(im, x, y, x + 2, y + 2, NAIL_D); r(im, x, y, x + 1, y + 1, NAIL); im.putpixel((x, y), c("fbff86"))
+
+# ---------- window: planked frame, flat cream inside, drop shadow ----------
 def window(s=50, f=8, sh=2):
+    """Top and bottom planks run the full width, the side planks sit between them (ink seam);
+    a brass nail at each end of the long planks. Borders stay 9/9/11/11 (Kit.cs reads them)."""
     im = new(s, s)
     r(im, sh, sh, s - 1, s - 1, c("2e222f", 110))      # baked drop shadow
     n = s - sh
     r(im, 0, 0, n - 1, n - 1, INK)
-    r(im, 1, 1, n - 2, n - 2, W)
-    for y in (3, 5): r(im, f, y, n - 1 - f, y, WM); r(im, f, n - 1 - y, n - 1 - f, n - 1 - y, WM)
-    for x in (3, 5): r(im, x, f, x, n - 1 - f, WM); r(im, n - 1 - x, f, n - 1 - x, n - 1 - f, WM)
-    for x in range(f + 8, n - f, 16): r(im, x, 1, x, f - 2, WD); r(im, x, n - f + 1, x, n - 2, WD)
-    for y in range(f + 8, n - f, 16): r(im, 1, y, f - 2, y, WD); r(im, n - f + 1, y, n - 2, y, WD)
-    r(im, 1, 1, n - 2, 1, WL); r(im, 1, 1, 1, n - 2, WL)
-    r(im, 1, n - 2, n - 2, n - 2, WM); r(im, n - 2, 1, n - 2, n - 2, WM)
-    for x, y in [(1, 1), (n - f, 1), (1, n - f), (n - f, n - f)]:   # corner blocks, brass nails
-        r(im, x, y, x + f - 2, y + f - 2, W); r(im, x, y, x + f - 2, y, WL)
-        r(im, x + 2, y + 2, x + 4, y + 4, NAIL_D); r(im, x + 2, y + 2, x + 3, y + 3, NAIL)
+    # side planks (vertical), between the long planks
+    for x0 in (1, n - f):
+        r(im, x0, f - 1, x0 + f - 2, n - f, W)
+        r(im, x0, f - 1, x0, n - f, WL); r(im, x0 + f - 2, f - 1, x0 + f - 2, n - f, WM)
+        grain(im, x0 + 2, f, x0 + f - 4, n - f - 1, horizontal=False, seed=11 + x0)
+    # long planks (horizontal), over the side planks; ink seam under / over them
+    for y0 in (1, n - f):
+        r(im, 1, y0, n - 2, y0 + f - 3, W)
+        r(im, 1, y0, n - 2, y0, WL); r(im, 1, y0 + f - 3, n - 2, y0 + f - 3, WM)
+        grain(im, 3, y0 + 2, n - 4, y0 + f - 5, horizontal=True, seed=3 + y0)
+    r(im, 1, f - 2, n - 2, f - 2, INK); r(im, 1, n - f - 1 + 0, n - 2, n - f - 1, INK)
+    for x, y in [(2, 2), (n - 5, 2), (2, n - f + 1), (n - 5, n - f + 1)]:
+        nail(im, x, y)
     r(im, f - 1, f - 1, n - f, n - f, WD)               # inner lip
     r(im, f, f, n - 1 - f, n - 1 - f, CREAM)            # flat cream inside
     round_corners(im, (0, 0, n - 1, n - 1))
     return im, (f + 1, f + 1, f + 1 + sh, f + 1 + sh)
 put("window", *window(s=52))
+
+# ---------- title plate on the window's top edge: one grained plank, nail at each end ----------
+im = new(48, 14)
+r(im, 0, 0, 47, 13, INK); r(im, 1, 1, 46, 12, W)
+r(im, 1, 1, 46, 1, WL); r(im, 1, 11, 46, 12, WM)
+grain(im, 7, 3, 40, 9, horizontal=True, seed=21)
+nail(im, 2, 5); nail(im, 43, 5)
+round_corners(im); put("title_plate", im, (6, 3, 6, 3))
+
+# ---------- round info button "!" (the glyph is the button's label) ----------
+DISC = ["....xxxx....", "..xxffffxx..", ".xlllfffffx.", ".xllfffffsx.", "xllffffffffx", "xlffffffffsx",
+        "xffffffffssx", "xfffffffsssx", ".xffffffssx.", ".xfffsssssx.", "..xxssssxx..", "....xxxx...."]
+INFO = {"normal": (WL, W, WM), "hover": (WH, WL, W), "pressed": (WM, WM, WD)}
+for state, (light, face, shade) in INFO.items():
+    put(f"button_info_{state}", from_ascii(DISC, {"x": INK, "l": light, "f": face, "s": shade}))
+
+# ---------- slider knob: a wooden peg taller than the bar (6x9, shown 2x) ----------
+put("slider_knob", from_ascii(["xxxxxx", "xhllwx", "xhllwx", "xhllwx", "xmmmmx", "xhllwx", "xhllwx", "xwwwwx", "xxxxxx"],
+                              {"x": INK, "h": WH, "l": WL, "w": W, "m": WM}))
 
 # ---------- box C: translucent dark (chat, HUD, server info) ----------
 im = new(16, 16)
@@ -352,6 +398,8 @@ at(tiled("button_red_normal", 52, 16), x0 + 146, y0 + 94)
 at(pieces["checkbox_on"], x0 + 130, y0 + 46); at(pieces["checkbox_off"], x0 + 146, y0 + 46)
 at(tiled("scroll_track", 8, 84), 358, 58); at(tiled("scroll_thumb", 8, 24), 358, 66)
 at(pieces["button_close_normal"], 362, 40)
+at(tiled("title_plate", 70, 14), 218, 39); at(pieces["button_info_normal"], 290, 40)
+at(tiled("bar_back", 60, 8), 140, 178); at(tiled("bar_fill_green", 36, 8), 140, 178); at(pieces["slider_knob"], 173, 178)
 # button states column
 for i, st in enumerate(["normal", "hover", "pressed", "disabled"]):
     at(tiled(f"button_wood_{st}", 40, 16), 6, 50 + i * 20)
