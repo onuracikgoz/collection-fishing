@@ -81,6 +81,8 @@ namespace CollectionGame.Net
         public const long GotoSpawn = 64;
         public const long ItemDiscard = 65;
         public const long ItemDiscardResult = 66;
+        public const long Sit = 67;
+        public const long SeatShow = 68;
         public const long LookSet = 69;
         public const long LookShow = 70;
     }
@@ -182,6 +184,8 @@ namespace CollectionGame.Net
         public string status;
         /// <summary>Wardrobe look (Gardırop).</summary>
         public LookView look;
+        /// <summary>Seat id when sitting on a chair (protokol.md, Oturma); empty otherwise.</summary>
+        public string seat;
     }
 
     /// <summary>S → C, op 4.</summary>
@@ -563,6 +567,22 @@ namespace CollectionGame.Net
     {
         public float x;
         public float y;
+        public string reason;
+    }
+
+    /// <summary>C → S, op 67. Empty seatId = stand up.</summary>
+    [Serializable]
+    public class SitMsg
+    {
+        public string seatId;
+    }
+
+    /// <summary>S → C, op 68. Empty seatId = stood up; reason only on a rejected SIT.</summary>
+    [Serializable]
+    public class SeatShowMsg
+    {
+        public string id;
+        public string seatId;
         public string reason;
     }
 

@@ -68,6 +68,8 @@ export const OpCode = {
   GOTO_SPAWN: 64,
   ITEM_DISCARD: 65,
   ITEM_DISCARD_RESULT: 66,
+  SIT: 67,
+  SEAT_SHOW: 68,
   LOOK_SET: 69,
   LOOK_SHOW: 70,
 } as const;
@@ -131,6 +133,15 @@ export interface PlayerEnterMsg extends PlayerView {
   status?: string;
   /** Worn wardrobe look (Gardırop). */
   look: Look;
+  /** Seat id, if the player sits on a chair. */
+  seat?: string;
+}
+
+/** SEAT_SHOW: seatId '' = stood up. reason only to the player whose SIT was refused. */
+export interface SeatShowMsg {
+  id: string;
+  seatId: string;
+  reason?: string;
 }
 
 export interface PlayerLeaveMsg {

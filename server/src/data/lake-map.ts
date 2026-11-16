@@ -16,3 +16,6 @@ export const BANK_POINT = pointById(LAKE, 'bank');
 
 /** Pazar: pet stalls stand on a grid around this point. */
 export const MARKET_POINT = pointById(LAKE, 'market');
+
+/** Chairs (docs/protokol.md "Oturma"). */
+export const LAKE_SEATS = LAKE.seats;

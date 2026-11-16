@@ -26,7 +26,7 @@
 - **Legendary ve Mythic kiralanmaz**, sadece craft ile gelir (karar 16.11.2026). Statü parayla alınmaz.
 - **Kiralık parça kilitlidir:** takas, pazar, satış, parçalama yok. Süresi bitince gardıroptan silinir, giyiliyse çıkarılır ve yerine kimlik parçası gelir. Başkaları kiralık parçayı küçük bir işaretle (saat) görür, craft edilmiş olanla karışmaz.
 - Elmasla kiralama oyuna etki etmez: eşya miktarını ya da kalitesini artırmaz (kural 2), sadece süreli görünümdür. Elmas takas edilmez (`11-monetization.md`).
-- Kiralama süreleri ve fiyatları **Öneri**, sonra konuşulacak (`acik-sorular.md` 32).
+- Kiralama süreleri ve fiyatları **Öneri**, sonra konuşulacak (`acik-sorular.md` 35).
 
 ## 4. Giymek
 

@@ -262,12 +262,19 @@ namespace CollectionGame.World
                 else ReadMouse();
                 var move = mover.Tick(frozen ? Vector2.zero : keys, Time.deltaTime, now);
                 if (move != null) net.Send(OpCode.Move, move);
+                // SIT only after our last MOVE went out: a MOVE sent after it would stand us up again.
+                if (pendingSeat != null && mover.Synced)
+                {
+                    net.Send(OpCode.Sit, new SitMsg { seatId = pendingSeat });
+                    pendingSeat = null;
+                }
                 me.SetState(mover.Position, mover.Facing, mover.Moving);
                 fishing.RightClickTaken = RightClickPlayer();
                 fishing.Update(mover.Position, mover.Facing, Typing || trade.Active, blocked, cam);
                 fishingHud.Tick(cam, me.transform.position, mover.Position, fishing);
                 collection.Update(Typing);
                 social.Update(Typing);
+                if (!Typing && Keyboard.current != null && Keyboard.current.eKey.wasPressedThisFrame) ToggleSeat();
                 economy.Update(Typing);
                 market.Update(Typing);
                 npcs.Update(mover.Position, Typing);
@@ -326,6 +333,56 @@ namespace CollectionGame.World
             return head + new Vector2(0f, up);
         }
 
+        // E: SIT on the nearest chair (the server decides and answers SEAT_SHOW), E again stands up.
+        void ToggleSeat()
+        {
+            if (me.Seat != null)
+            {
+                Sit("");
+                return;
+            }
+            var best = NearestSeat(mover.Position);
+            if (best != null) Sit(best.Id);
+        }
+
+        string pendingSeat;
+
+        // For the Autopilot (-cgBot sit).
+        public void Sit(string seatId) => pendingSeat = seatId;
+        public string MySeat => me != null && me.Seat != null ? me.Seat.Id : "";
+        public string OthersSeats => string.Join(",", others.Values.Where(o => o.view.Seat != null).Select(o => o.view.DisplayName + "@" + o.view.Seat.Id));
+
+        void OnSeatShow(SeatShowMsg s)
+        {
+            if (!string.IsNullOrEmpty(s.reason)) Debug.Log($"[Seat] SIT rejected: {s.reason}");
+            var who = s.id == net.UserId ? me : others.TryGetValue(s.id ?? "", out var o) ? o.view : null;
+            if (who == null) return;
+            var seat = MapView.FindSeat(s.seatId);
+            if (seat == null)
+            {
+                who.StandUp();
+                return;
+            }
+            if (who == me)
+            {
+                mover.Teleport(seat.Feet); // the server put us on the seat; the next MOVE starts there
+                me.SetState(mover.Position, mover.Facing, false);
+            }
+            who.SitOn(seat);
+        }
+
+        static MapView.MapSeat NearestSeat(Vector2 pos)
+        {
+            MapView.MapSeat best = null;
+            var bestD = 1.5f; // SEATS.maxDistance (Öneri)
+            foreach (var s in MapView.Seats)
+            {
+                var d = Vector2.Distance(s.Feet, pos);
+                if (d <= bestD) { bestD = d; best = s; }
+            }
+            return best;
+        }
+
         void PlaceCamera()
         {
             // Integer zoom keeps the pixel art sharp: one art pixel = zoom screen pixels.
@@ -361,7 +418,11 @@ namespace CollectionGame.World
                     economy.OnWelcome();
                     social.OnWelcome(w, net.UserId);
                     collection.LoadMine();
-                    if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username, w.look);
+                    if (me == null)
+                    {
+                        me = CharacterView.Create(transform, w.you.id, net.Username, w.look);
+                        me.IsLocal = true;
+                    }
                     else me.SetLook(w.look);
                     me.SetState(start, mover.Facing, false);
                     break;
@@ -374,11 +435,16 @@ namespace CollectionGame.World
                     {
                         known.mover.Reset(e, now);
                         known.view.SetLook(e.look);
+                        var knownSeat = MapView.FindSeat(e.seat);
+                        if (knownSeat != null) known.view.SitOn(knownSeat);
+                        else known.view.StandUp();
                         break;
                     }
                     var view = CharacterView.Create(transform, e.id, e.name, e.look);
                     var remote = new RemoteMover(e, now);
                     view.SetState(remote.Position, remote.Facing, remote.Moving);
+                    var enterSeat = MapView.FindSeat(e.seat);
+                    if (enterSeat != null) view.SitOn(enterSeat);
                     others[e.id] = (view, remote);
                     fishing.OnPlayerEnter(e);
                     social.OnPlayerEnter(e);
@@ -457,6 +523,9 @@ namespace CollectionGame.World
                     if (!market.OnTeleport(t) && (miniMap == null || !miniMap.OnTeleport(t))) social.OnTeleport(t);
                     break;
                 }
+                case OpCode.SeatShow:
+                    OnSeatShow(JsonUtility.FromJson<SeatShowMsg>(m.Json));
+                    break;
                 case OpCode.EmoteShow:
                 {
                     var e = JsonUtility.FromJson<EmoteShowMsg>(m.Json);

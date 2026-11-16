@@ -138,7 +138,7 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 |---|---|---|---|---|
 | 1 | C → S | `MOVE` | `{ seq, x, y, dir, moving }` | 1 |
 | 2 | S → C | `SNAPSHOT` | `{ t, players: [{ id, x, y, dir, moving }] }` (yakındakilerden bu tick'te değişenler, oyuncunun kendisi hariç) | 1 |
-| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber?, status?, look }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`; durum emote'u takılıysa `status`; `look` görünüm, Gardırop) | 1 |
+| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber?, status?, seat?, look }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`; durum emote'u takılıysa `status`; oturuyorsa koltuk `seat`; `look` görünüm, Gardırop) | 1 |
 | 4 | S → C | `PLAYER_LEAVE` | `{ id }` (görüş alanından çıktı veya ayrıldı) | 1 |
 | 5 | C → S | `SAY` | `{ text }` | 1 |
 | 6 | S → C | `BUBBLE` | `{ id, text }` (konuşanın kendisi de alır) | 1 |
@@ -256,6 +256,23 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
   - Durum **kalıcıdır**: oyundan çıkıp girince geri gelir (`player/status_emote`). Girişte sahipliği kalmamışsa kaldırılır.
   - Yeni gelen oyuncular için `PLAYER_ENTER` içinde `status?` vardır; kendi durumu ve sahip olduğu emote'lar `WELCOME` içinde: `status?`, `emotesOwned` (sadece ücretsiz olmayanlar).
   - Durum emote'u görünümdür; drop, Float ve ekonomiyi etkilemez, metin taşımadığı için sohbet filtresi gerekmez.
+
+## Oturma (16.11.2026, Onur)
+
+Kurallar: `docs/tasarim/10-sosyal.md` (sosyal alanlar), dinlenme bonusu `03-balik-tutma.md` (henüz bağlı değil). Koltuklar harita dosyasındadır (`seats`, bkz. Harita dosyası).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 67 | C → S | `SIT` | `{ seatId }` (`""` = kalk) |
+| 68 | S → C | `SEAT_SHOW` | `{ id, seatId, reason? }` (`seatId: ""` = kalktı; oyuncunun kendisi ve onu görenler) |
+
+- Oyuncu koltuğun yanında E'ye basar, client en yakın koltuğun `seatId`'sini gönderir. Client yer seçmez, oturmayı kendisi göstermez; `SEAT_SHOW` gelince gösterir.
+- Sunucu kontrol eder: koltuk haritada var, oyuncu koltuğa en fazla `SEATS.maxDistance` tile uzakta (Öneri 1.5), koltukta başkası yok, oyuncu takasta değil, 0.5 sn'de bir (Öneri). Balık tutuyorsa olta toplanır (`FISH_END cancelled`).
+- Başarılıysa oyuncunun konumu koltuğun `x, y`'si, yönü koltuğun `dir`'i olur ve `SEAT_SHOW { id, seatId }` oyuncuya ve onu görenlere gider. Oturan client kendi karakterini (`LocalMover`) koltuk konumuna koyar; sonraki `MOVE` oradan başlar. Herkes karakteri sandalyeye oturmuş çizer (LPC `Sitting` 3. sütun, koltuğun yönü).
+- Reddedilirse sadece oyuncuya `{ id, seatId: <oturduğu koltuk ya da "">, reason }`. `reason`: `NOT_FOUND`, `TOO_FAR`, `TAKEN`, `BUSY`, `RATE_LIMITED`.
+- Kalkma: `SIT { seatId: "" }`, yürüme (konum değiştiren `MOVE`) veya ışınlanma. Sunucu `SEAT_SHOW { id, seatId: "" }` yollar. Çıkan oyuncunun koltuğu boşalır (`PLAYER_LEAVE`).
+- Görüş alanına sonradan giren oyuncu oturanı `PLAYER_ENTER` içindeki `seat?` ile öğrenir.
+- `sit` emote'u (yere oturma) ayrıdır ve değişmedi.
 
 ## Duyurular (nadir av)
 
@@ -537,7 +554,8 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
   "spawn": { "x": 64.5, "y": 50.5 },
   "rows": ["....##....~~~~", "..."],
   "points": [{ "id": "bank", "kind": "bank", "x": 30.5, "y": 78.5 }],
-  "waters": [{ "id": "buyuk_gol", "x": 76, "y": 30, "w": 40, "h": 37 }]
+  "waters": [{ "id": "buyuk_gol", "x": 76, "y": 30, "w": 40, "h": 37 }],
+  "seats": [{ "id": "kafe_1", "x": 51, "y": 65.5, "dir": "down" }]
 }
 ```
 
@@ -554,6 +572,7 @@ Hedef akış: harita Unity'de tilemap olarak çizilir, bir editor komutu bu dosy
 - Su bandı (kıyı / orta / derin) dosyada yazılmaz; sunucu her su tile'ının karaya uzaklığından hesaplar (`WATER` config). Haritayı çizen yalnızca suyu işaretler.
 - `spawn`: ilk giriş noktası (meydan). Yürünür bir tile'da olmalı.
 - `points`: haritadaki işlevli yerler. `id` dosyada tektir, `kind` şunlardan biri: `bank` (depo, Faz 4), `craftsman` (Zanaatkar), `shop` (dükkan), `board` (Pazar Panosu), `rest` (dinlenme alanı), `market` (pet tezgahı alanının merkezi). Şimdilik sunucu `bank` ve `market`'i kullanır; menzil (kaç tile yakında açılır) noktada değil config'tedir (`STASH.range`).
+- `seats` (isteğe bağlı): oturulabilen yerler `[{ id, x, y, dir }]`. `x, y` sandalyenin ayak hizası (alt orta), oturan oyuncunun sunucudaki konumu; `dir` oturanın baktığı yön (`up`, `down`, `left`, `right`). Sandalye görseli client'ta yönden seçilir (`down` → `sandalye_on`, `up` → `sandalye_arka`, `right` → `sandalye_yan_sag`, `left` → `sandalye_yan_sol`). `id` tektir, yer yürünür tile'da olmalı. Unity harita dışa aktarması bu alanı henüz yazmıyor (`waters` gibi), elle korunur.
 - `waters` (isteğe bağlı): isimli sular. Dikdörtgenin içindeki `~` tile'lar o suya aittir; eşyaların `waters` alanı bu id'leri kullanır (`tasarim/03-balik-tutma.md`, Eşyanın çıkış alanları). `id` küçük harf, rakam ve `_`. Liste verilirse her su tile'ı tam bir suya ait olmalı. Client bu alanı kullanmaz; hangi suda olunduğu oyuncuya gösterilmez (keşif konusu).
 - Kontroller (sunucu açılırken; biri tutmazsa modül yüklenmez): satır sayısı ve uzunluğu, bilinmeyen karakter, `spawn` ve her nokta harita içinde ve yürünür, `id` tekrarı, sunucunun kullandığı noktalar (`bank`, `market`) var, isimli suların dikdörtgeni harita içinde, içinde su var, çakışmıyor ve isimsiz su kalmıyor.
 - Sonraki adım (Öneri): balık noktaları (`spot`) ve her noktanın havuzu. Havuzlar sunucu verisidir, dosyada sadece noktanın yeri ve id'si durur.
