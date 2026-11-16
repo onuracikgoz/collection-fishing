@@ -1,12 +1,12 @@
-using CollectionGame.Art;
-using CollectionGame.World;
+using CollectionGame.Net;
+using CollectionGame.Wardrobe;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace CollectionGame.UI.Views
 {
     /// <summary>
-    /// A player's character as it looks in the world now (the same LPC layers as CharacterView,
+    /// A player's character as it looks in the world now (the same Universal LPC layers as CharacterView,
     /// standing, facing down), cut to head and shoulders by the masked <see cref="holder"/>.
     /// Profile card portrait (31.10.2026, Onur). Made by UiPrefabBuilder.
     /// </summary>
@@ -21,19 +21,19 @@ namespace CollectionGame.UI.Views
         Image[] layers = new Image[0];
         string shown;
 
-        /// <summary>Shows the character of this player id; null or empty clears it.</summary>
-        public void Show(string userId)
+        /// <summary>Shows this look (null or empty user id clears it). Same layers as the world character, standing.</summary>
+        public void Show(string userId, LookView look)
         {
-            if (shown == userId) return;
-            shown = userId;
+            var key = string.IsNullOrEmpty(userId) ? null : userId + "|" + (look == null ? "" : JsonUtility.ToJson(look));
+            if (shown == key) return;
+            shown = key;
             foreach (var l in layers)
                 if (l != null) Destroy(l.gameObject);
             layers = new Image[0];
-            if (string.IsNullOrEmpty(userId) || holder == null) return;
-            var paths = Appearance.For(userId).LayerPaths;
-            layers = new Image[paths.Length];
-            var rect = new RectInt(0, DownRow * Frame, Frame, Frame);
-            for (var i = 0; i < paths.Length; i++)
+            if (key == null || holder == null) return;
+            var lpc = LpcLook.Layers(look);
+            layers = new Image[lpc.Count];
+            for (var i = 0; i < lpc.Count; i++)
             {
                 var go = new GameObject("Layer" + i, typeof(RectTransform));
                 go.layer = 5;
@@ -45,7 +45,7 @@ namespace CollectionGame.UI.Views
                 rt.anchoredPosition = new Vector2(0f, 16f);
                 var img = go.AddComponent<Image>();
                 img.raycastTarget = false;
-                img.sprite = ArtCatalog.Sprite(string.Format(paths[i], "Idle"), rect);
+                img.sprite = LpcLook.Sprite(lpc[i], LpcLook.Anim.Idle, 0, DownRow, 0.5f);
                 img.enabled = img.sprite != null;
                 layers[i] = img;
             }

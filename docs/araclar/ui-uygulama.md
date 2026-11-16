@@ -212,6 +212,7 @@ Pixel fontta fontun Inspector'ında Rendering Mode "Hinted Raster" ya da "Raster
 | Pazar: tezgah alanı, kurma, pano | `tezgah-*` | Tezgah: `STALL_*` hazır (`protokol.md` Pazar). Reklam panosu hazır (`BOARD_*`, `protokol.md` Pazar Panosu; elmas bakiyesi `get_inventory.diamond`); alım ilanı yok; pet seçimi / görünümü client konusu | Genel arama ve fiyat sıralaması yok. Pet 7 tile'dan yakınsa başlık + ilk 4 kalem, tıklayınca tam liste |
 | Emote menüsü, dünya görünümü | `emote-*` | `EMOTE_STATUS`, `EMOTE_STATUS_SHOW` hazır. Sahiplik veren sistem (elmas, destekçi, defter) **yok** | Şimdilik sadece 8 ücretsiz emote takılır |
 | Bildirimler (yığın, seviye atlama, duyuru, bağlantı) | `bildirim-*` | `ANNOUNCE` hazır. Seviye atlama (XP) **yok**. Çanta/enerji/olta bildirimleri client durumundan çıkar | Yığın en fazla 4 kutu |
+| Gardırop | `gardirop` (taslak çizilecek) | Hazır (`get_wardrobe`, `LOOK_SET`/`LOOK_SHOW`, bildirim 120; `protokol.md` Gardırop) | `Wardrobe/WardrobeController`, prefab `Wardrobe`, kısayol G |
 
 ## Fısıltı penceresi
 

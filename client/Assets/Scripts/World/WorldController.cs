@@ -7,6 +7,7 @@ using CollectionGame.Fishing;
 using CollectionGame.Net;
 using CollectionGame.Social;
 using CollectionGame.UI;
+using CollectionGame.Wardrobe;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -30,6 +31,11 @@ namespace CollectionGame.World
         Camera cam;
         CharacterView me;
         LocalMover mover;
+        /// <summary>LOOK_SHOW for our own character (the wardrobe window waits for it after Kaydet).</summary>
+        public event System.Action<LookShowMsg> LookShown;
+        /// <summary>Our own character, null before WELCOME.</summary>
+        public CharacterView Me => me;
+
         readonly Dictionary<string, (CharacterView view, RemoteMover mover)> others = new Dictionary<string, (CharacterView, RemoteMover)>();
 
         FishingController fishing;
@@ -39,6 +45,7 @@ namespace CollectionGame.World
         TradeController trade;
         MarketController market;
         QuestController quests;
+        WardrobeController wardrobe;
         WhisperController whispers;
         SettingsController settings;
         WorldHud hud;
@@ -70,6 +77,8 @@ namespace CollectionGame.World
                 BookOutcome = world.collection.OnFishEnd,
             };
             world.quests = new QuestController(net, world.fishing);
+            world.wardrobe = new WardrobeController(net);
+            world.LookShown += world.wardrobe.OnLookShown;
             world.npcs = new NpcController(go.transform);
             world.settings = new SettingsController(net)
             {
@@ -102,6 +111,7 @@ namespace CollectionGame.World
         public TradeController Trade => trade;
         public MarketController Market => market;
         public QuestController Quests => quests;
+        public WardrobeController Wardrobe => wardrobe;
         public WhisperController Whispers => whispers;
         public SettingsController Settings => settings;
         public Connection Net => net;
@@ -175,6 +185,7 @@ namespace CollectionGame.World
                 if (fishing.BagOpen) fishing.RefreshBag();
             });
             WorldHud.On(v.settings, settings.Toggle);
+            if (v.wardrobe != null) WorldHud.On(v.wardrobe, wardrobe.Toggle);
             WorldHud.On(v.repair, () =>
             {
                 if (mover == null || !npcs.TalkIfNear("merchant", mover.Position, () => economy.Show(EconomyController.Tab.Shop)))
@@ -191,6 +202,7 @@ namespace CollectionGame.World
             fishingHud?.Destroy();
             bagPanel?.Destroy();
             quests?.Destroy();
+            wardrobe?.Destroy();
             npcs?.Destroy();
             collection?.Destroy();
             social?.Destroy();
@@ -261,6 +273,8 @@ namespace CollectionGame.World
                 npcs.Update(mover.Position, Typing);
                 bagPanel.Update();
                 quests.Tick();
+                wardrobe.Update(Typing);
+                wardrobe.Tick();
                 collection.Tick();
                 social.Tick();
                 social.TickEmotes();
@@ -347,7 +361,8 @@ namespace CollectionGame.World
                     economy.OnWelcome();
                     social.OnWelcome(w, net.UserId);
                     collection.LoadMine();
-                    if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username);
+                    if (me == null) me = CharacterView.Create(transform, w.you.id, net.Username, w.look);
+                    else me.SetLook(w.look);
                     me.SetState(start, mover.Facing, false);
                     break;
                 }
@@ -358,9 +373,10 @@ namespace CollectionGame.World
                     if (others.TryGetValue(e.id, out var known))
                     {
                         known.mover.Reset(e, now);
+                        known.view.SetLook(e.look);
                         break;
                     }
-                    var view = CharacterView.Create(transform, e.id, e.name);
+                    var view = CharacterView.Create(transform, e.id, e.name, e.look);
                     var remote = new RemoteMover(e, now);
                     view.SetState(remote.Position, remote.Facing, remote.Moving);
                     others[e.id] = (view, remote);
@@ -454,6 +470,14 @@ namespace CollectionGame.World
                 case OpCode.ItemLockResult:
                     bagPanel.OnLockResult(JsonUtility.FromJson<ItemLockResultMsg>(m.Json));
                     break;
+                case OpCode.LookShow:
+                {
+                    var l = JsonUtility.FromJson<LookShowMsg>(m.Json);
+                    var who = l.id == net.UserId ? me : others.TryGetValue(l.id, out var o) ? o.view : null;
+                    if (who != null) who.SetLook(l.look);
+                    if (l.id == net.UserId) LookShown?.Invoke(l);
+                    break;
+                }
                 case OpCode.EmoteStatusShow:
                     social.OnStatus(JsonUtility.FromJson<EmoteStatusShowMsg>(m.Json), net.UserId);
                     break;
@@ -532,6 +556,9 @@ namespace CollectionGame.World
                     break;
                 case NotifyCode.StallSold:
                     market.OnSold(JsonUtility.FromJson<StallSoldNotice>(n.Json));
+                    break;
+                case NotifyCode.Wardrobe:
+                    wardrobe.OnChanged();
                     break;
                 case NotifyCode.DeletionCancelled:
                     settings.OnDeletionCancelled();

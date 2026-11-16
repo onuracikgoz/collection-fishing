@@ -81,6 +81,8 @@ namespace CollectionGame.Net
         public const long GotoSpawn = 64;
         public const long ItemDiscard = 65;
         public const long ItemDiscardResult = 66;
+        public const long LookSet = 69;
+        public const long LookShow = 70;
     }
 
     public static class ErrorCode
@@ -178,6 +180,8 @@ namespace CollectionGame.Net
         public BobberPos bobber;
         /// <summary>Status emote worn above the head; empty when none.</summary>
         public string status;
+        /// <summary>Wardrobe look (Gardırop).</summary>
+        public LookView look;
     }
 
     /// <summary>S → C, op 4.</summary>
@@ -238,6 +242,8 @@ namespace CollectionGame.Net
         public int xp;
         /// <summary>XP this level needs; 0 at the top level.</summary>
         public int xpNext;
+        /// <summary>The player's own wardrobe look.</summary>
+        public LookView look;
     }
 
     // --- Faz 2: fishing (docs/protokol.md, Balık tutma) ---
@@ -501,6 +507,8 @@ namespace CollectionGame.Net
         public int level;
         public ItemInstance[] showcase;
         public string hunting;
+        /// <summary>The look the player wears, for the portrait.</summary>
+        public LookView look;
     }
 
     // --- Faz 3: friends, teleport, emotes (docs/protokol.md, Arkadaşlar, ışınlanma, emote) ---
@@ -927,6 +935,8 @@ namespace CollectionGame.Net
         public const int StallSold = 103;
         public const int DeletionCancelled = 104;
         public const int Whisper = 110;
+        /// <summary>The admin panel gave or took a wardrobe part: reload an open wardrobe.</summary>
+        public const int Wardrobe = 120;
     }
 
     /// <summary>whisper_send. Set userId or username (leave the other empty). context "stall" when written from a pet stall.</summary>
@@ -1213,6 +1223,42 @@ namespace CollectionGame.Net
         public ContentSet[] sets;
         /// <summary>Ids of the sets that are book pages right now.</summary>
         public string[] pages;
+        /// <summary>Wearable cosmetics (Gardırop).</summary>
+        public WardrobeCatalogView wardrobe;
+    }
+
+    /// <summary>A wardrobe part: tier "" = free starter part; colors / color2 are colour kinds (dye, hair, metal, gem).</summary>
+    [Serializable]
+    public class WardrobePartDef
+    {
+        public string id;
+        public string name;
+        public string slot;
+        public string family;
+        public string tier;
+        public string[] colors;
+        public string[] color2;
+        public string[] effects;
+        public string[] bodies;
+        public bool free;
+        public bool active;
+    }
+
+    /// <summary>A wardrobe colour: kind dye, hair, metal, gem, fx (Mythic), skin or eye.</summary>
+    [Serializable]
+    public class WardrobeColorDef
+    {
+        public string id;
+        public string kind;
+        public string tier;
+        public bool free;
+    }
+
+    [Serializable]
+    public class WardrobeCatalogView
+    {
+        public WardrobePartDef[] parts;
+        public WardrobeColorDef[] colors;
     }
 
     [Serializable]
@@ -1341,5 +1387,93 @@ namespace CollectionGame.Net
         public int maxBuy;
         public CatalogRodLevel[] rodLevels;
         public CatalogStash stash;
+    }
+
+    // --- Gardırop (docs/protokol.md, Gardırop) ---
+
+    public static class Bodies
+    {
+        public const string Male = "male";
+        public const string Female = "female";
+    }
+
+    /// <summary>One worn part as others see it. color2 "" = none; rented shows a clock.</summary>
+    [Serializable]
+    public class LookPartView
+    {
+        public string part;
+        public string color;
+        public string color2;
+        public bool rented;
+    }
+
+    /// <summary>A worn look: body, skin and eye colour ids, and the parts (any order).</summary>
+    [Serializable]
+    public class LookView
+    {
+        public string body;
+        public string skin;
+        public string eyes;
+        public LookPartView[] parts;
+
+        public bool IsSet => !string.IsNullOrEmpty(body) && !string.IsNullOrEmpty(skin);
+    }
+
+    /// <summary>C → S, op 69: the whole outfit. Owned parts carry instanceId; free parts carry free colours.</summary>
+    [Serializable]
+    public class LookSetPart
+    {
+        public string part;
+        public string color;
+        public string color2;
+        public string instanceId;
+    }
+
+    [Serializable]
+    public class LookSetMsg
+    {
+        public string body;
+        public string skin;
+        public string eyes;
+        public LookSetPart[] parts;
+    }
+
+    /// <summary>S → C, op 70. reason (only to the player): NOT_OWNED, BAD_LOOK, RATE_LIMITED.</summary>
+    [Serializable]
+    public class LookShowMsg
+    {
+        public string id;
+        public LookView look;
+        public string reason;
+    }
+
+    /// <summary>One wardrobe item (get_wardrobe). until 0 = permanent.</summary>
+    [Serializable]
+    public class WardrobeItem
+    {
+        public string instanceId;
+        public string part;
+        public string color;
+        public string color2;
+        public string source;
+        public long obtainedAt;
+        public long until;
+        public bool locked;
+    }
+
+    [Serializable]
+    public class WornSlot
+    {
+        public string slot;
+        public string instanceId;
+    }
+
+    /// <summary>get_wardrobe RPC.</summary>
+    [Serializable]
+    public class WardrobeResponse
+    {
+        public WardrobeItem[] items;
+        public LookView look;
+        public WornSlot[] worn;
     }
 }

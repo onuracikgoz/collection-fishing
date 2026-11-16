@@ -66,6 +66,13 @@ namespace CollectionGame.UI.Views
             SetIconSprite(string.IsNullOrEmpty(key) ? null : ItemIcons.ForSlot(key));
         }
 
+        /// <summary>A drawn picture instead of a placeholder icon (wardrobe parts).</summary>
+        public void SetPicture(Sprite s)
+        {
+            label.text = "";
+            SetIconSprite(s);
+        }
+
         void SetIconSprite(Sprite s)
         {
             if (icon == null) return;

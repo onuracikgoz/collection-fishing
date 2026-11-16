@@ -7,6 +7,8 @@ import { scoreOf } from '../rules/book';
 import { levelOf } from '../rules/xp';
 import { checkHunting, checkShowcase, completedPages, visibleShowcase } from '../rules/profile';
 import { rpcLimit } from './limit';
+import { readWardrobe } from '../match/wardrobe';
+import { currentLook, lookView } from '../rules/wardrobe';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -31,6 +33,7 @@ function buildProfile(nk: nkruntime.Nakama, userId: string): ProfileResponse {
   const entries = readBook(nk, userId);
   const doc = readProfile(nk, userId);
   const items = readBookItems(nk, userId, entries);
+  const wardrobe = readWardrobe(nk, userId).doc;
   const showcase: ItemInstance[] = [];
   for (const id of visibleShowcase(doc, entries)) {
     const item = items[entries[id].slot!.instanceId];
@@ -43,6 +46,7 @@ function buildProfile(nk: nkruntime.Nakama, userId: string): ProfileResponse {
     pagesComplete: completedPages(entries, getContent(nk).pages),
     level: levelOf(readXp(nk, userId), XP).level,
     showcase,
+    look: lookView(currentLook(getContent(nk).wardrobe, wardrobe, userId, Date.now()), wardrobe),
   };
   if (doc.hunting) res.hunting = doc.hunting;
   return res;

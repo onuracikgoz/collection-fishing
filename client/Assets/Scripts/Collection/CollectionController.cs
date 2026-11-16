@@ -626,7 +626,7 @@ namespace CollectionGame.Collection
             profileDirty = false;
             var v = profileView;
             var p = Profile;
-            v.portrait.Show(p?.userId);
+            v.portrait.Show(p?.userId, p?.look);
             if (p == null)
             {
                 v.displayName.text = Loc.T("common.loading");

@@ -85,11 +85,18 @@ namespace CollectionGame.Art
         {
             var tex = Texture(path);
             if (tex == null) return null;
+            return SpriteOf(tex, rect, pivotX, pivotY);
+        }
+
+        /// <summary>Like <see cref="Sprite(string, RectInt, float, float)"/> for a texture made at run time (wardrobe recolours).</summary>
+        public static Sprite SpriteOf(Texture2D tex, RectInt rect, float pivotX = 0.5f, float pivotY = 0.5f)
+        {
+            if (tex == null) return null;
             var key = (tex, rect, pivotX, pivotY);
             if (sprites.TryGetValue(key, out var sprite) && sprite != null) return sprite;
             var unityRect = new Rect(rect.x, tex.height - rect.y - rect.height, rect.width, rect.height);
             sprite = UnityEngine.Sprite.Create(tex, unityRect, new Vector2(pivotX, pivotY), PixelsPerUnit, 0, SpriteMeshType.FullRect);
-            sprite.name = $"{path}@{rect.x},{rect.y}";
+            sprite.name = $"{tex.name}@{rect.x},{rect.y}";
             sprites[key] = sprite;
             return sprite;
         }

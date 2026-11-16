@@ -35,6 +35,9 @@
 - Gardırop penceresinde oyuncu **bütün katalogu dener** (prova odası, sadece kendi ekranında). **Kaydet** sadece sahip olduğu ya da bedava parçalarla olur; sunucu bütün görünümü doğrular ve yakındakilere yayar.
 - Görünüm kalıcıdır, oyundan çıkıp girince geri gelir.
 
+- **Pencere** (G ya da HUD'daki Gardırop düğmesi): solda önizleme (çevir düğmeleriyle dört yön), gövde, ten ve göz; sağda sekmeler (Üst, Alt, Ayak, Şapka, Saç, Kanat, Takı, Diğer), 12'lik sayfalar halinde parçalar ve seçili parçanın renkleri. Listede önce oyuncunun eşyaları, sonra bedava parçalar, sonra denenecekler gelir. Denenen bir parça varken **Kaydet** kapalıdır.
+- Çizim: Universal LPC sayfaları (`client/Assets/Art/LPC/Universal`, `tools/wardrobe/import_lpc.py` ile alınır), renk oyunda ramp'la boyanır. Ayrıntı: `docs/araclar/gardirop-sprite.md`.
+
 ## 5. Admin paneli
 
 - **Gardırop** sekmesi: katalog (Tier, aktiflik, bedava) ve bir oyuncunun gardırobu.

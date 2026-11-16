@@ -48,7 +48,7 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
 | `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, diamond, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4, `diamond` Faz 5; oyuncu bir sunucudayken `energy` 1 dk'ya kadar geride kalabilir, client maçtaki değeri kullanır: `WELCOME`, `BOBBER`, `FISH_END`) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
-| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting? }` | 3 |
+| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting?, look }` (`look`: giydiği görünüm, Gardırop) | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |

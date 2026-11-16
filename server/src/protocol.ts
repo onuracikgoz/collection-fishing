@@ -338,6 +338,8 @@ export interface ProfileResponse {
   /** Showcase items as they sit in the book now. */
   showcase: ItemInstance[];
   hunting?: string;
+  /** The look the player wears (Gardırop), for the profile portrait. */
+  look: Look;
 }
 
 export interface SetProfileRequest {
