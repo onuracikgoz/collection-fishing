@@ -1,7 +1,7 @@
 // Wardrobe rules (rules/wardrobe.ts) and the world match's LOOK_SET (docs/protokol.md Gardırop).
 import { describe, expect, it } from 'vitest';
 import { OpCode } from '../src/protocol';
-import { seedWardrobe } from '../src/data/wardrobe-catalog';
+import { addSeedCraft, seedWardrobe } from '../src/data/wardrobe-catalog';
 import { seedContent } from '../src/data/seed-content';
 import { validateContent } from '../src/rules/content';
 import { contentResponse } from '../src/rpc/getContent';
@@ -12,7 +12,9 @@ import {
   compileWardrobe,
   currentLook,
   defaultLook,
+  editMaterial,
   editPart,
+  partsUsing,
   itemTier,
   lookView,
   makeItem,
@@ -64,6 +66,73 @@ describe('wardrobe catalog', () => {
     expect(free.tier).toBe('');
     expect(Array.isArray(free.color2)).toBe(true);
     expect(res.wardrobe.colors.every((c) => typeof c.tier === 'string')).toBe(true);
+  });
+});
+
+describe('wardrobe craft', () => {
+  it('the seed has the craft table materials, ladders and recipes', () => {
+    const cat = seedWardrobe();
+    expect(cat.materials!.length).toBe(132);
+    expect(cat.families!.length).toBe(17);
+    const paid = cat.parts.filter((p) => !p.free);
+    expect(paid.every((p) => p.recipe && p.recipe.mats.length > 0)).toBe(true);
+    expect(cat.parts.filter((p) => p.free).every((p) => p.recipe === undefined)).toBe(true);
+    expect(cat.parts.reduce((n, p) => n + Object.keys(p.mythic || {}).length, 0)).toBe(48);
+    // Cuffs: Seaweed Fibre ×1 + Mussel Button ×2 + Edge Trim ×1 (craft table Eşyalar)
+    expect(cat.parts.filter((p) => p.id === 'wrists_cuffs')[0].recipe!.mats).toEqual([
+      { mat: 'wmat_seaweed_fibre', count: 1 },
+      { mat: 'wmat_mussel_button', count: 2 },
+      { mat: 'wmat_edge_trim', count: 1 },
+    ]);
+    expect(partsUsing(cat, 'wmat_mussel_button').length).toBeGreaterThan(10);
+  });
+
+  it('catches broken recipes and materials', () => {
+    const cat = seedWardrobe();
+    const i = cat.parts.map((p) => p.id).indexOf('wrists_cuffs');
+    cat.parts[i] = { ...cat.parts[i], recipe: { mats: [{ mat: 'wmat_nope', count: 1 }, { mat: 'wmat_rivet', count: 0 }] } };
+    cat.materials!.push({ ...cat.materials![0] });
+    const errors = validateWardrobe(cat);
+    expect(errors.some((e) => e.indexOf('unknown material wmat_nope') >= 0)).toBe(true);
+    expect(errors.some((e) => e.indexOf('count must be') >= 0)).toBe(true);
+    expect(errors.some((e) => e.indexOf('wardrobe material wmat_seaweed_fibre twice') >= 0)).toBe(true);
+  });
+
+  it('editPart changes colours, effects and the recipe, never id, slot or bodies', () => {
+    const p = seedWardrobe().parts.filter((x) => x.id === 'torso_clothes_tshirt')[0];
+    const out = editPart(p, { id: 'x', slot: 'hat', bodies: [], colors: ['metal'], color2: ['gem'], effects: ['fx_sunset'], free: false, tier: 'rare', recipe: { mats: [{ mat: 'wmat_rivet', count: 2 }] } }) as any;
+    expect(out.id).toBe(p.id);
+    expect(out.slot).toBe(p.slot);
+    expect(out.bodies).toEqual(p.bodies);
+    expect(out.colors).toEqual(['metal']);
+    expect(out.color2).toEqual(['gem']);
+    expect(Object.keys(out.mythic)).toEqual(['fx_sunset']); // fx_deep_sea's recipe went with its effect
+    expect(out.recipe.mats[0].mat).toBe('wmat_rivet');
+    expect((editPart(out, { free: true }) as any).recipe).toBeUndefined();
+    expect(editPart(p, { colors: ['fx'] })).toMatch(/colors/);
+  });
+
+  it('editMaterial adds and edits, keeping the id', () => {
+    const m = editMaterial(undefined, { id: 'wmat_test', name: ' Test ', tier: 'rare', kind: 'detail', source: 'mining', active: true }) as any;
+    expect(m.name).toBe('Test');
+    expect((editMaterial(m, { id: 'wmat_other', tier: 'epic' }) as any).id).toBe('wmat_test');
+    expect(editMaterial(undefined, { id: 'test', name: 'T' })).toMatch(/wmat_/);
+    expect(editMaterial(m, { source: 'moon' })).toMatch(/source/);
+  });
+
+  it('a wardrobe stored before materials gets the seed craft data', () => {
+    const old = seedWardrobe();
+    delete old.materials;
+    delete old.families;
+    for (const p of old.parts) {
+      delete p.recipe;
+      delete p.mythic;
+    }
+    old.parts[3] = { ...old.parts[3], effects: [] };
+    addSeedCraft(old);
+    expect(old.materials!.length).toBe(132);
+    expect(old.parts[3].recipe).toBeDefined();
+    expect(validateWardrobe(old)).toEqual([]);
   });
 });
 

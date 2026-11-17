@@ -32,7 +32,7 @@ import {
   stallWrite,
   stashWrite,
 } from '../match/playerData';
-import { editPart } from '../rules/wardrobe';
+import { editMaterial, editPart, partsUsing } from '../rules/wardrobe';
 import { seedWardrobe } from '../data/wardrobe-catalog';
 import { artWrite, contentOptions, readArt, readContentDoc, writeContentDoc, ART_COLLECTION, SYSTEM_USER } from '../match/content';
 
@@ -461,7 +461,7 @@ export function rpcAdminLocaleSave(ctx: nkruntime.Context, _logger: nkruntime.Lo
   return JSON.stringify({ ok: true, version: saved.version, hash: saved.hash, keys: Object.keys(strings).length });
 }
 
-/** `{ version, part: { id, name?, tier?, free?, active? } }`: edits one wardrobe catalog part. */
+/** `{ version, part: { id, name?, family?, tier?, free?, active?, colors?, color2?, effects?, recipe?, mythic? } }`: edits one wardrobe catalog part. */
 export function rpcAdminWardrobePartSave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
   adminOnly(ctx);
   const body = parse(payload);
@@ -477,4 +477,41 @@ export function rpcAdminWardrobePartSave(ctx: nkruntime.Context, logger: nkrunti
   doc.wardrobe.parts[i] = part;
   const next = publish(nk, logger, doc, version);
   return JSON.stringify({ ok: true, version: next, part });
+}
+
+/** `{ version, material: { id, name?, tier?, kind?, source?, active?, note? } }`: adds or edits one wardrobe craft material. */
+export function rpcAdminWardrobeMaterialSave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  adminOnly(ctx);
+  const body = parse(payload);
+  const input = body.material;
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) throw fail(ErrorCode.BAD_REQUEST, 'material is required');
+  const { doc, version } = load(nk, body);
+  if (!doc.wardrobe) doc.wardrobe = seedWardrobe();
+  const mats = doc.wardrobe.materials || (doc.wardrobe.materials = []);
+  const id = (input as Body).id;
+  const i = mats.map((m) => m.id).indexOf(typeof id === 'string' ? id : '');
+  const mat = editMaterial(i >= 0 ? mats[i] : undefined, input as Body);
+  if (typeof mat === 'string') throw fail(ErrorCode.BAD_REQUEST, mat);
+  if (i >= 0) mats[i] = mat;
+  else mats.push(mat);
+  const next = publish(nk, logger, doc, version);
+  return JSON.stringify({ ok: true, version: next, material: mat });
+}
+
+/** `{ version, id }`: deletes a wardrobe material no recipe or family uses. */
+export function rpcAdminWardrobeMaterialDelete(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  adminOnly(ctx);
+  const body = parse(payload);
+  const { doc, version } = load(nk, body);
+  const w = doc.wardrobe;
+  const mats = (w && w.materials) || [];
+  const i = mats.map((m) => m.id).indexOf(typeof body.id === 'string' ? body.id : '');
+  if (!w || i < 0) throw fail(ErrorCode.NOT_FOUND, 'no such wardrobe material', 5);
+  const id = mats[i].id;
+  const users = partsUsing(w, id);
+  if (users.length) throw fail(ErrorCode.NOT_ALLOWED, `${users.length} recipes use ${id} (${users.slice(0, 5).map((u) => u.part).join(', ')}…); take it out of them first`, 9);
+  if ((w.families || []).some((f) => f.base === id || Object.keys(f.ladder).some((t) => f.ladder[t] === id))) throw fail(ErrorCode.NOT_ALLOWED, `${id} is a family ladder material`, 9);
+  mats.splice(i, 1);
+  const next = publish(nk, logger, doc, version);
+  return JSON.stringify({ ok: true, version: next });
 }

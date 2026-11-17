@@ -34,6 +34,47 @@ export interface WardrobePart {
   free: boolean;
   /** Inactive parts are not offered any more; owned copies still wear. */
   active: boolean;
+  /** Materials besides the part's own pattern and its colours. Missing = not craftable (free parts). */
+  recipe?: WardrobeRecipe;
+  /** Recipe of the Mythic copy per effect colour (fx_*), besides the Mythic pattern and the effect colour. */
+  mythic?: { [fx: string]: WardrobeRecipe };
+}
+
+export interface WardrobeStack {
+  mat: string;
+  count: number;
+}
+
+/** A wardrobe craft: the part's own pattern ×1 + these materials + one colour per colour area (20-gardirop.md 6). */
+export interface WardrobeRecipe {
+  mats: WardrobeStack[];
+}
+
+export type MaterialKind = 'base' | 'ladder' | 'detail' | 'special' | 'catalyst';
+export const MATERIAL_KINDS: MaterialKind[] = ['base', 'ladder', 'detail', 'special', 'catalyst'];
+/** Where a material comes from. Labels only until mining exists (craft table rule 8). */
+export const MATERIAL_SOURCES = ['fishing', 'fishing_night', 'fishing_morning', 'fishing_evening', 'fishing_winter', 'fishing_deep', 'mining', 'mining_cave'];
+
+/** A wardrobe craft material (craft table Malzemeler). One Tier each, never two of the same material. */
+export interface WardrobeMaterial {
+  /** wmat_ + English name. Never renamed. */
+  id: string;
+  name: string;
+  tier: Tier;
+  kind: MaterialKind;
+  source: string;
+  /** Inactive materials are not offered in new recipes. */
+  active: boolean;
+  /** Admin note (Turkish name in the craft table, what it is for). */
+  note?: string;
+}
+
+/** A craft family's ladder: the base material and one signature material per Tier (craft table rule 3). */
+export interface WardrobeFamily {
+  id: string;
+  name: string;
+  base: string | null;
+  ladder: { [tier: string]: string | null };
 }
 
 export interface WardrobeColor {
@@ -48,6 +89,9 @@ export interface WardrobeColor {
 export interface WardrobeCatalog {
   parts: WardrobePart[];
   colors: WardrobeColor[];
+  /** Craft materials and family ladders (missing in docs stored before them; the seed fills them). */
+  materials?: WardrobeMaterial[];
+  families?: WardrobeFamily[];
 }
 
 export interface CompiledWardrobe {
@@ -143,6 +187,29 @@ export function validateWardrobe(cat: unknown): string[] {
   for (const k of ['skin', 'eye'] as ColorKind[]) {
     if (!Object.keys(colorIds).some((id) => colorIds[id] === k)) err(`wardrobe needs at least one ${k} colour`);
   }
+  const matIds: { [id: string]: true } = {};
+  if (cat.materials !== undefined && !Array.isArray(cat.materials)) err('wardrobe materials must be a list');
+  for (const m of (Array.isArray(cat.materials) ? cat.materials : []) as unknown[]) {
+    for (const e of materialErrors(m)) err(e);
+    if (!isObj(m) || typeof m.id !== 'string') continue;
+    if (matIds[m.id]) err(`wardrobe material ${m.id} twice`);
+    matIds[m.id] = true;
+  }
+  const recipeCheck = (where: string, r: unknown): void => {
+    for (const e of recipeErrors(r, matIds)) err(`${where}: ${e}`);
+  };
+  if (cat.families !== undefined) {
+    if (!Array.isArray(cat.families)) err('wardrobe families must be a list');
+    else
+      for (const f of cat.families as unknown[]) {
+        if (!isObj(f) || typeof f.id !== 'string' || f.id === '') {
+          err('wardrobe family with a bad id');
+          continue;
+        }
+        const refs = [f.base].concat(isObj(f.ladder) ? Object.keys(f.ladder).map((k) => (f.ladder as { [k: string]: unknown })[k]) : []);
+        if (refs.some((r) => r !== null && r !== undefined && (typeof r !== 'string' || !matIds[r]))) err(`wardrobe family ${f.id}: unknown material`);
+      }
+  }
   const partIds: { [id: string]: true } = {};
   const kindList = (where: string, v: unknown): void => {
     if (!Array.isArray(v) || !v.every((k) => PART_KINDS.indexOf(k as ColorKind) >= 0)) err(`${where}: colour kinds must be from ${PART_KINDS.join(', ')}`);
@@ -166,8 +233,70 @@ export function validateWardrobe(cat: unknown): string[] {
     if (!Array.isArray(p.effects) || !p.effects.every((e) => typeof e === 'string' && colorIds[e] === 'fx')) err(`${w}: effects must be fx colours`);
     if (!Array.isArray(p.bodies) || !p.bodies.every((b) => BODIES.indexOf(b as Body) >= 0)) err(`${w}: bodies must be male / female`);
     else if (p.active === true && p.bodies.length === 0) err(`${w}: an active part needs a body`);
+    if (p.recipe !== undefined) {
+      if (p.free === true) err(`${w}: a free part has no recipe`);
+      recipeCheck(w, p.recipe);
+    }
+    if (p.mythic !== undefined) {
+      if (!isObj(p.mythic)) err(`${w}: mythic must be an object`);
+      else
+        for (const fx of Object.keys(p.mythic)) {
+          if (!Array.isArray(p.effects) || p.effects.indexOf(fx) < 0) err(`${w}: Mythic recipe for ${fx}, which is not one of its effects`);
+          recipeCheck(`${w} ${fx}`, p.mythic[fx]);
+        }
+    }
   }
   return errors;
+}
+
+const MAX_RECIPE_MATS = 12;
+const MAX_MAT_COUNT = 99;
+
+/** Errors in one recipe; `mats` are the known material ids. */
+export function recipeErrors(r: unknown, mats: { [id: string]: true }): string[] {
+  if (!isObj(r) || !Array.isArray(r.mats)) return ['recipe needs a mats list'];
+  const out: string[] = [];
+  if (r.mats.length > MAX_RECIPE_MATS) out.push(`at most ${MAX_RECIPE_MATS} materials`);
+  const seen: { [id: string]: true } = {};
+  for (const s of r.mats as unknown[]) {
+    if (!isObj(s) || typeof s.mat !== 'string' || !has(mats, s.mat)) {
+      out.push(`unknown material ${isObj(s) ? String(s.mat) : ''}`);
+      continue;
+    }
+    if (seen[s.mat]) out.push(`${s.mat} twice`);
+    seen[s.mat] = true;
+    if (typeof s.count !== 'number' || Math.floor(s.count) !== s.count || s.count < 1 || s.count > MAX_MAT_COUNT) out.push(`${s.mat}: count must be 1-${MAX_MAT_COUNT}`);
+  }
+  return out;
+}
+
+/** Errors in one material (without the duplicate check). */
+export function materialErrors(m: unknown): string[] {
+  if (!isObj(m) || typeof m.id !== 'string' || !ID_RE.test(m.id)) return ['wardrobe material with a bad id'];
+  const w = `wardrobe material ${m.id}`;
+  const out: string[] = [];
+  if (m.id.indexOf('wmat_') !== 0) out.push(`${w}: id must start with wmat_`);
+  if (typeof m.name !== 'string' || m.name.trim() === '') out.push(`${w}: name is required`);
+  if (['common', 'rare', 'epic', 'legendary', 'mythic'].indexOf(m.tier as string) < 0) out.push(`${w}: bad tier`);
+  if (MATERIAL_KINDS.indexOf(m.kind as MaterialKind) < 0) out.push(`${w}: kind must be ${MATERIAL_KINDS.join(', ')}`);
+  if (MATERIAL_SOURCES.indexOf(m.source as string) < 0) out.push(`${w}: source must be ${MATERIAL_SOURCES.join(', ')}`);
+  if (typeof m.active !== 'boolean') out.push(`${w}: active must be true or false`);
+  if (m.note !== undefined && typeof m.note !== 'string') out.push(`${w}: note must be text`);
+  return out;
+}
+
+/** Which parts use a material (main or Mythic recipe), for the panel's reverse tree and the delete check. */
+export function partsUsing(cat: WardrobeCatalog, mat: string): { part: string; fx?: string; count: number }[] {
+  const out: { part: string; fx?: string; count: number }[] = [];
+  for (const p of cat.parts) {
+    const hit = (r: WardrobeRecipe | undefined, fx?: string) => {
+      const s = r ? r.mats.filter((x) => x.mat === mat)[0] : undefined;
+      if (s) out.push(fx ? { part: p.id, fx, count: s.count } : { part: p.id, count: s.count });
+    };
+    hit(p.recipe);
+    if (p.mythic) for (const fx of Object.keys(p.mythic)) hit(p.mythic[fx], fx);
+  }
+  return out;
 }
 
 /** Does this colour fit this area of the part? "" fits a fixed (colourless) area. */
@@ -399,9 +528,44 @@ export function asWardrobeDoc(v: unknown): WardrobeDoc {
   return { items: Array.isArray(v.items) ? (v.items as WardrobeItem[]) : [], look: isObj(v.look) ? (v.look as unknown as StoredLook) : null };
 }
 
-/** Admin panel edit of one catalog part: only name, tier, free and active change. */
+/**
+ * Admin panel edit of one catalog part. id, slot and bodies come from the LPC sheets and never change;
+ * everything else can. The result is checked against the whole catalog when it is published.
+ */
 export function editPart(p: WardrobePart, input: { [k: string]: unknown }): WardrobePart | string {
   const out: WardrobePart = { ...p };
+  if (input.family !== undefined) {
+    if (typeof input.family !== 'string' || input.family === '') return 'family must be text';
+    out.family = input.family;
+  }
+  const kinds = (v: unknown) => Array.isArray(v) && v.every((k) => PART_KINDS.indexOf(k as ColorKind) >= 0);
+  if (input.colors !== undefined) {
+    if (!kinds(input.colors)) return `colors must be from ${PART_KINDS.join(', ')}`;
+    out.colors = (input.colors as ColorKind[]).slice();
+  }
+  if (input.color2 !== undefined) {
+    if (input.color2 === null) delete out.color2;
+    else if (!kinds(input.color2)) return `color2 must be from ${PART_KINDS.join(', ')}`;
+    else out.color2 = (input.color2 as ColorKind[]).slice();
+  }
+  if (input.effects !== undefined) {
+    if (!Array.isArray(input.effects) || !input.effects.every((e) => typeof e === 'string')) return 'effects must be a list of fx colours';
+    out.effects = (input.effects as string[]).slice();
+    // A Mythic recipe goes with its effect.
+    if (out.mythic) {
+      const kept: { [fx: string]: WardrobeRecipe } = {};
+      for (const fx of Object.keys(out.mythic)) if (out.effects.indexOf(fx) >= 0) kept[fx] = out.mythic[fx];
+      out.mythic = kept;
+    }
+  }
+  if (input.recipe !== undefined) {
+    if (input.recipe === null) delete out.recipe;
+    else out.recipe = input.recipe as WardrobeRecipe;
+  }
+  if (input.mythic !== undefined) {
+    if (input.mythic === null) delete out.mythic;
+    else out.mythic = input.mythic as { [fx: string]: WardrobeRecipe };
+  }
   if (input.name !== undefined) {
     if (typeof input.name !== 'string' || input.name.trim() === '') return 'name must be text';
     out.name = input.name.trim();
@@ -418,9 +582,22 @@ export function editPart(p: WardrobePart, input: { [k: string]: unknown }): Ward
     if (input.tier !== null && WEAR_TIERS.indexOf(input.tier as Tier) < 0) return `tier must be ${WEAR_TIERS.join(', ')} or null`;
     out.tier = input.tier as Tier | null;
   }
-  // A free part has no Tier; a part made paid needs one.
-  if (out.free) out.tier = null;
+  // A free part has no Tier and no recipe; a part made paid needs a Tier.
+  if (out.free) {
+    out.tier = null;
+    delete out.recipe;
+  }
   else if (out.tier === null) return 'a part that is not free needs a tier';
   if (out.active && out.bodies.length === 0) return 'this part has no sprites for an adult body; it cannot be active';
   return out;
+}
+
+/** Admin panel add / edit of one material. */
+export function editMaterial(cur: WardrobeMaterial | undefined, input: { [k: string]: unknown }): WardrobeMaterial | string {
+  const out = { ...(cur || { id: '', name: '', tier: 'common', kind: 'detail', source: 'fishing', active: true }), ...input } as WardrobeMaterial;
+  if (cur) out.id = cur.id;
+  if (typeof out.name === 'string') out.name = out.name.trim();
+  if (out.note === '') delete out.note;
+  const e = materialErrors(out);
+  return e.length ? e[0] : out;
 }
