@@ -38,6 +38,8 @@ import { rpcGetProfile, rpcSetProfile } from './rpc/profile';
 import { rpcFriendsStatus } from './rpc/friendsStatus';
 import { rpcGetCatalog } from './rpc/getCatalog';
 import { rpcGetContent, rpcGetItemArt } from './rpc/getContent';
+import { rpcGetWardrobe } from './rpc/wardrobe';
+import { rpcAdminWardrobeGet, rpcAdminWardrobeGive, rpcAdminWardrobeTake } from './admin/wardrobe';
 import {
   rpcAdminArtGet,
   rpcAdminArtPut,
@@ -45,6 +47,7 @@ import {
   rpcAdminImport,
   rpcAdminLocaleGet,
   rpcAdminLocaleSave,
+  rpcAdminWardrobePartSave,
   rpcAdminItemDelete,
   rpcAdminItemPurge,
   rpcAdminItemSave,
@@ -96,6 +99,7 @@ function InitModule(
   initializer.registerRpc('get_content', rpcGetContent);
   initializer.registerRpc('get_item_art', rpcGetItemArt);
   initializer.registerRpc('get_locale', rpcGetLocale);
+  initializer.registerRpc('get_wardrobe', rpcGetWardrobe);
   initializer.registerBeforeAuthenticateDevice(beforeAuthenticateDevice);
   initializer.registerAfterAuthenticateDevice(afterAuthenticateDevice);
   initializer.registerRpc('transfer_code_create', rpcTransferCodeCreate);
@@ -167,6 +171,10 @@ function InitModule(
   initializer.registerRpc('admin_import', rpcAdminImport);
   initializer.registerRpc('admin_locale_get', rpcAdminLocaleGet);
   initializer.registerRpc('admin_locale_save', rpcAdminLocaleSave);
+  initializer.registerRpc('admin_wardrobe_part_save', rpcAdminWardrobePartSave);
+  initializer.registerRpc('admin_wardrobe_get', rpcAdminWardrobeGet);
+  initializer.registerRpc('admin_wardrobe_give', rpcAdminWardrobeGive);
+  initializer.registerRpc('admin_wardrobe_take', rpcAdminWardrobeTake);
   if (isDevEnabled(ctx)) logger.warn('DEV_TOOLS on: dev_* RPCs work. Never enable this on a test or live server.');
   try {
     ensureServers(nk, logger);

@@ -1,7 +1,5 @@
 # Ekonomi ve Pazar
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 12. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 12. Oyun İçi Pazar ve Ekonomi
 
 ### 12.1. Para Birimi: Coin

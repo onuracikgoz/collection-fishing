@@ -1,7 +1,5 @@
 # Geliştirme Fazları
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 24. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 24. Geliştirme Fazları
 
 **Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas ve takas kayıtları, pet tezgahı, eşya kilidi, XP / level, taşıma kodu, hesap silme, fısıltı, rapor / susturma, RPC hız sınırı ve elmas (balıkla kazanılır) sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
@@ -27,7 +25,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] GitHub repo (`onuracikgoz/collection-fishing`). PNG'ler LFS dışında, ses / büyük çizim LFS'te
 - [x] `client/` altında Unity 6 2D URP projesi
 - [ ] Unity'den yerel Nakama'ya bağlanıp `healthcheck` çağrılıyor
-- [x] LPC karakter seti seçildi, lisans notu `content/` altında (deneme: LPC Revised karakterleri, `client/Assets/Art/LPC/Characters/`)
+- [x] LPC karakter seti seçildi, lisans notu `content/` altında (16.11.2026'dan beri Universal LPC, `client/Assets/Art/LPC/Universal/`)
 - [x] Ekonomi simülasyon tablosunun ilk hali (`docs/tasarim/16-ekonomi-tablosu.md`, bölüm 23 için)
 
 ## Faz 1: bitti sayılma şartları
@@ -83,6 +81,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] Admin paneli (`tools/admin`, `docs/araclar/admin-paneli.md`): ZIP yükleme, sırayla onay, eşya / set düzenleme, otomatik recipe, düşme oranları, sandık ve görevler, JSON kısayolu, görsel kontrolü
 - [x] Item Art Studio ZIP'i sadece görsel
 - [x] Client eşya adlarını ve ikonlarını `get_content` / `get_item_art` ile alıyor, defter sayfa başlığı set adı (`client/Assets/Scripts/UI/ItemContent.cs`; bulut oturumunda yazıldı, Unity'de derlenip denenmedi)
+- [x] Gardırop sunucu tarafı (`docs/tasarim/20-gardirop.md`): craft tablosundan katalog, görünüm kaydetme ve yayma, kiralık süresi, admin panelinden parça verme / geri alma. Client (Universal LPC gövdeye geçiş, boyama, gardırop penceresi) Mac oturumunda
 - [ ] Unity'de elle deneme: panelden görselli eşya ekle, çantada adı ve görseli çıksın, yeni set defterde sayfa olsun
 - [ ] Canlı sunucuda `runtime.http_key` değiştirildi
 

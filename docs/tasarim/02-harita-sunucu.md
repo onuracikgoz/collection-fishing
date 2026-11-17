@@ -1,7 +1,5 @@
 # Sunucular ve Harita
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 4. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 4. Sunucular ve Harita
 
 ### 4.0. Tek Açık Harita

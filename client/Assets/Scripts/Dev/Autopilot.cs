@@ -13,7 +13,7 @@ namespace CollectionGame.Dev
     /// <summary>
     /// Test driver for builds, started from the command line (see client/README.md):
     ///   -cgUser NAME -cgServer Mercan [-cgBot fish|walk] [-cgSay TEXT] [-cgShot FILE.png] [-cgQuit SECONDS]
-    ///   [-cgOpen bag,quests,market,board,settings,friends,book,profile] (windows open in the screenshot)
+    ///   [-cgOpen bag,quests,market,board,settings,friends,book,profile,wardrobe] (windows open in the screenshot)
     /// Logs in, joins, walks to the pier, optionally fishes once, chats, takes a
     /// screenshot and quits, writing "[Autopilot]" lines to the player log. It only
     /// sends what a player could send; the server still decides everything.
@@ -92,6 +92,7 @@ namespace CollectionGame.Dev
                 yield break;
             }
 
+            if (Arg("-cgLayers") != null) StartCoroutine(DumpLayers());
             foreach (var p in mode == "fish" ? FisherPath : WalkerPath)
             {
                 world.WalkTo(p);
@@ -130,6 +131,19 @@ namespace CollectionGame.Dev
             Log($"summary others {world.OthersInView}, bubbles {world.BubblesHeard}, corrections {world.Corrections}, energy {world.Fishing.Energy}/{world.Fishing.EnergyMax}");
         }
 
+        /// <summary>-cgLayers [FILE.png]: logs our character's layer sprites every 0.3 s (walking and standing); with a file, two screenshots while walking.</summary>
+        IEnumerator DumpLayers()
+        {
+            for (var i = 0; i < 60; i++)
+            {
+                var me = world.Me;
+                if (me != null) Log($"layers moving={me.Moving} {me.LayerDump()}");
+                var shot = Arg("-cgLayers");
+                if ((i == 4 || i == 6) && shot.EndsWith(".png")) ScreenCapture.CaptureScreenshot(shot.Replace(".png", $"-{i}.png"));
+                yield return new WaitForSeconds(0.3f);
+            }
+        }
+
         /// <summary>-cgBot sit [-cgSeat kafe_N]: walk to the café chair, SIT, report who sits where.</summary>
         IEnumerator SitTour(string seatId)
         {
@@ -151,6 +165,12 @@ namespace CollectionGame.Dev
             {
                 yield return new WaitForSeconds(1.5f);
                 Log($"seat {world.MySeat} at {world.MyPosition}; others seated: {world.OthersSeats}");
+                var shot = Arg("-cgShot");
+                if (i == 1 && !string.IsNullOrEmpty(shot))
+                {
+                    ScreenCapture.CaptureScreenshot(shot);
+                    Log($"screenshot {shot}");
+                }
             }
         }
 
@@ -457,6 +477,7 @@ namespace CollectionGame.Dev
                         break;
                     case "book": world.Collection.OpenBook(null, world.Net.Username); break;
                     case "profile": world.Collection.OpenProfile(null); break;
+                    case "wardrobe": world.Wardrobe.Toggle(); break;
                 }
             Log($"opened {open}");
         }

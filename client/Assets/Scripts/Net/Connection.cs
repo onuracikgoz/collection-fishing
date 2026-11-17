@@ -135,6 +135,9 @@ namespace CollectionGame.Net
         }
 
         /// <summary>Calls an RPC with a JsonUtility body and parses the answer. Errors throw; see <see cref="ErrorOf"/>.</summary>
+        /// <summary>get_wardrobe: own wardrobe items, saved look and which item is worn in each slot.</summary>
+        public Task<WardrobeResponse> GetWardrobeAsync() => RpcAsync<WardrobeResponse>("get_wardrobe", null);
+
         public async Task<T> RpcAsync<T>(string id, object body)
         {
             var rpc = await client.RpcAsync(Session, id, body == null ? "{}" : JsonUtility.ToJson(body));

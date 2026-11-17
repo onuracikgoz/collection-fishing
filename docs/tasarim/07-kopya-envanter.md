@@ -1,7 +1,5 @@
 # Kopyalar, Toz, Envanter, Birleştirme
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 9. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 9. Kopya Eşyalar
 
 Defterde zaten olan bir eşya tekrar çıktığında oyuncunun seçenekleri:

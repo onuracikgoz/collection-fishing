@@ -1,7 +1,5 @@
 # XP ve Level
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 6. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 6. XP ve Level
 
 - Her başarılı av XP verir. Nadir av daha çok, çöp az verir, kaçan balık vermez.

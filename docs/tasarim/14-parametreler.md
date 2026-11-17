@@ -1,7 +1,5 @@
 # Kesinleşmemiş Parametreler ve Simülasyon
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 22, 23. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 22. Kesinleşmemiş Parametreler
 
 Rakamları playtest ve ekonomi simülasyonundan sonra belirlenecek:

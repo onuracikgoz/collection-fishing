@@ -23,6 +23,9 @@ namespace CollectionGame.UI
         static string[] pages = Array.Empty<string>();
         static bool loading;
 
+        /// <summary>The wardrobe catalog (parts and colours); empty until the server answered.</summary>
+        public static WardrobeCatalogView Wardrobe { get; private set; } = new WardrobeCatalogView { parts = Array.Empty<WardrobePartDef>(), colors = Array.Empty<WardrobeColorDef>() };
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         static void ResetStatics()
         {
@@ -31,6 +34,7 @@ namespace CollectionGame.UI
             art.Clear();
             pages = Array.Empty<string>();
             loading = false;
+            Wardrobe = new WardrobeCatalogView { parts = Array.Empty<WardrobePartDef>(), colors = Array.Empty<WardrobeColorDef>() };
         }
 
         /// <summary>The name the admin panel gave the item (or "Recipe: ..."), null when the server does not list it.</summary>
@@ -77,6 +81,7 @@ namespace CollectionGame.UI
                 sets.Clear();
                 foreach (var s in content.sets ?? Array.Empty<ContentSet>()) sets[s.id] = s;
                 pages = content.pages ?? Array.Empty<string>();
+                if (content.wardrobe?.parts != null) Wardrobe = content.wardrobe;
 
                 var need = new List<string>();
                 foreach (var it in content.items)

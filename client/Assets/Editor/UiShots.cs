@@ -225,7 +225,7 @@ namespace CollectionGame.EditorTools
             {
                 FillHud(Spawn<HudView>(canvas, "Hud"));
                 var v = Spawn<ProfileView>(canvas, "Profile");
-                v.portrait.Show("ece-shot-id");
+                v.portrait.Show("ece-shot-id", CollectionGame.Wardrobe.LpcLook.Fallback);
                 v.displayName.text = "Ece";
                 v.level.text = "Lv 12";
                 v.score.text = "2.340";

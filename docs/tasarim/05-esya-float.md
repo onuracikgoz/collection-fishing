@@ -1,7 +1,5 @@
 # Eşya, Tier ve Float
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 7. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 7. Eşya Sistemi
 
 Eşya kaynakları:

@@ -52,6 +52,8 @@ import { devSignal } from '../debug/signal';
 import { sweepDeletions } from '../rpc/accountDelete';
 import { WatchStats, changeMark, recordChat } from '../rules/watch';
 import { readWatch, saveWatch } from './watch';
+import { handleLookSet, loadLook, refreshLook, tickLooks } from './wardrobe';
+import { LookView, StoredLook } from '../rules/wardrobe';
 
 export const POSITION_COLLECTION = 'player';
 export const POSITION_KEY = 'position';
@@ -105,6 +107,11 @@ interface Player {
   watch: WatchStats;
   watchSavedAt: number;
   watchMark?: string;
+  /** Worn wardrobe look (match/wardrobe.ts). */
+  look: StoredLook;
+  lookView: LookView;
+  lookExpiry: number;
+  lastLookAt?: number;
 }
 
 /** Join metadata accepted in matchJoinAttempt. */
@@ -288,6 +295,7 @@ export function worldJoin(
     const xp = old ? old.xp : readXp(nk, presence.userId);
     const emotes = old ? { status: old.status, owned: old.emotesOwned } : readEmotes(nk, presence.userId);
     const watch = old ? old.watch : readWatch(nk, presence.userId);
+    const look = old ? { look: old.look, view: old.lookView, expiry: old.lookExpiry } : loadLook(nk, logger, getContent(nk, logger).wardrobe, presence.userId, Date.now());
     if (!old) {
       saveEnergy(nk, logger, presence.userId, energy, true);
       try {
@@ -324,9 +332,13 @@ export function worldJoin(
       watchSavedAt: old ? old.watchSavedAt : now,
       // What storage already holds, so a player who only stands around never writes.
       watchMark: old ? old.watchMark : changeMark(watch),
+      look: look.look,
+      lookView: look.view,
+      lookExpiry: look.expiry,
+      lastLookAt: old ? old.lastLookAt : undefined,
     };
     const lv = levelOf(xp, XP);
-    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned, level: lv.level, xp: lv.xp, xpNext: lv.xpNext };
+    const welcome: WelcomeMsg = { you: { id: presence.userId, x, y }, serverName: state.serverName, energy, energyMax: ENERGY.max, rod: rodView(rod, ROD), emotesOwned: emotes.owned, level: lv.level, xp: lv.xp, xpNext: lv.xpNext, look: look.view };
     if (emotes.status) welcome.status = emotes.status;
     send(dispatcher, OpCode.WELCOME, welcome, [presence]);
     sendStalls(marketEnv(nk, logger, dispatcher, state), presence);
@@ -724,6 +736,9 @@ export function worldLoop(
       handleTradeOp(trade, p, m.opCode, body, now);
     } else if (m.opCode === OpCode.EMOTE_STATUS) {
       handleEmoteStatus(nk, logger, dispatcher, state, p, body, now);
+    } else if (m.opCode === OpCode.LOOK_SET && !storageActions[m.sender.userId]) {
+      storageActions[m.sender.userId] = true;
+      handleLookSet(nk, logger, dispatcher, state.players, p, body, now);
     }
   }
   tickTrades(trade, now);
@@ -743,6 +758,7 @@ export function worldLoop(
     flushEnergy(nk, logger, Object.keys(state.players).map((id) => state.players[id]));
   }
   for (const id in state.players) rollQuestDay(nk, logger, dispatcher, state.players[id], wall);
+  tickLooks(nk, logger, dispatcher, state.players, wall);
 
   // Positions are final for this tick; chat and visibility use them.
   const grid = buildGrid(state);
@@ -754,7 +770,7 @@ export function worldLoop(
     p.visible = change.visible;
     for (const otherId of change.entered) {
       const o = state.players[otherId];
-      const enter: PlayerEnterMsg = { ...view(otherId, o), name: o.name, characterId: o.characterId };
+      const enter: PlayerEnterMsg = { ...view(otherId, o), name: o.name, characterId: o.characterId, look: o.lookView };
       if (o.fish) enter.bobber = { x: o.fish.x, y: o.fish.y, band: o.fish.band };
       if (o.status) enter.status = o.status;
       if (o.seat) enter.seat = o.seat;
@@ -820,6 +836,13 @@ export function worldSignal(
     invalidateContent();
     getContent(nk, logger);
     return { state, data: JSON.stringify({ ok: true }) };
+  }
+  // The admin panel gave or took a wardrobe item (admin/wardrobe.ts).
+  if (req.type === 'wardrobe_refresh') {
+    const userId = (req as { userId?: unknown }).userId;
+    const p = typeof userId === 'string' ? state.players[userId] : undefined;
+    if (p) refreshLook(nk, logger, dispatcher, state.players, p);
+    return { state, data: JSON.stringify({ ok: !!p }) };
   }
   // dev_* signals come only from the developer dashboard's RPCs (debug/).
   const dev = devSignal(ctx, logger, nk, dispatcher, tick, state, req as { [k: string]: unknown });

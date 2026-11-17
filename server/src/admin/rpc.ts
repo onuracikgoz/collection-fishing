@@ -32,6 +32,8 @@ import {
   stallWrite,
   stashWrite,
 } from '../match/playerData';
+import { editPart } from '../rules/wardrobe';
+import { seedWardrobe } from '../data/wardrobe-catalog';
 import { artWrite, contentOptions, readArt, readContentDoc, writeContentDoc, ART_COLLECTION, SYSTEM_USER } from '../match/content';
 
 type Body = { [k: string]: unknown };
@@ -457,4 +459,22 @@ export function rpcAdminLocaleSave(ctx: nkruntime.Context, _logger: nkruntime.Lo
     throw fail('CONTENT_CHANGED', 'saving failed, someone else saved first: ' + String(e), 9);
   }
   return JSON.stringify({ ok: true, version: saved.version, hash: saved.hash, keys: Object.keys(strings).length });
+}
+
+/** `{ version, part: { id, name?, tier?, free?, active? } }`: edits one wardrobe catalog part. */
+export function rpcAdminWardrobePartSave(ctx: nkruntime.Context, logger: nkruntime.Logger, nk: nkruntime.Nakama, payload: string): string {
+  adminOnly(ctx);
+  const body = parse(payload);
+  const input = body.part;
+  if (typeof input !== 'object' || input === null || Array.isArray(input)) throw fail(ErrorCode.BAD_REQUEST, 'part is required');
+  const { doc, version } = load(nk, body);
+  if (!doc.wardrobe) doc.wardrobe = seedWardrobe();
+  const id = (input as Body).id;
+  const i = doc.wardrobe.parts.map((p) => p.id).indexOf(typeof id === 'string' ? id : '');
+  if (i < 0) throw fail(ErrorCode.NOT_FOUND, 'no such wardrobe part', 5);
+  const part = editPart(doc.wardrobe.parts[i], input as Body);
+  if (typeof part === 'string') throw fail(ErrorCode.BAD_REQUEST, part);
+  doc.wardrobe.parts[i] = part;
+  const next = publish(nk, logger, doc, version);
+  return JSON.stringify({ ok: true, version: next, part });
 }

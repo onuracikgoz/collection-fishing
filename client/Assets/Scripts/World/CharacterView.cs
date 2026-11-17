@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using CollectionGame.Art;
 using CollectionGame.Net;
+using CollectionGame.Wardrobe;
 using UnityEngine;
 using UnityEngine.Rendering;
 
@@ -11,20 +12,22 @@ namespace CollectionGame.World
     /// animation in four directions, plus the name and chat bubble that
     /// <see cref="WorldController"/> draws above the head.
     ///
-    /// LPC Revised sheets: 64×64 frames, rows top to bottom = up, left, down, right
-    /// (row 3 is row 1 mirrored). Walk has 8 frames, Idle 3. Feet are at the
-    /// bottom of the frame (2 px margin), so the pivot sits there.
+    /// Universal LPC layers from the server's look (Gardırop, <see cref="LpcLook"/>): 64×64 frames,
+    /// rows top to bottom = up, left, down, right. Feet are at the bottom of the frame (2 px margin),
+    /// so the pivot sits there.
     /// </summary>
     public class CharacterView : MonoBehaviour
     {
-        const int Frame = 64;
+        const int Frame = LpcLook.Frame;
         const float WalkFps = 10f;
-        const float IdleFps = 3f;
+        const float IdleFps = 2f;
         const float FeetPivot = 2f / Frame;
 
-        SpriteRenderer[] layers;
+        SpriteRenderer[] layers = new SpriteRenderer[0];
+        List<LpcLook.Layer> lookLayers = new List<LpcLook.Layer>();
         SortingGroup group;
-        Appearance look;
+        /// <summary>The worn look as the server sent it (null until it did).</summary>
+        public LookView Look { get; private set; }
         float animTime;
         bool wasMoving;
 
@@ -45,25 +48,34 @@ namespace CollectionGame.World
         public string Facing { get; private set; } = Dir.Down;
         public bool Moving { get; private set; }
 
-        public static CharacterView Create(Transform parent, string id, string name)
+        public static CharacterView Create(Transform parent, string id, string name, LookView look)
         {
             var go = new GameObject($"Player {name}");
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<CharacterView>();
             view.DisplayName = name;
             view.Id = id;
-            view.look = Appearance.For(id);
             view.group = go.AddComponent<SortingGroup>();
-            var paths = view.look.LayerPaths;
-            view.layers = new SpriteRenderer[paths.Length];
-            for (var i = 0; i < paths.Length; i++)
-            {
-                var layer = new GameObject(paths[i]);
-                layer.transform.SetParent(go.transform, false);
-                view.layers[i] = layer.AddComponent<SpriteRenderer>();
-                view.layers[i].sortingOrder = i;
-            }
+            view.SetLook(look);
             return view;
+        }
+
+        /// <summary>Wears a new look (WELCOME, PLAYER_ENTER, LOOK_SHOW, the wardrobe's try-on).</summary>
+        public void SetLook(LookView look)
+        {
+            Look = look;
+            lookLayers = LpcLook.Layers(look);
+            foreach (var l in layers)
+                if (l != null) Destroy(l.gameObject);
+            layers = new SpriteRenderer[lookLayers.Count];
+            for (var i = 0; i < lookLayers.Count; i++)
+            {
+                var layer = new GameObject(lookLayers[i].PartId);
+                layer.transform.SetParent(transform, false);
+                layers[i] = layer.AddComponent<SpriteRenderer>();
+                layers[i].sortingOrder = i;
+            }
+            Draw();
         }
 
         /// <summary>Sprites lower on screen (bigger server y) draw in front.</summary>
@@ -143,18 +155,38 @@ namespace CollectionGame.World
             animTime += Time.deltaTime;
             if (Emote != null && (Moving || (Emote != Emotes.Sit && Time.time > emoteUntil))) Emote = null;
 
-            // Sitting.png has three poses per direction; the first is sitting on the ground.
+            Draw();
+        }
+
+        void Draw()
+        {
+            // sit.png has three poses per direction: 0 on the ground (the sit emote), 2 on a chair.
             var sitting = Emote == Emotes.Sit || Seat != null;
             var walking = Moving || Emote == Emotes.Dance;
-            var anim = sitting ? "Sitting" : walking ? "Walk" : "Idle";
-            var frames = sitting ? 1 : walking ? 8 : 3;
-            var frame = (int)(animTime * (walking ? WalkFps : IdleFps)) % frames;
+            var anim = sitting ? LpcLook.Anim.Sit : walking ? LpcLook.Anim.Walk : LpcLook.Anim.Idle;
+            var frame = sitting ? 0 : (int)(animTime * (walking ? WalkFps : IdleFps));
             var row = Row(Facing);
-            if (Seat != null) { row = Seat.Row; frame = 2; } // LPC chair pose
-            var rect = new RectInt(frame * Frame, row * Frame, Frame, Frame);
-            var paths = look.LayerPaths;
+            if (Seat != null)
+            {
+                row = Seat.Row;
+                frame = LpcLook.ChairPose;
+            }
+            // Many clothes have no idle sheet: then nobody breathes, or the shirt would stay still
+            // while the body under it bobs. The whole character shows walk's standing frame.
+            var standing = anim == LpcLook.Anim.Idle && !LpcLook.AllHave(lookLayers, anim);
             for (var i = 0; i < layers.Length; i++)
-                layers[i].sprite = ArtCatalog.Sprite(string.Format(paths[i], anim), rect, 0.5f, FeetPivot);
+                layers[i].sprite = standing
+                    ? LpcLook.Standing(lookLayers[i], row, FeetPivot)
+                    : LpcLook.Sprite(lookLayers[i], anim, frame, row, FeetPivot);
+        }
+
+        /// <summary>Dev/test: every layer's part and current sprite, for the autopilot log.</summary>
+        public string LayerDump()
+        {
+            var parts = new List<string>();
+            for (var i = 0; i < layers.Length; i++)
+                parts.Add($"{layers[i]?.name}={(layers[i] != null && layers[i].sprite != null ? layers[i].sprite.name : "null")}{(layers[i] != null && layers[i].transform.parent != transform ? "(not child!)" : "")}");
+            return string.Join(" ", parts);
         }
 
         static int Row(string dir)
@@ -165,67 +197,6 @@ namespace CollectionGame.World
                 case Dir.Left: return 1;
                 case Dir.Right: return 3;
                 default: return 2;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Which LPC parts a character wears. Phase 1 has only characterId "default";
-    /// until characters are saved on the server, the look is picked from the
-    /// player id so two testers can tell each other apart. Client-side only.
-    /// </summary>
-    public readonly struct Appearance
-    {
-        static readonly string[] Skins = { "Peach", "Tan", "Brown" };
-        static readonly string[] HairStyles = { "Short 02 - Parted", "Medium 07 - Bob, Side Part" };
-        static readonly string[] HairColors = { "Brown", "Black", "Blonde" };
-        static readonly string[] Shirts = { "Blue", "Red", "White" };
-        static readonly string[] Pants = { "Denim", "Brown" };
-
-        /// <summary>Bottom to top; "{0}" is the animation name (Walk, Idle).</summary>
-        public readonly string[] LayerPaths;
-
-        Appearance(string[] layerPaths) => LayerPaths = layerPaths;
-
-        public static Appearance For(string id)
-        {
-            var h = StableHash(id ?? "");
-            int Pick(int count)
-            {
-                var v = (int)(h % (uint)count);
-                h /= (uint)count;
-                return v;
-            }
-
-            var feminine = Pick(2) == 0;
-            var skin = Skins[Pick(Skins.Length)];
-            var hair = HairStyles[Pick(HairStyles.Length)];
-            var hairColor = HairColors[Pick(HairColors.Length)];
-            var shirt = Shirts[Pick(Shirts.Length)];
-            var pants = Pants[Pick(Pants.Length)];
-
-            var body = feminine ? "Body 01 - Feminine, Thin" : "Body 02 - Masculine, Thin";
-            var clothes = feminine ? "Feminine, Thin" : "Masculine, Thin";
-            var head = feminine ? "Head 01 - Feminine" : "Head 02 - Masculine";
-            return new Appearance(new[]
-            {
-                $"Characters/Body/{body}/{skin}/{{0}}.png",
-                $"Characters/Clothing/{clothes}/Feet/Shoes 01 - Shoes/Brown/{{0}}.png",
-                $"Characters/Clothing/{clothes}/Legs/Pants 03 - Pants/{pants}/{{0}}.png",
-                $"Characters/Clothing/{clothes}/Torso/Shirt 04 - T-shirt/{shirt}/{{0}}.png",
-                $"Characters/Head/{head}/{skin}/{{0}}.png",
-                $"Characters/Hair/{hair}/{hairColor}/{{0}}.png",
-            });
-        }
-
-        // string.GetHashCode is randomized per process; this one is the same everywhere.
-        static uint StableHash(string s)
-        {
-            unchecked
-            {
-                var h = 2166136261u;
-                foreach (var c in s) h = (h ^ c) * 16777619u;
-                return h;
             }
         }
     }

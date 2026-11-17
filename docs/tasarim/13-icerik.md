@@ -1,7 +1,5 @@
 # İçerik Planı ve Görsel Hattı
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 17, 19. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 17. Faz 1 İçeriği
 
 Tek bölge (Göl), yaklaşık **60 defter kaydı**:

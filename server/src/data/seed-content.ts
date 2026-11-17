@@ -1,6 +1,7 @@
 // The content a fresh server starts with, built from the placeholder lists in this folder
 // (lake-pool, recipes, book-pages, quests) and config (catch table, baits). Once the admin panel
 // saves, the stored ContentDoc wins and this is only the fallback (match/content.ts).
+import { seedWardrobe } from './wardrobe-catalog';
 import { BAIT, CATCH_TABLE } from '../config';
 import { tierOf } from '../rules/catch';
 import { isStackOutput } from '../rules/craft';
@@ -93,6 +94,7 @@ export function seedContent(): ContentDoc {
     catchTable: { ...CATCH_TABLE },
     chests: JSON.parse(JSON.stringify(CHESTS)),
     quests: JSON.parse(JSON.stringify(QUESTS)),
+    wardrobe: seedWardrobe(),
     updatedAt: 0,
   };
 }

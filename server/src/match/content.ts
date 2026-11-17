@@ -5,6 +5,7 @@
 import { XP } from '../config';
 import { LAKE_MAP } from '../data/lake-map';
 import { seedContent } from '../data/seed-content';
+import { seedWardrobe } from '../data/wardrobe-catalog';
 import { ContentDoc, ContentRuntime, ValidateOptions, compileContent, validateContent } from '../rules/content';
 
 export const SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
@@ -39,7 +40,10 @@ function seedCache(now: number): Cache {
 export function readContentDoc(nk: nkruntime.Nakama): { doc: ContentDoc; version: string } {
   const objs = nk.storageRead([{ collection: CONTENT_COLLECTION, key: CONTENT_KEY, userId: SYSTEM_USER }]);
   if (objs.length === 0) return { doc: seedContent(), version: '' };
-  return { doc: objs[0].value as unknown as ContentDoc, version: objs[0].version };
+  const doc = objs[0].value as unknown as ContentDoc;
+  // Docs stored before the wardrobe existed get the seed catalog; the next publish stores it.
+  if (doc.wardrobe === undefined) doc.wardrobe = seedWardrobe();
+  return { doc, version: objs[0].version };
 }
 
 /**

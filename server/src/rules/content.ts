@@ -1,6 +1,7 @@
 // Game content as data: items, sets, recipes, book pages, the catch table, chests and quests
 // (docs/tasarim/19-icerik-yonetimi.md). The admin panel edits one ContentDoc; the server turns it
 // into the lists the rules already take (pool, recipes, pages...). Pure functions, no Nakama dependency.
+import { CompiledWardrobe, WardrobeCatalog, compileWardrobe, validateWardrobe } from './wardrobe';
 import { BaitDef } from './bait';
 import { CatchTable, Category, ItemDef, Tier } from './catch';
 import { RecipeDef, RecipeGrade } from './craft';
@@ -107,6 +108,8 @@ export interface ContentDoc {
   /** Streak day 1..N chests. */
   chests: ChestDef[];
   quests: QuestDef[];
+  /** Wearable cosmetics (20-gardirop.md). Missing in docs stored before it; the seed fills it. */
+  wardrobe?: WardrobeCatalog;
   updatedAt: number;
 }
 
@@ -124,6 +127,7 @@ export interface ContentRuntime {
   known: { [defId: string]: KnownItem };
   /** Every set in order, active or not (old items keep their set name). */
   sets: { id: string; name: string; active: boolean }[];
+  wardrobe: CompiledWardrobe;
   /** The doc's updatedAt: changes on every publish. */
   updatedAt: number;
 }
@@ -241,7 +245,7 @@ export function compileContent(doc: ContentDoc): ContentRuntime {
   }));
 
   const sets = doc.sets.slice().sort(byOrder).map((s) => ({ id: s.id, name: s.name, active: s.active }));
-  return { pool, recipes, pages, starter, baits, catchTable: { ...doc.catchTable }, chests, quests: doc.quests.map((q) => ({ ...q })), known, sets, updatedAt: doc.updatedAt };
+  return { pool, recipes, pages, starter, baits, catchTable: { ...doc.catchTable }, chests, quests: doc.quests.map((q) => ({ ...q })), known, sets, wardrobe: compileWardrobe(doc.wardrobe || { parts: [], colors: [] }), updatedAt: doc.updatedAt };
 }
 
 // --- validation ---
@@ -445,6 +449,7 @@ export function validateContent(doc: unknown, opt: ValidateOptions = {}): string
     if (q.minTier !== undefined && TIERS.indexOf(q.minTier as Tier) < 0) err(`quest ${q.id}: minTier must be a Tier`);
     if (q.minLevel !== undefined && !isInt(q.minLevel, 1, opt.maxLevel || 1000)) err(`quest ${q.id}: minLevel must be 1 or more`);
   }
+  if (doc.wardrobe !== undefined) for (const e of validateWardrobe(doc.wardrobe)) err(e);
   return errors;
 }
 

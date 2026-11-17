@@ -55,6 +55,7 @@ namespace CollectionGame.UI.Views
         public Button profile;
         public Button book;
         public Button bag;
+        public Button wardrobe;
         public Button settings;
 
         /// <summary>Sets a fill bar's width: anchors (0,0)-(fill,1) inside its back.</summary>

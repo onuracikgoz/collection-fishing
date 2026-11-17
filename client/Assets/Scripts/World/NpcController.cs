@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using CollectionGame.UI;
+using CollectionGame.Net;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -14,7 +15,7 @@ namespace CollectionGame.World
     /// </summary>
     public sealed class NpcController
     {
-        [Serializable] sealed class NpcData { public string id, kind, name; public float x, y, range; }
+        [Serializable] sealed class NpcData { public string id, kind, name; public float x, y, range; public LookView look; }
         [Serializable] sealed class NpcFile { public NpcData[] npcs; }
 
         /// <summary>What a kind of NPC opens, set by WorldController.</summary>
@@ -46,7 +47,7 @@ namespace CollectionGame.World
             }
             foreach (var d in data.npcs)
             {
-                var view = CharacterView.Create(parent, "npc:" + d.id, d.name);
+                var view = CharacterView.Create(parent, "npc:" + d.id, d.name, d.look);
                 view.SetState(new Vector2(d.x, d.y), "down", false);
                 npcs.Add(new Npc { Data = d, View = view });
             }

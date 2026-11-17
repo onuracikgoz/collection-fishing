@@ -1,7 +1,5 @@
 # Balık Tutma, Enerji, Görevler
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 5. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 5. Farm Mekaniği: Balık Tutma
 
 Balık tutma seçildi çünkü:
