@@ -40,6 +40,8 @@ Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `d
 
 ## Komutlar
 
+Kısa yollar: `./cg admin`, `./cg nakama` (restart), `./cg web-build`, `./cg web`, `./cg dashboard` (ayrıntı: `./cg`).
+
 ```bash
 docker compose up -d          # sunucuyu derler, Nakama + Postgres'i açar (konsol: http://localhost:7351)
 docker compose up -d --force-recreate server-build nakama   # sunucu kodu değişince
