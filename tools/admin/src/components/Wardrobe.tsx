@@ -5,82 +5,6 @@ import type { Admin } from '../state'
 import { TIER_LABEL } from './bits'
 
 const SOURCE_LABEL: Record<string, string> = { admin: 'Panel', craft: 'Craft', rent_coin: 'Coin kirası', rent_diamond: 'Elmas kirası' }
-const WEAR_TIERS = ['common', 'rare', 'epic', 'legendary'] as const
-
-/** Gardırop: the catalog (Tier, free, active) and one player's wardrobe (give / take). */
-export function Wardrobe({ admin }: { admin: Admin }) {
-  return (
-    <div className="sets">
-      <PlayerWardrobe admin={admin} />
-      <Catalog admin={admin} />
-    </div>
-  )
-}
-
-function Catalog({ admin }: { admin: Admin }) {
-  const parts = admin.data.doc.wardrobe?.parts ?? []
-  const families = useMemo(() => Array.from(new Set(parts.map((p) => p.family))), [parts])
-  const [family, setFamily] = useState('')
-  const [q, setQ] = useState('')
-  const shown = parts.filter((p) => (!family || p.family === family) && (!q || (p.name + ' ' + p.id).toLowerCase().includes(q.toLowerCase())))
-  const save = (p: WardrobePart, patch: Partial<WardrobePart>, ok: string) => admin.run(ok, (v) => api.wardrobePartSave(admin.conn, v, { id: p.id, ...patch }))
-
-  return (
-    <section className="card grow">
-      <div className="row">
-        <h2 className="grow">Katalog</h2>
-        <select value={family} onChange={(e) => setFamily(e.target.value)}>
-          <option value="">Bütün aileler ({parts.length})</option>
-          {families.map((f) => (
-            <option key={f} value={f}>
-              {f} ({parts.filter((p) => p.family === f).length})
-            </option>
-          ))}
-        </select>
-        <input placeholder="Ara…" value={q} onChange={(e) => setQ(e.target.value)} />
-      </div>
-      <p className="muted small">
-        Parçalar craft tablosundan gelir (<code>content/wardrobe</code>). Burada sadece Tier, bedava ve aktiflik değişir. Bedava parça herkese açıktır, bedava renklerde giyilir. Pasif parça artık verilmez, sahipleri giymeye devam eder.
-      </p>
-      <table className="list">
-        <tbody>
-          {shown.map((p) => (
-            <tr key={p.id}>
-              <td className="grow">
-                <b>{p.name}</b> <span className="muted">{p.id}</span>
-                <div className="small muted">
-                  {p.family} · yuva {p.slot} · renk {p.colors.join(', ') || 'sabit'}
-                  {p.color2 ? ` + ${p.color2.join(', ')}` : ''}
-                  {p.effects.length ? ` · ${p.effects.length} Mythic efekt` : ''} · {p.bodies.join(', ') || 'gövde yok'}
-                </div>
-              </td>
-              <td className="nowrap">
-                <select disabled={p.free} value={p.tier ?? ''} onChange={(e) => save(p, { tier: e.target.value as WardrobePart['tier'] }, `${p.name}: ${TIER_LABEL[e.target.value]}`)}>
-                  {p.free ? <option value="">Bedava</option> : null}
-                  {WEAR_TIERS.map((t) => (
-                    <option key={t} value={t}>
-                      {TIER_LABEL[t]}
-                    </option>
-                  ))}
-                </select>
-              </td>
-              <td className="nowrap">
-                <label className="check">
-                  <input type="checkbox" checked={p.free} onChange={(e) => save(p, e.target.checked ? { free: true } : { free: false, tier: 'common' }, e.target.checked ? `${p.name} bedava` : `${p.name} artık bedava değil (Common)`)} /> Bedava
-                </label>
-              </td>
-              <td className="nowrap">
-                <label className="check">
-                  <input type="checkbox" checked={p.active} disabled={p.bodies.length === 0} onChange={(e) => save(p, { active: e.target.checked }, e.target.checked ? `${p.name} aktif` : `${p.name} pasif`)} /> Aktif
-                </label>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </section>
-  )
-}
 
 interface PlayerView {
   userId: string
@@ -94,7 +18,8 @@ function colorsFor(colors: WardrobeColor[], kinds: string[], effects: string[] =
   return colors.filter((c) => kinds.includes(c.kind) || effects.includes(c.id))
 }
 
-function PlayerWardrobe({ admin }: { admin: Admin }) {
+/** One player's wardrobe: find, see, give, take back (Items tab, Diğer). */
+export function PlayerWardrobe({ admin }: { admin: Admin }) {
   const cat = admin.data.doc.wardrobe ?? { parts: [], colors: [] }
   const partById = useMemo(() => Object.fromEntries(cat.parts.map((p) => [p.id, p])), [cat])
   const [query, setQuery] = useState('')

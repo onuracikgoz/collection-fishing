@@ -12,6 +12,8 @@ import sys
 
 import openpyxl
 
+from craft_recipes import add_craft
+
 ROOT = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', '..'))
 XLSX = os.path.join(ROOT, 'content', 'wardrobe', 'craft-tablosu.xlsx')
 OUT = os.path.join(ROOT, 'content', 'wardrobe', 'catalog.json')
@@ -114,6 +116,7 @@ def main(ulpc):
 
     doc = {'source': 'content/wardrobe/craft-tablosu.xlsx + Universal LPC sheet_definitions', 'parts': parts, 'colors': colors,
            'effectNames': EFFECT_NAMES}
+    add_craft(doc)
     with open(OUT, 'w') as f:
         json.dump(doc, f, ensure_ascii=False, indent=1)
         f.write('\n')

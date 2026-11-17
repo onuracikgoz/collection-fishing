@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { generalChance, percent } from '../chance'
-import { ITEM_TYPES, TIERS, newItem, type ContentItem } from '../content'
+import { ITEM_TYPES, TIERS, newItem, type ContentItem, type ItemType } from '../content'
+import { itemTree, itemUsedInTree, type Ref } from '../craftGraph'
 import type { Admin } from '../state'
+import { CraftTree } from './CraftTree'
 import { ItemEditor } from './ItemEditor'
 import { StatusTag, TIER_LABEL, TYPE_LABEL, Thumb } from './bits'
 
-/** Every item: filter, open one to edit, or add a new one by hand (no image yet). */
-export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string | null; onOpen: (id: string | null) => void }) {
+/**
+ * Every item: filter, open one to edit, or add a new one by hand (no image yet). `types` limits the
+ * list (Items tab sections); `onOpenMaterial` adds the craft trees above the editor.
+ */
+export function Items({ admin, openId, onOpen, types, onOpenMaterial }: { admin: Admin; openId: string | null; onOpen: (id: string | null) => void; types?: ItemType[]; onOpenMaterial?: (id: string) => void }) {
   const [q, setQ] = useState('')
   const [setId, setSetId] = useState('*')
   const [type, setType] = useState('*')
@@ -19,6 +24,7 @@ export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string 
     () =>
       admin.data.doc.items
         .filter((it) => {
+          if (types && !types.includes(it.type)) return false
           if (q && !`${it.id} ${it.name}`.toLowerCase().includes(q.toLowerCase())) return false
           if (setId !== '*' && (it.setId ?? '') !== setId) return false
           if (type !== '*' && it.type !== type) return false
@@ -31,7 +37,7 @@ export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string 
           return true
         })
         .sort((a, b) => (sets[a.setId ?? '']?.order ?? 1e9) - (sets[b.setId ?? '']?.order ?? 1e9) || a.order - b.order || a.id.localeCompare(b.id)),
-    [admin.data, q, setId, type, tier, status, sets],
+    [admin.data, q, setId, type, tier, status, sets, types],
   )
   useEffect(() => admin.loadArt(list.slice(0, 300).map((x) => x.id)), [admin, list])
 
@@ -43,6 +49,7 @@ export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string 
         <button className="ghost" onClick={() => onOpen(null)}>
           ← Listeye dön
         </button>
+        {onOpenMaterial ? <ItemTrees admin={admin} item={open} onOpen={onOpen} onOpenMaterial={onOpenMaterial} /> : null}
         <ItemEditor admin={admin} item={open} />
       </div>
     )
@@ -51,7 +58,7 @@ export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string 
     const id = prompt('Yeni eşyanın id\'si (küçük harf, rakam, _ ve .), ör. sailor_knot')?.trim()
     if (!id) return
     if (admin.itemById(id)) return onOpen(id)
-    setCreating(newItem(id, Date.now(), { setId: setId !== '*' && setId !== '' ? setId : null }))
+    setCreating(newItem(id, Date.now(), { setId: setId !== '*' && setId !== '' ? setId : null, ...(types ? { type: types[0] } : {}) }))
   }
 
   return (
@@ -69,7 +76,7 @@ export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string 
         </select>
         <select value={type} onChange={(e) => setType(e.target.value)}>
           <option value="*">Bütün türler</option>
-          {ITEM_TYPES.map((t) => (
+          {(types ?? ITEM_TYPES).map((t) => (
             <option key={t} value={t}>
               {TYPE_LABEL[t]}
             </option>
@@ -147,5 +154,29 @@ export function Items({ admin, openId, onOpen }: { admin: Admin; openId: string 
         </tbody>
       </table>
     </div>
+  )
+}
+
+/** What the item is made of and what it goes into, as flowcharts. A material opens in Crafting malzemeleri. */
+function ItemTrees({ admin, item, onOpen, onOpenMaterial }: { admin: Admin; item: ContentItem; onOpen: (id: string) => void; onOpenMaterial: (id: string) => void }) {
+  const doc = admin.data.doc
+  const go = (r: Ref) => {
+    if (r.kind !== 'item' || r.id === item.id) return
+    if (admin.itemById(r.id)?.type === 'material') onOpenMaterial(r.id)
+    else onOpen(r.id)
+  }
+  const up = itemUsedInTree(doc, item.id)
+  return (
+    <section className="card trees">
+      <h3>Craft ağacı</h3>
+      {item.recipe ? <CraftTree root={itemTree(doc, item.id)} onOpen={go} /> : <p className="muted small">Craft edilmiyor. Tarifi aşağıda, Craft bölümünde açılır.</p>}
+      {up.children.length ? (
+        <>
+          <h3>Hangi eşyalara giriyor</h3>
+          <CraftTree root={up} up onOpen={go} />
+        </>
+      ) : null}
+      <p className="muted small">Malzemeye basınca Crafting malzemeleri'nde açılır. Tarifin kendisi aşağıdaki düzenleme ekranında değişir.</p>
+    </section>
   )
 }
