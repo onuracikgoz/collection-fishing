@@ -8,7 +8,7 @@ Sosyal balık tutma ve koleksiyon oyunu. Unity 6 client, Nakama (TypeScript) sun
 |---|---|
 | Hangi fazdayız, faz bitince ne olmalı | `docs/fazlar.md` |
 | Mimari, klasörler, kim neye karar verir | `docs/mimari.md` |
-| Client ile sunucu arasındaki mesajlar | `docs/protokol.md` |
+| Client ile sunucu arasındaki mesajlar | `docs/protokol.md` (dizin ve op code'lar), konu başına `docs/protokol/*.md` |
 | Oyun kuralları (konuya göre) | `docs/tasarim/*.md` |
 | Cevap bekleyen tasarım soruları | `docs/acik-sorular.md` |
 | Item Art Studio | `docs/araclar/item-art-studio.md` |
@@ -32,7 +32,7 @@ Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `d
 ## Çalışma düzeni
 
 - Agent rolleri: server, client, tools, test/review. Her oturum tek role odaklanır.
-- **Sözleşme önce:** client ile sunucu arasında yeni bir mesaj gerekiyorsa önce `docs/protokol.md` güncellenir, sonra iki taraf yazılır.
+- **Sözleşme önce:** client ile sunucu arasında yeni bir mesaj gerekiyorsa önce ilgili `docs/protokol/<konu>.md` ve `docs/protokol.md`'deki op code dizini güncellenir, sonra iki taraf yazılır.
 - Server kuralları `server/src/rules/` altında saf fonksiyon ve birim testli olur (`npm test`).
 - Her iş bir branch ve PR ile gelir. Faz sonu PR'ını test/review agent inceler.
 - Tasarım değişirse ilgili `docs/tasarim/` dosyası aynı PR'da güncellenir.
