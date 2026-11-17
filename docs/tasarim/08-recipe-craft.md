@@ -1,7 +1,5 @@
 # Recipe ve Craft
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 10, 11. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 10. Recipe Sistemi
 
 ### 10.1. Temel Kural

@@ -1,7 +1,5 @@
 # Genel Tanım, Felsefe ve Stil
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 1, 2, 3, 20, 21. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 1. Oyunun Temel Tanımı
 
 Oyun; online **sosyal alan + collection + crafting + oyuncu ekonomisi + sohbet** üzerine kurulu. Referans his: **Sanalika**. Farm bir amaç değil, insanları bir arada tutan ve collection'ı besleyen bir araçtır.

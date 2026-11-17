@@ -1,7 +1,5 @@
 # Açık Sorular
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 26. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 26. Açık Sorular
 
 1. Sohbet mekanlarında aktivite olsun mu? (öneri: önce sadece sohbet)

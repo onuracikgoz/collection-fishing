@@ -1,7 +1,5 @@
 # Geliştirme Fazları
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 24. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 24. Geliştirme Fazları
 
 **Şu anki faz: 5 (Ticaret ve güvenlik)**. Faz 0-4 sunucu ve client işleri bitti, Unity'de elle deneme maddeleri açık. Faz 5'te takas ve takas kayıtları, pet tezgahı, eşya kilidi, XP / level, taşıma kodu, hesap silme, fısıltı, rapor / susturma, RPC hız sınırı ve elmas (balıkla kazanılır) sunucu tarafında hazır; client pencereleri Mac oturumunda yazılacak (`docs/araclar/ui-uygulama.md`).
@@ -27,7 +25,7 @@ Her faz **oynanabilir bir sürümle** biter ve arkadaşlarla web build üzerinde
 - [x] GitHub repo (`onuracikgoz/collection-fishing`). PNG'ler LFS dışında, ses / büyük çizim LFS'te
 - [x] `client/` altında Unity 6 2D URP projesi
 - [ ] Unity'den yerel Nakama'ya bağlanıp `healthcheck` çağrılıyor
-- [x] LPC karakter seti seçildi, lisans notu `content/` altında (deneme: LPC Revised karakterleri, `client/Assets/Art/LPC/Characters/`)
+- [x] LPC karakter seti seçildi, lisans notu `content/` altında (16.11.2026'dan beri Universal LPC, `client/Assets/Art/LPC/Universal/`)
 - [x] Ekonomi simülasyon tablosunun ilk hali (`docs/tasarim/16-ekonomi-tablosu.md`, bölüm 23 için)
 
 ## Faz 1: bitti sayılma şartları

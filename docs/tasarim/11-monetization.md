@@ -1,7 +1,5 @@
 # Monetization
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 16. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 16. Monetization
 
 Oyun ücretsizdir. Ana model: **kozmetik + kolaylık**.

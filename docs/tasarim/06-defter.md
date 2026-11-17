@@ -1,7 +1,5 @@
 # Collection Book
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 8. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 8. Collection Book (Keşif Defteri)
 
 Collection bir envanter değil, **keşif defteridir** (Shakes & Fidget albüm mantığı).
