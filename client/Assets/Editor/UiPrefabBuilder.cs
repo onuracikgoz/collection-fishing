@@ -22,8 +22,8 @@ namespace CollectionGame.EditorTools
     [InitializeOnLoad]
     public static class UiPrefabBuilder
     {
-        public const int Version = 42; // 42: grained window frame, title_plate, round info button, slider_knob (Gemini reference)
-        // 41: equal window padding (Fit), info "!" button and Info window
+        public const int Version = 44; // 44: grained window frame, title_plate, round info button, slider_knob (Gemini reference)
+        // 43: swatch frame without centre; 42: Wardrobe window and HUD button; 41: equal window padding (Fit), info "!" button and Info window
         const string Kit = "Assets/Art/UI/";
         const string Out = "Assets/Resources/UI/";
         const string VersionFile = Out + "BuilderVersion.txt";
@@ -175,6 +175,7 @@ namespace CollectionGame.EditorTools
             Save(BuildConfirm(), "Confirm");
             Save(BuildInspect(), "Inspect");
             Save(BuildInfo(), "Info");
+            Save(BuildWardrobe(), "Wardrobe");
             File.WriteAllText(VersionFile, Version + "\n");
             AssetDatabase.ImportAsset(VersionFile);
             AssetDatabase.SaveAssets();
@@ -691,7 +692,7 @@ namespace CollectionGame.EditorTools
             (string name, string icon, string key, string title)[] buttons =
             {
                 ("Market", "ui.market", "M", L("hud.market")), ("Friends", "ui.friends", "O", L("friends.title")), ("Profile", "ui.profile", "P", L("player.profile")),
-                ("Book", "ui.book", "K", L("book.mine")), ("Bag", "ui.bag", "B", L("bag.title")),
+                ("Book", "ui.book", "K", L("book.mine")), ("Bag", "ui.bag", "B", L("bag.title")), ("Wardrobe", "ui.wardrobe", "G", L("hud.wardrobe")),
             };
             var made = new Button[buttons.Length];
             for (var i = 0; i < buttons.Length; i++)
@@ -705,6 +706,7 @@ namespace CollectionGame.EditorTools
             view.profile = made[2];
             view.book = made[3];
             view.bag = made[4];
+            view.wardrobe = made[5];
             view.settings = IconButton(bar, "Settings", "ui.settings", null, L("settings.title"), null);
             At((RectTransform)view.settings.transform, BottomRight, new Vector2(-(1408 - 1390), 12), new Vector2(40, 40), BottomRight);
             return root.gameObject;
@@ -1503,6 +1505,86 @@ namespace CollectionGame.EditorTools
             view.barDone = S("bar_fill_green");
             view.barGoing = S("bar_fill_yellow");
             Finish(view.window, "quests");
+            return wrap.gameObject;
+        }
+
+        // ================= Wardrobe (draft gardirop) =================
+
+        /// <summary>A colour button: a plain square the controller tints, a frame on the chosen colour.</summary>
+        static Button Swatch(Transform parent, string name, float x, float y, float size)
+        {
+            var rt = Abs(parent, name, x, y, size, size);
+            Solid(rt, Ink).raycastTarget = true; // the border; the fill inside takes the colour
+            var fill = Solid(Stretch(Node("Fill", rt), 2, 2, 2, 2), Color.white);
+            var b = rt.gameObject.AddComponent<Button>();
+            b.targetGraphic = fill;
+            b.transition = Selectable.Transition.None;
+            var nav = b.navigation;
+            nav.mode = Navigation.Mode.None;
+            b.navigation = nav;
+            var chosen = Img(Stretch(Node("Chosen", rt), -4, -4, -4, -4), "slot_selected");
+            chosen.fillCenter = false; // only the gold frame: the colour stays visible
+            chosen.gameObject.SetActive(false);
+            return b;
+        }
+
+        static GameObject BuildWardrobe()
+        {
+            // gardirop: window 1024x744 at (192, 80). Left: preview (300x392) and identity (300x192);
+            // right: family tabs, a 6x2 page of parts, the chosen part with its colours; Geri al / Kaydet.
+            var wrap = Stretch(Node("Wardrobe", null));
+            var view = wrap.gameObject.AddComponent<WardrobeView>();
+            view.window = DraftWindow(wrap, L("wardrobe.title"), 192, 80, 1024, 744);
+            var w = view.window.transform;
+
+            Panel(w, "PreviewCard", 32, 60, 300, 392);
+            Solid(Abs(w, "PreviewBack", 54, 82, 256, 256), Hex("5c8c60"));
+            view.preview = Abs(w, "Preview", 54, 82, 256, 256);
+            view.turnLeft = SmallButton(w, "TurnLeft", "square_wood", "<", 54, 356, 40, 32, 16);
+            view.turnRight = SmallButton(w, "TurnRight", "square_wood", ">", 270, 356, 40, 32, 16);
+            TextAt(w, "TurnHint", L("wardrobe.turn"), 100, 372, 164, 13, Faint, TextAnchor.MiddleCenter);
+            TextAt(w, "PreviewNote", L("wardrobe.preview_note"), 44, 420, 276, 12, Faint, TextAnchor.MiddleCenter);
+
+            Panel(w, "IdentityCard", 32, 468, 300, 192);
+            view.bodyMale = Tab(w, "BodyMale", L("wardrobe.body.male"), 44, 480, 134, 30, 13);
+            view.bodyFemale = Tab(w, "BodyFemale", L("wardrobe.body.female"), 186, 480, 134, 30, 13);
+            TextAt(w, "SkinLabel", L("wardrobe.skin"), 44, 530, 200, 13, Ink, TextAnchor.MiddleLeft, true);
+            view.skins = new Button[9];
+            for (var i = 0; i < view.skins.Length; i++) view.skins[i] = Swatch(w, "Skin" + i, 46 + i * 30, 544, 24);
+            TextAt(w, "EyeLabel", L("wardrobe.eyes"), 44, 592, 200, 13, Ink, TextAnchor.MiddleLeft, true);
+            view.eyes = new Button[8];
+            for (var i = 0; i < view.eyes.Length; i++) view.eyes[i] = Swatch(w, "Eye" + i, 46 + i * 30, 606, 24);
+
+            view.tabs = new TabButton[8];
+            for (var i = 0; i < view.tabs.Length; i++) view.tabs[i] = Tab(w, "Tab" + i, "", 356 + i * 80, 60, 76, 36, 12);
+
+            Panel(w, "GridCard", 356, 104, 636, 304);
+            view.parts = new SlotView[12];
+            for (var i = 0; i < view.parts.Length; i++)
+            {
+                var slot = Slot(w, "Part" + i, 80);
+                At((RectTransform)slot.transform, TopLeft, new Vector2(384 + i % 6 * 100, -(120 + i / 6 * 100)), new Vector2(80, 80));
+                view.parts[i] = slot;
+            }
+            view.prevPage = SmallButton(w, "PrevPage", "square_wood", "<", 384, 360, 40, 32, 16);
+            view.page = TextAt(w, "Page", "1 / 1", 434, 376, 470, 14, Ink, TextAnchor.MiddleCenter);
+            view.nextPage = SmallButton(w, "NextPage", "square_wood", ">", 924, 360, 40, 32, 16);
+
+            Panel(w, "InfoCard", 356, 420, 636, 224);
+            view.partName = TextAt(w, "PartName", "", 376, 444, 420, 16, Ink, TextAnchor.MiddleLeft, true);
+            view.partTier = TextAt(w, "PartTier", "", 800, 444, 172, 14, Ink, TextAnchor.MiddleRight, true);
+            view.partInfo = TextAt(w, "PartInfo", "", 376, 470, 596, 13, Faint);
+            view.colorNote = TextAt(w, "ColorNote", "", 376, 496, 596, 13, Faint);
+            view.prevColors = SmallButton(w, "PrevColors", "square_wood", "<", 376, 524, 28, 56, 14);
+            view.colors = new Button[28];
+            for (var i = 0; i < view.colors.Length; i++) view.colors[i] = Swatch(w, "Color" + i, 420 + i % 14 * 36, 526 + i / 14 * 30, 24);
+            view.nextColors = SmallButton(w, "NextColors", "square_wood", ">", 944, 524, 28, 56, 14);
+            view.takeOff = SmallButton(w, "TakeOff", "wood", L("wardrobe.take_off"), 376, 598, 160, 32);
+
+            view.changes = TextAt(w, "Changes", "", 32, 696, 520, 14, Faint);
+            view.revert = SmallButton(w, "Revert", "wood", L("wardrobe.revert"), 580, 676, 192, 40, 15);
+            view.save = SmallButton(w, "Save", "green", L("wardrobe.save"), 784, 676, 208, 40, 15);
+            Finish(view.window, "wardrobe");
             return wrap.gameObject;
         }
 

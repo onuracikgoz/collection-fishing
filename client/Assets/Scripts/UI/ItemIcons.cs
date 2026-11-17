@@ -553,6 +553,7 @@ namespace CollectionGame.UI
                 case "ui.profile": return ("person", "8fd3ff");
                 case "ui.book": return ("book", "cd683d");
                 case "ui.bag": return ("bag", "cd683d");
+                case "ui.wardrobe": return ("person", "b68cf5");
                 case "ui.settings": return ("gear", "9babb2");
                 case "ui.send": return ("enter", "f2e8d0");
                 case "ui.grip": return ("grip", "f2e8d0");

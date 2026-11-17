@@ -18,11 +18,13 @@ namespace CollectionGame.EditorTools
     {
         const string ArtRoot = "Assets/Art/";
         const string UiRoot = "Assets/Art/UI/";
+        /// <summary>Wardrobe sheets: recoloured on the CPU at run time (Wardrobe/LpcRecolor), so readable.</summary>
+        const string UniversalRoot = "Assets/Art/LPC/Universal/";
         const string BordersPath = UiRoot + "ui-borders.json";
         const int PixelsPerUnit = 32;
 
         // Bump to reimport existing art after changing the settings below.
-        public override uint GetVersion() => 3;
+        public override uint GetVersion() => 4;
 
         [Serializable] class Border { public string name; public int l, t, r, b; }
         [Serializable] class BorderList { public Border[] items; }
@@ -41,6 +43,7 @@ namespace CollectionGame.EditorTools
             importer.wrapMode = TextureWrapMode.Clamp;
 
             if (assetPath.StartsWith(UiRoot)) PrepareUi(importer);
+            if (assetPath.StartsWith(UniversalRoot)) importer.isReadable = true;
         }
 
         void PrepareUi(TextureImporter importer)

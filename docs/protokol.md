@@ -48,13 +48,14 @@ Bu dosya client ve server agent'larının ortak sözleşmesidir. Yeni mesaj veya
 | `list_servers` | `{}` | `{ servers: [{ matchId, name, language, players, capacity }] }` | 1 |
 | `get_inventory` | `{}` | `{ energy, energyMax, slotsUsed, slotsMax, items: [ItemInstance], stacks: [{ defId, count }], coin, dust, diamond, rod }` (defter yuvasındaki ve depodaki eşyalar hariç; `coin`, `dust`, `rod` Faz 4, `diamond` Faz 5; oyuncu bir sunucudayken `energy` 1 dk'ya kadar geride kalabilir, client maçtaki değeri kullanır: `WELCOME`, `BOBBER`, `FISH_END`) | 2 |
 | `get_book` | `{ userId? }` (boşsa kendisi) | `BookResponse`, bkz. Collection Book | 3 |
-| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting? }` | 3 |
+| `get_profile` | `{ userId? }` (boşsa kendisi) | `{ userId, username, score, pagesComplete: [pageId], level, showcase: [ItemInstance], hunting?, look }` (`look`: giydiği görünüm, Gardırop) | 3 |
 | `friends_status` | `{}` | `{ friends: [{ userId, username, online, serverName?, matchId?, x?, y? }] }` (sadece karşılıklı arkadaşlar) | 3 |
 | `set_profile` | `{ showcase?: [defId], hunting?: defId \| null }` (verilmeyen alan değişmez) | `get_profile` ile aynı | 3 |
 | `get_catalog` | `{}` | `CatalogResponse`, bkz. Fiyat ve recipe listesi | 4 |
 | `get_content` | `{}` | `ContentResponse`, bkz. İçerik: eşya adları ve görselleri | 6 |
 | `get_item_art` | `{ ids: [defId] }` (en fazla 40) | `{ art: [{ id, hash, png, icon? }] }` (`png`, `icon` base64) | 6 |
 | `get_locale` | `{ lang, hash? }` | `{ lang, hash, strings? }`, bkz. Dil dosyaları | 6 |
+| `get_wardrobe` | `{}` | `{ items, look, worn }`, bkz. Gardırop | 6 |
 | `transfer_code_create` | `{}` (oturumlu) | `{ code, expiresInMs }` (`code`: `ABCD-EFGH`) | 5 |
 | `transfer_code_redeem` | `{ code, steamToken }` (**oturumsuz**, HTTP anahtarıyla) | `{ ok: true }` | 5 |
 | `account_delete_request` | `{ name }` (hesabın kullanıcı adı, aynen) | `{ runAt }` (ms; silinme zamanı) | 7 |
@@ -78,6 +79,7 @@ Oyuncu başına, RPC başına sayılır (`server/src/rpc/limit.ts`, sayılar `co
 | `set_profile`, `get_catalog`, `get_content`, `whisper_settings` | 10 sn'de 5 |
 | `get_item_art` | 10 sn'de 30 |
 | `get_locale` | 10 sn'de 5 |
+| `get_wardrobe` | 10 sn'de 10 |
 | `whisper_send` | 10 sn'de 10 |
 | `account_delete_*`, `transfer_code_create` | 1 dk'da 5 (`status` 10); taşıma kodunun saatlik sınırı ayrıca geçerli |
 | Diğerleri | 10 sn'de 20 |
@@ -136,12 +138,12 @@ Aynı hesap ikinci kez girerse eski bağlantı match'ten atılır, yeni bağlant
 |---|---|---|---|---|
 | 1 | C → S | `MOVE` | `{ seq, x, y, dir, moving }` | 1 |
 | 2 | S → C | `SNAPSHOT` | `{ t, players: [{ id, x, y, dir, moving }] }` (yakındakilerden bu tick'te değişenler, oyuncunun kendisi hariç) | 1 |
-| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber?, status?, seat? }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`; durum emote'u takılıysa `status`; oturuyorsa koltuk `seat`) | 1 |
+| 3 | S → C | `PLAYER_ENTER` | `{ id, name, characterId, x, y, dir, moving, bobber?, status?, seat?, look }` (görüş alanına girdi; balık tutuyorsa `bobber: { x, y, band }`; durum emote'u takılıysa `status`; oturuyorsa koltuk `seat`; `look` görünüm, Gardırop) | 1 |
 | 4 | S → C | `PLAYER_LEAVE` | `{ id }` (görüş alanından çıktı veya ayrıldı) | 1 |
 | 5 | C → S | `SAY` | `{ text }` | 1 |
 | 6 | S → C | `BUBBLE` | `{ id, text }` (konuşanın kendisi de alır) | 1 |
 | 7 | S → C | `CORRECTION` | `{ seq, x, y }` (sunucu konumu düzeltti) | 1 |
-| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod, status?, emotesOwned, level, xp, xpNext }` (katılım sonrası ilk mesaj; `rod` Faz 4; `status` ve `emotesOwned` durum emote'u; `level`, `xp` (bu level içindeki), `xpNext` (bu level için gereken, son level'da 0)) | 1 |
+| 8 | S → C | `WELCOME` | `{ you: { id, x, y }, serverName, energy, energyMax, rod, status?, emotesOwned, level, xp, xpNext, look }` (katılım sonrası ilk mesaj; `rod` Faz 4; `status` ve `emotesOwned` durum emote'u; `level`, `xp` (bu level içindeki), `xpNext` (bu level için gereken, son level'da 0); `look` oyuncunun görünümü, Gardırop) | 1 |
 
 ### Hareket kuralları
 
@@ -616,6 +618,43 @@ Oyunun yazıları anahtarla gelir (`docs/araclar/dil-destegi.md`). Client her di
 - Sunucu mesajları metin değil kod döner (`reason`, hata kodu); client kodu `<alan>.err.<KOD>` anahtarıyla yazıya çevirir (`Loc.Reason`). Eşya, set ve tier adları, Float, Coin, göl / sunucu adları çevrilmez. Hikayeler dile göre ayrı tutulur (sunucu tarafı, admin paneli).
 - Admin panelindeki Çeviriler sekmesi anahtar listesini bu dosyalardan okur (`languages.json` hariç).
 
+## Gardırop (16.11.2026)
+
+Kurallar: `docs/tasarim/20-gardirop.md`. Sunucu: `rules/wardrobe.ts` (saf kurallar), `match/wardrobe.ts`, `rpc/wardrobe.ts`. Görünüm sadece sunucuda doğrulanır; client sadece istediği görünümü gönderir.
+
+**Katalog** `get_content` içinde gelir (`wardrobe`), içerik belgesinin parçasıdır ve admin panelinden değişir:
+
+- `wardrobe.parts: [{ id, name, slot, family, tier, colors, color2?, effects, bodies, free, active }]`
+  - `id`: parçanın kimliği (LPC tanım dosyasının adı, ör. `torso_clothes_tshirt`), hiç değişmez. `slot`: yuva (LPC katman türü, ör. `clothes`, `hair`, `hat`, `wings`); bir yuvada bir parça. `family`: pencere sekmesi ve craft ailesi (`UST`, `SAC`, `KANAT`...).
+  - `tier`: `common` … `legendary`; bedava parçada `null`.
+  - `colors`: kabul ettiği renk türleri (`dye`, `hair`, `metal`, `gem`). Boşsa parça tek renktir (`fixed`), rengi `""`. `color2`: ikinci renk alanı varsa onun türleri. `effects`: Mythic yapılabildiği efekt renkleri.
+  - `bodies`: `male`, `female` (parça hangi gövdede çizili). `free`: Başlangıç parçası.
+  - JsonUtility için `get_content` cevabında `tier` bedava parçada `""`, `color2` ikinci alan yoksa `[]` gelir.
+- `wardrobe.colors: [{ id, kind, tier, free }]`: `kind` `dye`, `hair`, `metal`, `gem`, `fx` (efekt, Mythic), `skin`, `eye`. Id'ler türüyle başlar: `dye_red`, `hair_blonde`, `metal_gold`, `gem_red`, `fx_rainbow`, `skin_light`, `eye_blue`. `free`: bedava parçada kullanılabilir (ten ve göz her zaman bedava).
+
+**Gardırop eşyası** (`WardrobeItem`): `{ instanceId, part, color, color2?, source, obtainedAt, until?, locked }`.
+- `source`: `admin`, `craft`, `rent_coin`, `rent_diamond`. `until`: kiralıkta bitiş zamanı (ms); yoksa kalıcı. `locked: true` takas, pazar ve satışa girmez (kiralık her zaman kilitli).
+- Rengi eşyanın kendisidir; aynı parçanın iki rengi iki ayrı eşyadır. Tier: renk `fx_*` ise `mythic`, değilse parçanın Tier'ı.
+
+**Görünüm** (`Look`): `{ body, skin, eyes, parts: [{ part, color, color2?, rented? }] }`.
+- `body`: `male` / `female`. `skin` ve `eyes`: `skin_*` / `eye_*` renk id'si. `parts` sırasızdır; client katman sırasını kendi parça listesinden bilir. `rented: true` kiralık parçadır (başkaları saat işaretini görür).
+- Görünümünü hiç kaydetmemiş oyuncuya sunucu kimliğinden türetilmiş bedava bir görünüm verir (her yerde aynı).
+
+| Op | Yön | Ad | Gövde |
+|---|---|---|---|
+| 69 | C → S | `LOOK_SET` | `{ body, skin, eyes, parts: [{ part, color, color2?, instanceId? }] }` (bütün görünüm; "Kaydet") |
+| 70 | S → C | `LOOK_SHOW` | `{ id, look, reason? }` (oyuncunun kendisi ve onu görenler) |
+
+- `LOOK_SET`: her parça ya `instanceId` ile oyuncunun **kendi eşyası**dır (rengi eşyadan gelir, gönderilen renk yok sayılır) ya da `instanceId`'siz **bedava parça + bedava renk**tir. Sunucu kontrol eder: gövde, ten ve göz geçerli mi; eşya oyuncunun mu ve süresi dolmamış mı; parça bu gövdede var mı; renk parçaya uyuyor mu; bir yuvada tek parça mı. Hepsi geçerse kaydeder ve `LOOK_SHOW { id, look }` oyuncuya ve onu görenlere gider. Değilse sadece oyuncuya `{ id, look: <şu anki>, reason }` gider, client eski halini geri koyar.
+- `reason`: `NOT_OWNED` (eşya yok, başkasının ya da süresi dolmuş), `BAD_LOOK` (bilinmeyen parça / renk, gövdede olmayan parça, aynı yuvada iki parça), `RATE_LIMITED` (1 sn'de bir, Öneri).
+- Yeni gelen oyuncular için `PLAYER_ENTER` içinde `look` vardır; oyuncunun kendi görünümü `WELCOME` içinde `look`.
+- **Süre dolunca:** sunucu çevrimiçi oyuncunun giyili kiralığı dolduğu anda parçayı çıkarır ve `LOOK_SHOW` gönderir. Girişte de bakılır. Dolan eşya gardıroptan silinir.
+- **Panelden verme / geri alma** (`docs/araclar/admin-paneli.md`): oyuncuya Nakama bildirimi gider (kod **120**, konu `wardrobe`, `{}`); client açık gardırop penceresini `get_wardrobe` ile yeniler. Geri alınan parça giyiliyse oyuncunun sunucusu görünümü hemen düzeltir (`LOOK_SHOW`).
+- `characterId` (katılım metadata'sı) eskisi gibi gelir ama kullanılmaz; görünüm `look`'tur.
+
+**RPC:**
+- `get_wardrobe` `{}` → `{ items: WardrobeItem[], look: Look, worn: [{ slot, instanceId }] }`: oyuncunun eşyaları (süresi dolanlar hariç), kayıtlı görünümü ve hangi yuvada hangi eşyasının giyili olduğu (bedava parçalar `worn`'da yok).
+
 ## Geliştirici RPC'leri (sadece yerel)
 
 `dev_*` RPC'leri ve `dev_*` match sinyalleri oyun protokolünün parçası değildir; client bunları çağırmaz. Sadece `DEV_TOOLS=true` olan yerel sunucuda çalışır, başka yerde `DEV_TOOLS_OFF` döner. Liste: `docs/araclar/dev-dashboard.md`.
@@ -626,4 +665,4 @@ Oyunun yazıları anahtarla gelir (`docs/araclar/dil-destegi.md`). Client her di
 
 RPC hataları Nakama hata kodu + `{ code, message }`. Ortak kodlar: `BAD_REQUEST`, `PROTOCOL_MISMATCH`, `SERVER_FULL`, `RATE_LIMITED`, `ACCOUNT_RECENTLY_DELETED`, `NAME_RESERVED` (silinen hesabın giriş yolu ya da adı bekleme süresinde). Pano: `NO_STALL`, `NOT_IN_STALL`, `BOARD_FULL`, `NOT_ENOUGH_DIAMOND`. Fısıltı ve rapor: `MUTED`, `NOT_FOUND`, `SELF`, `NOT_ALLOWED`, `YOU_BLOCKED`, `LEVEL_TOO_LOW`, `OFFLINE`.
 
-Nakama bildirim kodları: 101 giriş yolu bağlandı, 102 giriş yolu kaldırıldı, 103 tezgahtan satış, 104 hesap silme iptal, 110 fısıltı.
+Nakama bildirim kodları: 101 giriş yolu bağlandı, 102 giriş yolu kaldırıldı, 103 tezgahtan satış, 104 hesap silme iptal, 110 fısıltı, 120 gardırop değişti.
