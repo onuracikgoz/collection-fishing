@@ -41,10 +41,17 @@
 
 ## 5. Admin paneli
 
-- **Gardırop** sekmesi: katalog (Tier, aktiflik, bedava) ve bir oyuncunun gardırobu.
+- **Items** sekmesi, **Kozmetik items** bölümü: karakter üzerinden yuva seçip parçaları görme ve her özelliğini, tarifini değiştirme (`docs/araclar/admin-paneli.md` Items). Oyuncunun gardırobu **Diğer** bölümündedir.
 - **Oyuncuya ver:** parça, renk, kalıcı ya da süreli (gün), takas edilebilir mi. Test ve destek içindir; verilen parça oyuncunun gardırobuna hemen düşer.
 - **Geri al:** oyuncunun bir parçasını siler; giyiliyse oyunda hemen çıkar.
 
-## 6. Henüz yok
+## 6. Craft verisi (sunucu içeriğinde)
 
-- Craft (kalıp, malzemeler, Terzi), kiralama ekranı ve fiyatları, gardırop parçalarının takas penceresine ve pazara girmesi, Mythic efektlerin çizimi. Craft tablosu hazır; bunlar ayrı işler olarak gelir.
+- Craft tablosunun malzemeleri (132, `wmat_*`, İngilizce ad, tek Tier, tür, nereden), aile merdivenleri ve her parçanın tarifi sunucu içeriğindedir (`wardrobe.materials`, `wardrobe.families`, parçada `recipe` ve Mythic efekt başına `mythic`). Başlangıç verisi `tools/wardrobe/craft_recipes.py` ile Excel'den alınır; panelde kaydedilince sunucudaki geçerlidir. Excel bundan sonra kaynak değildir.
+- Tarif = parçanın kendi kalıbı ×1 + `recipe.mats` + renk alanı başına bir renk. Mythic tarif = Mythic kalıp + efekt rengi + `mythic[fx].mats`. Excel'de aynı malzeme iki kez yazılmışsa (ailenin L malzemesi yoksa) tek satırda toplanır.
+- Panelde **Aile kuralıyla oluştur** craft tablosunun tarif otomatını uygular (Öneri). Elle değiştirilen tarif öyle kalır.
+- Tarifler istemciye gitmez (`get_content` sadece katalog alanlarını yollar).
+
+## 7. Henüz yok
+
+- Craft'ın oyunda yapılması (kalıp, malzemelerin çantada durması ve düşmesi, Terzi), kiralama ekranı ve fiyatları, gardırop parçalarının takas penceresine ve pazara girmesi, Mythic efektlerin çizimi. Craft tablosu hazır; bunlar ayrı işler olarak gelir.

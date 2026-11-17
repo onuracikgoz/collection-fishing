@@ -573,3 +573,292 @@ table.list input[type='number'] {
 .stacklist input[type='number'] {
   width: 64px;
 }
+
+/* craft trees (Items tab) */
+.ctree {
+  overflow-x: auto;
+  padding: 8px 0;
+}
+.ct-sub {
+  display: flex;
+  align-items: center;
+}
+.ct-kids {
+  display: flex;
+  flex-direction: column;
+  margin-left: 24px;
+  position: relative;
+}
+.ct-kids::before {
+  content: '';
+  position: absolute;
+  left: -24px;
+  top: 50%;
+  width: 24px;
+  border-top: 1px solid var(--muted);
+}
+.ct-kids > .ct-sub {
+  position: relative;
+  padding: 3px 0 3px 18px;
+}
+.ct-kids > .ct-sub::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 18px;
+  border-top: 1px solid var(--muted);
+}
+.ct-kids > .ct-sub::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--muted);
+}
+.ct-kids > .ct-sub:first-child::after {
+  top: 50%;
+}
+.ct-kids > .ct-sub:last-child::after {
+  bottom: 50%;
+}
+.ct-kids > .ct-sub:only-child::after {
+  display: none;
+}
+.ct-node {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 8px 3px 4px;
+  white-space: nowrap;
+}
+.ct-node.root {
+  border-width: 2px 2px 2px 5px;
+}
+.ct-node.on {
+  outline: 2px solid var(--accent);
+}
+.ct-node.tier-common { border-left-color: var(--common); }
+.ct-node.tier-rare { border-left-color: var(--rare); }
+.ct-node.tier-epic { border-left-color: var(--epic); }
+.ct-node.tier-legendary { border-left-color: var(--legendary); }
+.ct-node.tier-mythic { border-left-color: var(--mythic); }
+.ct-node.kind-pattern,
+.ct-node.kind-color {
+  border-style: dashed;
+  opacity: 0.85;
+}
+.ct-label {
+  all: unset;
+  display: flex;
+  flex-direction: column;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.ct-label:disabled {
+  cursor: default;
+}
+.ct-label:not(:disabled):hover .ct-name {
+  text-decoration: underline;
+}
+.ct-meta {
+  font-size: 11px;
+}
+.ct-count {
+  font-weight: 600;
+}
+.ct-edit input {
+  width: 52px;
+  margin-left: 2px;
+}
+.ct-edit button {
+  padding: 2px 6px;
+}
+.ct-add input {
+  width: 240px;
+}
+
+/* Items tab */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.subtabs button {
+  border-radius: 6px 6px 0 0;
+  border-bottom: none;
+}
+.subtabs button.on {
+  background: var(--accent);
+  color: #0b1020;
+}
+.trees {
+  margin: 8px 0 12px;
+}
+.cosmetics {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.cos-top {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.cos-stage-card {
+  flex: 0 0 auto;
+}
+.cos-stage {
+  position: relative;
+  margin-top: 8px;
+  background: radial-gradient(circle at 50% 55%, #3a4a3e 0, #232a26 60%, var(--panel) 100%);
+  border-radius: 10px;
+}
+.cos-stage canvas {
+  position: absolute;
+  image-rendering: pixelated;
+}
+.cos-stage svg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.cos-stage line {
+  stroke: var(--muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+.cos-stage circle {
+  fill: var(--muted);
+}
+.cos-stage g.on line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: none;
+}
+.cos-stage g.on circle {
+  fill: var(--accent);
+}
+.cos-spot {
+  position: absolute;
+  height: 30px;
+  font-size: 12px;
+  padding: 2px 6px;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cos-spot.on {
+  background: var(--accent);
+  color: #0b1020;
+  border-color: var(--accent);
+}
+.cos-spot.on .muted {
+  color: #0b1020;
+}
+.cos-list {
+  min-width: 360px;
+  max-height: 520px;
+  display: flex;
+  flex-direction: column;
+}
+.cos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 6px;
+  overflow-y: auto;
+  padding: 2px;
+}
+.cos-part {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-bottom: 3px solid var(--line);
+  border-radius: 6px;
+  text-align: center;
+}
+.cos-part.tier-common { border-bottom-color: var(--common); }
+.cos-part.tier-rare { border-bottom-color: var(--rare); }
+.cos-part.tier-epic { border-bottom-color: var(--epic); }
+.cos-part.tier-legendary { border-bottom-color: var(--legendary); }
+.cos-part.on {
+  outline: 2px solid var(--accent);
+}
+.cos-part.off {
+  opacity: 0.55;
+}
+.cos-part-name {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.cos-thumb {
+  width: 96px;
+  height: 96px;
+  image-rendering: pixelated;
+}
+.cos-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px 16px;
+}
+.cos-usedin {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.mat-layout {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+.mat-scroll {
+  width: 440px;
+  flex: 0 0 auto;
+  max-height: calc(100vh - 170px);
+  overflow-y: auto;
+}
+table.list.mat-list tr.on {
+  background: var(--panel2);
+}
+.mat-detail {
+  min-width: 0;
+}
+.dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.dot.tier-common { background: var(--common); }
+.dot.tier-rare { background: var(--rare); }
+.dot.tier-epic { background: var(--epic); }
+.dot.tier-legendary { background: var(--legendary); }
+.dot.tier-mythic { background: var(--mythic); }
+.tag.ward {
+  background: #3a2c4d;
+  color: var(--epic);
+}
+button.danger {
+  color: var(--error);
+}
+.field input[type='checkbox'] {
+  width: auto;
+}
+.cos-fields .check {
+  justify-content: flex-start;
+}
+.cos-fields .check {
+  width: fit-content;
+}

@@ -84,6 +84,8 @@ export const api = {
   localeSave: (c: Connection, lang: string, version: string, strings: Record<string, string>) =>
     rpc<{ version: string; hash: string; keys: number }>(c, 'admin_locale_save', { lang, version, strings }),
   wardrobePartSave: (c: Connection, version: string, part: object) => rpc<{ version: string }>(c, 'admin_wardrobe_part_save', { version, part }),
+  wardrobeMaterialSave: (c: Connection, version: string, material: object) => rpc<{ version: string }>(c, 'admin_wardrobe_material_save', { version, material }),
+  wardrobeMaterialDelete: (c: Connection, version: string, id: string) => rpc<{ version: string }>(c, 'admin_wardrobe_material_delete', { version, id }),
   wardrobeGet: (c: Connection, player: string) => rpc<object>(c, 'admin_wardrobe_get', { player }),
   wardrobeGive: (c: Connection, body: { player: string; part: string; color: string; color2?: string; days?: number; locked: boolean }) => rpc<object>(c, 'admin_wardrobe_give', body),
   wardrobeTake: (c: Connection, player: string, instanceId: string) => rpc<object>(c, 'admin_wardrobe_take', { player, instanceId }),

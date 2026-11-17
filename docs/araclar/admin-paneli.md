@@ -40,12 +40,21 @@ Admin paneli → ZIP yükle → kuyrukta sırayla ayarla → Onayla → oyunda
 | Setler | Set oluşturma, adını değiştirme, pasife alma, sıralama; setin eşyaları defter sırasıyla, sıra değiştirme, pasife alma, başka setten eşya taşıma |
 | Düşme oranları | Av tablosu (kategori ağırlıkları, yüzde ve kategorideki eşya sayısı) ve her eşyanın genel oranı |
 | Sandıklar ve görevler | Seri sandıkları (Coin / toz aralığı, çekiliş sayısı, havuz ve garanti) ve günlük görev listesi |
-| Gardırop | Giyilebilir kozmetikler (`docs/tasarim/20-gardirop.md`). **Katalog:** aileye göre parçalar; Tier, bedava ve aktiflik değişir (parçaların kendisi craft tablosundan gelir, `tools/wardrobe/build_catalog.py`). **Oyuncunun gardırobu:** kullanıcı adı ya da id ile bul, eşyalarını (renk, kaynak, bitiş, kilit, giyili mi) gör, **Geri al**; **Parça ver:** parça, renk (efekt rengi = Mythic), ikinci renk, süre (0 = kalıcı), kilit. Oyuncu oyundaysa değişiklik hemen görünür |
+| Items | Dört bölüm (aşağıda): Collection items, Kozmetik items, Crafting malzemeleri, Diğer |
 | Çeviriler | Oyun yazılarını dile göre düzenleme (aşağıda) |
 | Geliştirici | Dev dashboard (`docs/araclar/dev-dashboard.md`) bu panelin içinde, `/dev/` altında |
 | JSON | Toplu taslak ekleme (JSON kısayolu) ve bütün içeriğin yedeği |
 
 Her kayıt önce panelde, sonra sunucuda bütün içeriğe karşı doğrulanır; hata varsa kaydedilmez ve nedeni yazılır. Kaydedilen değişiklik birkaç saniye içinde bütün sunucularda geçerlidir.
+
+## Items
+
+Bütün eşyalar türüne göre, craft tarifleri akış şeması (ağaç) olarak.
+
+- **Collection items:** Float'lı collection eşyaları (`type: item`). Eşyayı açınca üstte **craft ağacı** (tarifin malzemeleri; malzeme de craft ediliyorsa onun malzemeleri de açılır) ve **hangi eşyalara giriyor** ağacı, altta her zamanki düzenleme ekranı (tarif burada değişir).
+- **Kozmetik items:** gardırop parçaları. Solda oyundaki gibi çizilen LPC karakter (gövde tipi ve ten seçilir), vücuttaki noktalardan oklar (şapka, saç, gözlük, küpe, sakal, boyun, zırh, üst, sırt, kol, bel, alt, ayak). Bir noktaya basınca o yuvanın parçaları gelir; Ctrl / ⌘ / Shift ile birden fazla yuva seçilir. Liste Tier'a (ya da isme) göre sıralanır, Tier'a göre süzülür. Parçaya basınca karakterin üstünde denenir ve düzenleme açılır: isim, aile, Tier / bedava, aktiflik, renk türü, ikinci renk alanı, Mythic efektleri. **Craft ağacı** düzenlenebilir: miktar, çıkar, malzeme ekle, **Aile kuralıyla oluştur / baştan yaz** (temel ×3-6 + ailenin o Tier'daki ve bir alttaki imza malzemesi, craft tablosu "Tarif otomatı"), her Mythic efekt için ayrı tarif. Ağaçtaki malzemeye basınca o malzemenin **hangi parçalara girdiği** ağacı açılır; oradaki parçaya basınca o parça açılır. `id`, yuva ve gövdeler LPC sayfalarından gelir, değişmez. LPC sayfaları dev sunucusu tarafından `/lpc/` altında `client/Assets/Art/LPC`'den verilir.
+- **Crafting malzemeleri:** collection malzemeleri (`type: material`) ve gardırop malzemeleri (`wmat_*`) tek listede; her satırda hangi craft'ta kaç tarifte kullanıldığı etiketi. Malzemeyi açınca **hangi eşyalara giriyor** ağacı ve bütün özellikleri (gardırop malzemesinde isim, Tier, tür, nereden, aktiflik, not; collection malzemesinde normal düzenleme ekranı). **+ Gardırop malzemesi** yeni malzeme açar; hiçbir tarifte ve aile merdiveninde olmayan malzeme silinebilir.
+- **Diğer:** balık, çöp ve yem eşyaları; bir oyuncunun gardırobu (kullanıcı adı ya da id ile bul, eşyalarını gör, **Geri al**, **Parça ver**: parça, renk, ikinci renk, süre (0 = kalıcı), kilit).
 
 ## Görsel kontrolü
 
@@ -106,7 +115,9 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `admin_import` | `{ version, items, sets? }` JSON kısayolu |
 | `admin_locale_get` | Bütün dillerin sunucudaki metinleri `{ langs: { tr: { version, hash, updatedAt, strings } } }` |
 | `admin_locale_save` | `{ lang, version, strings }` o dilin metinlerini değiştirir (`version` o dilin okunan sürümü) |
-| `admin_wardrobe_part_save` | `{ version, part: { id, name?, tier?, free?, active? } }` gardırop katalogunda bir parça (bedava parçanın Tier'ı yok; gövdesi olmayan parça aktif olamaz) |
+| `admin_wardrobe_part_save` | `{ version, part: { id, name?, family?, tier?, free?, active?, colors?, color2?, effects?, recipe?, mythic? } }` gardırop katalogunda bir parça (bedava parçanın Tier'ı ve tarifi yok; gövdesi olmayan parça aktif olamaz; `color2` / `recipe` / `mythic` null = kaldır; `id`, `slot`, `bodies` değişmez) |
+| `admin_wardrobe_material_save` | `{ version, material: { id, name?, tier?, kind?, source?, active?, note? } }` gardırop malzemesi ekler / günceller (`id` `wmat_` ile başlar) |
+| `admin_wardrobe_material_delete` | `{ version, id }` hiçbir tarifte ve aile merdiveninde olmayan malzemeyi siler |
 | `admin_wardrobe_get` | `{ player }` (kullanıcı adı ya da id) → `{ userId, username, items, look, worn }`; `version` almaz |
 | `admin_wardrobe_give` | `{ player, part, color, color2?, days?, locked? }` gardıroba eşya ekler (`days` varsa kiralık: kilitli, süresi bitince silinir, en fazla 365 gün). Oyuncuya bildirim (120) ve sunucusuna `wardrobe_refresh` gider |
 | `admin_wardrobe_take` | `{ player, instanceId }` eşyayı siler; giyiliyse oyunda hemen çıkar |
@@ -121,5 +132,7 @@ Hepsi sunucu anahtarıyla, `version` (son okunan içerik sürümü) alır; araya
 | `src/artCheck.ts`, `src/images.ts` | Görsel kontrolü, PNG / ZIP okuma (saf, testli) |
 | `src/chance.ts` | Genel düşme oranı |
 | `src/locales.ts` | Build'deki dil dosyaları ve anahtar listesi |
+| `src/craftGraph.ts` | Craft ağaçları (aşağı: tarif, yukarı: nereye giriyor) ve aile kuralı tarifi (saf, testli) |
+| `src/lpc.ts` | LPC karakteri oyundaki gibi çizer (`client/Assets/Resources/Wardrobe/lpc.json`) |
 | `vite.config.ts` | Dev dashboard'u `/dev/` altında sunan eklenti |
 | `src/components/` | Sekmeler ve eşya düzenleme formu |
