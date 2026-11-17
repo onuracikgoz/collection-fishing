@@ -1,7 +1,5 @@
 # Sosyal Sistemler
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 13. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 13. Sosyal Sistemler
 
 ### 13.1. Chat

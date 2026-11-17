@@ -33,13 +33,13 @@ Oyun arayüzü **uGUI** ile yapılır (Canvas + Image + Button), IMGUI pencerele
 - **Ölçek:** tek Canvas (`UI/UiRoot.cs`). Taslaklar 1408x896 ve kit'i **2x** çizer (704x448 mantıksal ekran): düzen birimi taslak pikselidir, bir kit pikseli iki birimdir (`referencePixelsPerUnit` 64, sprite'lar 32). Canvas, kit pikseli tam sayı ekran pikseli olacak şekilde ölçeklenir (1080p'de 2, Retina'da 4; Ayarlar > Arayüz boyutu ile değişir). İstisna: eşya yuvaları taslakta 1x (40x40, ince çerçeve), `pixelsPerUnitMultiplier` 2.
 - **Her pencere kendi taslağından:** `Editor/UiPrefabBuilder.cs` her pencereyi taslaktan ölçülen koordinatlarla kurar (`DraftWindow`, `Abs`, `TextAt`) ve `Assets/Resources/UI/*.prefab` olarak kaydeder. Ortak liste şablonu (`PanelView`) artık sadece takas davet kutusunda. Kit'te olmayan bir parça gerekirse `tools/ui-kit/make_ui_kit.py`'ye eklenir (eklenenler: `outline`, `tag_level`, `panel_locked`); kit görselleri boyanmaz (renk tonu yok).
 - **Kod sadece bağlar:** prefab'daki `UI/Views/*View.cs` bileşenleri referans tutar; veriyi ve tıklamaları denetleyiciler doldurur. Sunucu otoritedir, pencereler sadece niyet gönderir.
-- **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots; batchmode'da `-shotScale 2` Retina ölçeğinde çizer). Taslak | Unity karşılaştırmaları: `docs/gorsel/ui-karsilastirma/`. Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
+- **Kontrol:** `Editor/UiShots.cs` prefab'ları örnek veriyle çizer (CollectionGame > UI > Capture Shots; batchmode'da `-shotScale 2` Retina ölçeğinde çizer). Taslak | Unity karşılaştırmaları `ui-shots/` klasörüne yazılır (repoda tutulmaz). Gerçek oyunda: Autopilot `-cgOpen bag,quests,market,board,settings`.
 - **Yazı:** tek font yeri `client/Assets/Resources/Fonts/` (aşağıda, Yazı tipi). Boşsa Unity'nin yerleşik fontu (LegacyRuntime). Taslaklardan en görünür fark bu.
 - **İkonlar:** gerçekleri yok. Yuvalarda eşya adı **yazmaz** (31.10.2026, Onur): `UI/ItemIcons.cs` her eşya türüne 16x16 geçici bir çizim verir (balık, yengeç, bot, kutu, kabuk, taş, kristal, gözlük, şişe, para, yosun, pul, solucan, tarif, yıldız, sandık, yüz, çöp kovası); renk eşya kimliğinden seçilir, aynı eşya hep aynı görünür. Görev satırları, sandık ve emote yuvaları da aynı çizimleri kullanır (`SlotView.SetIcon`), adlar üstüne gelince çıkan kartta. HUD'da renkli kareler.
 
 ### uGUI'ye geçenler (taslağa göre)
 
-Karşılaştırmalar `docs/gorsel/ui-karsilastirma/` (solda / üstte taslak, sağda / altta Unity).
+Karşılaştırmalar `ui-shots/` klasörüne çıkar (solda / üstte taslak, sağda / altta Unity), repoda tutulmaz.
 
 | Pencere | Taslak | Prefab / kod | Açılış |
 |---|---|---|---|

@@ -1,7 +1,5 @@
 # Sonraki Fazlara Kalanlar
 
-> Kaynak: tasarım dokümanı v0.8, bölüm 14, 15. Numaralar eski dokümana atıf için korunmuştur.
-
 ## 14. Auto-Farm ve Boosterlar (Sonraki Fazlar)
 
 Faz 1'de yoktur. Eklendiğinde v0.2'deki ilkeler geçerlidir:
