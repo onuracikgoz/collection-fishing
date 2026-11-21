@@ -87,7 +87,7 @@ LPC Revised paketinden `client/Assets/Art/LPC/` altına eklendi (lisans: `conten
 | Çeşme | `Structure/Misc/Fountain A.png` |
 | Kafe (ve ileride banka) | `Structure/Structures/Paneled House A.png`, `Brick House A.png` |
 | Çit, tabela | `Structure/Fences/Plain Fence A.png`, `Structure/Signs/Sign Backgrounds A.png` |
-| Yel değirmeni (deneme, LPC değil) | `Art/Custom/Windmill/` (kodla çizilir: `tools/pixel-art/windmill.py`). Meydanın kuzeyinde, kule tabanı `(59, 39)` başlayan 3×2 tile engel. Kanatlar 6 kare, `SpriteLoop` döndürür |
+| Yel değirmeni, çeşme, binalar, ağaçlar, süsler (Gemini, 21.11.2026) | `Art/Custom/{Buildings,Plaza,Water,Nature,Props}/`, liste `15-gorsel-stil.md` "Harita seti". Yerleri `MapView.MapArt`, engelleri `LakeMapData.Blocked` ve `content/maps/lake.json`. Değirmen meydanın kuzeyinde `(59, 39)` 3×2, çeşme `(62, 47)` 5×2, banka ve iki ev güneybatı köyünde, atölye kafe yolunun doğusunda, mağara kuzeybatıda, kamp ateşi ormanda |
 | Sonraki fazlar için hazır | `Terrain/cliff_summer.png` (mağara, kayalık), `FX/WaterRipple.png`, `FX/Splash.png` |
 
 ## Görünüm önizlemesi

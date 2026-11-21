@@ -47,7 +47,7 @@ Hierarchy'de `Lake` altında katmanlar var. Tile Palette'te **Active Tilemap** o
 3. Sprite'ın pivot'u **Bottom** (ayak) olmalı: resmi seç > Sprite Editor > pivotu alta al. Çok parçalı sheet'te (ağaçlar, evler) önce `Slice > Automatic`.
 4. Nesnenin bastığı yeri `Blocked` ile kırmızıya boya, yoksa içinden yürünür.
 
-Yel değirmeni (deneme) şimdilik sadece kodla çizilen haritada çıkar (`MapView.BuildWindmill`). Prefab'a geçerken: `Art/Custom/Windmill/windmill_tower.png`'yi `Objects` altına koy (pivot: x 0.5, y 0.13), `Map Object` ekle; altına `windmill_sails.png`'nin 6 karesini bir `Sprite Loop` ile koy; tabanına 3×2 `Blocked` boya.
+Gemini harita görselleri (değirmen, çeşme, banka, evler, ağaçlar, süsler; `tools/pixel-art/harita_assets.py`) şimdilik sadece kodla çizilen haritada çıkar (`MapView.MapArt`, ayak noktası alt orta). Prefab'a geçerken her birini `Objects` altına koy (pivot: x 0.5, y 0), `Map Object` ekle; `LakeMapData.Blocked`'daki satırlarını `Blocked` olarak boya.
 
 Kısa yol: Project'te bir veya birkaç .png seç, `CollectionGame > Map > Slice Selected Textures (32x32)` ile sheet'i tile parçalarına böl.
 
