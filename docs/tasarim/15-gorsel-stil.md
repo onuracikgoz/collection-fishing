@@ -14,7 +14,6 @@ Karar (18.10.2026): oyun **pixel-art**. Sebep: tek geliştirici, tasarımcı yok
 - Harita ve karakterler: LPC. Harita tile'ları **LPC Revised** (github.com/ElizaWy/LPC) paketinden, lisansı **OGA-BY 3.0**: isim verilir, share-alike yok. Eski LPC parçaları (CC-BY-SA / GPL) kullanılırsa değiştirilen çizimler aynı lisansla paylaşılır. Kredi listesi: `content/CREDITS.md`.
 - LPC'de olta animasyonu yok. Geçici çözüm (**Öneri**): atış için LPC `Legacy - Swing` kareleri, bekleme için `Idle`; olta ve misina kodla çizilir (şamandıra gibi). Kalıcısı Faz 7 öncesi çizdirilir: 4 yön × atış / bekleme / çekme.
 - AI eşya ikonlarında ve **binalarda** kullanılır (binalar 16.11.2026'dan beri, aşağıda "Binalar: Gemini ile üretim"). Tile ve zemin geçişlerinde kullanılmaz: tile kenarları birbirine oturmalı.
-- **Deneme (01.11.2026, Onur):** kodla çizilen bina. Yel değirmeni bir script ile (basit 3D şekiller, 3/4 açı, palet tonları) piksel piksel üretilir: `tools/pixel-art/windmill.py` → `client/Assets/Art/Custom/Windmill/`. Oyunda nasıl durduğuna bakılıp kalıp kalmayacağına karar verilecek. Renkler henüz Resurrect 64'e çekilmedi.
 - **Zemin (13.11.2026, Onur):** çimen, toprak ve kar tile'ları kodla çizilir: `tools/pixel-art/ground.py` → `client/Assets/Art/Custom/Ground/` (32 px dikişsiz dokular ×8 çeşit, çimen-toprak / kar-çimen / kar-toprak için 16'şar parçalık köşe tabanlı geçiş). Çimen onaylandı. Kar, kum, su ve taş döşeme de aynı dosyada; her geçişten 3 çeşit, kenarlar çeşitler arasında ortak. Geçişler: çimen-toprak, kar-çimen, kar-toprak, kum-çimen, kum-su, taş-çimen, taş-kum. Henüz haritaya bağlı değil.
 - **Yumuşatma (13.11.2026, Onur):** kodla çizilen parçalar sert, "cetvelle çizilmiş" durmasın diye son adımda `tools/pixel-art/soften.py` uygulanır: seçici kontur (dış hat yüzeyin kendi renginin koyusu), merdiven köşelerinde ara ton, zıt iç sınırlarda ince geçiş. (16.11.2026: kodla çizilen bina ve eşyalar kaldırıldı, yerine Gemini görselleri kullanılıyor.)
 - **Mobilya bakışı (13.11.2026, Onur):** eşyalar "önden-üst" bakışla çizilir: üst yüz açık, ön yüz koyu, aralarında koyu çizgi, etrafında kalın koyu kahve kontur (`#3a2418`), perspektif daralması yok, yüzey başına 2-3 ton. 3/4 perspektifli çizim (daralan arkalık, yan yüzler) 2D/düz durduğu için bırakıldı.
@@ -84,3 +83,15 @@ Binalar ve büyük eşyalar Gemini'de üretilir, `tools/pixel-art/clean_ai.py` i
 - **Temizleme:** `UP=2 python3 clean_ai.py ai-src/<ad>.png ../../client/Assets/Art/Custom/Buildings/<ad>.png 9999 <ızgara>`. Gemini'de ızgara ~4.26 px'tir (her görselde ölçülür). Renkler ortak cozy palete (`cozy_palette.json`) eşlenir, bu varsayılan ve Onur'un tercihi. `PALETTE=own` görselin kendi renklerini korur.
 - **Ölçek:** kapı karakterin yaklaşık 1,5 katı.
 - Kodla çizilen binalar, doğa ve meydan eşyaları ile Perchance çıktıları 16.11.2026'da kaldırıldı (Onur); oyunda sadece Gemini'den gelenler kalır (balıkçı, kafe, teras mobilyası). Zemin ve geçişler kodla üretilmeye devam eder (`ground.py`, cozy palet).
+
+### Harita seti (21.11.2026)
+
+İlk haritanın bütün yapıları ve süsleri aynı Gemini sohbetinde, balıkçı ve kafe referans görsel olarak eklenip üretildi. Kaynaklar `tools/pixel-art/ai-src/harita/*.jpg`, oyuna oturtma tek komut: `python3 tools/pixel-art/harita_assets.py [ad ...]` (ızgarayı `grid_measure.py` ölçer, Gemini'nin indirilen görsellerinde ~5,12 px; hedef boy ve parça adları scriptin başındaki tabloda). Önizleme: `harita_onizleme.py`, `docs/gorsel/harita-assetleri-gemini.png`.
+
+- **Binalar** (`Art/Custom/Buildings/`): değirmen (statik, kanatlar dönmüyor), banka, atölye, `ev_1` (kerpiç-ahşap), `ev_2` (iki katlı), `ev_3` (göl kenarı mavi kulübe). UP=2, değirmen UP=3.
+- **Meydan** (`Plaza/`): çeşme (LPC çeşmenin yerine), pazar panosu, pazar tezgahı (haritada yok, pet tezgahı için hazır), kuyu.
+- **Su** (`Water/`): iskele ve derin su platformu (haritada yok: iskele kuzeye uzanıyor, oyundaki LPC iskele doğuya; platform suya yeni bir yürünür alan ister), plaj (şemsiye, şezlong, havlu, kumdan kale, kova), kıyı (saz, nilüfer, kıyı taşları, uzun çimen, büyük kaya).
+- **Doğa** (`Nature/`): meşe, çam, elma ağacı, çalı, çiçekli çalı, mantar, kütük, devrik kütük, kayalar, mağara girişi.
+- **Süs** (`Props/`): kayık, yön tabelası, sokak lambası, ahşap fener direği, kamp ateşi, kütük oturak, fıçı, sandık, sandık yığını, çuval, saman, el arabası.
+- Küçük parçalar UP=1: bir sanat pikseli bir oyun pikseli (LPC karakterle aynı yoğunluk); UP=2 ile ızgara iki katına çıkıp detay kayboluyordu.
+- Prompt: tek görselde birden çok parça istenirken "each fully surrounded by white space and not touching" denir, script parçaları satır satır soldan sağa adlandırır.

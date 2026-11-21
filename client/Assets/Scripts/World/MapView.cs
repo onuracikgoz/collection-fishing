@@ -18,12 +18,6 @@ namespace CollectionGame.World
 
         const string Terrain = "Terrain/terrain_summer.png";
         const string Bridge = "Structure/Bridges/Wood Bridge A - No Rails.png";
-        const string Fountain = "Structure/Misc/Fountain A.png";
-        // Drawn by tools/pixel-art/windmill.py: tower (shadow included) and a sheet of sail frames.
-        const string WindmillTower = "custom/Windmill/windmill_tower.png";
-        const string WindmillSails = "custom/Windmill/windmill_sails.png";
-        const int WindmillFrames = 6;
-        const float WindmillPivotY = 0.1297f; // base centre of the tower, printed by the script
         const int T = 32;
 
         // Tile positions in terrain_summer.png as (column, row) of 32 px cells, top-left origin.
@@ -141,36 +135,7 @@ namespace CollectionGame.World
                 overlay.SetTile(Coords.Cell(col, row), NewTile(ArtCatalog.Sprite(Bridge, new RectInt(px, py, T, T))));
             }
 
-            BuildFountain();
-            BuildWindmill();
             BuildDecor();
-        }
-
-        void BuildWindmill()
-        {
-            var tex = ArtCatalog.Texture(WindmillTower);
-            var sheet = ArtCatalog.Texture(WindmillSails);
-            if (tex == null || sheet == null) return;
-            var go = new GameObject("Windmill");
-            go.transform.SetParent(transform, false);
-            // Tower base centre on the middle of its blocked tiles (LakeMap.Windmill).
-            var w = LakeMap.Windmill;
-            go.transform.position = Coords.ToUnity(new Vector2(w.x + w.width / 2f, w.y + w.height / 2f));
-            var tower = go.AddComponent<SpriteRenderer>();
-            tower.sprite = ArtCatalog.Sprite(WindmillTower, new RectInt(0, 0, tex.width, tex.height), 0.5f, WindmillPivotY);
-            // Sort by the bottom of the sprite, like MapObject.
-            var feet = -tower.bounds.min.y;
-            tower.sortingOrder = CharacterView.SortingOrderFor(feet);
-
-            var sails = new GameObject("Sails");
-            sails.transform.SetParent(go.transform, false);
-            var sr = sails.AddComponent<SpriteRenderer>();
-            sr.sortingOrder = tower.sortingOrder + 1;
-            var fw = sheet.width / WindmillFrames;
-            var frames = new Sprite[WindmillFrames];
-            for (var i = 0; i < WindmillFrames; i++)
-                frames[i] = ArtCatalog.Sprite(WindmillSails, new RectInt(i * fw, 0, fw, sheet.height), 0.5f, WindmillPivotY);
-            sails.AddComponent<SpriteLoop>().Play(frames, 8f);
         }
 
         // ---------- Map decor: Gemini buildings and the café terrace (docs/tasarim/15-gorsel-stil.md) ----------
@@ -179,7 +144,15 @@ namespace CollectionGame.World
         static readonly Vector2 CafeBase = new Vector2(54.5f, 63f);         // café bottom-centre, south of the plaza
         static readonly Vector2 FishShopBase = new Vector2(70.25f, 42f);   // fishing shop, north-east of the plaza by the lake
         // Tiles kept free of the ground preview's patches.
-        static readonly RectInt[] DecorArea = { new RectInt(44, 56, 21, 17), new RectInt(64, 33, 12, 10) };
+        static readonly RectInt[] DecorArea =
+        {
+            new RectInt(44, 56, 21, 17), new RectInt(64, 33, 12, 10),
+            new RectInt(12, 64, 38, 24), // village: bank, houses, well
+            new RectInt(64, 54, 12, 10), // workshop
+            new RectInt(6, 6, 14, 12),   // cave
+            new RectInt(56, 16, 10, 8),  // market board
+            new RectInt(78, 66, 30, 10), // beach and the lake cottage
+        };
         const string Teras = "custom/Cafe/Teras/";
 
         /// <summary>A chair of content/maps/lake.json `seats` (kafe_1..), drawn here.</summary>
@@ -224,8 +197,47 @@ namespace CollectionGame.World
             Seats.Add(new MapSeat { Id = "kafe_" + (Seats.Count + 1), Feet = feet, Row = row, FramePx = px, ChairOrder = order, ChairInFront = front });
         }
 
+        // Gemini map art (tools/pixel-art/harita_assets.py), feet = bottom-centre in server tiles.
+        // Buildings and other solid pieces have their bottom rows in LakeMapData.Blocked / lake.json.
+        static readonly (string path, float x, float y)[] MapArt =
+        {
+            // Plaza and market
+            ("Buildings/degirmen", 60.5f, 41f), ("Plaza/cesme", 64.5f, 49f), ("Plaza/pano", 60.5f, 22f),
+            ("Props/yon_tabelasi", 55.5f, 48f),
+            ("Props/sokak_lambasi", 56.5f, 43f), ("Props/sokak_lambasi", 56.5f, 56f), ("Props/sokak_lambasi", 73.5f, 56f),
+            ("Props/fener_direk_ahsap", 75.5f, 47f),
+            ("Props/saman", 54f, 40.5f), ("Props/el_arabasi", 52f, 42f),
+            // Village and bank (south-west)
+            ("Buildings/banka", 30.5f, 77f), ("Buildings/ev_1", 19.5f, 77f), ("Buildings/ev_2", 41.5f, 77f),
+            ("Plaza/kuyu", 25.5f, 83f), ("Props/sandik_yigin", 35f, 79.5f), ("Props/cuval", 37f, 79.5f),
+            ("Nature/agac_elma", 13f, 86f), ("Nature/agac_elma", 47f, 86f), ("Nature/cali_cicekli", 21f, 85f),
+            // Workshop by the café road
+            ("Buildings/atolye", 70.5f, 62f), ("Props/fici", 66f, 63.5f), ("Props/sandik", 74.5f, 63.5f),
+            // Lake: cottage, beach, shore plants, boat
+            ("Buildings/ev_3", 102.5f, 73f),
+            ("Water/plaj_semsiye", 82f, 70f), ("Water/sezlong", 84.5f, 70.5f), ("Water/havlu", 87f, 70.5f),
+            ("Water/kumdan_kale", 89.5f, 71f), ("Water/kova", 91f, 71f),
+            ("Water/saz", 75.5f, 32f), ("Water/saz", 75.5f, 38f), ("Water/saz", 116.5f, 45f),
+            ("Water/uzun_cimen", 74.5f, 34f), ("Water/uzun_cimen", 74.8f, 64f),
+            ("Water/nilufer", 82f, 40f), ("Water/nilufer", 100f, 58f), ("Water/nilufer", 108f, 36f),
+            ("Water/kiyi_taslari", 116.5f, 60f), ("Water/kiyi_taslari", 77.5f, 68.5f), ("Water/kaya_buyuk", 118f, 33f),
+            ("Props/kayik", 92f, 52f),
+            // Forest (north), campfire, cave (north-west)
+            ("Nature/agac_mese", 50f, 10f), ("Nature/agac_mese", 58f, 6f), ("Nature/agac_mese", 72f, 12f), ("Nature/agac_mese", 44f, 20f),
+            ("Nature/agac_cam", 54f, 16f), ("Nature/agac_cam", 70f, 6f), ("Nature/agac_cam", 48f, 4f), ("Nature/agac_cam", 76f, 20f),
+            ("Nature/agac_cam", 40f, 10f), ("Nature/agac_cam", 6f, 22f), ("Nature/agac_cam", 20f, 8f), ("Nature/agac_elma", 60f, 14f),
+            ("Nature/cali", 52f, 12f), ("Nature/cali", 68f, 18f), ("Nature/cali", 58f, 30f), ("Nature/cali_cicekli", 62f, 30f),
+            ("Nature/mantar", 16f, 17f), ("Nature/mantar", 51f, 17f), ("Nature/kutuk", 46f, 14f), ("Nature/devrik_kutuk", 74f, 16f),
+            ("Nature/kayalar", 8f, 19f), ("Nature/kayalar", 110f, 72f),
+            ("Props/kamp_atesi", 40f, 24f), ("Props/kutuk_oturak", 37.5f, 24.5f), ("Props/kutuk_oturak", 42.5f, 24.5f),
+            ("Nature/magara", 12.5f, 14f),
+        };
+
         void BuildDecor()
         {
+            foreach (var (path, x, y) in MapArt)
+                PlaceDecor("custom/" + path + ".png", new Vector2(x, y));
+
             // Fishing shop; the crates reach the image bottom, the ground line is ~6 px above it.
             PlaceDecor("custom/Buildings/balikci_gemini.png", FishShopBase, 6f);
 
@@ -342,19 +354,6 @@ namespace CollectionGame.World
             int Bit(byte m) => snow ? (m == VGrass ? 1 : 0) : (m == VDirt ? 1 : 0);
             var i = Bit(nw) * 8 + Bit(ne) * 4 + Bit(sw) * 2 + Bit(se);
             return PreviewTile(snow ? SnowEdge : DirtEdge, variant * 4 + i % 4, i / 4);
-        }
-
-        void BuildFountain()
-        {
-            // 64×96 image, the art fills the top 82 px. Feet of the sprite on the fountain's south edge.
-            var sprite = ArtCatalog.Sprite(Fountain, new RectInt(0, 0, 64, 82), 0.5f, 0f);
-            var go = new GameObject("Fountain");
-            go.transform.SetParent(transform, false);
-            var f = LakeMap.Fountain;
-            go.transform.position = Coords.ToUnity(new Vector2(f.x + f.width / 2f, f.yMax));
-            var sr = go.AddComponent<SpriteRenderer>();
-            sr.sprite = sprite;
-            sr.sortingOrder = CharacterView.SortingOrderFor(f.yMax);
         }
 
         static bool InRoad(int col, int row)
