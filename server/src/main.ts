@@ -47,7 +47,7 @@ import {
   rpcAdminImport,
   rpcAdminLocaleGet,
   rpcAdminLocaleSave,
-  rpcAdminWardrobePartSave,
+  rpcAdminWardrobePartSave, rpcAdminWardrobeMaterialSave, rpcAdminWardrobeMaterialDelete,
   rpcAdminItemDelete,
   rpcAdminItemPurge,
   rpcAdminItemSave,
@@ -172,6 +172,8 @@ function InitModule(
   initializer.registerRpc('admin_locale_get', rpcAdminLocaleGet);
   initializer.registerRpc('admin_locale_save', rpcAdminLocaleSave);
   initializer.registerRpc('admin_wardrobe_part_save', rpcAdminWardrobePartSave);
+  initializer.registerRpc('admin_wardrobe_material_save', rpcAdminWardrobeMaterialSave);
+  initializer.registerRpc('admin_wardrobe_material_delete', rpcAdminWardrobeMaterialDelete);
   initializer.registerRpc('admin_wardrobe_get', rpcAdminWardrobeGet);
   initializer.registerRpc('admin_wardrobe_give', rpcAdminWardrobeGive);
   initializer.registerRpc('admin_wardrobe_take', rpcAdminWardrobeTake);

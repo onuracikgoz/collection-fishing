@@ -1,12 +1,15 @@
 import { readFile } from 'node:fs/promises'
-import { extname, join, normalize, resolve } from 'node:path'
+import { extname, join, normalize, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
 // The dev dashboard (tools/dev-dashboard, plain JS) is served under /dev/ by this same dev server,
 // so one command opens everything: the panel's "Geliştirici" tab shows it in a frame.
-const devDashboard = resolve(fileURLToPath(new URL('.', import.meta.url)), '../dev-dashboard')
+const here = fileURLToPath(new URL('.', import.meta.url))
+const devDashboard = resolve(here, '../dev-dashboard')
+// The Universal LPC sheets the game draws characters with (Items tab, Kozmetik): /lpc/Universal/...
+const lpcArt = resolve(here, '../../client/Assets/Art/LPC')
 const types: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' }
 
 function serveDevDashboard(): Plugin {
@@ -15,10 +18,12 @@ function serveDevDashboard(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? '/', 'http://x')
-        if (!url.pathname.startsWith('/dev/')) return next()
-        const rel = normalize(decodeURIComponent(url.pathname.slice('/dev/'.length))).replace(/^([/\\])+/, '')
-        const file = join(devDashboard, rel === '' || rel === '.' ? 'index.html' : rel)
-        if (!file.startsWith(devDashboard)) {
+        const prefix = url.pathname.startsWith('/dev/') ? '/dev/' : url.pathname.startsWith('/lpc/') ? '/lpc/' : ''
+        if (!prefix) return next()
+        const root = prefix === '/dev/' ? devDashboard : lpcArt
+        const rel = normalize(decodeURIComponent(url.pathname.slice(prefix.length))).replace(/^([/\\])+/, '')
+        const file = join(root, rel === '' || rel === '.' ? 'index.html' : rel)
+        if (!file.startsWith(root + sep) && file !== root) {
           res.statusCode = 403
           res.end()
           return
@@ -26,7 +31,7 @@ function serveDevDashboard(): Plugin {
         try {
           const body = await readFile(file)
           res.setHeader('Content-Type', types[extname(file)] ?? 'application/octet-stream')
-          res.setHeader('Cache-Control', 'no-store')
+          res.setHeader('Cache-Control', prefix === '/lpc/' ? 'max-age=3600' : 'no-store')
           res.end(body)
         } catch {
           res.statusCode = 404
@@ -44,6 +49,6 @@ export default defineConfig({
   server: {
     port: 7370,
     host: '127.0.0.1',
-    fs: { allow: ['.', '../../content', '../../server/src/rules', '../../client/Assets/Resources/Locales'] },
+    fs: { allow: ['.', '../../content', '../../server/src/rules', '../../client/Assets/Resources/Locales', '../../client/Assets/Resources/Wardrobe'] },
   },
 })

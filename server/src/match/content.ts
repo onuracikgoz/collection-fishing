@@ -5,7 +5,7 @@
 import { XP } from '../config';
 import { LAKE_MAP } from '../data/lake-map';
 import { seedContent } from '../data/seed-content';
-import { seedWardrobe } from '../data/wardrobe-catalog';
+import { addSeedCraft, seedWardrobe } from '../data/wardrobe-catalog';
 import { ContentDoc, ContentRuntime, ValidateOptions, compileContent, validateContent } from '../rules/content';
 
 export const SYSTEM_USER = '00000000-0000-0000-0000-000000000000';
@@ -43,6 +43,7 @@ export function readContentDoc(nk: nkruntime.Nakama): { doc: ContentDoc; version
   const doc = objs[0].value as unknown as ContentDoc;
   // Docs stored before the wardrobe existed get the seed catalog; the next publish stores it.
   if (doc.wardrobe === undefined) doc.wardrobe = seedWardrobe();
+  else addSeedCraft(doc.wardrobe);
   return { doc, version: objs[0].version };
 }
 
