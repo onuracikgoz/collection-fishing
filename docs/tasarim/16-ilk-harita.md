@@ -1,6 +1,6 @@
 # İlk Harita: Göl Bölgesi
 
-Durum: **kaba taslak v0.1** (18.10.2026). Konumlar ve boyutlar **(Öneri)**; Onur'la netleştikçe güncellenir.
+Durum: **kaba taslak v0.1** (18.10.2026). **Yerleşim olarak yerini `21-harita-v1.md` aldı (28.11.2026).** Buradaki balık noktası ve havuz kuralları, set dağılımı ve asset tabloları geçerlidir; bölge listesi ve konumlar eskidir.
 
 Görsel: `docs/gorsel/harita-taslak-v0.1.png` (şematik, pixel-art değil). Genel kurallar: `02-harita-sunucu.md`, görsel stil: `15-gorsel-stil.md`.
 

@@ -4,7 +4,7 @@
 
 ### 4.0. Tek Açık Harita
 
-- **Oda yoktur.** Her sunucu tek bir açık haritadır; göller, temalı sohbet mekanları (kafe, plaj, disko, kütüphane vb.) ve izbe köşeler aynı haritadadır (Club Penguin / Sanalika / IMVU havası).
+- **Tek harita, girilebilir mekanlar.** Her sunucu tek bir haritadır; göller, bölgeler ve izbe köşeler aynı haritadadır (Club Penguin / Sanalika / IMVU havası). Kafe, banka, disko gibi mekanların **içine girilir**, her mekanın kendi ortamı vardır (karar 28.11.2026, Onur). İç mekanlar aynı match'te, harita dosyasında ayrı alanlardır (Öneri). Ayrıntı: `21-harita-v1.md`.
 - **Sunucu kapasitesi ~200 oyuncu.** Oyuncu sunucu listesinden doluluğa bakıp seçer: `Sunucu 3 — 142 / 200`.
 - **Her sunucuda aynı harita** vardır, her sunucu haritanın bir kopyasıdır.
 - Sunucuları ayıran harita değil kimliktir: **dil** (Türkçe, İngilizce...), **isim** (ör. "Mercan", "Liman") ve ileride sunucuya özel etkinlikler.
