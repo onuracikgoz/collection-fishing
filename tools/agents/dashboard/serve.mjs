@@ -2,22 +2,30 @@
 // Reads the JSON that the hooks and statusline write under ~/.cg-agents and sends
 // prompts to agents through tmux.
 //   node tools/agents/dashboard/serve.mjs
-//   PORT=7380  HOST=127.0.0.1  CG_DASH_TOKEN=...   (a token is required when HOST is not loopback, e.g. Tailscale)
+//   PORT=7380  HOST=127.0.0.1[,100.x.y.z]  CG_DASH_TOKEN=...
+// HOST can list several addresses (e.g. loopback and the Tailscale IP). Connections that
+// arrive on a non-loopback address must carry the token; the Mac's own browser does not.
 import { createServer } from 'node:http';
 import { execFile } from 'node:child_process';
 import { readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
-import { AGENTS_DIR, TESTS_DIR, readJson } from '../lib/state.mjs';
+import { readFileSync } from 'node:fs';
+import { AGENTS_DIR, HOME, TESTS_DIR, readJson } from '../lib/state.mjs';
+
+function readJsonText(file) {
+  try { return readFileSync(file, 'utf8'); } catch { return ''; }
+}
 
 const run = promisify(execFile);
 const root = fileURLToPath(new URL('.', import.meta.url));
 const port = Number(process.env.PORT || 7380);
-const host = process.env.HOST || '127.0.0.1';
-const token = process.env.CG_DASH_TOKEN || '';
-const loopback = ['127.0.0.1', 'localhost', '::1'].includes(host);
-if (!loopback && !token) {
+const hosts = String(process.env.HOST || '127.0.0.1').split(',').map((h) => h.trim()).filter(Boolean);
+// The token comes from the env or from ~/.cg-agents/dash-token (agents.sh creates it).
+const token = process.env.CG_DASH_TOKEN || String(readJsonText(join(HOME, 'dash-token'))).trim();
+const isLoopback = (a) => ['127.0.0.1', 'localhost', '::1', '::ffff:127.0.0.1'].includes(a);
+if (hosts.some((h) => !isLoopback(h)) && !token) {
   console.error('HOST yerel değil. Dışarıya açmak için CG_DASH_TOKEN=<uzun-rastgele-metin> ver.');
   process.exit(1);
 }
@@ -143,6 +151,9 @@ async function sendPrompt(pane, text) {
   await tmux('send-keys', '-t', pane, 'Enter');
 }
 
+// Aliases Claude Code's /model command accepts.
+const MODELS = ['haiku', 'sonnet', 'opus', 'default'];
+
 const KEYS = { escape: 'Escape', enter: 'Enter', 'ctrl-c': 'C-c', 'shift-tab': 'BTab', up: 'Up', down: 'Down', '1': '1', '2': '2', '3': '3' };
 
 function readBody(req) {
@@ -156,8 +167,8 @@ function readBody(req) {
 function authorized(req, url) {
   // Block other websites (CSRF / DNS rebinding): require our own header and a matching Host.
   const hostHeader = String(req.headers.host || '').replace(/:\d+$/, '');
-  if (loopback && !['127.0.0.1', 'localhost', '[::1]'].includes(hostHeader)) return false;
-  if (token) {
+  if (isLoopback(req.socket.localAddress)) return ['127.0.0.1', 'localhost', '[::1]'].includes(hostHeader);
+  {
     const given = req.headers['x-cg-token'] || url.searchParams.get('token') || (String(req.headers.cookie || '').match(/cgdash=([^;]+)/) || [])[1];
     if (given !== token) return false;
   }
@@ -166,7 +177,7 @@ function authorized(req, url) {
 
 const json = (res, code, body) => res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }).end(JSON.stringify(body));
 
-createServer(async (req, res) => {
+async function handle(req, res) {
   const url = new URL(req.url, 'http://x');
   if (!authorized(req, url)) return json(res, 403, { error: 'forbidden' });
   const cookie = token ? { 'Set-Cookie': `cgdash=${token}; HttpOnly; SameSite=Strict; Path=/` } : {};
@@ -193,6 +204,14 @@ createServer(async (req, res) => {
         await sendPrompt(agent.pane, text);
         return json(res, 200, { ok: true });
       }
+      if (url.pathname === '/api/model') {
+        const agent = await findAgent(body.agent);
+        const model = String(body.model || '');
+        if (!agent) return json(res, 404, { error: 'Ajan bir tmux panelinde çalışmıyor' });
+        if (!MODELS.includes(model)) return json(res, 400, { error: 'Bilinmeyen model' });
+        await sendPrompt(agent.pane, `/model ${model}`);
+        return json(res, 200, { ok: true });
+      }
       if (url.pathname === '/api/key') {
         const agent = await findAgent(body.agent);
         const key = KEYS[body.key];
@@ -211,4 +230,10 @@ createServer(async (req, res) => {
   } catch (e) {
     json(res, 500, { error: String(e.message || e) });
   }
-}).listen(port, host, () => console.log(`Ajan dashboard'u: http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}${token ? '/?token=…' : ''}`));
+}
+
+for (const h of hosts) {
+  const server = createServer(handle);
+  server.on('error', (e) => { console.error(`${h}:${port} açılamadı: ${e.message}`); process.exit(1); });
+  server.listen(port, h, () => console.log(`Ajan dashboard'u: http://${h}:${port}${isLoopback(h) ? '' : '/?token=…'}`));
+}

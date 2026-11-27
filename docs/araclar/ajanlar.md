@@ -47,6 +47,7 @@ Tipik akış:
 Her ajan için: durum (Çalışıyor / Seni bekliyor / Boşta / Kapandı), şu an ne yaptığı (hangi komut, hangi dosya), bağlam doluluğu, bu oturumun, bugünün ve toplam maliyeti, model, branch, son prompt ve son olaylar. Seni bekleyen ajanın kartı kırmızı yanar, sekme başlığında sayısı yazar. Üst barda planın 5 saatlik ve haftalık limiti (Claude Code bu bilgiyi verdiği sürece).
 
 Kartın altından:
+- **Model**: çalışan ajanın modelini değiştirir (aşağıda).
 - **Gönder** (⌘ + Enter): prompt'u ajanın paneline yazar ve gönderir. Çok satırlı olabilir, `/clear` gibi komutlar da çalışır.
 - **Onayla (Enter)**: izin sorusunda seçili seçeneği (genelde "Yes") onaylar. **Durdur (Esc)**: çalışan turu keser ya da izni reddeder.
 - **Ekranı göster**: tmux panelinin son 60 satırını canlı gösterir.
@@ -65,20 +66,35 @@ Veritabanı yok, her şey `~/.cg-agents/` altında JSON:
 | `agents/<ad>/events.jsonl` | Son olaylar (kendini kırpar) |
 | `tests/<id>.json` ve `tests/<id>/` | Test klasörü koşuları ve logları |
 | `tasks/*.md` | Planner'ın görev dosyaları |
+| `dash-token` | Telefondan erişim token'ı |
 | `claude-settings.json` | `agents.sh`'ın ürettiği hook, statusline ve ajan yasakları (`--settings` ile verilir) |
 
 Hook'lar sadece `./cg agents up` ile açılan ajanlarda çalışır. Kendi elle açtığın `claude` oturumları dashboard'a girmez.
 
-### Telefondan ya da başka bilgisayardan (isteğe bağlı)
+### Telefondan
 
-Dashboard prompt gönderebildiği için internete açma. Tailscale kullan: Mac'e ve telefona Tailscale kur, aynı hesapla gir, sonra:
+Dashboard prompt gönderebildiği için internete açılmaz. Telefon, Mac'e Tailscale üzerinden bağlanır (ücretsiz, kendi cihazların arasında özel bir ağ kurar).
+
+Bir kerelik:
+1. Mac'e Tailscale kur (App Store ya da `brew install --cask tailscale`), aç ve giriş yap.
+2. Telefona Tailscale uygulamasını kur, aynı hesapla giriş yap.
+3. İsteğe bağlı: `brew install qrencode` (adresi QR kod olarak basar).
+
+Sonra:
 
 ```bash
-HOST=$(tailscale ip -4) CG_DASH_TOKEN=$(openssl rand -hex 16) node tools/agents/dashboard/serve.mjs
-# telefonda: http://<tailscale-ip>:7380/?token=<o token>   (bir kez açınca çerezle hatırlar)
+./cg agents up      # Tailscale açıksa dashboard Tailscale adresini de dinler
+./cg agents phone   # telefon adresini ve QR kodunu yazar
 ```
 
-`HOST` yerel değilse token zorunlu, yoksa sunucu açılmaz. GitHub Pages bu iş için uygun değil: oradaki sayfa Mac'teki tmux'a ulaşamaz, prompt gönderemez. Verileri sürekli repoya push'lamak da gürültü ve gizlilik sorunu olur.
+Telefonda kamerayla QR'ı okut ya da adresi aç (`http://100.x.y.z:7380/?token=…`). Bir kez açınca token çerezde kalır, ana ekrana ekleyebilirsin. Telefonun Tailscale'i açık olduğu sürece evde de dışarıda da (mobil veride) çalışır; Mac açık ve uyanık olmalı.
+
+Güvenlik: Mac'in kendi tarayıcısı token istemez. Tailscale adresinden gelen her istek token ister; token `~/.cg-agents/dash-token`'da, yenilemek için dosyayı silip `./cg agents phone` çalıştır. GitHub Pages bu iş için uygun değil: oradaki sayfa Mac'teki tmux'a ulaşamaz.
+
+### Model seçme
+
+- Başlangıç modeli: `.claude/agents/<rol>.md` içindeki `model:` ya da `agents.conf`'taki son sütun (`haiku`, `sonnet`, `opus`; `-` dosyadaki varsayılan).
+- Çalışırken: dashboard kartındaki **Model** listesinden seç. Dashboard ajanın paneline `/model <ad>` yazar; ajan o turu bitirmeden değişmez. Pro planında Opus limiti hızlı doldurur, uzun işlerde Sonnet daha güvenli.
 
 ## Ajanlar ve izinler
 
@@ -122,5 +138,7 @@ tools/agents/testbed.sh status
 | `tools/agents/send.sh` | Terminalden prompt: `tools/agents/send.sh dev1 "007'yi yap"` |
 | `tools/agents/hook.mjs`, `statusline.mjs` | Claude Code'dan JSON'a |
 | `tools/agents/dashboard/` | `serve.mjs` (bağımlılıksız Node sunucusu) ve `index.html` |
+
+`./cg agents phone`: telefon adresi ve QR kod.
 
 Ortam değişkenleri: `CG_AGENTS_HOME` (varsayılan `~/.cg-agents`), `CG_WORKTREES`, `CG_TESTBED`, `CG_TMUX_SESSION` (varsayılan `cg`), `PORT` (7380).

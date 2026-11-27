@@ -5,6 +5,7 @@
 #   agents.sh status         which windows are running
 #   agents.sh stop <name>    close one agent (its window)
 #   agents.sh down           close every agent and the dashboard
+#   agents.sh phone          the dashboard address for your phone (Tailscale), with a QR code
 set -e
 . "$(dirname "$0")/env.sh"
 CONF="$AGENTS_TOOLS/agents.conf"
@@ -43,26 +44,48 @@ resolve_dir() {
 
 has_window() { tmux list-windows -t "$TMUX_SESSION" -F '#{window_name}' 2>/dev/null | grep -qx "$1"; }
 
+tailscale_ip() {
+  local ts
+  for ts in tailscale /Applications/Tailscale.app/Contents/MacOS/Tailscale; do
+    if command -v "$ts" >/dev/null 2>&1; then "$ts" ip -4 2>/dev/null | head -1; return; fi
+  done
+}
+
+# Token the phone needs; the Mac's own browser (127.0.0.1) does not.
+dash_token() {
+  local f="$CG_AGENTS_HOME/dash-token"
+  if [ ! -s "$f" ]; then (umask 077; openssl rand -hex 16 > "$f"); fi
+  cat "$f"
+}
+
+start_dashboard() {
+  local hosts="127.0.0.1" ip
+  ip=$(tailscale_ip)
+  if [ -n "$ip" ]; then hosts="127.0.0.1,$ip"; dash_token >/dev/null; fi
+  tmux send-keys -t "$TMUX_SESSION:dashboard" "PORT=$PORT HOST=$hosts node '$AGENTS_TOOLS/dashboard/serve.mjs'" Enter
+}
+
 ensure_session() {
   if ! tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
     tmux new-session -d -s "$TMUX_SESSION" -n dashboard -c "$MAIN_REPO"
-    tmux send-keys -t "$TMUX_SESSION:dashboard" "PORT=$PORT node '$AGENTS_TOOLS/dashboard/serve.mjs'" Enter
+    start_dashboard
   fi
 }
 
 start_agent() {
-  local name="$1" role="$2" where="$3" mode="${4:-default}" dir extra=""
+  local name="$1" role="$2" where="$3" mode="${4:-default}" model="${5:--}" dir extra=""
   if has_window "$name"; then echo "  $name zaten çalışıyor"; return; fi
   dir=$(resolve_dir "$where")
   [ "$role" = "tester" ] && extra="--add-dir '$TESTBED' --add-dir '$CG_AGENTS_HOME/tests'"
+  [ "$model" != "-" ] && extra="$extra --model $model"
   tmux new-window -d -t "$TMUX_SESSION:" -n "$name" -c "$dir"
   tmux send-keys -t "$TMUX_SESSION:$name" \
     "CG_AGENT=$name CG_ROLE=$role claude --agent $role -n $name --permission-mode $mode --settings '$SETTINGS' --add-dir '$CG_AGENTS_HOME/tasks' $extra" Enter
   echo "  $name ($role) → $dir"
 }
 
-each_agent() { # calls "$@" name role dir mode for every line of agents.conf
-  grep -vE '^[[:space:]]*(#|$)' "$CONF" | while read -r name role where mode; do "$@" "$name" "$role" "$where" "$mode"; done
+each_agent() { # calls "$@" name role dir mode model for every line of agents.conf
+  grep -vE '^[[:space:]]*(#|$)' "$CONF" | while read -r name role where mode model; do "$@" "$name" "$role" "$where" "$mode" "${model:--}"; done
 }
 
 case "${1:-}" in
@@ -88,10 +111,26 @@ case "${1:-}" in
     tmux send-keys -t "$TMUX_SESSION:$2" C-c 2>/dev/null; sleep 0.5
     tmux kill-window -t "$TMUX_SESSION:$2"
     ;;
+  phone)
+    ip=$(tailscale_ip)
+    if [ -z "$ip" ]; then
+      echo "Tailscale bulunamadı ya da kapalı. Mac'e ve telefona Tailscale kur, aynı hesapla gir, sonra tekrar dene."
+      exit 1
+    fi
+    url="http://$ip:$PORT/?token=$(dash_token)"
+    # Restart the dashboard so it also listens on the Tailscale address.
+    if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
+      tmux send-keys -t "$TMUX_SESSION:dashboard" C-c; sleep 0.5; start_dashboard
+    else
+      echo "Ajanlar çalışmıyor; önce ./cg agents up"
+    fi
+    echo "Telefonda aç (Tailscale açıkken): $url"
+    if command -v qrencode >/dev/null; then qrencode -t ANSIUTF8 "$url"; else echo "(QR kod için: brew install qrencode)"; fi
+    ;;
   down)
     tmux kill-session -t "$TMUX_SESSION" 2>/dev/null && echo "Kapatıldı." || echo "Zaten kapalı."
     ;;
   *)
-    sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 esac

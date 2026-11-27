@@ -43,6 +43,7 @@
   .kv b { color: var(--text); font-weight: 500; }
   textarea { width: 100%; min-height: 58px; resize: vertical; font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
   .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  select { font: inherit; font-size: 12px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 1px 4px; }
   button { font: inherit; font-size: 13px; border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button:disabled { opacity: .45; cursor: default; }
@@ -111,6 +112,14 @@ function limitsHtml(rl) {
   }).join('');
 }
 
+const MODELS = [['haiku', 'Haiku'], ['sonnet', 'Sonnet'], ['opus', 'Opus']];
+function modelOptions(current) {
+  const cur = String(current || '').toLowerCase();
+  const hit = MODELS.find(([id]) => cur.includes(id));
+  const head = hit ? '' : `<option value="" selected>${esc(current || '–')}</option>`;
+  return head + MODELS.map(([id, label]) => `<option value="${id}" ${hit && hit[0] === id ? 'selected' : ''}>${hit && hit[0] === id ? esc(current) : label}</option>`).join('');
+}
+
 function card(a) {
   const ctx = a.context || {};
   const ctxText = ctx.usedPct == null ? '–' : `${Math.round(ctx.usedPct)}%`;
@@ -126,7 +135,7 @@ function card(a) {
       <div class="stat"><span>Bu oturum</span><b>${usd(a.cost?.session)}</b><span>${a.cost?.linesAdded != null ? `+${a.cost.linesAdded} / −${a.cost.linesRemoved ?? 0} satır` : ''}</span></div>
       <div class="stat"><span>Bugün / toplam</span><b>${usd(a.cost?.today)}</b><span>${usd(a.cost?.total)} · ${a.cost?.sessions || 0} oturum</span></div>
     </div>
-    <div class="kv">Model <b>${esc(a.model || '–')}</b> · Branch <b>${esc(a.branch || '–')}</b>${a.paneTarget ? ` · tmux <b>${esc(a.paneTarget)}</b>` : ''}</div>
+    <div class="kv">Model <select data-act="model" ${a.canSend ? '' : 'disabled'} title="Çalışan ajanın modelini değiştirir (/model)">${modelOptions(a.model)}</select> · Branch <b>${esc(a.branch || '–')}</b>${a.paneTarget ? ` · tmux <b>${esc(a.paneTarget)}</b>` : ''}</div>
     ${a.lastPrompt ? `<div class="kv">Son prompt (${ago(a.lastPromptAt)}): <b>${esc(a.lastPrompt)}</b></div>` : ''}
     <textarea placeholder="${a.canSend ? 'Prompt yaz, ⌘/Ctrl + Enter ile gönder' : 'Bu ajan bir tmux panelinde çalışmıyor'}" ${a.canSend ? '' : 'disabled'}>${esc(drafts[a.name] || '')}</textarea>
     <div class="row">
@@ -158,7 +167,7 @@ let busy = false;
 async function refresh() {
   if (busy) return;
   // Do not re-render while the user is typing in a box.
-  if (document.activeElement?.tagName === 'TEXTAREA') return;
+  if (['TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
   busy = true;
   try {
     const s = await api('/api/state');
@@ -205,6 +214,13 @@ document.addEventListener('toggle', (e) => {
   const c = e.target.closest?.('.card'); if (!c || e.target.tagName !== 'DETAILS') return;
   e.target.open ? openEvents.add(c.dataset.agent) : openEvents.delete(c.dataset.agent);
 }, true);
+document.addEventListener('change', async (e) => {
+  const sel = e.target.closest('select[data-act=model]'); if (!sel || !sel.value) return;
+  const c = sel.closest('.card'); const err = $('.err', c);
+  try { await api('/api/model', { agent: c.dataset.agent, model: sel.value }); err.textContent = `/model ${sel.value} gönderildi`; }
+  catch (ex) { err.textContent = ex.message; }
+  sel.blur(); setTimeout(refresh, 1500);
+});
 document.addEventListener('click', async (e) => {
   const btn = e.target.closest('button[data-act]'); if (!btn) return;
   const c = btn.closest('.card'); const name = c.dataset.agent; const err = $('.err', c);
