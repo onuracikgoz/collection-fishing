@@ -1,0 +1,27 @@
+{
+  "project": "collection-fishing",
+  "baseBranch": "main",
+  "testCommand": "cd server && npm ci && npm test && npm run typecheck",
+  "agents": [
+    {
+      "name": "planner",
+      "agent": "planner",
+      "dir": "main"
+    },
+    {
+      "name": "dev1",
+      "agent": "developer",
+      "dir": "worktree",
+      "permissionMode": "acceptEdits"
+    },
+    {
+      "name": "tester",
+      "agent": "tester",
+      "dir": "worktree",
+      "model": "haiku"
+    }
+  ],
+  "allow": [],
+  "deny": [],
+  "stage": "build"
+}
