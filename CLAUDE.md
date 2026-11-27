@@ -17,6 +17,7 @@ Sosyal balık tutma ve koleksiyon oyunu. Unity 6 client, Nakama (TypeScript) sun
 | Harita editörü (Unity Tilemap, çarpışma dışa aktarma) | `docs/araclar/harita-editoru.md` |
 | UI pencerelerini Unity'de uygulama | `docs/araclar/ui-uygulama.md` |
 | Dil desteği (anahtarlar, dil dosyaları, çeviri akışı) | `docs/araclar/dil-destegi.md` |
+| Yerel ajanlar (planner, developer, tester), ajan dashboard'u, test klasörü | `docs/araclar/ajanlar.md` |
 
 Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `docs/acik-sorular.md`'ye ekle ve Onur'a sor.
 
@@ -31,7 +32,7 @@ Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `d
 
 ## Çalışma düzeni
 
-- Agent rolleri: server, client, tools, test/review. Her oturum tek role odaklanır.
+- Agent rolleri: server, client, tools, test/review. Her oturum tek role odaklanır. Yerel çoklu ajan kurulumu (planner, developer, tester; `.claude/agents/`): `docs/araclar/ajanlar.md`.
 - **Sözleşme önce:** client ile sunucu arasında yeni bir mesaj gerekiyorsa önce ilgili `docs/protokol/<konu>.md` ve `docs/protokol.md`'deki op code dizini güncellenir, sonra iki taraf yazılır.
 - Server kuralları `server/src/rules/` altında saf fonksiyon ve birim testli olur (`npm test`).
 - Her iş bir branch ve PR ile gelir. Faz sonu PR'ını test/review agent inceler.
@@ -40,7 +41,7 @@ Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `d
 
 ## Komutlar
 
-Kısa yollar: `./cg admin`, `./cg nakama` (restart), `./cg web-build`, `./cg web`, `./cg dashboard` (ayrıntı: `./cg`).
+Kısa yollar: `./cg admin`, `./cg nakama` (restart), `./cg web-build`, `./cg web`, `./cg dashboard`, `./cg agents up`, `./cg testbed run <branch>` (ayrıntı: `./cg`).
 
 ```bash
 docker compose up -d          # sunucuyu derler, Nakama + Postgres'i açar (konsol: http://localhost:7351)
