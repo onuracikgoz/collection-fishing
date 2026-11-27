@@ -8,11 +8,17 @@
 #        kind: server (npm test) | edit (Unity EditMode) | play (Unity PlayMode) | all (server + edit, default)
 #   testbed.sh status                      what is running, last results
 #
-# Results: ~/.cg-agents/tests/<id>.json (the dashboard shows them), logs next to them.
+# Results: ~/.agent-miner/projects/collection-fishing/tests/<id>.json (the agent-miner
+# dashboard shows them), logs next to them.
 # Exit code: 0 passed, 1 failed, 2 error, 3 busy.
 set -u
-. "$(dirname "$0")/env.sh"
-LOCK="$CG_AGENTS_HOME/testbed.lock"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+# The main checkout, even when this copy lives in a worktree.
+MAIN_REPO="$(cd "$(git -C "$REPO" rev-parse --path-format=absolute --git-common-dir)/.." && pwd)"
+TESTBED="${CG_TESTBED:-$(dirname "$MAIN_REPO")/$(basename "$MAIN_REPO")-testbed}"
+RESULTS="${AGENT_MINER_HOME:-$HOME/.agent-miner}/projects/collection-fishing/tests"
+mkdir -p "$RESULTS"
+LOCK="$RESULTS/../testbed.lock"
 
 unity_bin() {
   if [ -n "${UNITY:-}" ]; then echo "$UNITY"; return; fi
@@ -130,7 +136,7 @@ run() {
 
   START=$(date +%s)
   ID="$(date +%Y%m%d-%H%M%S)-$(printf '%s' "$BRANCH" | tr -c 'A-Za-z0-9_-' '-' | cut -c1-40)"
-  LOGDIR="$CG_AGENTS_HOME/tests/$ID"; RESULT="$CG_AGENTS_HOME/tests/$ID.json"
+  LOGDIR="$RESULTS/$ID"; RESULT="$RESULTS/$ID.json"
   mkdir -p "$LOGDIR"
   TOTAL=""; PASSED=""; FAILED=""
   write_result running
@@ -162,7 +168,7 @@ case "${1:-}" in
   run) shift; run "$@" ;;
   status)
     if [ -d "$LOCK" ]; then echo "Çalışıyor: $(cat "$LOCK/what" 2>/dev/null)"; else echo "Boşta"; fi
-    ls -t "$CG_AGENTS_HOME/tests/"*.json 2>/dev/null | head -5 | while read -r f; do
+    ls -t "$RESULTS/"*.json 2>/dev/null | head -5 | while read -r f; do
       node -e 'const t=require(process.argv[1]); console.log(`${t.startedAt}  ${t.branch}  ${t.kind}  ${t.status}  ${t.passed ?? "-"}/${t.total ?? "-"}`)' "$f"
     done
     ;;

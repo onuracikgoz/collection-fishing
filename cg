@@ -5,8 +5,7 @@
 #   ./cg web-build    WebGL build into client/Builds/Web (Unity must be closed)
 #   ./cg web          serve the web build (http://localhost:8080)
 #   ./cg dashboard    developer dashboard (http://127.0.0.1:7360)
-#   ./cg agents up    planner / developer / tester agents in tmux + agent dashboard (attach, status, stop, down, phone)
-#   ./cg agents-dash  only the agent dashboard (http://127.0.0.1:7380)
+#   ./cg agents up    planner / developer / tester agents + dashboard via agent-miner (attach, down, phone, board …)
 #   ./cg testbed      the shared Unity test folder (setup, run <branch>, status)
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -51,17 +50,14 @@ case "$1" in
     ;;
   agents)
     shift
-    exec bash tools/agents/agents.sh "$@"
-    ;;
-  agents-dash)
-    (sleep 1 && open http://127.0.0.1:7380) &
-    node tools/agents/dashboard/serve.mjs
+    command -v agent-miner >/dev/null || { echo "agent-miner yok. Kurulum: docs/araclar/ajanlar.md"; exit 1; }
+    exec agent-miner "$@"
     ;;
   testbed)
     shift
     exec bash tools/agents/testbed.sh "$@"
     ;;
   *)
-    sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
+    sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'
     ;;
 esac

@@ -1,0 +1,17 @@
+{
+  "project": "collection-fishing",
+  "baseBranch": "main",
+  "testCommand": "tools/agents/testbed.sh run {branch} all --wait",
+  "agents": [
+    { "name": "planner", "agent": "planner", "dir": "main" },
+    { "name": "dev1", "agent": "developer", "dir": "worktree", "permissionMode": "acceptEdits" },
+    { "name": "tester", "agent": "tester", "dir": "main", "addDirs": ["../collection-fishing-testbed", "~/.agent-miner/projects/collection-fishing/tests"] }
+  ],
+  "allow": [],
+  "deny": [
+    "Bash(*Unity.app*)",
+    "Bash(*/Unity -batchmode*)",
+    "Edit(./client/Library/**)",
+    "Edit(./client/ProjectSettings/**)"
+  ]
+}

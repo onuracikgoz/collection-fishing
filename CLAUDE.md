@@ -17,7 +17,7 @@ Sosyal balık tutma ve koleksiyon oyunu. Unity 6 client, Nakama (TypeScript) sun
 | Harita editörü (Unity Tilemap, çarpışma dışa aktarma) | `docs/araclar/harita-editoru.md` |
 | UI pencerelerini Unity'de uygulama | `docs/araclar/ui-uygulama.md` |
 | Dil desteği (anahtarlar, dil dosyaları, çeviri akışı) | `docs/araclar/dil-destegi.md` |
-| Yerel ajanlar (planner, developer, tester), ajan dashboard'u, test klasörü | `docs/araclar/ajanlar.md` |
+| Yerel ajanlar (planner, developer, tester; agent-miner), test klasörü | `docs/araclar/ajanlar.md` |
 
 Sadece işinle ilgili tasarım dosyasını oku. Bir kural belirsizse uydurma, `docs/acik-sorular.md`'ye ekle ve Onur'a sor.
 
