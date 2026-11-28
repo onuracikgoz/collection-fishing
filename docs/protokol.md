@@ -17,7 +17,7 @@ Protokol konulara bölündü (17.11.2026): sadece işinle ilgili dosyayı oku. Y
 | Dosya | İçinde | Bölümler |
 |---|---|---|
 | `docs/protokol/temel.md` | Giriş, RPC listesi, hız sınırları, hata kodları | Giriş; RPC'ler; Hata kodları; Geliştirici RPC'leri (sadece yerel) |
-| `docs/protokol/dunya.md` | Harita: hareket, chat, oturma, duyurular, harita dosyası | Match (harita) mesajları; Oturma (16.11.2026, Onur); Duyurular (nadir av); Harita dosyası |
+| `docs/protokol/dunya.md` | Harita: hareket, chat, oturma, kapılar ve iç mekanlar, duyurular, harita dosyası | Match (harita) mesajları; Oturma (16.11.2026, Onur); Kapılar ve iç mekanlar (28.11.2026); Duyurular (nadir av); Harita dosyası |
 | `docs/protokol/balik.md` | Balık tutma, olta ve özel yem | Balık tutma (Faz 2); Olta ve özel yem (Faz 4) |
 | `docs/protokol/sosyal.md` | Defter, arkadaşlar, ışınlanma, emote, fısıltı, XP | Collection Book (Faz 3); Arkadaşlar, ışınlanma, emote (Faz 3); Fısıltı (Faz 5); XP ve level |
 | `docs/protokol/takas-pazar.md` | Takas, takas kayıtları, eşya kilidi, eşya atma, pazar ve pano | Takas (Faz 5); Takas kayıtları; Eşya kilidi; Eşya atma (31.10.2026, Onur); Pazar (Faz 5, pet tezgahı) |
@@ -101,5 +101,8 @@ Kodda "docs/protokol.md, <bölüm>" diye geçen bir atıf, yukarıdaki tabloda o
 | 68 | S → C | `SEAT_SHOW` | `dunya.md` |
 | 69 | C → S | `LOOK_SET` | `gardirop.md` |
 | 70 | S → C | `LOOK_SHOW` | `gardirop.md` |
+| 71 | C → S | `ENTER_DOOR` | `dunya.md` |
+| 72 | C → S | `EXIT_DOOR` | `dunya.md` |
+| 73 | S → C | `DOOR_RESULT` | `dunya.md` |
 
 Nakama bildirim kodları ve hata kodları: `docs/protokol/temel.md`, Hata kodları.

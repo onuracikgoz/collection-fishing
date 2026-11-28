@@ -69,8 +69,8 @@ Hedef Club Penguin ve Sanalika gibi, oyuncuların balık tutmasa da vakit geçir
 - **Kapı.** Harita dosyasında her kapının dışarıdaki noktası ve içerideki karşılığı tanımlıdır. Oyuncu kapıya yürüyüp girme niyeti gönderir; sunucu kapıya uzaklığını (≤ 1.5 tile, Öneri) ve kapasiteyi kontrol eder, oyuncuyu içeriye taşır ve yakınındakilere bildirir. Çıkış da aynı şekilde çalışır.
 - **Sohbet.** İç mekanda yakınlık yarıçapı mekanın tamamını kaplar (küçük mekanlarda herkes herkesi duyar).
 - **Ortam.** Işık rengi, müzik ve zemin client tarafındadır, mekan kimliğinden seçilir. Sunucu sadece oyuncunun hangi mekanda olduğunu bilir.
-- **Arkadaşın yanına ışınlanma:** Arkadaş bir mekandaysa ışınlanma mekanın kapısının önüne indirir, içeri girmek oyuncunun kararıdır (Öneri).
-- Bunlar için yeni mesajlar gerekir. **Sözleşme önce:** önce `docs/protokol/dunya.md` ve `docs/protokol.md` op code dizini yazılır, sonra sunucu ve client.
+- **Arkadaşın yanına ışınlanma:** Arkadaş bir mekandaysa ışınlanma mekanın kapısının önüne indirir, içeri girmek oyuncunun kararıdır (Öneri). Zaten aynı mekandaysan arkadaşın yanına gidersin (Öneri).
+- Mesajlar ve harita dosyası alanları: `docs/protokol/dunya.md`, "Kapılar ve iç mekanlar" ve "Harita dosyası". Sunucu ve client buna göre yazılır.
 
 ## Sıra
 

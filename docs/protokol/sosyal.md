@@ -28,7 +28,7 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 | Op | Yön | Ad | Gövde |
 |---|---|---|---|
 | 18 | C → S | `GOTO_FRIEND` | `{ userId }` ("Yanına git", arkadaş aynı sunucudaysa) |
-| 19 | S → C | `TELEPORT` | `{ x, y, reason? }` (sadece ışınlanan oyuncu; `reason` varsa ışınlanma olmadı, `x, y` mevcut yer) |
+| 19 | S → C | `TELEPORT` | `{ x, y, reason?, doorId? }` (sadece ışınlanan oyuncu; `reason` varsa ışınlanma olmadı, `x, y` mevcut yer; `doorId` arkadaş bir mekanda olduğu için o kapının önüne inildi) |
 | 64 | C → S | `GOTO_SPAWN` | `{}` ("Başlangıca dön" butonu) |
 | 20 | C → S | `EMOTE` | `{ emote }` |
 | 21 | S → C | `EMOTE_SHOW` | `{ id, emote, defId? }` (oyuncunun kendisi ve onu görenler) |
@@ -38,6 +38,7 @@ Kurallar: `docs/tasarim/10-sosyal.md` 13.2.
 - **Arkadaşlık:** istek gönderme, kabul, silme ve engelleme Nakama'nın kendi arkadaş API'siyle yapılır (`addFriends`, `listFriends`, `deleteFriends`, `blockFriends`). İki taraf da eklediğinde arkadaşlık karşılıklı olur (Nakama durum 0). Sunucunun saydığı arkadaş sadece karşılıklı olandır.
 - **friends_status:** her arkadaş için çevrimiçi mi, hangi sunucuda (`serverName`, `matchId`) ve haritada nerede (`x, y`).
 - **Yanına git:** arkadaş aynı sunucudaysa `GOTO_FRIEND`; sunucu arkadaşın yanındaki boş bir tile'a koyar, balık tutuyorsa olta toplanır (`FISH_END cancelled`), client karakteri `TELEPORT` konumuna atar. Arkadaş başka sunucudaysa client o sunucunun maçına katılım metadata'sında `near: userId` ile girer, `WELCOME` arkadaşın yanındaki yeri verir. `reason`: `NOT_FRIEND`, `NOT_HERE` (arkadaş bu sunucuda değil), `NO_SPOT`, `RATE_LIMITED` (3 sn'de bir, Öneri).
+- **Arkadaş bir mekandaysa** (`dunya.md`, Kapılar ve iç mekanlar): ışınlanma içeri sokmaz. Sunucu oyuncuyu o mekanın ana kapısının (dosyadaki ilk kapı) `outside` noktasına koyar ve `TELEPORT { x, y, doorId }` döner; client "arkadaşın içeride" diyebilir. Girmek oyuncunun kararıdır (`ENTER_DOOR`, kapasite orada kontrol edilir; mekan doluysa da ışınlanma olur). Oyuncu arkadaşla **aynı mekandaysa** her zamanki gibi arkadaşın yanındaki boş tile'a gider (Öneri). Başka sunucudan `near` ile katılımda da aynı: arkadaş mekandaysa `WELCOME` ana kapının önünü verir (`doorId` gelmez). Mevcut `reason`'lar ve bekleme değişmez.
 - **Başlangıca dön:** `GOTO_SPAWN`; sunucu haritanın `spawn` noktasını ortalayan 10x10 tile'lık alandan (Öneri, `SPAWN_TELEPORT.areaTiles`) rastgele yürünür bir tile seçer ve oyuncuyu oraya koyar (tile ortası). Balık tutuyorsa olta toplanır (`FISH_END cancelled`), cevap `TELEPORT`. Client yer seçmez. `reason`: `NO_SPOT` (alanda yürünür tile yok), `RATE_LIMITED` (30 sn'de bir, Öneri; "Yanına git" ile ortak 3 sn kuralı da geçerli), `BUSY` (takastayken).
 - **Emote (hareket):** `wave`, `clap`, `dance`, `cheer`, `sit`, `laugh`, `show_fish`. Kısa animasyondur, bitince kaybolur. `show_fish` son yakalanan eşyayı havaya kaldırır (`defId`); hiç av yoksa yok sayılır. Oyuncu başına 2 sn'de bir (Öneri). Listede olmayan emote yok sayılır (flört emote'u yok, 13+).
 - **Durum emote'u** (`10-sosyal.md` 13.2.2): oyuncunun üstünde **kalıcı** balon. Aynı anda bir tane.
