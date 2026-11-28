@@ -59,6 +59,31 @@ Kısa yol: Project'te bir veya birkaç .png seç, `CollectionGame > Map > Slice 
 4. Play. Prefab'ı boyayıp Export etmezsen Console'da "markers changed after the last export" uyarısı çıkar, yürürken sunucu seni geri çeker.
 5. Commit: `Lake.prefab`, `Assets/Map/`, `LakeMapData.cs`, `server/src/data/lake-map.ts` ve `.meta` dosyaları.
 
+## Harita önizlemesi (Unity'siz PNG)
+
+Haritayı Unity açmadan görmek için. Harita değiştiren her PR'da önizlemeye bakılır.
+
+```bash
+pip3 install -r tools/mapgen/requirements.txt   # bir kez (Pillow)
+python3 tools/mapgen/preview.py out.png         # content/maps/lake.json -> out.png
+python3 tools/mapgen/test_preview.py            # aracın testi
+```
+
+| Seçenek | Ne yapar |
+|---|---|
+| `--map <dosya>` | Başka bir harita dosyası çizer (varsayılan `content/maps/lake.json`) |
+| `--scale <n>` | Tile başına piksel (varsayılan 12) |
+| `--regions <dosya>` | Bölge etiketleri (varsayılan `tools/mapgen/regions.json`) |
+| `--no-code` | Sadece harita dosyasını çizer; C#'tan okunan yol, iskele ve parçaları atlar |
+
+Neyin nereden geldiği:
+
+- **`lake.json`:** su, engel, spawn, noktalar, oturma yerleri ve isimli su çerçeveleri.
+- **`MapView.cs` (regex ile okunur):** yollar ve meydan (`Plaza`, `Roads`), yerleşik parçalar (`MapArt`, ayrıca `CafeBase` ve `FishShopBase`). İskele `LakeMap.cs` `Pier`'den gelir. Parçanın çerçevesi görselinin boyutudur (alt orta = ayak noktası, 32 px = 1 tile), engel değildir. Kafe terasının masa ve bankları çizilmez; sandalyeler oturma noktası olarak görünür.
+- **`regions.json`:** bölge adları (harita dosyasında bölge alanı yok). Dosyadaki `id`, `width`, `height` haritayla uyuşmazsa etiketler uyarıyla atlanır; haritayı değiştirince burayı da güncelle.
+
+C# kaynakları haritayla uyuşmuyorsa (ör. harita dosyası yeni yerleşime geçmiş, `MapView.cs` henüz eskiyse) `--no-code` kullan.
+
 ## Haritayı değiştirince güncellenecekler
 
 Bu yerler eski test haritasının koordinatlarına bağlı. İskeleyi, Banka'yı ya da göl kıyısını taşırsan elle güncelle:
@@ -68,3 +93,4 @@ Bu yerler eski test haritasının koordinatlarına bağlı. İskeleyi, Banka'yı
 - `server/scripts/smoke-test.mjs` (iskeleye yürüme `74.5, 47.5 → 85.4, 47.5`, atış `88.5, 47.5`).
 - `client/Assets/Scripts/Dev/Autopilot.cs` (iskele ucu).
 - `docs/tasarim/16-ilk-harita.md`.
+- `tools/mapgen/regions.json` (önizlemedeki bölge adları).
